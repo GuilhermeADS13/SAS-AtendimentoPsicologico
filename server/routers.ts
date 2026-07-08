@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { getDb } from "./db";
-import { patients, appointments, sessions, documents, therapists } from "../drizzle/schema";
+import { patients, appointments, sessions, documents, therapists, sessionNotes } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 
 export const appRouter = router({
@@ -172,6 +172,97 @@ export const appRouter = router({
           nextSteps: input.nextSteps,
           mood: input.mood,
         });
+      }),
+  }),
+
+  sessionNotes: router({
+    save: publicProcedure
+      .input(z.object({
+        sessionId: z.number().optional(),
+        appointmentId: z.number(),
+        patientId: z.number(),
+        therapistId: z.number(),
+        notes: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        try {
+          // Check if note exists
+          const existing = await db
+            .select()
+            .from(sessionNotes)
+            .where(
+              and(
+                eq(sessionNotes.appointmentId, input.appointmentId),
+                eq(sessionNotes.patientId, input.patientId)
+              )
+            )
+            .limit(1);
+
+          if (existing.length > 0) {
+            // Update existing
+            await db
+              .update(sessionNotes)
+              .set({ notes: input.notes })
+              .where(eq(sessionNotes.id, existing[0].id));
+            return { success: true, id: existing[0].id, action: "updated" };
+          } else {
+            // Insert new
+            const result = await db.insert(sessionNotes).values({
+              sessionId: input.sessionId || 0,
+              appointmentId: input.appointmentId,
+              patientId: input.patientId,
+              therapistId: input.therapistId,
+              notes: input.notes,
+            });
+            return { success: true, id: 0, action: "created" };
+          }
+        } catch (error) {
+          console.error("Error saving session notes:", error);
+          throw error;
+        }
+      }),
+
+    getByAppointment: publicProcedure
+      .input(z.object({
+        appointmentId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        try {
+          const notes = await db
+            .select()
+            .from(sessionNotes)
+            .where(eq(sessionNotes.appointmentId, input.appointmentId));
+          return notes;
+        } catch (error) {
+          console.error("Error fetching session notes:", error);
+          throw error;
+        }
+      }),
+
+    getByPatient: publicProcedure
+      .input(z.object({
+        patientId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        try {
+          const notes = await db
+            .select()
+            .from(sessionNotes)
+            .where(eq(sessionNotes.patientId, input.patientId));
+          return notes;
+        } catch (error) {
+          console.error("Error fetching patient notes:", error);
+          throw error;
+        }
       }),
   }),
 });

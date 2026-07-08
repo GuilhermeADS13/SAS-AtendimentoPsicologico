@@ -148,6 +148,23 @@ export type InsertNotification = typeof notifications.$inferInsert;
 
 /**
  * Tabela de videochamadas
+*/
+export const sessionNotes = mysqlTable("sessionNotes", {
+  id: int("id").autoincrement().primaryKey(),
+  sessionId: int("sessionId").notNull(),
+  appointmentId: int("appointmentId").notNull(),
+  patientId: int("patientId").notNull(),
+  therapistId: int("therapistId").notNull(),
+  notes: longtext("notes").notNull(),
+  savedAt: datetime("savedAt").default(new Date()).notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SessionNote = typeof sessionNotes.$inferSelect;
+export type InsertSessionNote = typeof sessionNotes.$inferInsert;
+
+/**
+ * Tabela de videochamadas
  */
 export const videoCalls = mysqlTable("videoCalls", {
   id: int("id").autoincrement().primaryKey(),

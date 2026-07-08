@@ -2,20 +2,15 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Clock, CheckCircle } from "lucide-react";
-
-interface WaitingRoomProps {
-  appointmentId: string;
-  patientName: string;
-  therapistName: string;
-  scheduledTime: string;
-}
+import { Loader2, Clock, CheckCircle, Bell } from "lucide-react";
+import { toast } from "sonner";
 
 export default function WaitingRoom() {
   const [, setLocation] = useLocation();
   const [isWaiting, setIsWaiting] = useState(true);
   const [waitTime, setWaitTime] = useState(0);
   const [therapistReady, setTherapistReady] = useState(false);
+  const [notificationShown, setNotificationShown] = useState(false);
 
   // Simular verificação de status da psicóloga
   useEffect(() => {
@@ -29,6 +24,59 @@ export default function WaitingRoom() {
 
     return () => clearInterval(timer);
   }, [waitTime]);
+
+  // Mostrar notificação quando psicóloga entra
+  useEffect(() => {
+    if (therapistReady && !notificationShown) {
+      setNotificationShown(true);
+      
+      // Reproduzir som de notificação
+      playNotificationSound();
+      
+      // Mostrar toast
+      toast.success("🎉 Psicóloga entrou na chamada! Você pode entrar agora.", {
+        duration: 5000,
+        position: "top-center",
+      });
+    }
+  }, [therapistReady, notificationShown]);
+
+  const playNotificationSound = () => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      // Criar som de notificação: dois beeps
+      oscillator.frequency.value = 800;
+      oscillator.type = "sine";
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.3);
+      
+      // Segundo beep
+      setTimeout(() => {
+        const osc2 = audioContext.createOscillator();
+        const gain2 = audioContext.createGain();
+        osc2.connect(gain2);
+        gain2.connect(audioContext.destination);
+        osc2.frequency.value = 900;
+        osc2.type = "sine";
+        gain2.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+        osc2.start(audioContext.currentTime);
+        osc2.stop(audioContext.currentTime + 0.3);
+      }, 300);
+    } catch (error) {
+      console.log("Notificação sonora não disponível");
+    }
+  };
 
   const handleEnterCall = () => {
     // Redirecionar para videochamada
@@ -58,8 +106,12 @@ export default function WaitingRoom() {
           {/* Status Animation */}
           <div className="flex justify-center">
             {therapistReady ? (
-              <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center animate-pulse">
-                <CheckCircle className="w-12 h-12 text-green-600" />
+              <div className="relative w-24 h-24">
+                <div className="absolute inset-0 rounded-full bg-green-100 animate-pulse" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <CheckCircle className="w-12 h-12 text-green-600 animate-bounce" />
+                </div>
+                <Bell className="absolute -top-2 -right-2 w-6 h-6 text-green-600 animate-bounce" style={{ animationDelay: "0.2s" }} />
               </div>
             ) : (
               <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center">
@@ -86,7 +138,9 @@ export default function WaitingRoom() {
               <p className="text-sm text-muted-foreground mb-1">Status</p>
               <p className="text-lg font-semibold text-foreground">
                 {therapistReady ? (
-                  <span className="text-green-600">✓ Psicóloga Pronta</span>
+                  <span className="text-green-600 flex items-center justify-center gap-2">
+                    <CheckCircle className="w-4 h-4" /> Psicóloga Pronta
+                  </span>
                 ) : (
                   <span className="text-amber-600">⏳ Aguardando...</span>
                 )}
@@ -95,11 +149,11 @@ export default function WaitingRoom() {
           </div>
 
           {/* Tips */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
-            <p className="text-sm font-semibold text-blue-900 mb-2">
+          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-left">
+            <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
               💡 Dicas:
             </p>
-            <ul className="text-sm text-blue-800 space-y-1">
+            <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
               <li>✓ Verifique sua câmera e microfone</li>
               <li>✓ Teste sua conexão de internet</li>
               <li>✓ Procure um local tranquilo</li>
