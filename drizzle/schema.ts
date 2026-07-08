@@ -156,7 +156,7 @@ export const sessionNotes = mysqlTable("sessionNotes", {
   patientId: int("patientId").notNull(),
   therapistId: int("therapistId").notNull(),
   notes: longtext("notes").notNull(),
-  savedAt: datetime("savedAt").default(new Date()).notNull(),
+  savedAt: timestamp("savedAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 

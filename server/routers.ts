@@ -111,7 +111,16 @@ export const appRouter = router({
           .limit(1);
         
         if (!therapist.length) throw new Error("Therapist not found");
-        
+
+        // Ensure the patient belongs to this therapist before scheduling.
+        const patient = await db
+          .select()
+          .from(patients)
+          .where(and(eq(patients.id, input.patientId), eq(patients.therapistId, therapist[0].id)))
+          .limit(1);
+
+        if (!patient.length) throw new Error("Patient not found for this therapist");
+
         return db.insert(appointments).values({
           therapistId: therapist[0].id,
           patientId: input.patientId,
@@ -161,7 +170,16 @@ export const appRouter = router({
           .limit(1);
         
         if (!therapist.length) throw new Error("Therapist not found");
-        
+
+        // Ensure the patient belongs to this therapist before recording a session.
+        const patient = await db
+          .select()
+          .from(patients)
+          .where(and(eq(patients.id, input.patientId), eq(patients.therapistId, therapist[0].id)))
+          .limit(1);
+
+        if (!patient.length) throw new Error("Patient not found for this therapist");
+
         return db.insert(sessions).values({
           appointmentId: input.appointmentId,
           patientId: input.patientId,
@@ -176,17 +194,35 @@ export const appRouter = router({
   }),
 
   sessionNotes: router({
-    save: publicProcedure
+    save: protectedProcedure
       .input(z.object({
         sessionId: z.number().optional(),
         appointmentId: z.number(),
         patientId: z.number(),
-        therapistId: z.number(),
         notes: z.string(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new Error("Database not available");
+
+        // Derive the therapist from the authenticated user, never from input.
+        const therapist = await db
+          .select()
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+
+        if (!therapist.length) throw new Error("Therapist not found");
+        const therapistId = therapist[0].id;
+
+        // Ensure the patient belongs to this therapist before writing notes.
+        const patient = await db
+          .select()
+          .from(patients)
+          .where(and(eq(patients.id, input.patientId), eq(patients.therapistId, therapistId)))
+          .limit(1);
+
+        if (!patient.length) throw new Error("Patient not found for this therapist");
 
         try {
           // Check if note exists
@@ -196,7 +232,8 @@ export const appRouter = router({
             .where(
               and(
                 eq(sessionNotes.appointmentId, input.appointmentId),
-                eq(sessionNotes.patientId, input.patientId)
+                eq(sessionNotes.patientId, input.patientId),
+                eq(sessionNotes.therapistId, therapistId)
               )
             )
             .limit(1);
@@ -210,11 +247,11 @@ export const appRouter = router({
             return { success: true, id: existing[0].id, action: "updated" };
           } else {
             // Insert new
-            const result = await db.insert(sessionNotes).values({
+            await db.insert(sessionNotes).values({
               sessionId: input.sessionId || 0,
               appointmentId: input.appointmentId,
               patientId: input.patientId,
-              therapistId: input.therapistId,
+              therapistId,
               notes: input.notes,
             });
             return { success: true, id: 0, action: "created" };
@@ -225,19 +262,32 @@ export const appRouter = router({
         }
       }),
 
-    getByAppointment: publicProcedure
+    getByAppointment: protectedProcedure
       .input(z.object({
         appointmentId: z.number(),
       }))
-      .query(async ({ input }) => {
+      .query(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new Error("Database not available");
+
+        const therapist = await db
+          .select()
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+
+        if (!therapist.length) return [];
 
         try {
           const notes = await db
             .select()
             .from(sessionNotes)
-            .where(eq(sessionNotes.appointmentId, input.appointmentId));
+            .where(
+              and(
+                eq(sessionNotes.appointmentId, input.appointmentId),
+                eq(sessionNotes.therapistId, therapist[0].id)
+              )
+            );
           return notes;
         } catch (error) {
           console.error("Error fetching session notes:", error);
@@ -245,19 +295,32 @@ export const appRouter = router({
         }
       }),
 
-    getByPatient: publicProcedure
+    getByPatient: protectedProcedure
       .input(z.object({
         patientId: z.number(),
       }))
-      .query(async ({ input }) => {
+      .query(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new Error("Database not available");
+
+        const therapist = await db
+          .select()
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+
+        if (!therapist.length) return [];
 
         try {
           const notes = await db
             .select()
             .from(sessionNotes)
-            .where(eq(sessionNotes.patientId, input.patientId));
+            .where(
+              and(
+                eq(sessionNotes.patientId, input.patientId),
+                eq(sessionNotes.therapistId, therapist[0].id)
+              )
+            );
           return notes;
         } catch (error) {
           console.error("Error fetching patient notes:", error);
