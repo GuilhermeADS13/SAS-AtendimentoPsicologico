@@ -22,7 +22,10 @@
 - [x] Integração com Jitsi Meet para videochamadas em tempo real
 - [x] Componente JitsiMeeting criado
 - [x] Página VideoCallJitsi com Jitsi integrado
-- [ ] Sala de espera virtual para pacientes - próxima fase
+- [x] Sala de espera virtual para pacientes (WaitingRoom.tsx)
+- [x] Painel lateral com prontuário durante videochamada
+- [x] URLs únicas por agendamento (geração automática)
+- [x] Rota dinâmica para videochamada por roomId
 - [ ] Histórico de videochamadas - próxima fase
 - [ ] Gravação de chamadas - próxima fase
 

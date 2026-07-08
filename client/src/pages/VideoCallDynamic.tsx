@@ -9,7 +9,11 @@ import { useLocation } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
-export default function VideoCallJitsi() {
+interface VideoCallDynamicProps {
+  roomId: string;
+}
+
+export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const [isJitsiReady, setIsJitsiReady] = useState(false);
@@ -18,8 +22,6 @@ export default function VideoCallJitsi() {
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [sessionNotes, setSessionNotes] = useState("");
 
-  // Gerar nome da sala baseado no ID do paciente (você pode passar via URL params)
-  const roomName = `psicologia-atendimento-${Date.now()}`;
   const displayName = user?.name || "Psicóloga";
 
   // Mock data do paciente
@@ -45,7 +47,7 @@ export default function VideoCallJitsi() {
         <div className="space-y-2">
           <h1 className="text-3xl font-bold text-foreground">Videochamada</h1>
           <p className="text-muted-foreground">
-            Consulta em tempo real com Jitsi Meet
+            Consulta em tempo real com Jitsi Meet - Sala: {roomId}
           </p>
         </div>
 
@@ -67,7 +69,7 @@ export default function VideoCallJitsi() {
           <div className="flex-1 bg-black rounded-lg overflow-hidden flex flex-col">
             {!error && (
               <JitsiMeeting
-                roomName={roomName}
+                roomName={roomId}
                 displayName={displayName}
                 email={user?.email || undefined}
                 onReady={() => setIsJitsiReady(true)}
@@ -232,22 +234,6 @@ export default function VideoCallJitsi() {
             >
               <ChevronDown className="w-4 h-4" />
             </Button>
-          )}
-        </div>
-
-        {/* Jitsi Container (old - keeping for reference) */}
-        <div style={{ display: "none" }}>
-          {!error && (
-            <JitsiMeeting
-              roomName={roomName}
-              displayName={displayName}
-              email={user?.email || undefined}
-              onReady={() => setIsJitsiReady(true)}
-              onError={(err) => {
-                console.error("Erro no Jitsi:", err);
-                setError("Erro ao conectar à videochamada. Tente novamente.");
-              }}
-            />
           )}
         </div>
 
