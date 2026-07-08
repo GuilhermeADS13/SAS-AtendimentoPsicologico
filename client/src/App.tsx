@@ -5,6 +5,7 @@ import Dashboard from "@/pages/Dashboard";
 import VideoCall from "@/pages/VideoCall";
 import VideoCallJitsi from "@/pages/VideoCallJitsi";
 import VideoCallDynamic from "@/pages/VideoCallDynamic";
+import VideoCallMiroTalk from "@/pages/VideoCallMiroTalk";
 import WaitingRoom from "@/pages/WaitingRoom";
 import Records from "@/pages/Records";
 import Appointments from "@/pages/Appointments";
@@ -25,6 +26,9 @@ function Router() {
       <Route path={"/waiting-room"} component={WaitingRoom} />
       <Route path={"/videocall/:roomId"}>
         {(params) => <VideoCallDynamic roomId={params.roomId} />}
+      </Route>
+      <Route path={"/videocall-mirotalksfu/:roomId"}>
+        {(params) => <VideoCallMiroTalk roomId={params.roomId} />}
       </Route>
       <Route path={"/records"} component={Records} />
       <Route path={"/records/:id"} component={PatientDetail} />
