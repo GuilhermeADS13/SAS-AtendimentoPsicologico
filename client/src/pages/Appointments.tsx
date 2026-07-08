@@ -2,6 +2,8 @@ import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
+import { useLocation } from "wouter";
 import {
   Dialog,
   DialogContent,
@@ -26,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Calendar, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink } from "lucide-react";
 
 interface Appointment {
   id: number;
@@ -35,6 +37,8 @@ interface Appointment {
   time: string;
   duration: number;
   status: "scheduled" | "completed" | "cancelled" | "no_show";
+  roomId: string;
+  roomUrl: string;
 }
 
 const mockAppointments: Appointment[] = [
@@ -45,6 +49,8 @@ const mockAppointments: Appointment[] = [
     time: "14:30",
     duration: 60,
     status: "scheduled",
+    roomId: "psicologia-maria-silva-1720428600",
+    roomUrl: "/videocall/psicologia-maria-silva-1720428600",
   },
   {
     id: 2,
@@ -53,6 +59,8 @@ const mockAppointments: Appointment[] = [
     time: "10:00",
     duration: 60,
     status: "scheduled",
+    roomId: "psicologia-joao-santos-1720512000",
+    roomUrl: "/videocall/psicologia-joao-santos-1720512000",
   },
   {
     id: 3,
@@ -61,10 +69,13 @@ const mockAppointments: Appointment[] = [
     time: "15:00",
     duration: 60,
     status: "completed",
+    roomId: "psicologia-ana-costa-1720345200",
+    roomUrl: "/videocall/psicologia-ana-costa-1720345200",
   },
 ];
 
-export default function Appointments() {
+export default function AppointmentsNew() {
+  const [, setLocation] = useLocation();
   const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments);
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -74,8 +85,25 @@ export default function Appointments() {
     duration: "60",
   });
 
+  const generateRoomId = (patientName: string, dateTime: string) => {
+    const timestamp = Math.floor(new Date(dateTime).getTime() / 1000);
+    return `psicologia-${patientName.toLowerCase().replace(/\s+/g, "-")}-${timestamp}`;
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(`${window.location.origin}${text}`);
+    toast.success("Link copiado para a área de transferência!");
+  };
+
+  const openVideoCall = (roomUrl: string) => {
+    setLocation(roomUrl);
+  };
+
   const handleAddAppointment = () => {
     if (formData.patientName && formData.date && formData.time) {
+      const dateTime = `${formData.date}T${formData.time}`;
+      const roomId = generateRoomId(formData.patientName, dateTime);
+
       const newAppointment: Appointment = {
         id: appointments.length + 1,
         patientName: formData.patientName,
@@ -83,6 +111,8 @@ export default function Appointments() {
         time: formData.time,
         duration: parseInt(formData.duration),
         status: "scheduled",
+        roomId,
+        roomUrl: `/videocall/${roomId}`,
       };
       setAppointments([...appointments, newAppointment]);
       setFormData({
@@ -92,6 +122,7 @@ export default function Appointments() {
         duration: "60",
       });
       setIsOpen(false);
+      toast.success("Consulta agendada com sucesso!");
     }
   };
 
@@ -101,6 +132,7 @@ export default function Appointments() {
         apt.id === id ? { ...apt, status } : apt
       )
     );
+    toast.success(`Status atualizado para ${status}`);
   };
 
   const getStatusColor = (status: Appointment["status"]) => {
@@ -230,6 +262,7 @@ export default function Appointments() {
                     <TableHead>Hora</TableHead>
                     <TableHead>Duração</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Sala de Videochamada</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -261,10 +294,35 @@ export default function Appointments() {
                           {getStatusLabel(appointment.status)}
                         </span>
                       </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <code className="text-xs bg-muted px-2 py-1 rounded border border-border">
+                            {appointment.roomId.substring(0, 20)}...
+                          </code>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(appointment.roomUrl)}
+                            className="p-1 h-auto"
+                            title="Copiar link"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           {appointment.status === "scheduled" && (
                             <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openVideoCall(appointment.roomUrl)}
+                                className="text-primary hover:bg-primary/10"
+                                title="Entrar na videochamada"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
