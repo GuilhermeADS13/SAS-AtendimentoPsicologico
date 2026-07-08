@@ -18,14 +18,13 @@
 - [x] Indicadores de status (consultas agendadas, pacientes, etc)
 
 ## Módulo de Videochamada
-- [x] Interface estilo Google Meet com controles
-- [x] Controles de câmera e microfone
-- [x] Compartilhamento de tela
-- [x] Encerramento de chamada
-- [ ] Integração WebRTC (Jitsi ou similar) - próxima fase
-- [ ] Indicadores de status da conexão - próxima fase
+
+- [x] Integração com Jitsi Meet para videochamadas em tempo real
+- [x] Componente JitsiMeeting criado
+- [x] Página VideoCallJitsi com Jitsi integrado
 - [ ] Sala de espera virtual para pacientes - próxima fase
 - [ ] Histórico de videochamadas - próxima fase
+- [ ] Gravação de chamadas - próxima fase
 
 ## Módulo de Prontuários
 - [x] Schema de banco de dados para pacientes e prontuários
