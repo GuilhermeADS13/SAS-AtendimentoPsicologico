@@ -3,6 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import Dashboard from "@/pages/Dashboard";
 import VideoCall from "@/pages/VideoCall";
+import VideoCallJitsi from "@/pages/VideoCallJitsi";
 import Records from "@/pages/Records";
 import Appointments from "@/pages/Appointments";
 import PatientDetail from "@/pages/PatientDetail";
@@ -18,6 +19,7 @@ function Router() {
       <Route path={"/"} component={Home} />
       <Route path={"/dashboard"} component={Dashboard} />
       <Route path={"/videocall"} component={VideoCall} />
+      <Route path={"/videocall-jitsi"} component={VideoCallJitsi} />
       <Route path={"/records"} component={Records} />
       <Route path={"/records/:id"} component={PatientDetail} />
       <Route path={"/appointments"} component={Appointments} />
