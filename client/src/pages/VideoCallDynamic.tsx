@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import JitsiMeeting from "@/components/JitsiMeeting";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Phone, AlertCircle, ChevronDown, ChevronUp, Edit2, Save } from "lucide-react";
+import { Phone, AlertCircle, ChevronDown, ChevronUp, Edit2, Save, CheckCircle2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,6 +21,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const [showSidebar, setShowSidebar] = useState(true);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [sessionNotes, setSessionNotes] = useState("");
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   const displayName = user?.name || "Psicóloga";
 
@@ -35,7 +36,29 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
     medicalHistory: "Ansiedade, depressão leve",
     lastSession: "2026-07-07 às 15:00",
     nextAppointment: "2026-07-15 às 14:30",
+    sessionHistory: [
+      {
+        date: "2026-07-07",
+        notes: "Paciente apresentou melhora nos sintomas de ansiedade. Continuaremos com técnicas de respiração.",
+      },
+      {
+        date: "2026-06-30",
+        notes: "Primeira sessão. Paciente relata histórico de ansiedade há 2 anos. Iniciamos com técnicas de mindfulness.",
+      },
+    ],
   };
+
+  // Auto-save notes a cada 2 segundos
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (sessionNotes && sessionNotes.trim()) {
+        setAutoSaveStatus("saving");
+        // Simular salvamento
+        setTimeout(() => setAutoSaveStatus("saved"), 500);
+      }
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [sessionNotes]);
 
   const handleEndCall = () => {
     setLocation("/dashboard");
@@ -184,21 +207,31 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                           value={sessionNotes}
                           onChange={(e) => setSessionNotes(e.target.value)}
                           placeholder="Digite suas anotações da sessão..."
-                          rows={8}
+                          rows={6}
                           className="resize-none"
                         />
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">
+                            {autoSaveStatus === "saving" && "Salvando..."}
+                            {autoSaveStatus === "saved" && (
+                              <span className="text-green-600 flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" /> Salvo
+                              </span>
+                            )}
+                          </span>
+                        </div>
                         <Button
                           onClick={() => setIsEditingNotes(false)}
                           size="sm"
                           className="w-full bg-primary hover:bg-primary/90"
                         >
                           <Save className="w-4 h-4 mr-2" />
-                          Salvar Anotações
+                          Concluir
                         </Button>
                       </>
                     ) : (
                       <>
-                        <div className="bg-muted/50 rounded-lg p-3 min-h-32">
+                        <div className="bg-muted/50 rounded-lg p-3 min-h-24">
                           <p className="text-sm text-foreground">
                             {sessionNotes || (
                               <span className="text-muted-foreground">
@@ -207,6 +240,23 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                             )}
                           </p>
                         </div>
+
+                        <div className="border-t border-border pt-3">
+                          <p className="text-xs font-semibold text-foreground mb-2">
+                            Histórico de Sessões
+                          </p>
+                          <div className="space-y-2 max-h-32 overflow-y-auto">
+                            {patientData.sessionHistory.map((session, idx) => (
+                              <div key={idx} className="bg-muted/30 rounded p-2 text-xs border border-border/50">
+                                <p className="font-semibold text-foreground">{session.date}</p>
+                                <p className="text-muted-foreground mt-1 line-clamp-2">
+                                  {session.notes}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
                         <Button
                           onClick={() => setIsEditingNotes(true)}
                           variant="outline"
