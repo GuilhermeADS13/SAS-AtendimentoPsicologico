@@ -72,7 +72,15 @@ DATABASE_URL=mysql://usuario:senha@localhost:3306/psicologia
 JWT_SECRET=sua-chave-secreta-aqui
 VITE_APP_ID=seu-app-id-manus
 OAUTH_SERVER_URL=https://api.manus.im
+# URL do servidor MiroTalk SFU (videochamada). Default: https://localhost:3010
+VITE_MIROTALK_URL=https://localhost:3010
 ```
+
+> **Servidor de vídeo (MiroTalk SFU):** a videochamada usa o [MiroTalk SFU](https://github.com/miroslavpejic85/mirotalksfu),
+> que é self-hosted. Suba-o via Docker (`docker-compose up`, porta padrão `3010`)
+> e aponte `VITE_MIROTALK_URL` para ele. As notificações de presença (aviso quando
+> o paciente entra na sala) usam um WebSocket próprio do backend em `/api/ws/presence`
+> e funcionam independentemente do MiroTalk.
 
 4. **Execute as migrations do banco de dados**
 ```bash

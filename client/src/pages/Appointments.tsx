@@ -32,6 +32,7 @@ import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink } from 
 
 interface Appointment {
   id: number;
+  patientId: number;
   patientName: string;
   date: string;
   time: string;
@@ -41,36 +42,44 @@ interface Appointment {
   roomUrl: string;
 }
 
+// A sala carrega os ids do agendamento/paciente na query (?apt=&pat=), que a
+// VideoCallDynamic usa para o auto-save real das anotações no router sessionNotes.
+const buildRoomUrl = (roomId: string, appointmentId: number, patientId: number) =>
+  `/videocall/${roomId}?apt=${appointmentId}&pat=${patientId}`;
+
 const mockAppointments: Appointment[] = [
   {
     id: 1,
+    patientId: 1,
     patientName: "Maria Silva",
     date: "2026-07-08",
     time: "14:30",
     duration: 60,
     status: "scheduled",
     roomId: "psicologia-maria-silva-1720428600",
-    roomUrl: "/videocall/psicologia-maria-silva-1720428600",
+    roomUrl: buildRoomUrl("psicologia-maria-silva-1720428600", 1, 1),
   },
   {
     id: 2,
+    patientId: 2,
     patientName: "João Santos",
     date: "2026-07-09",
     time: "10:00",
     duration: 60,
     status: "scheduled",
     roomId: "psicologia-joao-santos-1720512000",
-    roomUrl: "/videocall/psicologia-joao-santos-1720512000",
+    roomUrl: buildRoomUrl("psicologia-joao-santos-1720512000", 2, 2),
   },
   {
     id: 3,
+    patientId: 3,
     patientName: "Ana Costa",
     date: "2026-07-07",
     time: "15:00",
     duration: 60,
     status: "completed",
     roomId: "psicologia-ana-costa-1720345200",
-    roomUrl: "/videocall/psicologia-ana-costa-1720345200",
+    roomUrl: buildRoomUrl("psicologia-ana-costa-1720345200", 3, 3),
   },
 ];
 
@@ -104,15 +113,20 @@ export default function AppointmentsNew() {
       const dateTime = `${formData.date}T${formData.time}`;
       const roomId = generateRoomId(formData.patientName, dateTime);
 
+      const newId = appointments.length + 1;
+      // patientId 0: o formulário ainda não vincula um paciente do cadastro.
+      // Ao integrar com o cadastro real (trpc.patients), passe o id aqui para
+      // habilitar o auto-save das anotações nesta consulta.
       const newAppointment: Appointment = {
-        id: appointments.length + 1,
+        id: newId,
+        patientId: 0,
         patientName: formData.patientName,
         date: formData.date,
         time: formData.time,
         duration: parseInt(formData.duration),
         status: "scheduled",
         roomId,
-        roomUrl: `/videocall/${roomId}`,
+        roomUrl: buildRoomUrl(roomId, newId, 0),
       };
       setAppointments([...appointments, newAppointment]);
       setFormData({

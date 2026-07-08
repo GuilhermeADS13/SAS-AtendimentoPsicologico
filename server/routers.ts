@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { getDb } from "./db";
-import { patients, appointments, sessions, documents, therapists, sessionNotes } from "../drizzle/schema";
+import { patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 
 export const appRouter = router({
@@ -326,6 +326,117 @@ export const appRouter = router({
           console.error("Error fetching patient notes:", error);
           throw error;
         }
+      }),
+  }),
+
+  videoCalls: router({
+    // Histórico de videochamadas de um paciente, com URLs de gravação.
+    getByPatient: protectedProcedure
+      .input(z.object({ patientId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return [];
+
+        const therapist = await db
+          .select()
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+
+        if (!therapist.length) return [];
+
+        return db
+          .select()
+          .from(videoCalls)
+          .where(
+            and(
+              eq(videoCalls.patientId, input.patientId),
+              eq(videoCalls.therapistId, therapist[0].id),
+            ),
+          );
+      }),
+
+    // Registra o início de uma videochamada (idempotente por roomId único).
+    start: protectedProcedure
+      .input(z.object({
+        appointmentId: z.number(),
+        patientId: z.number(),
+        roomId: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const therapist = await db
+          .select()
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+
+        if (!therapist.length) throw new Error("Therapist not found");
+        const therapistId = therapist[0].id;
+
+        const patient = await db
+          .select()
+          .from(patients)
+          .where(and(eq(patients.id, input.patientId), eq(patients.therapistId, therapistId)))
+          .limit(1);
+
+        if (!patient.length) throw new Error("Patient not found for this therapist");
+
+        // Idempotente: se a sala já foi registrada, não duplica.
+        const existing = await db
+          .select()
+          .from(videoCalls)
+          .where(eq(videoCalls.roomId, input.roomId))
+          .limit(1);
+
+        if (existing.length > 0) {
+          return { roomId: input.roomId, status: "existing" as const };
+        }
+
+        await db.insert(videoCalls).values({
+          appointmentId: input.appointmentId,
+          patientId: input.patientId,
+          therapistId,
+          roomId: input.roomId,
+          startedAt: new Date(),
+          status: "active",
+        });
+
+        return { roomId: input.roomId, status: "created" as const };
+      }),
+
+    // Finaliza a chamada e persiste a gravação (URL + duração em segundos).
+    finish: protectedProcedure
+      .input(z.object({
+        roomId: z.string(),
+        durationSeconds: z.number().optional(),
+        recordingUrl: z.string().url().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const therapist = await db
+          .select()
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+
+        if (!therapist.length) throw new Error("Therapist not found");
+
+        await db
+          .update(videoCalls)
+          .set({
+            endedAt: new Date(),
+            duration: input.durationSeconds,
+            recordingUrl: input.recordingUrl,
+            status: "completed",
+          })
+          .where(and(eq(videoCalls.roomId, input.roomId), eq(videoCalls.therapistId, therapist[0].id)));
+
+        return { success: true } as const;
       }),
   }),
 });

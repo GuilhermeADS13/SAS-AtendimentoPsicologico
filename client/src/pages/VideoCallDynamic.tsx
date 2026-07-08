@@ -1,29 +1,100 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { trpc } from "@/lib/trpc";
+import { usePresence } from "@/hooks/usePresence";
+import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
-import JitsiMeeting from "@/components/JitsiMeeting";
+import MiroTalkMeeting from "@/components/MiroTalkMeeting";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Phone, AlertCircle, ChevronDown, ChevronUp, Edit2, Save, CheckCircle2 } from "lucide-react";
-import { useLocation } from "wouter";
+import { Phone, AlertCircle, ChevronDown, ChevronUp, Edit2, Save, CheckCircle2, Copy } from "lucide-react";
+import { useLocation, useSearch } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
+// URL do servidor MiroTalk SFU (self-hosted). Configure VITE_MIROTALK_URL no
+// deploy; em dev cai no default do container local (docker compose do MiroTalk).
+const mirotalkUrl = import.meta.env.VITE_MIROTALK_URL || "https://localhost:3010";
+
 interface VideoCallDynamicProps {
-  roomId: string;
+  // Opcional: quando ausente (rota /videocall), geramos uma sala ad-hoc.
+  roomId?: string;
 }
 
 export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
-  const [isJitsiReady, setIsJitsiReady] = useState(false);
+  const search = useSearch();
+  // Sala estável: usa o roomId da rota ou gera uma sala ad-hoc uma única vez.
+  const [room] = useState(() => roomId || `sala-${Date.now()}`);
+  const [isCallReady, setIsCallReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSidebar, setShowSidebar] = useState(true);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [sessionNotes, setSessionNotes] = useState("");
-  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+
+  // IDs do agendamento/paciente chegam por query string (?apt=&pat=), enviados
+  // pela página de Agendamentos. Sem eles (sala ad-hoc), o auto-save fica inerte.
+  const params = new URLSearchParams(search);
+  const appointmentId = Number(params.get("apt")) || 0;
+  const patientId = Number(params.get("pat")) || 0;
+  const notesEnabled = appointmentId > 0 && patientId > 0;
+
+  // Carrega as anotações já salvas para este agendamento.
+  const savedNotes = trpc.sessionNotes.getByAppointment.useQuery(
+    { appointmentId },
+    { enabled: notesEnabled },
+  );
+  useEffect(() => {
+    const saved = savedNotes.data?.[0]?.notes;
+    if (typeof saved === "string") setSessionNotes(saved);
+  }, [savedNotes.data]);
+
+  // Auto-save real: persiste no router sessionNotes (debounce de 1,5s).
+  const saveNotes = trpc.sessionNotes.save.useMutation();
+  useEffect(() => {
+    if (!notesEnabled || !sessionNotes.trim()) return;
+    const timer = setTimeout(() => {
+      saveNotes.mutate({ appointmentId, patientId, notes: sessionNotes });
+    }, 1500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionNotes, appointmentId, patientId, notesEnabled]);
+
+  const autoSaveStatus: "idle" | "saving" | "saved" | "error" = saveNotes.isPending
+    ? "saving"
+    : saveNotes.isError
+      ? "error"
+      : saveNotes.isSuccess
+        ? "saved"
+        : "idle";
+
+  // Registro da videochamada + histórico de gravações no banco (videoCalls).
+  const startCall = trpc.videoCalls.start.useMutation();
+  const finishCall = trpc.videoCalls.finish.useMutation();
+  const recordings = trpc.videoCalls.getByPatient.useQuery(
+    { patientId },
+    { enabled: notesEnabled },
+  );
+  const startedAtRef = useRef<number>(Date.now());
+  useEffect(() => {
+    if (notesEnabled) {
+      startCall.mutate({ appointmentId, patientId, roomId: room });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const displayName = user?.name || "Psicóloga";
+
+  // Presença em tempo real: usuário autenticado é a psicóloga; sem login, é o
+  // paciente que abriu o link. A psicóloga recebe um aviso quando o paciente entra.
+  const presenceRole: "therapist" | "patient" = user ? "therapist" : "patient";
+  const presenceName = user?.name || "Paciente";
+  usePresence(room, presenceRole, presenceName, (msg) => {
+    if (msg.type === "patient-joined") {
+      toast.info(`${msg.name} entrou na sala`);
+    }
+  });
 
   // Mock data do paciente
   const patientData = {
@@ -48,30 +119,39 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
     ],
   };
 
-  // Auto-save notes a cada 2 segundos
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (sessionNotes && sessionNotes.trim()) {
-        setAutoSaveStatus("saving");
-        // Simular salvamento
-        setTimeout(() => setAutoSaveStatus("saved"), 500);
+  const handleEndCall = async () => {
+    if (notesEnabled) {
+      const durationSeconds = Math.round((Date.now() - startedAtRef.current) / 1000);
+      // Persiste fim da sessão (e a URL da gravação, quando disponível do MiroTalk).
+      try {
+        await finishCall.mutateAsync({ roomId: room, durationSeconds });
+      } catch (err) {
+        console.error("Falha ao registrar fim da videochamada:", err);
       }
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [sessionNotes]);
-
-  const handleEndCall = () => {
+    }
     setLocation("/dashboard");
+  };
+
+  const copyRoomLink = () => {
+    const url = `${window.location.origin}/videocall/${room}`;
+    navigator.clipboard.writeText(url);
+    toast.success("Link da sala copiado! Envie para o paciente.");
   };
 
   return (
     <DashboardLayout>
       <div className="space-y-4 h-full flex flex-col">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-foreground">Videochamada</h1>
-          <p className="text-muted-foreground">
-            Consulta em tempo real com Jitsi Meet - Sala: {roomId}
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold text-foreground">Videochamada</h1>
+            <p className="text-muted-foreground">
+              Consulta em tempo real — Sala: {room}
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={copyRoomLink}>
+            <Copy className="w-4 h-4 mr-2" />
+            Copiar link da sala
+          </Button>
         </div>
 
         {error && (
@@ -88,17 +168,18 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
 
         {/* Main Content */}
         <div className="flex-1 flex gap-4 min-h-0">
-          {/* Jitsi Container */}
+          {/* MiroTalk Container */}
           <div className="flex-1 bg-black rounded-lg overflow-hidden flex flex-col">
             {!error && (
-              <JitsiMeeting
-                roomName={roomId}
+              <MiroTalkMeeting
+                roomName={room}
                 displayName={displayName}
                 email={user?.email || undefined}
-                onReady={() => setIsJitsiReady(true)}
+                apiUrl={mirotalkUrl}
+                onReady={() => setIsCallReady(true)}
                 onError={(err) => {
-                  console.error("Erro no Jitsi:", err);
-                  setError("Erro ao conectar à videochamada. Tente novamente.");
+                  console.error("Erro no MiroTalk:", err);
+                  setError("Erro ao conectar à videochamada. Verifique se o servidor MiroTalk está ativo.");
                 }}
               />
             )}
@@ -212,11 +293,15 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                         />
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-muted-foreground">
-                            {autoSaveStatus === "saving" && "Salvando..."}
-                            {autoSaveStatus === "saved" && (
+                            {!notesEnabled && "Sala avulsa — anotações não vinculadas a um agendamento"}
+                            {notesEnabled && autoSaveStatus === "saving" && "Salvando..."}
+                            {notesEnabled && autoSaveStatus === "saved" && (
                               <span className="text-green-600 flex items-center gap-1">
                                 <CheckCircle2 className="w-3 h-3" /> Salvo
                               </span>
+                            )}
+                            {notesEnabled && autoSaveStatus === "error" && (
+                              <span className="text-destructive">Erro ao salvar</span>
                             )}
                           </span>
                         </div>
@@ -256,6 +341,36 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                             ))}
                           </div>
                         </div>
+
+                        {notesEnabled && (recordings.data?.length ?? 0) > 0 && (
+                          <div className="border-t border-border pt-3">
+                            <p className="text-xs font-semibold text-foreground mb-2">
+                              Gravações
+                            </p>
+                            <div className="space-y-2 max-h-32 overflow-y-auto">
+                              {recordings.data?.map((rec) => (
+                                <div key={rec.id} className="bg-muted/30 rounded p-2 text-xs border border-border/50 flex items-center justify-between gap-2">
+                                  <span className="text-muted-foreground">
+                                    {rec.startedAt ? new Date(rec.startedAt).toLocaleString("pt-BR") : "—"}
+                                    {rec.duration ? ` · ${Math.round(rec.duration / 60)}min` : ""}
+                                  </span>
+                                  {rec.recordingUrl ? (
+                                    <a
+                                      href={rec.recordingUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-primary underline shrink-0"
+                                    >
+                                      Ver
+                                    </a>
+                                  ) : (
+                                    <span className="text-muted-foreground shrink-0">sem gravação</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                         <Button
                           onClick={() => setIsEditingNotes(true)}
