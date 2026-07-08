@@ -1,0 +1,36 @@
+# SAS — Atendimento Psicológico
+#
+# Uso local:
+#   cp .env.example .env   # preencha as variáveis (DATABASE_URL do Supabase, etc.)
+#   docker compose up -d --build
+#
+# O banco é o Supabase (Postgres gerenciado, externo) — este compose sobe apenas
+# a aplicação Node. Para rodar o Supabase localmente, use o CLI `supabase start`
+# e aponte DATABASE_URL para o pooler local.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # VITE_* são embutidas no bundle em build time.
+        VITE_APP_ID: ${VITE_APP_ID}
+        VITE_MIROTALK_URL: ${VITE_MIROTALK_URL:-https://localhost:3010}
+    container_name: sas_psicologico
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # Postgres do Supabase — use o pooler de transações (porta 6543).
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - OAUTH_SERVER_URL=${OAUTH_SERVER_URL:-https://api.manus.im}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

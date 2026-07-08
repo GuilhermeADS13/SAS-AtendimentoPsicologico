@@ -50,7 +50,8 @@ Plataforma web completa para psicólogos gerenciarem consultas online, prontuár
 ### Pré-requisitos
 - Node.js 18+
 - pnpm 10+
-- Banco de dados MySQL/TiDB
+- Conta no [Supabase](https://supabase.com) (Postgres gerenciado)
+- (Opcional) Docker + servidor MiroTalk SFU para a videochamada
 
 ### Instalação
 
@@ -67,8 +68,9 @@ pnpm install
 
 3. **Configure as variáveis de ambiente**
 ```bash
-# Crie um arquivo .env.local com:
-DATABASE_URL=mysql://usuario:senha@localhost:3306/psicologia
+# Copie .env.example para .env.local e preencha:
+# DATABASE_URL = pooler de transações do Supabase (porta 6543)
+DATABASE_URL=postgresql://postgres.<project>:<senha>@aws-0-<region>.pooler.supabase.com:6543/postgres
 JWT_SECRET=sua-chave-secreta-aqui
 VITE_APP_ID=seu-app-id-manus
 OAUTH_SERVER_URL=https://api.manus.im
@@ -139,18 +141,20 @@ psicologia-atendimento/
 - **tRPC** — Type-safe API calls
 - **Wouter** — Routing
 - **shadcn/ui** — UI components
-- **Jitsi Meet** — Videochamadas
+- **MiroTalk SFU** — Videochamadas
 
 ### Backend
 - **Express 4** — Web server
 - **tRPC 11** — RPC framework
 - **Drizzle ORM** — Database ORM
-- **MySQL2** — Database driver
+- **Supabase (Postgres)** — Banco de dados (driver `postgres-js`)
+- **ws** — WebSocket de presença das salas
 - **Jose** — JWT handling
 
 ### DevOps
 - **Vite** — Build tool
 - **Vitest** — Testing framework
+- **Docker** — `docker compose up -d --build`
 - **TypeScript** — Type checking
 - **Prettier** — Code formatting
 
