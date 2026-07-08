@@ -22,3 +22,9 @@ rad.json
 #Test results file
 TestResults.xml
 node_modules
+
+# Node / Vite build
+dist
+.env
+.env.local
+.env.*.local

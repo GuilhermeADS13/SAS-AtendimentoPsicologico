@@ -2,11 +2,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import Dashboard from "@/pages/Dashboard";
-import VideoCall from "@/pages/VideoCall";
-import VideoCallJitsi from "@/pages/VideoCallJitsi";
 import VideoCallDynamic from "@/pages/VideoCallDynamic";
-import VideoCallMiroTalk from "@/pages/VideoCallMiroTalk";
-import WaitingRoom from "@/pages/WaitingRoom";
 import Records from "@/pages/Records";
 import Appointments from "@/pages/Appointments";
 import PatientDetail from "@/pages/PatientDetail";
@@ -21,14 +17,9 @@ function Router() {
     <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/dashboard"} component={Dashboard} />
-      <Route path={"/videocall"} component={VideoCall} />
-      <Route path={"/videocall-jitsi"} component={VideoCallJitsi} />
-      <Route path={"/waiting-room"} component={WaitingRoom} />
+      <Route path={"/videocall"}>{() => <VideoCallDynamic />}</Route>
       <Route path={"/videocall/:roomId"}>
         {(params) => <VideoCallDynamic roomId={params.roomId} />}
-      </Route>
-      <Route path={"/videocall-mirotalksfu/:roomId"}>
-        {(params) => <VideoCallMiroTalk roomId={params.roomId} />}
       </Route>
       <Route path={"/records"} component={Records} />
       <Route path={"/records/:id"} component={PatientDetail} />
