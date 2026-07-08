@@ -26,6 +26,10 @@
 - [x] Painel lateral com prontuário durante videochamada
 - [x] URLs únicas por agendamento (geração automática)
 - [x] Rota dinâmica para videochamada por roomId
+- [x] Integração com MiroTalk SFU (substituir Jitsi)
+- [x] Gravação automática de sessões com MiroTalk
+- [x] Whiteboard colaborativo durante sessão (nativo do MiroTalk)
+- [x] REST API integration com MiroTalk backend
 - [ ] Histórico de videochamadas - próxima fase
 - [ ] Gravação de chamadas - próxima fase
 
