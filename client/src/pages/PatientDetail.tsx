@@ -15,7 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, FileText, Calendar, MessageSquare, Pencil } from "lucide-react";
+import { ArrowLeft, FileText, Calendar, MessageSquare, Pencil, Plus } from "lucide-react";
 
 // Converte Date | string | null para o formato do <input type="date"> (YYYY-MM-DD).
 function toDateInput(value: unknown): string {
@@ -89,8 +89,42 @@ export default function PatientDetail() {
     });
   };
 
-  // Sessões e documentos ainda são placeholders (itens separados do TODO).
-  const sessions: { id: number; date: string; time: string; notes: string; mood: string }[] = [];
+  // Sessões reais do paciente (evolução clínica).
+  const { data: patientSessions = [] } = trpc.sessions.getByPatient.useQuery(
+    { patientId },
+    { enabled: patientId > 0 },
+  );
+  const [isSessionOpen, setIsSessionOpen] = useState(false);
+  const [sessionForm, setSessionForm] = useState({
+    clinicalNotes: "",
+    mood: "",
+    treatment: "",
+    nextSteps: "",
+  });
+  const createSession = trpc.sessions.create.useMutation({
+    onSuccess: () => {
+      utils.sessions.getByPatient.invalidate({ patientId });
+      setSessionForm({ clinicalNotes: "", mood: "", treatment: "", nextSteps: "" });
+      setIsSessionOpen(false);
+      toast.success("Sessão registrada!");
+    },
+    onError: (e) => toast.error(e.message || "Erro ao registrar sessão"),
+  });
+  const handleSaveSession = () => {
+    if (!sessionForm.clinicalNotes.trim()) {
+      toast.error("Descreva as anotações clínicas.");
+      return;
+    }
+    createSession.mutate({
+      patientId,
+      clinicalNotes: sessionForm.clinicalNotes,
+      mood: sessionForm.mood || undefined,
+      treatment: sessionForm.treatment || undefined,
+      nextSteps: sessionForm.nextSteps || undefined,
+    });
+  };
+
+  // Documentos ainda são placeholder (item futuro do TODO — depende de S3).
   const documents: { id: number; name: string; type: string; date: string }[] = [];
 
   if (isLoading) {
@@ -168,7 +202,7 @@ export default function PatientDetail() {
           <Card>
             <CardContent className="pt-6">
               <p className="text-sm text-muted-foreground">Total de Sessões</p>
-              <p className="text-lg font-semibold text-foreground">{sessions.length}</p>
+              <p className="text-lg font-semibold text-foreground">{patientSessions.length}</p>
             </CardContent>
           </Card>
         </div>
@@ -209,28 +243,57 @@ export default function PatientDetail() {
             </Card>
           </TabsContent>
 
-          {/* Sessions Tab (placeholder — item futuro do TODO) */}
+          {/* Sessions Tab — registro e evolução clínica */}
           <TabsContent value="sessions" className="space-y-4">
-            <h2 className="text-xl font-semibold text-foreground">Histórico de Sessões</h2>
-            {sessions.length === 0 ? (
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-foreground">Histórico de Sessões</h2>
+              <Button onClick={() => setIsSessionOpen(true)} className="bg-primary hover:bg-primary/90">
+                <Plus className="w-4 h-4 mr-2" />
+                Nova Sessão
+              </Button>
+            </div>
+
+            {patientSessions.length === 0 ? (
               <Card>
                 <CardContent className="pt-6 text-muted-foreground">
                   <MessageSquare className="w-5 h-5 mb-2" />
-                  Registro de sessões em breve (próxima fase do prontuário).
+                  Nenhuma sessão registrada ainda. Clique em "Nova Sessão" para
+                  registrar a evolução clínica.
                 </CardContent>
               </Card>
             ) : (
               <div className="space-y-3">
-                {sessions.map((session) => (
+                {patientSessions.map((session) => (
                   <Card key={session.id}>
-                    <CardContent className="pt-6">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-primary" />
-                        <span className="font-semibold text-foreground">
-                          {new Date(session.date).toLocaleDateString("pt-BR")} às {session.time}
-                        </span>
+                    <CardContent className="pt-6 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-primary" />
+                          <span className="font-semibold text-foreground">
+                            {new Date(session.startedAt).toLocaleString("pt-BR")}
+                          </span>
+                        </div>
+                        {session.mood ? (
+                          <span className="text-xs bg-secondary/10 text-secondary px-2 py-1 rounded-full">
+                            Humor: {session.mood}
+                          </span>
+                        ) : null}
                       </div>
-                      <p className="text-sm text-muted-foreground mt-2">{session.notes}</p>
+                      <p className="text-sm text-foreground whitespace-pre-wrap">
+                        {session.clinicalNotes}
+                      </p>
+                      {session.treatment ? (
+                        <p className="text-sm text-muted-foreground">
+                          <span className="font-medium text-foreground">Tratamento:</span>{" "}
+                          {session.treatment}
+                        </p>
+                      ) : null}
+                      {session.nextSteps ? (
+                        <p className="text-sm text-muted-foreground">
+                          <span className="font-medium text-foreground">Próximos passos:</span>{" "}
+                          {session.nextSteps}
+                        </p>
+                      ) : null}
                     </CardContent>
                   </Card>
                 ))}
@@ -346,6 +409,63 @@ export default function PatientDetail() {
               className="w-full bg-primary hover:bg-primary/90"
             >
               {updatePatient.isPending ? "Salvando..." : "Salvar alterações"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de nova sessão */}
+      <Dialog open={isSessionOpen} onOpenChange={setIsSessionOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Registrar Nova Sessão</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="clinicalNotes">Anotações Clínicas *</Label>
+              <Textarea
+                id="clinicalNotes"
+                rows={6}
+                value={sessionForm.clinicalNotes}
+                onChange={(e) => setSessionForm({ ...sessionForm, clinicalNotes: e.target.value })}
+                placeholder="Descreva os pontos principais da sessão, a evolução do paciente..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="mood">Humor / Estado</Label>
+              <Input
+                id="mood"
+                value={sessionForm.mood}
+                onChange={(e) => setSessionForm({ ...sessionForm, mood: e.target.value })}
+                placeholder="Ex.: Ansioso, Melhorado, Estável..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="treatment">Tratamento / Conduta</Label>
+              <Textarea
+                id="treatment"
+                rows={3}
+                value={sessionForm.treatment}
+                onChange={(e) => setSessionForm({ ...sessionForm, treatment: e.target.value })}
+                placeholder="Técnicas aplicadas, orientações..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nextSteps">Próximos Passos</Label>
+              <Textarea
+                id="nextSteps"
+                rows={2}
+                value={sessionForm.nextSteps}
+                onChange={(e) => setSessionForm({ ...sessionForm, nextSteps: e.target.value })}
+                placeholder="Plano para a próxima sessão..."
+              />
+            </div>
+            <Button
+              onClick={handleSaveSession}
+              disabled={createSession.isPending}
+              className="w-full bg-primary hover:bg-primary/90"
+            >
+              {createSession.isPending ? "Salvando..." : "Salvar Sessão"}
             </Button>
           </div>
         </DialogContent>

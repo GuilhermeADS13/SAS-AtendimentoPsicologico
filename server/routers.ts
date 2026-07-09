@@ -5,7 +5,7 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { getDb } from "./db";
 import { patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls } from "../drizzle/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -230,10 +230,37 @@ export const appRouter = router({
         .from(sessions)
         .where(eq(sessions.therapistId, therapist[0].id));
     }),
-    
+
+    // Lista as sessões de um paciente do terapeuta logado (mais recentes primeiro).
+    getByPatient: protectedProcedure
+      .input(z.object({ patientId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return [];
+
+        const therapist = await db
+          .select()
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+
+        if (!therapist.length) return [];
+
+        return db
+          .select()
+          .from(sessions)
+          .where(
+            and(
+              eq(sessions.patientId, input.patientId),
+              eq(sessions.therapistId, therapist[0].id),
+            ),
+          )
+          .orderBy(desc(sessions.startedAt));
+      }),
+
     create: protectedProcedure
       .input(z.object({
-        appointmentId: z.number(),
+        appointmentId: z.number().optional().default(0),
         patientId: z.number(),
         clinicalNotes: z.string(),
         treatment: z.string().optional(),
