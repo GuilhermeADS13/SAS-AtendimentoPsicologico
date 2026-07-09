@@ -41,9 +41,9 @@
 - [x] Registro de sessões (data, anotações, evolução clínica) via tRPC no PatientDetail
 - [x] Visualização de histórico de sessões (aba Sessões do paciente)
 - [ ] Linha do tempo de progresso do paciente - próxima fase
-- [ ] Upload e armazenamento seguro de documentos (laudos, receitas, anexos) - próxima fase
-- [ ] Visualização de documentos anexados - próxima fase
-- [ ] Exclusão segura de documentos - próxima fase
+- [x] Upload e armazenamento seguro de documentos (Supabase Storage + RLS por usuário)
+- [x] Visualização de documentos anexados (URL assinada temporária)
+- [x] Exclusão segura de documentos (metadado + arquivo no Storage)
 
 ## Módulo de Agendamento
 - [x] Schema de banco de dados para agendamentos

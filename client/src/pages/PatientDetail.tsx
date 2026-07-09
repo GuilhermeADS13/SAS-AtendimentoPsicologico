@@ -1,6 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
+import {
+  uploadDocumentFile,
+  getDocumentSignedUrl,
+  removeDocumentFile,
+} from "@/lib/supabase";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -15,7 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, FileText, Calendar, MessageSquare, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, FileText, Calendar, MessageSquare, Pencil, Plus, Upload, Download, Trash2 } from "lucide-react";
 
 // Converte Date | string | null para o formato do <input type="date"> (YYYY-MM-DD).
 function toDateInput(value: unknown): string {
@@ -124,8 +129,55 @@ export default function PatientDetail() {
     });
   };
 
-  // Documentos ainda são placeholder (item futuro do TODO — depende de S3).
-  const documents: { id: number; name: string; type: string; date: string }[] = [];
+  // Documentos reais (metadados no banco + arquivo no Supabase Storage).
+  const documentsQuery = trpc.documents.getByPatient.useQuery(
+    { patientId },
+    { enabled: patientId > 0 },
+  );
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const createDocument = trpc.documents.create.useMutation();
+  const deleteDocument = trpc.documents.delete.useMutation();
+
+  const handleUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const fileKey = await uploadDocumentFile(patientId, file);
+      await createDocument.mutateAsync({
+        patientId,
+        fileName: file.name,
+        fileKey,
+        fileUrl: fileKey,
+        fileType: file.type || "application/octet-stream",
+        fileSize: file.size,
+        documentType: "other",
+      });
+      await documentsQuery.refetch();
+      toast.success("Documento enviado!");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha no upload");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDownload = async (fileKey: string) => {
+    const url = await getDocumentSignedUrl(fileKey);
+    if (url) window.open(url, "_blank", "noopener");
+    else toast.error("Não foi possível gerar o link do documento.");
+  };
+
+  const handleDeleteDoc = async (id: number, fileKey: string) => {
+    try {
+      await deleteDocument.mutateAsync({ id });
+      await removeDocumentFile(fileKey);
+      await documentsQuery.refetch();
+      toast.success("Documento removido.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao remover");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -301,16 +353,75 @@ export default function PatientDetail() {
             )}
           </TabsContent>
 
-          {/* Documents Tab (placeholder — item futuro do TODO) */}
+          {/* Documents Tab — upload/lista via Supabase Storage */}
           <TabsContent value="documents" className="space-y-4">
-            <h2 className="text-xl font-semibold text-foreground">Documentos</h2>
-            <Card>
-              <CardContent className="pt-6 text-muted-foreground">
-                <FileText className="w-5 h-5 mb-2" />
-                Upload de documentos (laudos, receitas) em breve — depende da
-                integração com S3.
-              </CardContent>
-            </Card>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-foreground">Documentos</h2>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleUpload(f);
+                }}
+              />
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="bg-primary hover:bg-primary/90"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                {uploading ? "Enviando..." : "Enviar documento"}
+              </Button>
+            </div>
+
+            {(documentsQuery.data?.length ?? 0) === 0 ? (
+              <Card>
+                <CardContent className="pt-6 text-muted-foreground">
+                  <FileText className="w-5 h-5 mb-2" />
+                  Nenhum documento enviado ainda (laudos, receitas, anexos).
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {documentsQuery.data?.map((doc) => (
+                  <Card key={doc.id}>
+                    <CardContent className="pt-6 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <FileText className="w-5 h-5 text-primary shrink-0" />
+                        <div className="min-w-0">
+                          <p className="font-semibold text-foreground truncate">{doc.fileName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(doc.createdAt).toLocaleDateString("pt-BR")} ·{" "}
+                            {Math.max(1, Math.round(doc.fileSize / 1024))} KB
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownload(doc.fileKey)}
+                          title="Baixar"
+                        >
+                          <Download className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteDoc(doc.id, doc.fileKey)}
+                          className="text-destructive hover:bg-destructive/10"
+                          title="Excluir"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>

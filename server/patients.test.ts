@@ -96,3 +96,12 @@ describe("appointments router", () => {
     ).rejects.toThrow("Database not available");
   });
 });
+
+describe("documents router", () => {
+  it("documents.getByPatient returns an empty list when there is no database", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.documents.getByPatient({ patientId: 1 });
+    expect(Array.isArray(result)).toBe(true);
+    expect(result).toHaveLength(0);
+  });
+});

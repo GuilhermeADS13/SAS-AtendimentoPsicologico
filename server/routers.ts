@@ -519,6 +519,109 @@ export const appRouter = router({
       }),
   }),
 
+  // Documentos dos prontuários (metadados; o arquivo fica no Supabase Storage).
+  documents: router({
+    getByPatient: protectedProcedure
+      .input(z.object({ patientId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return [];
+
+        const therapist = await db
+          .select()
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+
+        if (!therapist.length) return [];
+
+        return db
+          .select()
+          .from(documents)
+          .where(
+            and(
+              eq(documents.patientId, input.patientId),
+              eq(documents.therapistId, therapist[0].id),
+            ),
+          )
+          .orderBy(desc(documents.createdAt));
+      }),
+
+    // Registra os metadados após o upload do arquivo no Storage.
+    create: protectedProcedure
+      .input(z.object({
+        patientId: z.number(),
+        fileName: z.string(),
+        fileKey: z.string(),
+        fileUrl: z.string(),
+        fileType: z.string(),
+        fileSize: z.number(),
+        documentType: z.enum(["prescription", "report", "exam", "attachment", "other"]).default("other"),
+        description: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const therapist = await db
+          .select()
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+
+        if (!therapist.length) throw new Error("Therapist not found");
+
+        const patient = await db
+          .select()
+          .from(patients)
+          .where(and(eq(patients.id, input.patientId), eq(patients.therapistId, therapist[0].id)))
+          .limit(1);
+
+        if (!patient.length) throw new Error("Patient not found for this therapist");
+
+        await db.insert(documents).values({
+          patientId: input.patientId,
+          therapistId: therapist[0].id,
+          fileName: input.fileName,
+          fileKey: input.fileKey,
+          fileUrl: input.fileUrl,
+          fileType: input.fileType,
+          fileSize: input.fileSize,
+          documentType: input.documentType,
+          description: input.description,
+        });
+
+        return { success: true } as const;
+      }),
+
+    // Remove o metadado (o caller apaga o arquivo do Storage usando o fileKey).
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const therapist = await db
+          .select()
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+
+        if (!therapist.length) throw new Error("Therapist not found");
+
+        const rows = await db
+          .select()
+          .from(documents)
+          .where(and(eq(documents.id, input.id), eq(documents.therapistId, therapist[0].id)))
+          .limit(1);
+
+        if (!rows.length) throw new Error("Document not found");
+
+        await db.delete(documents).where(eq(documents.id, input.id));
+        return { success: true, fileKey: rows[0].fileKey } as const;
+      }),
+  }),
+
   videoCalls: router({
     // Histórico de videochamadas de um paciente, com URLs de gravação.
     getByPatient: protectedProcedure
