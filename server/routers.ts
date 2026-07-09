@@ -266,6 +266,32 @@ export const appRouter = router({
           notes: input.notes,
         });
       }),
+
+    // Atualiza o status de um agendamento do terapeuta logado.
+    updateStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(["scheduled", "completed", "cancelled", "no_show"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const therapist = await db
+          .select()
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+
+        if (!therapist.length) throw new Error("Therapist not found");
+
+        await db
+          .update(appointments)
+          .set({ status: input.status })
+          .where(and(eq(appointments.id, input.id), eq(appointments.therapistId, therapist[0].id)));
+
+        return { success: true } as const;
+      }),
   }),
 
   sessions: router({
