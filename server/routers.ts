@@ -21,11 +21,67 @@ export const appRouter = router({
     }),
   }),
 
+  // Perfil profissional da psicóloga (dados de therapists).
+  therapists: router({
+    me: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return null;
+
+      const rows = await db
+        .select()
+        .from(therapists)
+        .where(eq(therapists.userId, ctx.user.id))
+        .limit(1);
+
+      return rows[0] ?? null;
+    }),
+
+    upsert: protectedProcedure
+      .input(z.object({
+        crp: z.string().min(1),
+        specialties: z.string().optional(),
+        bio: z.string().optional(),
+        photoUrl: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const existing = await db
+          .select()
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+
+        if (existing.length) {
+          await db
+            .update(therapists)
+            .set({
+              crp: input.crp,
+              specialties: input.specialties,
+              bio: input.bio,
+              photoUrl: input.photoUrl,
+            })
+            .where(eq(therapists.id, existing[0].id));
+          return { success: true, action: "updated" as const };
+        }
+
+        await db.insert(therapists).values({
+          userId: ctx.user.id,
+          crp: input.crp,
+          specialties: input.specialties,
+          bio: input.bio,
+          photoUrl: input.photoUrl,
+        });
+        return { success: true, action: "created" as const };
+      }),
+  }),
+
   patients: router({
     list: protectedProcedure.query(async ({ ctx }) => {
       const db = await getDb();
       if (!db) return [];
-      
+
       // Get therapist ID from user
       const therapist = await db
         .select()

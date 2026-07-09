@@ -65,3 +65,18 @@ describe("sessions router", () => {
     expect(result).toHaveLength(0);
   });
 });
+
+describe("therapists router", () => {
+  it("therapists.me returns null when there is no database", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.therapists.me();
+    expect(result).toBeNull();
+  });
+
+  it("therapists.upsert rejects when there is no database", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    await expect(caller.therapists.upsert({ crp: "06/123456" })).rejects.toThrow(
+      "Database not available",
+    );
+  });
+});

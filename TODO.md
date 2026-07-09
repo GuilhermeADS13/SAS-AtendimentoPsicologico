@@ -3,7 +3,7 @@
 ## Autenticação e Usuários
 - [x] Tela de login com OAuth Manus
 - [x] Tela de registro/convite para psicóloga
-- [ ] Perfil da psicóloga com informações profissionais (nome, CRP, foto, especialidades)
+- [x] Perfil da psicóloga com informações profissionais (CRP, foto, especialidades, bio) via /profile
 - [x] Gestão de papéis (psicóloga/admin vs paciente)
 
 ## Design e Identidade Visual
