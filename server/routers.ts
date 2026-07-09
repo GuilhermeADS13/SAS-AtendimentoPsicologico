@@ -298,6 +298,26 @@ export const appRouter = router({
 
         return { success: true } as const;
       }),
+
+    // Confirmação de presença pelo paciente (via link da sala, sem login).
+    // O roomId (sala-apt<id>) funciona como token leve contra IDs sequenciais.
+    confirm: publicProcedure
+      .input(z.object({ id: z.number(), roomId: z.string() }))
+      .mutation(async ({ input }) => {
+        if (input.roomId !== `sala-apt${input.id}`) {
+          throw new Error("Sala inválida para confirmação.");
+        }
+
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        await db
+          .update(appointments)
+          .set({ confirmedAt: new Date() })
+          .where(eq(appointments.id, input.id));
+
+        return { success: true } as const;
+      }),
   }),
 
   sessions: router({

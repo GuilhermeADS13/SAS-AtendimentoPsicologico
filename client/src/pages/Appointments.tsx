@@ -275,6 +275,11 @@ export default function Appointments() {
                             >
                               {getStatusLabel(status)}
                             </span>
+                            {appointment.confirmedAt ? (
+                              <span className="block text-[10px] text-green-600 mt-1">
+                                ✓ Presença confirmada
+                              </span>
+                            ) : null}
                           </TableCell>
                           <TableCell>
                             <Button

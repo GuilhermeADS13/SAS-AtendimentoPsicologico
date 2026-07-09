@@ -8,6 +8,13 @@
       "when": 1783549483450,
       "tag": "0000_narrow_blue_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783623844043,
+      "tag": "0001_familiar_jackpot",
+      "breakpoints": true
     }
   ]
 }

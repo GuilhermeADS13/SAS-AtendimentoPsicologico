@@ -95,6 +95,13 @@ describe("appointments router", () => {
       caller.appointments.updateStatus({ id: 1, status: "completed" }),
     ).rejects.toThrow("Database not available");
   });
+
+  it("appointments.confirm rejects a mismatched roomId", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    await expect(
+      caller.appointments.confirm({ id: 1, roomId: "sala-errada" }),
+    ).rejects.toThrow("Sala inválida");
+  });
 });
 
 describe("documents router", () => {
