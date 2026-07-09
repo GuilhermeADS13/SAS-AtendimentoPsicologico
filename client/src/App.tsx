@@ -7,6 +7,7 @@ import Records from "@/pages/Records";
 import Appointments from "@/pages/Appointments";
 import PatientDetail from "@/pages/PatientDetail";
 import Profile from "@/pages/Profile";
+import Login from "@/pages/Login";
 import Home from "@/pages/Home";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -17,6 +18,7 @@ function Router() {
   return (
     <Switch>
       <Route path={"/"} component={Home} />
+      <Route path={"/login"} component={Login} />
       <Route path={"/dashboard"} component={Dashboard} />
       <Route path={"/videocall"}>{() => <VideoCallDynamic />}</Route>
       <Route path={"/videocall/:roomId"}>

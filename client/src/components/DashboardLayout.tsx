@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
+import { supabase } from "@/lib/supabase";
 import { Calendar, LayoutDashboard, LogOut, PanelLeft, UserRound, Users, Video } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -109,6 +110,18 @@ function DashboardLayoutContent({
 }: DashboardLayoutContentProps) {
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
+
+  // Logout: encerra a sessão do Supabase e a do backend, e volta ao login.
+  const handleLogout = async () => {
+    try {
+      await supabase?.auth.signOut();
+    } catch {
+      /* ignora erro de signOut do supabase */
+    }
+    await logout();
+    setLocation("/login");
+  };
+
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
@@ -223,7 +236,7 @@ function DashboardLayoutContent({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem
-                  onClick={logout}
+                  onClick={handleLogout}
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
