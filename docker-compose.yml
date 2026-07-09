@@ -34,3 +34,26 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+
+  # ── MiroTalk SFU (videochamada) ──────────────────────────────────────────
+  # Servidor de vídeo self-hosted. Suba junto ou sozinho: docker compose up -d mirotalk
+  # Aponte VITE_MIROTALK_URL do frontend para https://<host>:3010.
+  mirotalk:
+    image: mirotalk/sfu:latest
+    container_name: mirotalksfu
+    restart: unless-stopped
+    ports:
+      - "3010:3010"                          # UI/sinalização (HTTPS)
+      - "40000-40100:40000-40100/tcp"        # mídia WebRTC (RTP/RTCP)
+      - "40000-40100:40000-40100/udp"
+    environment:
+      - SERVER_LISTEN_PORT=3010
+      - SFU_MIN_PORT=40000
+      - SFU_MAX_PORT=40100
+      # Gravação server-side (alimenta videoCalls.recordingUrl). Grava em ./mirotalk/rec.
+      - RECORDING_ENABLED=true
+      - RECORDING_DIR=../rec
+      # Em LAN/produção, defina o IP/host público para o WebRTC anunciar:
+      # - SFU_ANNOUNCED_IP=SEU_IP_PUBLICO
+    volumes:
+      - ./mirotalk/rec:/src/app/rec
