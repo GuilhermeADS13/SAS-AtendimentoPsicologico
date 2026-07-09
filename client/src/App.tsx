@@ -6,6 +6,7 @@ import VideoCallDynamic from "@/pages/VideoCallDynamic";
 import Records from "@/pages/Records";
 import Appointments from "@/pages/Appointments";
 import PatientDetail from "@/pages/PatientDetail";
+import Profile from "@/pages/Profile";
 import Home from "@/pages/Home";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -24,6 +25,7 @@ function Router() {
       <Route path={"/records"} component={Records} />
       <Route path={"/records/:id"} component={PatientDetail} />
       <Route path={"/appointments"} component={Appointments} />
+      <Route path={"/profile"} component={Profile} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
