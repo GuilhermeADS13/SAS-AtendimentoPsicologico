@@ -37,7 +37,7 @@
 - [x] Schema de banco de dados para pacientes e prontuários
 - [x] Cadastro de pacientes (dados pessoais, contato, histórico clínico)
 - [x] Listagem de pacientes
-- [ ] Edição de dados do paciente - próxima fase
+- [x] Edição de dados do paciente (get/update via tRPC + tela PatientDetail)
 - [ ] Registro de sessões (data, anotações, evolução clínica) - próxima fase
 - [ ] Visualização de histórico de sessões - próxima fase
 - [ ] Linha do tempo de progresso do paciente - próxima fase
