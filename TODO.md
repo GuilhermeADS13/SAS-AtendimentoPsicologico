@@ -38,8 +38,8 @@
 - [x] Cadastro de pacientes (dados pessoais, contato, histórico clínico)
 - [x] Listagem de pacientes
 - [x] Edição de dados do paciente (get/update via tRPC + tela PatientDetail)
-- [ ] Registro de sessões (data, anotações, evolução clínica) - próxima fase
-- [ ] Visualização de histórico de sessões - próxima fase
+- [x] Registro de sessões (data, anotações, evolução clínica) via tRPC no PatientDetail
+- [x] Visualização de histórico de sessões (aba Sessões do paciente)
 - [ ] Linha do tempo de progresso do paciente - próxima fase
 - [ ] Upload e armazenamento seguro de documentos (laudos, receitas, anexos) - próxima fase
 - [ ] Visualização de documentos anexados - próxima fase

@@ -56,3 +56,12 @@ describe("patients router", () => {
     );
   });
 });
+
+describe("sessions router", () => {
+  it("sessions.getByPatient returns an empty list when there is no database", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.sessions.getByPatient({ patientId: 1 });
+    expect(Array.isArray(result)).toBe(true);
+    expect(result).toHaveLength(0);
+  });
+});
