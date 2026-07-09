@@ -4,8 +4,14 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { getDb } from "./db";
-import { patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls } from "../drizzle/schema";
+import { patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications } from "../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
+import {
+  sendAppointmentReminders,
+  sendTherapistAlerts,
+  sendCancellationAlerts,
+  processPendingNotifications,
+} from "./notifications";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -620,6 +626,47 @@ export const appRouter = router({
         await db.delete(documents).where(eq(documents.id, input.id));
         return { success: true, fileKey: rows[0].fileKey } as const;
       }),
+  }),
+
+  // Lembretes/notificações: histórico in-app e disparo do ciclo de envio.
+  notifications: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return [];
+
+      const therapist = await db
+        .select()
+        .from(therapists)
+        .where(eq(therapists.userId, ctx.user.id))
+        .limit(1);
+
+      if (!therapist.length) return [];
+
+      return db
+        .select({
+          id: notifications.id,
+          appointmentId: notifications.appointmentId,
+          recipientType: notifications.recipientType,
+          recipientEmail: notifications.recipientEmail,
+          notificationType: notifications.notificationType,
+          status: notifications.status,
+          sentAt: notifications.sentAt,
+          createdAt: notifications.createdAt,
+        })
+        .from(notifications)
+        .innerJoin(appointments, eq(notifications.appointmentId, appointments.id))
+        .where(eq(appointments.therapistId, therapist[0].id))
+        .orderBy(desc(notifications.createdAt))
+        .limit(50);
+    }),
+
+    // Enfileira lembretes/alertas e processa a fila (envia os pendentes).
+    run: protectedProcedure.mutation(async () => {
+      await sendAppointmentReminders();
+      await sendTherapistAlerts();
+      await sendCancellationAlerts();
+      return processPendingNotifications();
+    }),
   }),
 
   videoCalls: router({

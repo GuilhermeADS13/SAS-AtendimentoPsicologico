@@ -64,6 +64,30 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
+
+  // Agendador de lembretes/notificações (opt-in). Enfileira e envia os e-mails
+  // pendentes a cada 15 min. Ative com NOTIFICATIONS_ENABLED=true + SMTP_*.
+  if (process.env.NOTIFICATIONS_ENABLED === "true") {
+    const runCycle = async () => {
+      try {
+        const {
+          sendAppointmentReminders,
+          sendTherapistAlerts,
+          sendCancellationAlerts,
+          processPendingNotifications,
+        } = await import("../notifications");
+        await sendAppointmentReminders();
+        await sendTherapistAlerts();
+        await sendCancellationAlerts();
+        const result = await processPendingNotifications();
+        console.log("[Notifications] ciclo:", result);
+      } catch (error) {
+        console.error("[Notifications] erro no ciclo:", error);
+      }
+    };
+    setInterval(runCycle, 15 * 60 * 1000);
+    void runCycle();
+  }
 }
 
 startServer().catch(console.error);

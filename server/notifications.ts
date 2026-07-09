@@ -1,6 +1,83 @@
 import { getDb } from "./db";
 import { notifications, appointments, patients, therapists, users } from "../drizzle/schema";
 import { eq, and, lt, gte } from "drizzle-orm";
+import { sendEmail } from "./mailer";
+
+type NotificationRow = typeof notifications.$inferSelect;
+
+// Monta assunto + corpo HTML conforme o tipo da notificação.
+function composeEmail(n: NotificationRow): { subject: string; html: string } {
+  switch (n.notificationType) {
+    case "appointment_reminder":
+      return {
+        subject: "Lembrete de consulta",
+        html: `<p>Olá,</p><p>Este é um lembrete da sua consulta agendada. Nos vemos em breve!</p>`,
+      };
+    case "appointment_confirmation":
+      return {
+        subject: "Confirmação de consulta",
+        html: `<p>Sua consulta foi confirmada.</p>`,
+      };
+    case "appointment_cancelled":
+      return {
+        subject: "Consulta cancelada",
+        html: `<p>Uma consulta foi cancelada.</p>`,
+      };
+    case "new_appointment":
+      return {
+        subject: "Novo agendamento",
+        html: `<p>Um novo agendamento foi criado.</p>`,
+      };
+    default:
+      return { subject: "Notificação", html: `<p>Você tem uma notificação.</p>` };
+  }
+}
+
+/**
+ * Processa a fila de notificações pendentes: envia o e-mail e marca o status.
+ * Se o SMTP não estiver configurado (dry-run), deixa como pendente.
+ */
+export async function processPendingNotifications(
+  limit = 50,
+): Promise<{ sent: number; failed: number; skipped: number }> {
+  const db = await getDb();
+  if (!db) return { sent: 0, failed: 0, skipped: 0 };
+
+  const pending = await db
+    .select()
+    .from(notifications)
+    .where(eq(notifications.status, "pending"))
+    .limit(limit);
+
+  let sent = 0;
+  let failed = 0;
+  let skipped = 0;
+
+  for (const n of pending) {
+    const { subject, html } = composeEmail(n);
+    try {
+      const delivered = await sendEmail(n.recipientEmail, subject, html);
+      if (delivered) {
+        await db
+          .update(notifications)
+          .set({ status: "sent", sentAt: new Date() })
+          .where(eq(notifications.id, n.id));
+        sent++;
+      } else {
+        // SMTP não configurado → mantém pendente para reenviar quando configurar.
+        skipped++;
+      }
+    } catch (error) {
+      await db
+        .update(notifications)
+        .set({ status: "failed", errorMessage: String(error) })
+        .where(eq(notifications.id, n.id));
+      failed++;
+    }
+  }
+
+  return { sent, failed, skipped };
+}
 
 /**
  * Enviar lembretes automáticos para pacientes
