@@ -28,3 +28,7 @@ dist
 .env
 .env.local
 .env.*.local
+
+# Gravações do MiroTalk
+mirotalk/rec/*
+!mirotalk/rec/.gitkeep
