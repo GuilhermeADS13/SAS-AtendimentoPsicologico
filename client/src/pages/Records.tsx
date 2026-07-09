@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,76 +25,47 @@ import {
 } from "@/components/ui/table";
 import { Plus, Search, Eye, Edit2, Trash2 } from "lucide-react";
 
-interface Patient {
-  id: number;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  status: "active" | "inactive" | "archived";
-  createdAt: string;
-}
-
-const mockPatients: Patient[] = [
-  {
-    id: 1,
-    firstName: "Maria",
-    lastName: "Silva",
-    email: "maria@example.com",
-    phone: "(81) 99999-1111",
-    status: "active",
-    createdAt: "2026-01-15",
-  },
-  {
-    id: 2,
-    firstName: "João",
-    lastName: "Santos",
-    email: "joao@example.com",
-    phone: "(81) 99999-2222",
-    status: "active",
-    createdAt: "2026-02-10",
-  },
-];
+const emptyForm = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  phone: "",
+  medicalHistory: "",
+};
 
 export default function Records() {
-  const [patients, setPatients] = useState<Patient[]>(mockPatients);
+  const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
+  const { data: patients = [], isLoading } = trpc.patients.list.useQuery();
   const [searchTerm, setSearchTerm] = useState("");
   const [isOpen, setIsOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    phone: "",
-    medicalHistory: "",
+  const [formData, setFormData] = useState(emptyForm);
+
+  const createPatient = trpc.patients.create.useMutation({
+    onSuccess: () => {
+      utils.patients.list.invalidate();
+      setFormData(emptyForm);
+      setIsOpen(false);
+      toast.success("Paciente cadastrado com sucesso!");
+    },
+    onError: (e) => toast.error(e.message || "Erro ao cadastrar paciente"),
   });
 
-  const filteredPatients = patients.filter(
-    (patient) =>
-      patient.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.email.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredPatients = patients.filter((patient) =>
+    `${patient.firstName} ${patient.lastName} ${patient.email}`
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase())
   );
 
   const handleAddPatient = () => {
     if (formData.firstName && formData.lastName && formData.email) {
-      const newPatient: Patient = {
-        id: patients.length + 1,
+      createPatient.mutate({
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
-        phone: formData.phone,
-        status: "active",
-        createdAt: new Date().toISOString().split("T")[0],
-      };
-      setPatients([...patients, newPatient]);
-      setFormData({
-        firstName: "",
-        lastName: "",
-        email: "",
-        phone: "",
-        medicalHistory: "",
+        phone: formData.phone || undefined,
+        medicalHistory: formData.medicalHistory || undefined,
       });
-      setIsOpen(false);
     }
   };
 
@@ -227,7 +201,7 @@ export default function Records() {
                           {patient.firstName} {patient.lastName}
                         </TableCell>
                         <TableCell>{patient.email}</TableCell>
-                        <TableCell>{patient.phone}</TableCell>
+                        <TableCell>{patient.phone || "—"}</TableCell>
                         <TableCell>
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-semibold ${
@@ -239,27 +213,35 @@ export default function Records() {
                             {patient.status === "active" ? "Ativo" : "Inativo"}
                           </span>
                         </TableCell>
-                        <TableCell>{patient.createdAt}</TableCell>
+                        <TableCell>
+                          {new Date(patient.createdAt).toLocaleDateString("pt-BR")}
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <Button
                               variant="ghost"
                               size="sm"
+                              onClick={() => setLocation(`/records/${patient.id}`)}
                               className="text-primary hover:bg-primary/10"
+                              title="Ver prontuário"
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="sm"
+                              onClick={() => setLocation(`/records/${patient.id}`)}
                               className="text-secondary hover:bg-secondary/10"
+                              title="Editar"
                             >
                               <Edit2 className="w-4 h-4" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="sm"
+                              onClick={() => toast.info("Exclusão de paciente — em breve")}
                               className="text-destructive hover:bg-destructive/10"
+                              title="Excluir"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>

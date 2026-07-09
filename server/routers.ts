@@ -69,8 +69,89 @@ export const appRouter = router({
           phone: input.phone,
           medicalHistory: input.medicalHistory,
         });
-        
+
         return result;
+      }),
+
+    // Busca um paciente pelo id (somente se pertence ao terapeuta logado).
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return null;
+
+        const therapist = await db
+          .select()
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+
+        if (!therapist.length) return null;
+
+        const rows = await db
+          .select()
+          .from(patients)
+          .where(and(eq(patients.id, input.id), eq(patients.therapistId, therapist[0].id)))
+          .limit(1);
+
+        return rows[0] ?? null;
+      }),
+
+    // Edita os dados de um paciente do terapeuta logado.
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        firstName: z.string().min(1).optional(),
+        lastName: z.string().min(1).optional(),
+        email: z.string().email().optional(),
+        phone: z.string().optional(),
+        dateOfBirth: z.string().optional(),
+        address: z.string().optional(),
+        medicalHistory: z.string().optional(),
+        emergencyContact: z.string().optional(),
+        emergencyPhone: z.string().optional(),
+        status: z.enum(["active", "inactive", "archived"]).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const therapist = await db
+          .select()
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+
+        if (!therapist.length) throw new Error("Therapist not found");
+
+        // Confirma que o paciente pertence a este terapeuta antes de editar.
+        const owned = await db
+          .select()
+          .from(patients)
+          .where(and(eq(patients.id, input.id), eq(patients.therapistId, therapist[0].id)))
+          .limit(1);
+
+        if (!owned.length) throw new Error("Patient not found for this therapist");
+
+        const set: Partial<typeof patients.$inferInsert> = {};
+        if (input.firstName !== undefined) set.firstName = input.firstName;
+        if (input.lastName !== undefined) set.lastName = input.lastName;
+        if (input.email !== undefined) set.email = input.email;
+        if (input.phone !== undefined) set.phone = input.phone;
+        if (input.address !== undefined) set.address = input.address;
+        if (input.medicalHistory !== undefined) set.medicalHistory = input.medicalHistory;
+        if (input.emergencyContact !== undefined) set.emergencyContact = input.emergencyContact;
+        if (input.emergencyPhone !== undefined) set.emergencyPhone = input.emergencyPhone;
+        if (input.status !== undefined) set.status = input.status;
+        if (input.dateOfBirth !== undefined) {
+          set.dateOfBirth = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
+        }
+
+        if (Object.keys(set).length > 0) {
+          await db.update(patients).set(set).where(eq(patients.id, input.id));
+        }
+
+        return { success: true } as const;
       }),
   }),
 

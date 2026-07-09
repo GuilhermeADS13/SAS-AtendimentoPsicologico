@@ -39,7 +39,20 @@ describe("patients router", () => {
     // This will return empty list since we don't have a database in tests
     // In a real scenario, you would mock the database
     const result = await caller.patients.list();
-    
+
     expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("patients.get returns null when there is no database", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.patients.get({ id: 1 });
+    expect(result).toBeNull();
+  });
+
+  it("patients.update rejects when there is no database", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    await expect(caller.patients.update({ id: 1, firstName: "Novo" })).rejects.toThrow(
+      "Database not available",
+    );
   });
 });
