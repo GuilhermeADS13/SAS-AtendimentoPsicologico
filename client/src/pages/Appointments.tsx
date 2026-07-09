@@ -1,5 +1,6 @@
 import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -30,126 +31,68 @@ import {
 } from "@/components/ui/table";
 import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink } from "lucide-react";
 
-interface Appointment {
-  id: number;
-  patientId: number;
-  patientName: string;
-  date: string;
-  time: string;
-  duration: number;
-  status: "scheduled" | "completed" | "cancelled" | "no_show";
-  roomId: string;
-  roomUrl: string;
-}
+type Status = "scheduled" | "completed" | "cancelled" | "no_show";
 
 // A sala carrega os ids do agendamento/paciente na query (?apt=&pat=), que a
 // VideoCallDynamic usa para o auto-save real das anotações no router sessionNotes.
-const buildRoomUrl = (roomId: string, appointmentId: number, patientId: number) =>
-  `/videocall/${roomId}?apt=${appointmentId}&pat=${patientId}`;
+const roomIdFor = (appointmentId: number) => `sala-apt${appointmentId}`;
+const roomUrlFor = (appointmentId: number, patientId: number) =>
+  `/videocall/${roomIdFor(appointmentId)}?apt=${appointmentId}&pat=${patientId}`;
 
-const mockAppointments: Appointment[] = [
-  {
-    id: 1,
-    patientId: 1,
-    patientName: "Maria Silva",
-    date: "2026-07-08",
-    time: "14:30",
-    duration: 60,
-    status: "scheduled",
-    roomId: "psicologia-maria-silva-1720428600",
-    roomUrl: buildRoomUrl("psicologia-maria-silva-1720428600", 1, 1),
-  },
-  {
-    id: 2,
-    patientId: 2,
-    patientName: "João Santos",
-    date: "2026-07-09",
-    time: "10:00",
-    duration: 60,
-    status: "scheduled",
-    roomId: "psicologia-joao-santos-1720512000",
-    roomUrl: buildRoomUrl("psicologia-joao-santos-1720512000", 2, 2),
-  },
-  {
-    id: 3,
-    patientId: 3,
-    patientName: "Ana Costa",
-    date: "2026-07-07",
-    time: "15:00",
-    duration: 60,
-    status: "completed",
-    roomId: "psicologia-ana-costa-1720345200",
-    roomUrl: buildRoomUrl("psicologia-ana-costa-1720345200", 3, 3),
-  },
-];
+const emptyForm = { patientId: "", date: "", time: "", duration: "60" };
 
-export default function AppointmentsNew() {
+export default function Appointments() {
   const [, setLocation] = useLocation();
-  const [appointments, setAppointments] = useState<Appointment[]>(mockAppointments);
-  const [isOpen, setIsOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    patientName: "",
-    date: "",
-    time: "",
-    duration: "60",
-  });
+  const utils = trpc.useUtils();
 
-  const generateRoomId = (patientName: string, dateTime: string) => {
-    const timestamp = Math.floor(new Date(dateTime).getTime() / 1000);
-    return `psicologia-${patientName.toLowerCase().replace(/\s+/g, "-")}-${timestamp}`;
+  const { data: appointments = [] } = trpc.appointments.list.useQuery();
+  const { data: patients = [] } = trpc.patients.list.useQuery();
+
+  const [isOpen, setIsOpen] = useState(false);
+  const [formData, setFormData] = useState(emptyForm);
+
+  const patientName = (patientId: number) => {
+    const p = patients.find((pt) => pt.id === patientId);
+    return p ? `${p.firstName} ${p.lastName}` : "Paciente";
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(`${window.location.origin}${text}`);
+  const createAppt = trpc.appointments.create.useMutation({
+    onSuccess: () => {
+      utils.appointments.list.invalidate();
+      setFormData(emptyForm);
+      setIsOpen(false);
+      toast.success("Consulta agendada com sucesso!");
+    },
+    onError: (e) => toast.error(e.message || "Erro ao agendar"),
+  });
+
+  const updateStatus = trpc.appointments.updateStatus.useMutation({
+    onSuccess: () => {
+      utils.appointments.list.invalidate();
+      toast.success("Status atualizado");
+    },
+    onError: (e) => toast.error(e.message || "Erro ao atualizar status"),
+  });
+
+  const copyToClipboard = (path: string) => {
+    navigator.clipboard.writeText(`${window.location.origin}${path}`);
     toast.success("Link copiado para a área de transferência!");
   };
 
-  const openVideoCall = (roomUrl: string) => {
-    setLocation(roomUrl);
-  };
-
   const handleAddAppointment = () => {
-    if (formData.patientName && formData.date && formData.time) {
-      const dateTime = `${formData.date}T${formData.time}`;
-      const roomId = generateRoomId(formData.patientName, dateTime);
-
-      const newId = appointments.length + 1;
-      // patientId 0: o formulário ainda não vincula um paciente do cadastro.
-      // Ao integrar com o cadastro real (trpc.patients), passe o id aqui para
-      // habilitar o auto-save das anotações nesta consulta.
-      const newAppointment: Appointment = {
-        id: newId,
-        patientId: 0,
-        patientName: formData.patientName,
-        date: formData.date,
-        time: formData.time,
-        duration: parseInt(formData.duration),
-        status: "scheduled",
-        roomId,
-        roomUrl: buildRoomUrl(roomId, newId, 0),
-      };
-      setAppointments([...appointments, newAppointment]);
-      setFormData({
-        patientName: "",
-        date: "",
-        time: "",
-        duration: "60",
-      });
-      setIsOpen(false);
-      toast.success("Consulta agendada com sucesso!");
+    if (!formData.patientId || !formData.date || !formData.time) {
+      toast.error("Selecione o paciente, a data e a hora.");
+      return;
     }
+    const scheduledAt = new Date(`${formData.date}T${formData.time}`).toISOString();
+    createAppt.mutate({
+      patientId: Number(formData.patientId),
+      scheduledAt,
+      duration: parseInt(formData.duration),
+    });
   };
 
-  const updateStatus = (id: number, status: Appointment["status"]) => {
-    setAppointments(
-      appointments.map((apt) =>
-        apt.id === id ? { ...apt, status } : apt
-      )
-    );
-    toast.success(`Status atualizado para ${status}`);
-  };
-
-  const getStatusColor = (status: Appointment["status"]) => {
+  const getStatusColor = (status: Status) => {
     switch (status) {
       case "scheduled":
         return "bg-blue-100 text-blue-800";
@@ -164,7 +107,7 @@ export default function AppointmentsNew() {
     }
   };
 
-  const getStatusLabel = (status: Appointment["status"]) => {
+  const getStatusLabel = (status: Status) => {
     switch (status) {
       case "scheduled":
         return "Agendado";
@@ -189,7 +132,7 @@ export default function AppointmentsNew() {
           </p>
         </div>
 
-        {/* Add Appointment Button */}
+        {/* Nova Consulta */}
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
@@ -203,15 +146,28 @@ export default function AppointmentsNew() {
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="patientName">Paciente</Label>
-                <Input
-                  id="patientName"
-                  value={formData.patientName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, patientName: e.target.value })
-                  }
-                  placeholder="Nome do paciente"
-                />
+                <Label htmlFor="patient">Paciente</Label>
+                {patients.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhum paciente cadastrado. Cadastre um paciente em Prontuários primeiro.
+                  </p>
+                ) : (
+                  <Select
+                    value={formData.patientId}
+                    onValueChange={(value) => setFormData({ ...formData, patientId: value })}
+                  >
+                    <SelectTrigger id="patient">
+                      <SelectValue placeholder="Selecione o paciente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {patients.map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          {p.firstName} {p.lastName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -220,9 +176,7 @@ export default function AppointmentsNew() {
                     id="date"
                     type="date"
                     value={formData.date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, date: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -231,15 +185,16 @@ export default function AppointmentsNew() {
                     id="time"
                     type="time"
                     value={formData.time}
-                    onChange={(e) =>
-                      setFormData({ ...formData, time: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
                   />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="duration">Duração (minutos)</Label>
-                <Select value={formData.duration} onValueChange={(value) => setFormData({ ...formData, duration: value })}>
+                <Select
+                  value={formData.duration}
+                  onValueChange={(value) => setFormData({ ...formData, duration: value })}
+                >
                   <SelectTrigger id="duration">
                     <SelectValue />
                   </SelectTrigger>
@@ -253,15 +208,16 @@ export default function AppointmentsNew() {
               </div>
               <Button
                 onClick={handleAddAppointment}
+                disabled={createAppt.isPending}
                 className="w-full bg-primary hover:bg-primary/90"
               >
-                Agendar
+                {createAppt.isPending ? "Agendando..." : "Agendar"}
               </Button>
             </div>
           </DialogContent>
         </Dialog>
 
-        {/* Appointments Table */}
+        {/* Tabela */}
         <Card>
           <CardHeader>
             <CardTitle>Consultas Agendadas</CardTitle>
@@ -276,93 +232,100 @@ export default function AppointmentsNew() {
                     <TableHead>Hora</TableHead>
                     <TableHead>Duração</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Sala de Videochamada</TableHead>
+                    <TableHead>Sala</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {appointments.map((appointment) => (
-                    <TableRow key={appointment.id}>
-                      <TableCell className="font-medium">
-                        {appointment.patientName}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-muted-foreground" />
-                          {new Date(appointment.date).toLocaleDateString("pt-BR")}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-muted-foreground" />
-                          {appointment.time}
-                        </div>
-                      </TableCell>
-                      <TableCell>{appointment.duration} min</TableCell>
-                      <TableCell>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(
-                            appointment.status
-                          )}`}
-                        >
-                          {getStatusLabel(appointment.status)}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <code className="text-xs bg-muted px-2 py-1 rounded border border-border">
-                            {appointment.roomId.substring(0, 20)}...
-                          </code>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => copyToClipboard(appointment.roomUrl)}
-                            className="p-1 h-auto"
-                            title="Copiar link"
-                          >
-                            <Copy className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          {appointment.status === "scheduled" && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openVideoCall(appointment.roomUrl)}
-                                className="text-primary hover:bg-primary/10"
-                                title="Entrar na videochamada"
-                              >
-                                <ExternalLink className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  updateStatus(appointment.id, "completed")
-                                }
-                                className="text-green-600 hover:bg-green-100"
-                              >
-                                <CheckCircle className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  updateStatus(appointment.id, "cancelled")
-                                }
-                                className="text-red-600 hover:bg-red-100"
-                              >
-                                <XCircle className="w-4 h-4" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
+                  {appointments.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        Nenhuma consulta agendada.
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    appointments.map((appointment) => {
+                      const scheduled = new Date(appointment.scheduledAt);
+                      const status = appointment.status as Status;
+                      const roomUrl = roomUrlFor(appointment.id, appointment.patientId);
+                      return (
+                        <TableRow key={appointment.id}>
+                          <TableCell className="font-medium">
+                            {patientName(appointment.patientId)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-muted-foreground" />
+                              {scheduled.toLocaleDateString("pt-BR")}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-muted-foreground" />
+                              {scheduled.toLocaleTimeString("pt-BR", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </div>
+                          </TableCell>
+                          <TableCell>{appointment.duration} min</TableCell>
+                          <TableCell>
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(status)}`}
+                            >
+                              {getStatusLabel(status)}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => copyToClipboard(roomUrl)}
+                              className="p-1 h-auto"
+                              title="Copiar link da sala"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              {status === "scheduled" && (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setLocation(roomUrl)}
+                                    className="text-primary hover:bg-primary/10"
+                                    title="Entrar na videochamada"
+                                  >
+                                    <ExternalLink className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => updateStatus.mutate({ id: appointment.id, status: "completed" })}
+                                    className="text-green-600 hover:bg-green-100"
+                                    title="Marcar como realizada"
+                                  >
+                                    <CheckCircle className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => updateStatus.mutate({ id: appointment.id, status: "cancelled" })}
+                                    className="text-red-600 hover:bg-red-100"
+                                    title="Cancelar"
+                                  >
+                                    <XCircle className="w-4 h-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
                 </TableBody>
               </Table>
             </div>

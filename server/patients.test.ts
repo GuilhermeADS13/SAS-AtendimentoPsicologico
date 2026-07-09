@@ -80,3 +80,19 @@ describe("therapists router", () => {
     );
   });
 });
+
+describe("appointments router", () => {
+  it("appointments.list returns an empty list when there is no database", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.appointments.list();
+    expect(Array.isArray(result)).toBe(true);
+    expect(result).toHaveLength(0);
+  });
+
+  it("appointments.updateStatus rejects when there is no database", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    await expect(
+      caller.appointments.updateStatus({ id: 1, status: "completed" }),
+    ).rejects.toThrow("Database not available");
+  });
+});
