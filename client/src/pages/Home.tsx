@@ -1,7 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { startLogin } from "@/const";
 import { ArrowRight, Calendar, FileText, Users, Video, Lock, Clock } from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
@@ -27,7 +26,7 @@ export default function Home() {
             <span className="font-semibold text-foreground">Beatriz Chagas</span>
           </div>
           <Button
-            onClick={() => startLogin()}
+            onClick={() => setLocation("/login")}
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             Entrar
@@ -50,7 +49,7 @@ export default function Home() {
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Button
-            onClick={() => startLogin()}
+            onClick={() => setLocation("/login")}
             size="lg"
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
@@ -177,7 +176,7 @@ export default function Home() {
               Acesse a plataforma com sua conta e comece a gerenciar seus atendimentos de forma profissional e segura.
             </p>
             <Button
-              onClick={() => startLogin()}
+              onClick={() => setLocation("/login")}
               size="lg"
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >

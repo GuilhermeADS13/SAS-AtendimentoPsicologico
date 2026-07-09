@@ -5,7 +5,7 @@ import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
-import { startLogin } from "./const";
+import { getAccessToken } from "./lib/supabase";
 import "./index.css";
 
 const queryClient = new QueryClient();
@@ -18,7 +18,10 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
   if (!isUnauthorized) return;
 
-  startLogin();
+  // Vai para a tela de login (Supabase Auth) — sem loop se já estiver nela.
+  if (window.location.pathname !== "/login") {
+    window.location.href = "/login";
+  }
 };
 
 queryClient.getQueryCache().subscribe(event => {
@@ -42,7 +45,14 @@ const trpcClient = trpc.createClient({
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
-      headers() {
+      async headers() {
+        // Supabase Auth: envia o access token (JWT) como Bearer. O backend o
+        // valida via JWKS e mapeia para a tabela users.
+        const sbToken = await getAccessToken();
+        if (sbToken) {
+          return { Authorization: `Bearer ${sbToken}` };
+        }
+
         // Preview auto-login fallback: when the browser blocks iframe cookies
         // (Safari ITP / private browsing / WebView), the runtime mirrors the
         // session into sessionStorage so we can forward it as a Bearer token.
