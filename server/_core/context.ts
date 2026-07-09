@@ -1,6 +1,7 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { User } from "../../drizzle/schema";
 import { sdk } from "./sdk";
+import { getOrCreateDevUser } from "../devAuth";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
@@ -18,6 +19,16 @@ export async function createContext(
   } catch (error) {
     // Authentication is optional for public procedures.
     user = null;
+  }
+
+  // Login de DESENVOLVIMENTO: sem OAuth configurado, permite testar os fluxos
+  // protegidos localmente. Só ativa com NODE_ENV=development E DEV_AUTH=true.
+  if (!user && process.env.NODE_ENV === "development" && process.env.DEV_AUTH === "true") {
+    try {
+      user = await getOrCreateDevUser();
+    } catch (error) {
+      console.warn("[DevAuth] Falha ao criar usuário de desenvolvimento:", error);
+    }
   }
 
   return {
