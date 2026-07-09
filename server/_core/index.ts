@@ -1,4 +1,7 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
+// Carrega .env.local (dev) primeiro e depois .env, sem sobrescrever o ambiente.
+loadEnv({ path: ".env.local" });
+loadEnv();
 import express from "express";
 import { createServer } from "http";
 import net from "net";
