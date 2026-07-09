@@ -115,6 +115,7 @@ export const appointments = pgTable("appointments", {
   scheduledAt: timestamp("scheduledAt", { withTimezone: true, mode: "date" }).notNull(),
   duration: integer("duration").default(60).notNull(), // em minutos
   status: appointmentStatusEnum("status").default("scheduled").notNull(),
+  confirmedAt: timestamp("confirmedAt", { withTimezone: true, mode: "date" }), // presença confirmada pelo paciente
   notes: text("notes"),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })

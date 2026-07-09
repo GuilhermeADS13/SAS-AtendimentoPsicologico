@@ -32,3 +32,6 @@ dist
 # Gravações do MiroTalk
 mirotalk/rec/*
 !mirotalk/rec/.gitkeep
+
+# Logs de runtime do Manus
+.manus-logs

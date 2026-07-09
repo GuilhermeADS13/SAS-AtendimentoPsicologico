@@ -96,6 +96,17 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
     }
   });
 
+  // Confirmação de presença do paciente (via link, sem login).
+  const [confirmed, setConfirmed] = useState(false);
+  const confirmPresence = trpc.appointments.confirm.useMutation({
+    onSuccess: () => {
+      setConfirmed(true);
+      toast.success("Presença confirmada!");
+    },
+    onError: (e) => toast.error(e.message || "Não foi possível confirmar"),
+  });
+  const canConfirm = presenceRole === "patient" && appointmentId > 0 && !confirmed;
+
   // Mock data do paciente
   const patientData = {
     id: 1,
@@ -148,10 +159,23 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
               Consulta em tempo real — Sala: {room}
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={copyRoomLink}>
-            <Copy className="w-4 h-4 mr-2" />
-            Copiar link da sala
-          </Button>
+          <div className="flex items-center gap-2">
+            {canConfirm && (
+              <Button
+                size="sm"
+                onClick={() => confirmPresence.mutate({ id: appointmentId, roomId: room })}
+                disabled={confirmPresence.isPending}
+                className="bg-primary hover:bg-primary/90"
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                Confirmar presença
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={copyRoomLink}>
+              <Copy className="w-4 h-4 mr-2" />
+              Copiar link da sala
+            </Button>
+          </div>
         </div>
 
         {error && (
