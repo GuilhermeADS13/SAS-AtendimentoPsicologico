@@ -56,10 +56,10 @@
 
 ## Lembretes e Notificações
 - [x] Schema para armazenar configurações de lembretes
-- [ ] Envio automático de e-mail para pacientes (24h antes) - próxima fase
-- [ ] Envio automático de alertas para psicóloga (novo agendamento, cancelamento) - próxima fase
-- [ ] Notificações in-app para psicóloga - próxima fase
-- [ ] Histórico de notificações enviadas - próxima fase
+- [x] Envio automático de e-mail para pacientes (fila + mailer SMTP + agendador opt-in)
+- [x] Envio automático de alertas para psicóloga (novo agendamento, cancelamento)
+- [ ] Notificações in-app para psicóloga (router notifications.list pronto; falta UI)
+- [x] Histórico de notificações enviadas (notifications.list)
 
 ## Armazenamento e Segurança
 - [ ] Upload de arquivos para S3 - próxima fase

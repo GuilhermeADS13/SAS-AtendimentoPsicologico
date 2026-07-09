@@ -105,3 +105,18 @@ describe("documents router", () => {
     expect(result).toHaveLength(0);
   });
 });
+
+describe("notifications router", () => {
+  it("notifications.list returns an empty list when there is no database", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.notifications.list();
+    expect(Array.isArray(result)).toBe(true);
+    expect(result).toHaveLength(0);
+  });
+
+  it("notifications.run is a no-op counter when there is no database", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.notifications.run();
+    expect(result).toEqual({ sent: 0, failed: 0, skipped: 0 });
+  });
+});
