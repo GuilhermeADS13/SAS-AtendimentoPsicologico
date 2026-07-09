@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,25 @@ import { useLocation } from "wouter";
 export default function Dashboard() {
   const { user, loading } = useAuth();
   const [, setLocation] = useLocation();
+
+  // Contadores reais para os cards de resumo.
+  const { data: patients = [] } = trpc.patients.list.useQuery();
+  const { data: appointments = [] } = trpc.appointments.list.useQuery();
+  const { data: sessions = [] } = trpc.sessions.list.useQuery();
+
+  const isToday = (value: unknown) => {
+    const d = new Date(value as string);
+    const now = new Date();
+    return (
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate()
+    );
+  };
+  const consultasHoje = appointments.filter(
+    (a) => a.status === "scheduled" && isToday(a.scheduledAt),
+  ).length;
+  const pacientesAtivos = patients.filter((p) => p.status === "active").length;
 
   if (loading) {
     return (
@@ -42,7 +62,7 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">0</div>
+              <div className="text-2xl font-bold text-foreground">{consultasHoje}</div>
               <p className="text-xs text-muted-foreground mt-1">Agendadas para hoje</p>
             </CardContent>
           </Card>
@@ -55,7 +75,7 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">0</div>
+              <div className="text-2xl font-bold text-foreground">{pacientesAtivos}</div>
               <p className="text-xs text-muted-foreground mt-1">Pacientes ativos</p>
             </CardContent>
           </Card>
@@ -68,7 +88,7 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">0</div>
+              <div className="text-2xl font-bold text-foreground">{sessions.length}</div>
               <p className="text-xs text-muted-foreground mt-1">Registros de sessões</p>
             </CardContent>
           </Card>
@@ -99,7 +119,7 @@ export default function Dashboard() {
               <span>Agendar Consulta</span>
             </Button>
             <Button
-              onClick={() => setLocation("/patients")}
+              onClick={() => setLocation("/records")}
               className="h-24 flex flex-col items-center justify-center gap-2 bg-secondary hover:bg-secondary/90 text-secondary-foreground"
             >
               <Users className="w-6 h-6" />

@@ -2,17 +2,18 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { startLogin } from "@/const";
-import { ArrowRight, Calendar, FileText, Users, Video, Lock, Clock, Shield } from "lucide-react";
+import { ArrowRight, Calendar, FileText, Users, Video, Lock, Clock } from "lucide-react";
+import { useEffect } from "react";
 import { useLocation } from "wouter";
 
 export default function Home() {
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
 
-  if (isAuthenticated) {
-    setLocation("/dashboard");
-    return null;
-  }
+  // Redireciona autenticados para o dashboard (efeito, nunca durante o render).
+  useEffect(() => {
+    if (isAuthenticated) setLocation("/dashboard");
+  }, [isAuthenticated, setLocation]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20">
