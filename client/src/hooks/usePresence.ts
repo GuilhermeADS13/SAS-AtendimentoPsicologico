@@ -35,6 +35,16 @@ export function usePresence(
       }
     };
 
-    return () => ws.close();
+    // Em hosts serverless (ex.: Vercel) não há WebSocket: falha em silêncio,
+    // a presença apenas não fica em tempo real (o sininho segue via polling).
+    ws.onerror = () => {};
+
+    return () => {
+      try {
+        ws.close();
+      } catch {
+        /* já fechado */
+      }
+    };
   }, [room, role, name]);
 }
