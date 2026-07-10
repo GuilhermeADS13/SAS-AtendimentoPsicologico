@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    name: Typecheck, testes e build
+    runs-on: ubuntu-latest
+
+    # Postgres efêmero para os testes de integração (funcionais).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Ativar pnpm (corepack)
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.4.1 --activate
+
+      - name: Instalar dependências
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm check
+
+      # Sem DATABASE_URL: exercita o comportamento sem banco (procedures retornam
+      # vazio / rejeitam). O teste de integração fica SKIPPED aqui.
+      - name: Testes unitários
+        run: pnpm test
+
+      - name: Aplicar migrations no Postgres de teste
+        run: pnpm drizzle-kit migrate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+
+      # Fluxo funcional completo contra o Postgres real (perfil → paciente →
+      # agendamento → confirmação → sessão → documento + checagem de IDOR).
+      - name: Testes de integração (funcionais)
+        run: pnpm test:integration
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+          RUN_INTEGRATION: "true"
+
+      - name: Build de produção
+        run: pnpm build

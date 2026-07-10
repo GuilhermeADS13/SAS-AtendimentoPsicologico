@@ -2,6 +2,7 @@
 
 Plataforma web completa para psicólogos gerenciarem consultas online, prontuários de pacientes e agendamentos. Desenvolvida com tecnologias modernas e identidade visual profissional.
 
+![CI](https://github.com/GuilhermeADS13/SAS-AtendimentoPsicologico/actions/workflows/ci.yml/badge.svg)
 ![Status](https://img.shields.io/badge/status-ativo-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
