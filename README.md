@@ -360,6 +360,34 @@ pnpm build
 pnpm start
 ```
 
+### Deploy no Vercel
+
+O `vercel.json` configura o Vercel para servir o **frontend estático**
+(`dist/public`) e o **backend como função serverless** (`api/index.ts`, que
+expõe a API tRPC/OAuth). O Vercel detecta o repo e faz deploy a cada push.
+
+**Variáveis de ambiente (Vercel → Project → Settings → Environment Variables):**
+
+| Variável | Uso | Observação |
+|----------|-----|------------|
+| `VITE_SUPABASE_URL` | build | pública |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | build | pública |
+| `VITE_MIROTALK_URL` | build | URL do MiroTalk de produção |
+| `VITE_APP_ID` | build | OAuth Manus (opcional) |
+| `DATABASE_URL` | runtime | **pooler de transações (porta 6543)** — obrigatório em serverless |
+| `JWT_SECRET`, `SUPABASE_URL` | runtime | |
+| `SMTP_*` | runtime | lembretes (opcional) |
+
+**Limitações no Vercel (serverless):**
+- **Presença em tempo real (WebSocket) não roda** — o aviso "paciente entrou"
+  fica desativado; o **sininho de notificações** continua atualizando via polling.
+- **O agendador de lembretes** (`setInterval`) não roda em serverless. Para
+  enviar lembretes automaticamente, use **Vercel Cron** chamando um endpoint que
+  dispare `notifications.run`, ou rode o servidor completo num container.
+
+> Para ter **tudo** (inclusive WebSocket e agendador), use um container
+> (Fly.io/Railway) — veja abaixo.
+
 ### Deploy contínuo (CD) — Fly.io
 
 A pipeline (`.github/workflows/cd.yml`) faz **deploy automático no Fly.io** a cada
