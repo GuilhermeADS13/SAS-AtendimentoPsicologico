@@ -360,6 +360,23 @@ pnpm build
 pnpm start
 ```
 
+### Deploy no Render (grátis — recomendado)
+
+Roda o **container completo** (Express + WebSocket + agendador) a partir do
+Dockerfile, no **plano free**. Mantém **todas** as funcionalidades (presença em
+tempo real e lembretes automáticos). Única ressalva: o serviço "dorme" após
+~15 min sem uso (a próxima visita leva ~50s pra acordar).
+
+**Passos:**
+1. Em [render.com](https://render.com) → **New → Blueprint** → conecte este repositório.
+   O `render.yaml` configura o serviço automaticamente.
+2. Preencha as variáveis marcadas como *sync: false*:
+   - `DATABASE_URL` — pooler do Supabase (se a senha tiver `@`, escreva `%40`).
+   - `JWT_SECRET` — uma chave forte.
+   - (opcional) `NOTIFICATIONS_ENABLED=true` + `SMTP_*` para os lembretes.
+3. **Create** → o Render builda o Dockerfile e publica. Cada push na `main`
+   redeploya sozinho (`autoDeploy`).
+
 ### Deploy no Vercel
 
 O `vercel.json` configura o Vercel para servir o **frontend estático**
