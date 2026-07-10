@@ -1,0 +1,28 @@
+# Fly.io — configuração de deploy do SAS.
+# Troque `app` por um nome único seu antes de `fly launch`/`fly deploy`.
+app = "sas-atendimento-psicologico"
+primary_region = "gru" # São Paulo
+
+[build]
+  dockerfile = "Dockerfile"
+  # VITE_* são públicas (embutidas no bundle) — vão como build args.
+  # Ajuste VITE_MIROTALK_URL para o seu servidor MiroTalk em produção.
+  [build.args]
+    VITE_SUPABASE_URL = "https://icaybuutkfzpqplsqhtb.supabase.co"
+    VITE_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_YzceRGzH1lAlUrdXMLHA8Q_-EPc9yo-"
+    VITE_MIROTALK_URL = "https://localhost:3010"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
