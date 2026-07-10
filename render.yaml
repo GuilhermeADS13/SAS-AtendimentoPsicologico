@@ -1,0 +1,49 @@
+# Blueprint do Render (plano free) — roda o container completo (Express +
+# WebSocket + agendador) a partir do Dockerfile. No Render: New → Blueprint →
+# conecte este repositório. As variáveis com `sync: false` você preenche no painel.
+services:
+  - type: web
+    name: sas-atendimento-psicologico
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: virginia # us-east (mais perto do Brasil entre as regiões free)
+    autoDeploy: true
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # VITE_* são públicas e embutidas no bundle em build time (o Render as
+      # repassa como build args para o Dockerfile).
+      - key: VITE_SUPABASE_URL
+        value: https://icaybuutkfzpqplsqhtb.supabase.co
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        value: sb_publishable_YzceRGzH1lAlUrdXMLHA8Q_-EPc9yo-
+      - key: VITE_MIROTALK_URL
+        value: https://localhost:3010
+
+      # Runtime — preencha no painel do Render (não vão para o repositório).
+      # DATABASE_URL: use o pooler do Supabase; se a senha tiver @, use %40.
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        value: https://icaybuutkfzpqplsqhtb.supabase.co
+      - key: OAUTH_SERVER_URL
+        value: https://api.manus.im
+
+      # Lembretes por e-mail (opcional). Ative NOTIFICATIONS_ENABLED e preencha o SMTP.
+      - key: NOTIFICATIONS_ENABLED
+        value: "false"
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
