@@ -360,10 +360,36 @@ pnpm build
 pnpm start
 ```
 
-### Deploy no Manus
-1. Crie um checkpoint: `webdev_save_checkpoint`
-2. Clique em "Publish" na Management UI
-3. Configure domínio customizado (opcional)
+### Deploy contínuo (CD) — Fly.io
+
+A pipeline (`.github/workflows/cd.yml`) faz **deploy automático no Fly.io** a cada
+push na `main`, **depois que o CI passa**. Enquanto o segredo `FLY_API_TOKEN` não
+estiver configurado, o passo de deploy é apenas pulado (sem falhar o build).
+
+**Configuração (uma vez):**
+1. Instale o [flyctl](https://fly.io/docs/flyctl/install/) e faça `fly auth login`.
+2. Crie o app (ajuste o nome em `fly.toml`): `fly apps create SEU-APP`.
+3. Defina os **secrets de runtime** (não vão para o repositório):
+   ```bash
+   fly secrets set \
+     DATABASE_URL="postgresql://postgres.<proj>:<senha>@...pooler.supabase.com:6543/postgres" \
+     JWT_SECRET="..." \
+     SUPABASE_URL="https://<proj>.supabase.co" \
+     OAUTH_SERVER_URL="https://api.manus.im" \
+     NOTIFICATIONS_ENABLED="true" \
+     SMTP_HOST="..." SMTP_USER="..." SMTP_PASS="..." SMTP_FROM="..."
+   ```
+   > Runtime usa o **pooler de transações** (porta 6543).
+4. Gere um token de deploy e adicione no GitHub:
+   ```bash
+   fly tokens create deploy
+   ```
+   → GitHub → Settings → Secrets and variables → Actions → **New secret**
+   `FLY_API_TOKEN` = (o token).
+5. Pronto: cada push na `main` roda o **CI** e, passando, dispara o **CD**.
+
+> As variáveis `VITE_*` (públicas) já vão como build args no `fly.toml`.
+> Ajuste `VITE_MIROTALK_URL` para o seu servidor MiroTalk de produção.
 
 ---
 
