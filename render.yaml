@@ -36,9 +36,22 @@ services:
       - key: OAUTH_SERVER_URL
         value: https://api.manus.im
 
-      # ── E-mails (Gmail SMTP) ────────────────────────────────────────────
-      # Só o SMTP_PASS é secreto (Senha de App do Gmail) — preencha no painel.
-      # Os demais o Render cria sozinho ao sincronizar este blueprint.
+      # ── E-mails (API HTTP da Brevo) ─────────────────────────────────────
+      # NÃO use SMTP aqui: o plano free do Render bloqueia as portas 25/465/587
+      # na saída, e todo envio morre em "Connection timeout". A API da Brevo
+      # fala HTTPS na 443, que passa. As variáveis SMTP_* abaixo continuam só
+      # para desenvolvimento local, onde a 587 abre normalmente.
+      # https://render.com/changelog/free-web-services-will-no-longer-allow-outbound-traffic-to-smtp-ports
+      # As SMTP_* NÃO são declaradas aqui de propósito. Se estivessem, faltando a
+      # chave da Brevo o servidor tentaria SMTP e voltaria a falhar por timeout.
+      # Sem elas, o pior caso é dry-run: a notificação fica pendente e é
+      # reenviada, em vez de morrer como "failed".
+      - key: BREVO_API_KEY # chave da API (Brevo → SMTP & API → API Keys)
+        sync: false
+      - key: EMAIL_FROM # remetente; precisa estar verificado na Brevo
+        value: codexmaciel@gmail.com
+      - key: EMAIL_FROM_NAME
+        value: VozInterior
       - key: ADMIN_EMAIL # recebe os avisos de solicitação de acesso
         value: codexmaciel@gmail.com
       # APP_URL não é declarada de propósito: sem ela, os e-mails usam a
@@ -47,14 +60,3 @@ services:
       # Render não tem como adivinhar.
       - key: NOTIFICATIONS_ENABLED # liga o agendador de lembretes (15 em 15 min)
         value: "true"
-      - key: SMTP_HOST
-        value: smtp.gmail.com
-      - key: SMTP_PORT
-        value: "587"
-      - key: SMTP_USER
-        value: codexmaciel@gmail.com
-      - key: SMTP_FROM # o Gmail exige que o remetente seja a própria conta
-        value: codexmaciel@gmail.com
-      # SENHA DE APP do Gmail (16 caracteres). NUNCA no repositório.
-      - key: SMTP_PASS
-        sync: false
