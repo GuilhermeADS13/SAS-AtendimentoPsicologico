@@ -6,9 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { AvatarUpload } from "@/components/AvatarUpload";
 import { iniciais } from "@/lib/iniciais";
-import { UserRound, BadgeCheck } from "lucide-react";
+import { UserRound, BadgeCheck, Clock } from "lucide-react";
 
 function toDateInput(value: unknown): string {
   if (!value) return "";
@@ -29,6 +36,14 @@ export default function PatientProfile() {
     dateOfBirth: "",
     address: "",
     photoKey: "",
+  });
+
+  // Só no primeiro cadastro: depois de vinculado, trocar de psicóloga não é
+  // coisa de formulário — envolve o prontuário, então fica fora daqui.
+  const primeiroCadastro = !isLoading && !profile;
+  const [therapistId, setTherapistId] = useState<number | null>(null);
+  const { data: psicologas = [] } = trpc.me.availableTherapists.useQuery(undefined, {
+    enabled: primeiroCadastro,
   });
 
   useEffect(() => {
@@ -56,9 +71,15 @@ export default function PatientProfile() {
   }, [profile, user]);
 
   const save = trpc.me.saveProfile.useMutation({
-    onSuccess: () => {
+    onSuccess: (r) => {
       utils.me.profile.invalidate();
-      toast.success("Cadastro salvo!");
+      utils.me.therapist.invalidate();
+      toast.success(
+        r.status === "pending"
+          ? "Cadastro enviado! Aguarde a psicóloga confirmar o atendimento."
+          : "Cadastro salvo!",
+        r.status === "pending" ? { duration: 7000 } : undefined,
+      );
     },
     onError: (e) => toast.error(e.message || "Erro ao salvar"),
   });
@@ -73,6 +94,10 @@ export default function PatientProfile() {
       toast.error("Informe nome e sobrenome.");
       return;
     }
+    if (primeiroCadastro && !therapistId) {
+      toast.error("Escolha a psicóloga que vai te atender.");
+      return;
+    }
     save.mutate({
       firstName: form.firstName,
       lastName: form.lastName,
@@ -80,6 +105,7 @@ export default function PatientProfile() {
       dateOfBirth: form.dateOfBirth || undefined,
       address: form.address || undefined,
       photoKey: form.photoKey,
+      ...(therapistId ? { therapistId } : {}),
     });
   };
 
@@ -91,6 +117,19 @@ export default function PatientProfile() {
           Seus dados de contato para o atendimento.
         </p>
       </div>
+
+      {profile?.status === "pending" && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="pt-6 flex items-start gap-3">
+            <Clock className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+            <p className="text-sm text-foreground">
+              <strong>Aguardando confirmação da psicóloga.</strong> Assim que ela
+              aceitar, você poderá ter consultas agendadas. Seus dados já estão
+              salvos — pode editar à vontade.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -104,6 +143,30 @@ export default function PatientProfile() {
             <p className="text-muted-foreground">Carregando...</p>
           ) : (
             <>
+              {primeiroCadastro && (
+                <div className="space-y-2">
+                  <Label htmlFor="psi">Psicóloga *</Label>
+                  <Select
+                    value={therapistId ? String(therapistId) : ""}
+                    onValueChange={(v) => setTherapistId(Number(v))}
+                  >
+                    <SelectTrigger id="psi">
+                      <SelectValue placeholder="Escolha quem vai te atender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {psicologas.map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          {p.nome} · CRP {p.crp}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Ela recebe sua solicitação e confirma o atendimento.
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>Foto (opcional)</Label>
                 <AvatarUpload

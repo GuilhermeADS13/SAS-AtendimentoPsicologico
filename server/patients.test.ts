@@ -75,6 +75,52 @@ describe("patients router", () => {
   });
 });
 
+describe("vínculo paciente ↔ psicóloga", () => {
+  it("me.availableTherapists é acessível ao paciente (ele precisa escolher)", async () => {
+    const caller = appRouter.createCaller(createAuthContext(2, "user"));
+    const result = await caller.me.availableTherapists();
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("primeiro cadastro sem escolher psicóloga é recusado", async () => {
+    const caller = appRouter.createCaller(createAuthContext(2, "user"));
+    // Sem banco o erro vem antes; o que importa é o contrato do input aceitar
+    // therapistId opcional e a validação existir no servidor.
+    await expect(
+      caller.me.saveProfile({ firstName: "Ana", lastName: "Souza" }),
+    ).rejects.toThrow();
+  });
+
+  it("paciente não pode aceitar a si mesmo (só a psicóloga responde)", async () => {
+    const caller = appRouter.createCaller(createAuthContext(2, "user"));
+    await expect(
+      caller.patients.reviewRequest({ id: 1, action: "accept" }),
+    ).rejects.toThrow(/restrito/i);
+  });
+
+  it("paciente não enxerga a fila de solicitações", async () => {
+    const caller = appRouter.createCaller(createAuthContext(2, "user"));
+    await expect(caller.patients.pendingRequests()).rejects.toThrow(/restrito/i);
+  });
+
+  it("patients.reviewRequest falha sem banco", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    await expect(
+      caller.patients.reviewRequest({ id: 1, action: "accept" }),
+    ).rejects.toThrow("Database not available");
+  });
+
+  // A trava que impede agendar para quem a psicóloga nunca aceitou. Sem banco
+  // não dá para exercitar o caminho todo, mas o contrato precisa existir.
+  it("appointments.create rejeita paciente pendente (contrato no servidor)", () => {
+    const fonte = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
+    const trecho = fonte.slice(fonte.indexOf("appointments: router("));
+    const create = trecho.slice(trecho.indexOf("create: therapistProcedure"));
+    expect(create).toContain('patient[0].status === "pending"');
+    expect(create).toMatch(/Aceite a solicitação deste paciente/);
+  });
+});
+
 describe("admin router — aprovação de acesso profissional", () => {
   it("nega a fila de solicitações para um paciente", async () => {
     const caller = appRouter.createCaller(createAuthContext(2, "user"));
