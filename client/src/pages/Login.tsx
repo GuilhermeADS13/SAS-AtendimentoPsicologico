@@ -14,6 +14,7 @@ import {
   PASSWORD_RULE_LABELS,
 } from "@shared/passwordPolicy";
 import { Check, X } from "lucide-react";
+import { LogoFull, APP_NAME, APP_TAGLINE } from "@/components/Logo";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -111,11 +112,13 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-secondary/20 p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto w-10 h-10 rounded-lg bg-primary flex items-center justify-center mb-2">
-            <span className="text-primary-foreground font-bold text-sm">BC</span>
-          </div>
-          <CardTitle>Atendimento Psicológico</CardTitle>
+        <CardHeader className="text-center pb-2">
+          {/* A imagem já traz o nome e "Atendimento Psicológico Online"; repetir
+              em texto seria dizer a mesma coisa duas vezes. */}
+          <LogoFull className="mx-auto w-52" />
+          <CardTitle className="sr-only">
+            {APP_NAME} — {APP_TAGLINE}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {!isSupabaseConfigured ? (

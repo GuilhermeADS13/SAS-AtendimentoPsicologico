@@ -23,6 +23,7 @@ import { useIsMobile } from "@/hooks/useMobile";
 import { useRole } from "@/hooks/useRole";
 import { supabase } from "@/lib/supabase";
 import { NotificationsBell } from "./NotificationsBell";
+import { LogoLockup } from "./Logo";
 import { BadgeCheck, Calendar, LayoutDashboard, LogOut, PanelLeft, UserRound, Users, Video } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -215,13 +216,7 @@ function DashboardLayoutContent({
               >
                 <PanelLeft className="h-4 w-4 text-muted-foreground" />
               </button>
-              {!isCollapsed ? (
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-semibold tracking-tight truncate">
-                    Navigation
-                  </span>
-                </div>
-              ) : null}
+              {!isCollapsed ? <LogoLockup /> : null}
             </div>
           </SidebarHeader>
 
