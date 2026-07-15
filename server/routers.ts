@@ -217,6 +217,41 @@ export const appRouter = router({
         return { success: true, status: "pending" as const, alreadyRequested: false };
       }),
 
+    /**
+     * Perfil da psicóloga que atende o paciente logado.
+     *
+     * Só o que é profissional e público por natureza (nome, CRP, especialidades,
+     * bio, foto) — nada de e-mail ou dados de outros pacientes dela.
+     */
+    therapist: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return null;
+
+      const p = await db
+        .select({ therapistId: patients.therapistId })
+        .from(patients)
+        .where(eq(patients.userId, ctx.user.id))
+        .limit(1);
+
+      if (!p.length) return null;
+
+      const rows = await db
+        .select({
+          id: therapists.id,
+          nome: users.name,
+          crp: therapists.crp,
+          specialties: therapists.specialties,
+          bio: therapists.bio,
+          photoKey: therapists.photoKey,
+        })
+        .from(therapists)
+        .innerJoin(users, eq(users.id, therapists.userId))
+        .where(eq(therapists.id, p[0].therapistId))
+        .limit(1);
+
+      return rows[0] ?? null;
+    }),
+
     // Consultas do paciente logado (para ele ver/entrar na sala).
     appointments: protectedProcedure.query(async ({ ctx }) => {
       const db = await getDb();
@@ -230,9 +265,24 @@ export const appRouter = router({
 
       if (!p.length) return [];
 
+      // Traz o nome da psicóloga junto: sem isso a tela mostraria só data e
+      // hora, e o paciente não saberia com quem é a consulta.
       return db
-        .select()
+        .select({
+          id: appointments.id,
+          patientId: appointments.patientId,
+          therapistId: appointments.therapistId,
+          scheduledAt: appointments.scheduledAt,
+          duration: appointments.duration,
+          status: appointments.status,
+          notes: appointments.notes,
+          confirmedAt: appointments.confirmedAt,
+          therapistName: users.name,
+          therapistCrp: therapists.crp,
+        })
         .from(appointments)
+        .leftJoin(therapists, eq(therapists.id, appointments.therapistId))
+        .leftJoin(users, eq(users.id, therapists.userId))
         .where(eq(appointments.patientId, p[0].id))
         .orderBy(desc(appointments.scheduledAt));
     }),

@@ -8,6 +8,7 @@ import Appointments from "@/pages/Appointments";
 import PatientDetail from "@/pages/PatientDetail";
 import Profile from "@/pages/Profile";
 import MyAppointments from "@/pages/MyAppointments";
+import MyTherapist from "@/pages/MyTherapist";
 import TherapistRequests from "@/pages/TherapistRequests";
 import Login from "@/pages/Login";
 import Home from "@/pages/Home";
@@ -64,6 +65,7 @@ function Router() {
         )}
       </Route>
       <Route path={"/consultas"} component={MyAppointments} />
+      <Route path={"/psicologa"} component={MyTherapist} />
       <Route path={"/profile"} component={Profile} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
