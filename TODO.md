@@ -1,76 +1,67 @@
-# Plataforma de Atendimento Psicológico Online - TODO
+# Plataforma de Atendimento Psicológico Online — TODO
+
+Estado em 2026-07-15. Em produção: https://sas-atendimento-psicologico.onrender.com
 
 ## Autenticação e Usuários
-- [x] Tela de login com OAuth Manus
-- [x] Tela de registro/convite para psicóloga
-- [x] Perfil da psicóloga com informações profissionais (CRP, foto, especialidades, bio) via /profile
-- [x] Gestão de papéis (psicóloga/admin vs paciente)
+- [x] Login/cadastro por e-mail e senha (Supabase Auth, JWT verificado por JWKS)
+- [x] Cadastro pergunta "Você é psicólogo(a)?" → pede CRP → vira solicitação pendente
+- [x] Aprovação manual da psicóloga (o CRP é público, não prova identidade) + e-mail ao admin
+- [x] Gestão de papéis: `therapistProcedure` (admin/therapist) vs `protectedProcedure` (paciente)
+- [x] Paciente não enxerga prontuário — só suas consultas e seu cadastro
+- [ ] Aprovar/recusar solicitação pela interface (hoje é UPDATE no banco na mão)
 
 ## Design e Identidade Visual
-- [x] Paleta de cores (#EAD2A8, #8B6946) implementada no Tailwind
-- [ ] Logo da Beatriz Chagas integrada
+- [x] Paleta de cores (#EAD2A8, #8B6946) no Tailwind
 - [x] Layout responsivo e acessível
-- [x] Componentes customizados seguindo identidade visual
+- [ ] **Logo da Beatriz Chagas** — ainda é o quadrado "BC" em Login.tsx:101
 
-## Dashboard Principal
-- [x] Layout com navegação por abas (Videochamada, Prontuários, Agendamentos)
-- [x] Sidebar com menu de navegação
-- [x] Indicadores de status (consultas agendadas, pacientes, etc)
+## Área da psicóloga
+- [x] Dashboard com indicadores
+- [x] Grade de pacientes (listar, cadastrar, ver prontuário)
+- [x] Excluir paciente: apaga quem não tem histórico, arquiva quem tem (guarda de 5 anos)
+- [x] Bloqueio de e-mail duplicado no cadastro
+- [x] Sino de notificações in-app
+- [ ] Linha do tempo de progresso do paciente
+
+## Área do paciente
+- [x] "Minhas Consultas" como tela inicial (próximas + anteriores, entrar na sala)
+- [x] "Meu Cadastro" — dados pessoais mantidos pelo próprio paciente
+- [x] O que o paciente edita atualiza sozinho na grade da psicóloga (mesma linha no banco)
 
 ## Módulo de Videochamada
+- [x] MiroTalk SFU embutido (instância pública; VITE_MIROTALK_URL para self-host)
+- [x] Sala por agendamento (sala-apt<id>), ligando prontuário e anotações
+- [x] Prontuário em aba separada da chamada, só para a psicóloga
+- [x] Botão "Copiar link da sala" (psicóloga)
+- [x] Anotações da sessão com auto-save durante a chamada
+- [x] Notificações de presença em tempo real (WebSocket)
+- [x] Registro da chamada no banco (videoCalls) + campo recordingUrl
+- [ ] Gravação de fato — exige self-host do MiroTalk (a instância pública não grava)
+- [ ] Tela de histórico de videochamadas
 
-- [x] Integração com Jitsi Meet para videochamadas em tempo real
-- [x] Componente JitsiMeeting criado
-- [x] Página VideoCallJitsi com Jitsi integrado
-- [x] Sala de espera virtual para pacientes (WaitingRoom.tsx)
-- [x] Painel lateral com prontuário durante videochamada
-- [x] URLs únicas por agendamento (geração automática)
-- [x] Rota dinâmica para videochamada por roomId
-- [x] Integração com MiroTalk SFU (substituir Jitsi)
-- [x] Gravação automática de sessões com MiroTalk
-- [x] Whiteboard colaborativo durante sessão (nativo do MiroTalk)
-- [x] REST API integration com MiroTalk backend
-- [ ] Histórico de videochamadas - próxima fase
-- [ ] Gravação de chamadas - próxima fase
+## Prontuários
+- [x] Cadastro, listagem, edição e visualização
+- [x] Registro e histórico de sessões (evolução clínica)
+- [x] Upload/download/exclusão de documentos (Supabase Storage privado + URL assinada)
 
-## Módulo de Prontuários
-- [x] Schema de banco de dados para pacientes e prontuários
-- [x] Cadastro de pacientes (dados pessoais, contato, histórico clínico)
-- [x] Listagem de pacientes
-- [x] Edição de dados do paciente (get/update via tRPC + tela PatientDetail)
-- [x] Registro de sessões (data, anotações, evolução clínica) via tRPC no PatientDetail
-- [x] Visualização de histórico de sessões (aba Sessões do paciente)
-- [ ] Linha do tempo de progresso do paciente - próxima fase
-- [x] Upload e armazenamento seguro de documentos (Supabase Storage + RLS por usuário)
-- [x] Visualização de documentos anexados (URL assinada temporária)
-- [x] Exclusão segura de documentos (metadado + arquivo no Storage)
-
-## Módulo de Agendamento
-- [x] Schema de banco de dados para agendamentos
-- [x] Calendário interativo para seleção de datas/horários
-- [x] Criação de agendamentos (psicóloga)
-- [x] Visualização de agendamentos (psicóloga e paciente)
-- [x] Status de agendamentos (agendado, realizado, cancelado)
-- [x] Cancelamento de agendamentos
-- [ ] Confirmação de presença - próxima fase
+## Agendamento
+- [x] Criação, listagem e cancelamento (psicóloga)
+- [x] Status: agendado, realizado, cancelado, não compareceu
+- [x] Confirmação de presença pelo paciente (appointments.confirm + confirmedAt)
+- [ ] Calendário com escolha de horário pelo paciente
 
 ## Lembretes e Notificações
-- [x] Schema para armazenar configurações de lembretes
-- [x] Envio automático de e-mail para pacientes (fila + mailer SMTP + agendador opt-in)
-- [x] Envio automático de alertas para psicóloga (novo agendamento, cancelamento)
-- [ ] Notificações in-app para psicóloga (router notifications.list pronto; falta UI)
-- [x] Histórico de notificações enviadas (notifications.list)
+- [x] E-mail para pacientes (fila + SMTP Gmail + agendador opt-in)
+- [x] Alertas para a psicóloga (novo agendamento, cancelamento, nova solicitação de CRP)
+- [x] Histórico de notificações enviadas
 
-## Armazenamento e Segurança
-- [ ] Upload de arquivos para S3 - próxima fase
-- [ ] Validação de tipos de arquivo - próxima fase
-- [ ] Criptografia de documentos sensíveis - próxima fase
-- [ ] Controle de acesso a documentos - próxima fase
-- [ ] Backup e recuperação de dados - próxima fase
-
-## Testes
-- [ ] Testes unitários para procedures tRPC - próxima fase
-- [ ] Testes de integração para fluxos principais - próxima fase
-- [ ] Testes de autenticação - próxima fase
-
-## Deploy e Produção
+## Infra, Segurança e Testes
+- [x] Postgres no Supabase (migrado do MySQL) via pooler de transações
+- [x] RLS ligado em todas as 10 tabelas (sem políticas = trancado na API pública)
+- [x] Deploy contínuo no Render (Docker, plano free)
+- [x] CI no GitHub Actions (typecheck + 24 testes unitários + testes de integração com Postgres)
+- [ ] **Rotacionar segredos que vazaram no chat**: App Password do Gmail, senha do banco, PAT do Supabase
+- [ ] **Projeto Supabase separado para dev** — hoje `.env.local` aponta para produção
+- [ ] Ligar "Leaked Password Protection" no painel do Supabase Auth
+- [ ] Backup e recuperação de dados
+- [ ] Remover resíduo do framework Manus em `server/_core/`
