@@ -149,6 +149,27 @@ describe("controle de acesso (RBAC)", () => {
   });
 });
 
+describe("solicitação de acesso profissional", () => {
+  const caller = () => appRouter.createCaller(createAuthContext(99, "user"));
+
+  it("rejeita CRP em formato inválido", async () => {
+    await expect(
+      caller().me.requestTherapist({ fullName: "Fulano de Tal", crp: "123456" }),
+    ).rejects.toThrow(/CRP inválido/i);
+  });
+
+  it("exige nome completo", async () => {
+    await expect(
+      caller().me.requestTherapist({ fullName: "Ab", crp: "06/123456" }),
+    ).rejects.toThrow(/nome completo/i);
+  });
+
+  it("solicitar NÃO promove o usuário (segue sem acesso clínico)", async () => {
+    // Mesmo após pedir, o papel continua o mesmo — a promoção é manual.
+    await expect(caller().patients.list()).rejects.toThrow(/restrito/i);
+  });
+});
+
 describe("notifications router", () => {
   it("notifications.list returns an empty list when there is no database", async () => {
     const caller = appRouter.createCaller(createAuthContext());

@@ -36,6 +36,11 @@ export const videoCallStatusEnum = pgEnum("video_call_status", [
   "completed",
   "failed",
 ]);
+export const therapistRequestStatusEnum = pgEnum("therapist_request_status", [
+  "pending",
+  "approved",
+  "rejected",
+]);
 
 /**
  * Tabela base de usuários (auth).
@@ -58,6 +63,28 @@ export const users = pgTable("users", {
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+/**
+ * Solicitações de acesso profissional (quem se cadastra dizendo ser psicólogo).
+ *
+ * NÃO dá acesso sozinha: o CRP é informação pública, então consultar o número
+ * não prova identidade. A promoção para `therapist` é feita pelo admin após
+ * conferir o CRP no CNP (cadastro.cfp.org.br) — este registro é a fila.
+ */
+export const therapistRequests = pgTable("therapistRequests", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull().unique(),
+  fullName: varchar("fullName", { length: 256 }).notNull(),
+  crp: varchar("crp", { length: 32 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  message: text("message"),
+  status: therapistRequestStatusEnum("status").default("pending").notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  reviewedAt: timestamp("reviewedAt", { withTimezone: true, mode: "date" }),
+});
+
+export type TherapistRequest = typeof therapistRequests.$inferSelect;
+export type InsertTherapistRequest = typeof therapistRequests.$inferInsert;
 
 /**
  * Psicólogas (therapists) — estende usuários com dados profissionais.

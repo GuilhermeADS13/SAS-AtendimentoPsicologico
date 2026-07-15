@@ -4,13 +4,14 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, therapistProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { getDb } from "./db";
-import { patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications } from "../drizzle/schema";
+import { patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests } from "../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
 import {
   sendAppointmentReminders,
   sendTherapistAlerts,
   sendCancellationAlerts,
   processPendingNotifications,
+  notifyAdminOfTherapistRequest,
 } from "./notifications";
 
 export const appRouter = router({
@@ -94,6 +95,83 @@ export const appRouter = router({
           dateOfBirth: dob,
         });
         return { success: true, action: "created" as const };
+      }),
+
+    // Situação da solicitação de acesso profissional do usuário logado.
+    therapistRequest: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return null;
+
+      const rows = await db
+        .select()
+        .from(therapistRequests)
+        .where(eq(therapistRequests.userId, ctx.user.id))
+        .limit(1);
+
+      return rows[0] ?? null;
+    }),
+
+    /**
+     * Solicita acesso como psicóloga. NÃO promove ninguém: apenas registra o
+     * pedido e avisa o admin por e-mail. A aprovação é manual (o CRP é público,
+     * então o número não prova identidade).
+     */
+    requestTherapist: protectedProcedure
+      .input(z.object({
+        fullName: z.string().min(3, "Informe o nome completo"),
+        crp: z
+          .string()
+          .regex(/^\d{2}\/\d{3,6}$/, "CRP inválido. Use o formato 06/123456"),
+        message: z.string().max(500).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const existing = await db
+          .select()
+          .from(therapistRequests)
+          .where(eq(therapistRequests.userId, ctx.user.id))
+          .limit(1);
+
+        if (existing.length && existing[0].status === "pending") {
+          return { success: true, status: "pending" as const, alreadyRequested: true };
+        }
+
+        if (existing.length) {
+          await db
+            .update(therapistRequests)
+            .set({
+              fullName: input.fullName,
+              crp: input.crp,
+              message: input.message,
+              status: "pending",
+              reviewedAt: null,
+            })
+            .where(eq(therapistRequests.id, existing[0].id));
+        } else {
+          await db.insert(therapistRequests).values({
+            userId: ctx.user.id,
+            fullName: input.fullName,
+            crp: input.crp,
+            email: ctx.user.email ?? "",
+            message: input.message,
+          });
+        }
+
+        // Avisa o admin (dry-run se o SMTP não estiver configurado).
+        try {
+          await notifyAdminOfTherapistRequest({
+            fullName: input.fullName,
+            crp: input.crp,
+            email: ctx.user.email ?? "",
+            userId: ctx.user.id,
+          });
+        } catch (error) {
+          console.warn("[TherapistRequest] falha ao notificar admin:", error);
+        }
+
+        return { success: true, status: "pending" as const, alreadyRequested: false };
       }),
 
     // Consultas do paciente logado (para ele ver/entrar na sala).
