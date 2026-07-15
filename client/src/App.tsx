@@ -7,6 +7,7 @@ import Records from "@/pages/Records";
 import Appointments from "@/pages/Appointments";
 import PatientDetail from "@/pages/PatientDetail";
 import Profile from "@/pages/Profile";
+import MyAppointments from "@/pages/MyAppointments";
 import Login from "@/pages/Login";
 import Home from "@/pages/Home";
 import { Route, Switch } from "wouter";
@@ -54,6 +55,7 @@ function Router() {
           </TherapistOnly>
         )}
       </Route>
+      <Route path={"/consultas"} component={MyAppointments} />
       <Route path={"/profile"} component={Profile} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
