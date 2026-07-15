@@ -20,8 +20,10 @@ services:
         value: https://icaybuutkfzpqplsqhtb.supabase.co
       - key: VITE_SUPABASE_PUBLISHABLE_KEY
         value: sb_publishable_YzceRGzH1lAlUrdXMLHA8Q_-EPc9yo-
+      # Instância pública do MiroTalk (funciona sem hospedar nada). Para
+      # self-host (gravação/whiteboard próprios), aponte para o seu servidor.
       - key: VITE_MIROTALK_URL
-        value: https://localhost:3010
+        value: https://sfu.mirotalk.com
 
       # Runtime — preencha no painel do Render (não vão para o repositório).
       # DATABASE_URL: use o pooler do Supabase; se a senha tiver @, use %40.

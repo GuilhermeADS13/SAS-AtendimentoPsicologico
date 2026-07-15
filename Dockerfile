@@ -10,7 +10,7 @@ RUN pnpm install --frozen-lockfile
 
 # Variáveis VITE_* são embutidas no bundle do frontend em build time.
 ARG VITE_APP_ID
-ARG VITE_MIROTALK_URL=https://localhost:3010
+ARG VITE_MIROTALK_URL=https://sfu.mirotalk.com
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_PUBLISHABLE_KEY
 ENV VITE_APP_ID=$VITE_APP_ID

@@ -12,9 +12,10 @@ import { useLocation, useSearch } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
-// URL do servidor MiroTalk SFU (self-hosted). Configure VITE_MIROTALK_URL no
-// deploy; em dev cai no default do container local (docker compose do MiroTalk).
-const mirotalkUrl = import.meta.env.VITE_MIROTALK_URL || "https://localhost:3010";
+// Servidor MiroTalk SFU. Por padrão usa a instância pública do projeto (funciona
+// sem hospedar nada). Para self-host (ex.: docker compose local, com gravação),
+// aponte VITE_MIROTALK_URL para o seu servidor — ex.: https://localhost:3010.
+const mirotalkUrl = import.meta.env.VITE_MIROTALK_URL || "https://sfu.mirotalk.com";
 
 interface VideoCallDynamicProps {
   // Opcional: quando ausente (rota /videocall), geramos uma sala ad-hoc.
@@ -107,28 +108,17 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   });
   const canConfirm = presenceRole === "patient" && appointmentId > 0 && !confirmed;
 
-  // Mock data do paciente
-  const patientData = {
-    id: 1,
-    firstName: "Maria",
-    lastName: "Silva",
-    email: "maria@example.com",
-    phone: "(81) 99999-1111",
-    dateOfBirth: "1990-05-15",
-    medicalHistory: "Ansiedade, depressão leve",
-    lastSession: "2026-07-07 às 15:00",
-    nextAppointment: "2026-07-15 às 14:30",
-    sessionHistory: [
-      {
-        date: "2026-07-07",
-        notes: "Paciente apresentou melhora nos sintomas de ansiedade. Continuaremos com técnicas de respiração.",
-      },
-      {
-        date: "2026-06-30",
-        notes: "Primeira sessão. Paciente relata histórico de ansiedade há 2 anos. Iniciamos com técnicas de mindfulness.",
-      },
-    ],
-  };
+  // Prontuário real do paciente vinculado à sala (?pat=). Em sala avulsa
+  // (sem paciente) o painel não é exibido — prontuário e vídeo ficam separados.
+  const { data: patient } = trpc.patients.get.useQuery(
+    { id: patientId },
+    { enabled: patientId > 0 },
+  );
+  const { data: patientSessions = [] } = trpc.sessions.getByPatient.useQuery(
+    { patientId },
+    { enabled: patientId > 0 },
+  );
+  const lastSession = patientSessions[0];
 
   const handleEndCall = async () => {
     if (notesEnabled) {
@@ -210,7 +200,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
           </div>
 
           {/* Sidebar - Prontuário */}
-          {showSidebar && (
+          {showSidebar && patient && (
             <div className="w-80 bg-card border border-border rounded-lg overflow-hidden flex flex-col">
               <div className="bg-primary/10 p-4 border-b border-border">
                 <div className="flex items-center justify-between">
@@ -243,7 +233,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                         Nome
                       </p>
                       <p className="font-semibold text-foreground">
-                        {patientData.firstName} {patientData.lastName}
+                        {patient?.firstName} {patient?.lastName}
                       </p>
                     </div>
 
@@ -251,18 +241,14 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                       <p className="text-xs text-muted-foreground uppercase">
                         E-mail
                       </p>
-                      <p className="text-sm text-foreground">
-                        {patientData.email}
-                      </p>
+                      <p className="text-sm text-foreground">{patient?.email}</p>
                     </div>
 
                     <div>
                       <p className="text-xs text-muted-foreground uppercase">
                         Telefone
                       </p>
-                      <p className="text-sm text-foreground">
-                        {patientData.phone}
-                      </p>
+                      <p className="text-sm text-foreground">{patient?.phone || "—"}</p>
                     </div>
 
                     <div>
@@ -270,9 +256,9 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                         Data de Nascimento
                       </p>
                       <p className="text-sm text-foreground">
-                        {new Date(patientData.dateOfBirth).toLocaleDateString(
-                          "pt-BR"
-                        )}
+                        {patient?.dateOfBirth
+                          ? new Date(patient.dateOfBirth).toLocaleDateString("pt-BR")
+                          : "—"}
                       </p>
                     </div>
 
@@ -280,26 +266,19 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                       <p className="text-xs text-muted-foreground uppercase">
                         Histórico Médico
                       </p>
-                      <p className="text-sm text-foreground">
-                        {patientData.medicalHistory}
+                      <p className="text-sm text-foreground whitespace-pre-wrap">
+                        {patient?.medicalHistory || "—"}
                       </p>
                     </div>
 
                     <div className="pt-2 border-t border-border">
                       <p className="text-xs text-muted-foreground uppercase mb-2">
-                        Últimas Consultas
+                        Última Sessão
                       </p>
                       <p className="text-sm text-foreground">
-                        {patientData.lastSession}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase mb-2">
-                        Próxima Consulta
-                      </p>
-                      <p className="text-sm text-foreground">
-                        {patientData.nextAppointment}
+                        {lastSession
+                          ? new Date(lastSession.startedAt).toLocaleString("pt-BR")
+                          : "Nenhuma sessão registrada"}
                       </p>
                     </div>
                   </TabsContent>
@@ -355,14 +334,22 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                             Histórico de Sessões
                           </p>
                           <div className="space-y-2 max-h-32 overflow-y-auto">
-                            {patientData.sessionHistory.map((session, idx) => (
-                              <div key={idx} className="bg-muted/30 rounded p-2 text-xs border border-border/50">
-                                <p className="font-semibold text-foreground">{session.date}</p>
-                                <p className="text-muted-foreground mt-1 line-clamp-2">
-                                  {session.notes}
-                                </p>
-                              </div>
-                            ))}
+                            {patientSessions.length === 0 ? (
+                              <p className="text-xs text-muted-foreground">
+                                Nenhuma sessão registrada ainda.
+                              </p>
+                            ) : (
+                              patientSessions.map((session) => (
+                                <div key={session.id} className="bg-muted/30 rounded p-2 text-xs border border-border/50">
+                                  <p className="font-semibold text-foreground">
+                                    {new Date(session.startedAt).toLocaleDateString("pt-BR")}
+                                  </p>
+                                  <p className="text-muted-foreground mt-1 line-clamp-2">
+                                    {session.clinicalNotes}
+                                  </p>
+                                </div>
+                              ))
+                            )}
                           </div>
                         </div>
 
@@ -413,8 +400,8 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
             </div>
           )}
 
-          {/* Sidebar Toggle */}
-          {!showSidebar && (
+          {/* Sidebar Toggle (só faz sentido com um paciente vinculado) */}
+          {!showSidebar && patient && (
             <Button
               variant="outline"
               size="sm"
