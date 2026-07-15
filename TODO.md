@@ -1,6 +1,11 @@
 # Plataforma de Atendimento Psicológico Online — TODO
 
-Estado em 2026-07-15. Em produção: https://vozinteriorpsi.onrender.com
+Estado em 2026-07-15. Em produção: https://sas-atendimento-psicologico.onrender.com
+
+> A URL ainda tem o nome antigo porque o subdomínio `.onrender.com` é atribuído
+> na criação do serviço e **não muda com rename** — trocar exige recriar o
+> serviço, ou apontar um domínio próprio. Os e-mails já usam
+> `RENDER_EXTERNAL_URL`/`APP_URL`, então acompanham sozinhos quando mudar.
 
 ## Autenticação e Usuários
 - [x] Login/cadastro por e-mail e senha (Supabase Auth, JWT verificado por JWKS)
