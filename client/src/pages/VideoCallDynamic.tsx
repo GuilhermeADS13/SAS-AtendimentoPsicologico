@@ -144,7 +144,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   };
 
   return (
-    <DashboardLayout>
+    <DashboardLayout allowAnonymous>
       <div className="space-y-4 h-full flex flex-col">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2">
@@ -165,10 +165,13 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                 Confirmar presença
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={copyRoomLink}>
-              <Copy className="w-4 h-4 mr-2" />
-              Copiar link da sala
-            </Button>
+            {/* Só a psicóloga compartilha a sala — o link não serve ao paciente. */}
+            {isTherapist && (
+              <Button variant="outline" size="sm" onClick={copyRoomLink}>
+                <Copy className="w-4 h-4 mr-2" />
+                Copiar link da sala
+              </Button>
+            )}
           </div>
         </div>
 

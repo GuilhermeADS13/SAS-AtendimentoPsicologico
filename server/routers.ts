@@ -5,7 +5,7 @@ import { publicProcedure, protectedProcedure, therapistProcedure, router } from 
 import { z } from "zod";
 import { getDb } from "./db";
 import { patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests } from "../drizzle/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNull } from "drizzle-orm";
 import {
   sendAppointmentReminders,
   sendTherapistAlerts,
@@ -76,6 +76,31 @@ export const appRouter = router({
             })
             .where(eq(patients.id, existing[0].id));
           return { success: true, action: "updated" as const };
+        }
+
+        // Se a psicóloga já cadastrou este paciente (mesmo e-mail, ainda sem
+        // conta vinculada), assume aquele registro em vez de duplicar.
+        const byEmail = ctx.user.email
+          ? await db
+              .select()
+              .from(patients)
+              .where(and(eq(patients.email, ctx.user.email), isNull(patients.userId)))
+              .limit(1)
+          : [];
+
+        if (byEmail.length) {
+          await db
+            .update(patients)
+            .set({
+              userId: ctx.user.id,
+              firstName: input.firstName,
+              lastName: input.lastName,
+              phone: input.phone,
+              address: input.address,
+              dateOfBirth: dob,
+            })
+            .where(eq(patients.id, byEmail[0].id));
+          return { success: true, action: "linked" as const };
         }
 
         // Primeiro cadastro: vincula à psicóloga da clínica.
