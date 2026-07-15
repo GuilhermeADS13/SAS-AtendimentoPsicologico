@@ -24,7 +24,7 @@ import { useRole } from "@/hooks/useRole";
 import { supabase } from "@/lib/supabase";
 import { NotificationsBell } from "./NotificationsBell";
 import { LogoLockup } from "./Logo";
-import { BadgeCheck, Calendar, LayoutDashboard, LogOut, PanelLeft, UserRound, Users, Video } from "lucide-react";
+import { BadgeCheck, Calendar, LayoutDashboard, LogOut, PanelLeft, Stethoscope, UserRound, Users, Video } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -50,6 +50,7 @@ const adminMenu = [{ icon: BadgeCheck, label: "Solicitações", path: "/solicita
 // entra pela consulta ("Entrar na sala"), que garante a mesma sala da psicóloga.
 const patientMenu = [
   { icon: Calendar, label: "Minhas Consultas", path: "/consultas" },
+  { icon: Stethoscope, label: "Minha Psicóloga", path: "/psicologa" },
   { icon: UserRound, label: "Meu Cadastro", path: "/profile" },
 ];
 
