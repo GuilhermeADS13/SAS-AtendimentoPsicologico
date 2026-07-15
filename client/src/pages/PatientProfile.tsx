@@ -38,12 +38,19 @@ export default function PatientProfile() {
     photoKey: "",
   });
 
-  // Só no primeiro cadastro: depois de vinculado, trocar de psicóloga não é
-  // coisa de formulário — envolve o prontuário, então fica fora daqui.
-  const primeiroCadastro = !isLoading && !profile;
+  // Quem a psicóloga já cadastrou (mesmo e-mail, conta ainda não vinculada) não
+  // escolhe nada: o vínculo já existe e o saveProfile casa por e-mail.
+  const { data: convite, isLoading: carregandoConvite } = trpc.me.invitation.useQuery(
+    undefined,
+    { enabled: !isLoading && !profile },
+  );
+
+  // Só escolhe psicóloga quem chegou por conta própria, sem cadastro prévio.
+  const precisaEscolher = !isLoading && !profile && !carregandoConvite && !convite;
+
   const [therapistId, setTherapistId] = useState<number | null>(null);
   const { data: psicologas = [] } = trpc.me.availableTherapists.useQuery(undefined, {
-    enabled: primeiroCadastro,
+    enabled: precisaEscolher,
   });
 
   useEffect(() => {
@@ -58,6 +65,17 @@ export default function PatientProfile() {
       });
       return;
     }
+    // Cadastrado pela psicóloga: reaproveita o que ela já digitou, em vez de
+    // fazer o paciente redigitar o próprio nome e telefone.
+    if (convite) {
+      setForm((f) => ({
+        ...f,
+        firstName: f.firstName || convite.firstName || "",
+        lastName: f.lastName || convite.lastName || "",
+        phone: f.phone || convite.phone || "",
+      }));
+      return;
+    }
     // Ainda sem cadastro: aproveita o nome informado na criação da conta,
     // para o paciente não precisar digitar de novo.
     if (user?.name) {
@@ -68,7 +86,7 @@ export default function PatientProfile() {
         lastName: f.lastName || rest.join(" "),
       }));
     }
-  }, [profile, user]);
+  }, [profile, user, convite]);
 
   const save = trpc.me.saveProfile.useMutation({
     onSuccess: (r) => {
@@ -94,7 +112,7 @@ export default function PatientProfile() {
       toast.error("Informe nome e sobrenome.");
       return;
     }
-    if (primeiroCadastro && !therapistId) {
+    if (precisaEscolher && !therapistId) {
       toast.error("Escolha a psicóloga que vai te atender.");
       return;
     }
@@ -117,6 +135,20 @@ export default function PatientProfile() {
           Seus dados de contato para o atendimento.
         </p>
       </div>
+
+      {!profile && convite && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="pt-6 flex items-start gap-3">
+            <BadgeCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+            <p className="text-sm text-foreground">
+              <strong>{convite.therapistName}</strong> já cadastrou você como
+              paciente{convite.therapistCrp ? ` (CRP ${convite.therapistCrp})` : ""}.
+              Confira seus dados e salve — não precisa escolher psicóloga nem
+              esperar confirmação.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {profile?.status === "pending" && (
         <Card className="border-primary/40 bg-primary/5">
@@ -143,7 +175,7 @@ export default function PatientProfile() {
             <p className="text-muted-foreground">Carregando...</p>
           ) : (
             <>
-              {primeiroCadastro && (
+              {precisaEscolher && (
                 <div className="space-y-2">
                   <Label htmlFor="psi">Psicóloga *</Label>
                   <Select

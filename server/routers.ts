@@ -224,6 +224,36 @@ export const appRouter = router({
       }),
 
     /**
+     * O paciente já foi cadastrado por uma psicóloga e ainda não vinculou a conta?
+     *
+     * É a linha em `patients` com o e-mail dele e `userId` nulo — a psicóloga já
+     * disse que ele é paciente dela. Nesse caso ele NÃO escolhe psicóloga: o
+     * vínculo já existe, e `saveProfile` casa por e-mail antes de pedir escolha.
+     * Sem esta consulta a tela mostraria um menu cuja resposta o servidor
+     * descarta.
+     */
+    invitation: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db || !ctx.user.email) return null;
+
+      const rows = await db
+        .select({
+          firstName: patients.firstName,
+          lastName: patients.lastName,
+          phone: patients.phone,
+          therapistName: users.name,
+          therapistCrp: therapists.crp,
+        })
+        .from(patients)
+        .innerJoin(therapists, eq(therapists.id, patients.therapistId))
+        .innerJoin(users, eq(users.id, therapists.userId))
+        .where(and(eq(patients.email, ctx.user.email), isNull(patients.userId)))
+        .limit(1);
+
+      return rows[0] ?? null;
+    }),
+
+    /**
      * Psicólogas disponíveis para o paciente escolher no cadastro.
      *
      * Só o que é profissional e já público (nome, CRP, especialidades) — sem

@@ -82,6 +82,30 @@ describe("vínculo paciente ↔ psicóloga", () => {
     expect(Array.isArray(result)).toBe(true);
   });
 
+  it("me.invitation é acessível ao paciente", async () => {
+    const caller = appRouter.createCaller(createAuthContext(2, "user"));
+    expect(await caller.me.invitation()).toBeNull(); // sem banco nos testes
+  });
+
+  /**
+   * A ordem importa: o casamento por e-mail (paciente que a psicóloga já
+   * cadastrou) tem que vir ANTES da exigência de escolher psicóloga. Invertido,
+   * quem foi cadastrado pela psicóloga seria obrigado a escolher — e poderia
+   * escolher outra, contradizendo o vínculo que já existe.
+   */
+  it("saveProfile casa por e-mail antes de exigir a escolha da psicóloga", () => {
+    const fonte = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
+    const save = fonte.slice(
+      fonte.indexOf("saveProfile: protectedProcedure"),
+      fonte.indexOf("invitation: protectedProcedure"),
+    );
+    const posEmail = save.indexOf("byEmail.length");
+    const posEscolha = save.indexOf("Escolha a psicóloga que vai te atender");
+    expect(posEmail).toBeGreaterThan(-1);
+    expect(posEscolha).toBeGreaterThan(-1);
+    expect(posEmail).toBeLessThan(posEscolha);
+  });
+
   it("primeiro cadastro sem escolher psicóloga é recusado", async () => {
     const caller = appRouter.createCaller(createAuthContext(2, "user"));
     // Sem banco o erro vem antes; o que importa é o contrato do input aceitar
