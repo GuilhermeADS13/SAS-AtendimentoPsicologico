@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { BadgeCheck, ExternalLink, Inbox, X } from "lucide-react";
+import { AlertTriangle, BadgeCheck, ExternalLink, Inbox, X } from "lucide-react";
 
 type Acao = { id: number; nome: string; crp: string; action: "approve" | "reject" };
 
@@ -82,6 +82,17 @@ export default function TherapistRequests() {
                         {r.message && (
                           <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">
                             "{r.message}"
+                          </p>
+                        )}
+                        {/* O aviso por e-mail falhou: mostra o motivo aqui, senão
+                            ele só existiria no log do servidor. A solicitação em
+                            si está a salvo — é só o e-mail que não saiu. */}
+                        {r.notifyError && (
+                          <p className="text-xs text-destructive mt-2 flex items-start gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                            <span>
+                              O e-mail de aviso não saiu: {r.notifyError}
+                            </span>
                           </p>
                         )}
                       </div>

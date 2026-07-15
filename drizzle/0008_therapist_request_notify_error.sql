@@ -1,0 +1,1 @@
+ALTER TABLE "therapistRequests" ADD COLUMN "notifyError" text;

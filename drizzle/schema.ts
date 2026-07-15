@@ -97,6 +97,13 @@ export const therapistRequests = pgTable("therapistRequests", {
    * quando o envio falha (deploy no meio, SMTP fora do ar, cold start).
    */
   notifiedAt: timestamp("notifiedAt", { withTimezone: true, mode: "date" }),
+  /**
+   * Por que o último envio falhou. Sem isto, um aviso que não sai é
+   * indistinguível de um que nunca foi tentado — e o motivo só existiria no log
+   * do Render, que ninguém lê. A fila de `notifications` já guarda o erro; esta
+   * coluna dá a mesma visibilidade aqui.
+   */
+  notifyError: text("notifyError"),
 });
 
 export type TherapistRequest = typeof therapistRequests.$inferSelect;
