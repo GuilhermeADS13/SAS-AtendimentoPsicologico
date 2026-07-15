@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { maskCrp } from "@shared/crp";
 import { UserRound } from "lucide-react";
 
 export default function Profile() {
@@ -106,8 +107,11 @@ function TherapistProfile() {
                   <Input
                     id="crp"
                     value={form.crp}
-                    onChange={(e) => setForm({ ...form, crp: e.target.value })}
+                    onChange={(e) => setForm({ ...form, crp: maskCrp(e.target.value) })}
                     placeholder="Ex.: 06/123456"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={9}
                   />
                 </div>
                 <div className="space-y-2">
