@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AvatarUpload } from "@/components/AvatarUpload";
+import { iniciais } from "@/lib/iniciais";
 import { UserRound, BadgeCheck } from "lucide-react";
 
 function toDateInput(value: unknown): string {
@@ -26,6 +28,7 @@ export default function PatientProfile() {
     phone: "",
     dateOfBirth: "",
     address: "",
+    photoKey: "",
   });
 
   useEffect(() => {
@@ -36,6 +39,7 @@ export default function PatientProfile() {
         phone: profile.phone ?? "",
         dateOfBirth: toDateInput(profile.dateOfBirth),
         address: profile.address ?? "",
+        photoKey: profile.photoKey ?? "",
       });
       return;
     }
@@ -75,6 +79,7 @@ export default function PatientProfile() {
       phone: form.phone || undefined,
       dateOfBirth: form.dateOfBirth || undefined,
       address: form.address || undefined,
+      photoKey: form.photoKey,
     });
   };
 
@@ -99,6 +104,14 @@ export default function PatientProfile() {
             <p className="text-muted-foreground">Carregando...</p>
           ) : (
             <>
+              <div className="space-y-2">
+                <Label>Foto (opcional)</Label>
+                <AvatarUpload
+                  value={form.photoKey}
+                  onChange={(photoKey) => setForm({ ...form, photoKey })}
+                  fallback={iniciais(`${form.firstName} ${form.lastName}`.trim() || user?.name)}
+                />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">Nome *</Label>

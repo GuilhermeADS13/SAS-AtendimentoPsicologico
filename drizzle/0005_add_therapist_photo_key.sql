@@ -1,0 +1,1 @@
+ALTER TABLE "therapists" ADD COLUMN "photoKey" text;

@@ -45,3 +45,51 @@ export async function removeDocumentFile(path: string): Promise<void> {
   if (!supabase) return;
   await supabase.storage.from(DOCS_BUCKET).remove([path]);
 }
+
+const AVATARS_BUCKET = "avatars";
+export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+export const AVATAR_MIME = ["image/jpeg", "image/png", "image/webp"];
+
+/**
+ * Envia a foto de perfil e devolve o path no Storage.
+ *
+ * Path fixo por usuário (`<uid>/avatar.<ext>`) com upsert: trocar a foto
+ * substitui a anterior em vez de acumular lixo no bucket. O bucket é privado —
+ * exibir exige `getAvatarSignedUrl`.
+ */
+export async function uploadAvatarFile(file: File): Promise<string> {
+  if (!supabase) throw new Error("Supabase não configurado.");
+
+  if (!AVATAR_MIME.includes(file.type)) {
+    throw new Error("Formato não aceito. Envie uma imagem JPG, PNG ou WEBP.");
+  }
+  if (file.size > AVATAR_MAX_BYTES) {
+    throw new Error("Imagem muito grande. O limite é 5 MB.");
+  }
+
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  if (!uid) throw new Error("Faça login para enviar a foto.");
+
+  const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+  const path = `${uid}/avatar.${ext}`;
+
+  const { error } = await supabase.storage
+    .from(AVATARS_BUCKET)
+    .upload(path, file, { upsert: true, contentType: file.type });
+  if (error) throw error;
+
+  return path;
+}
+
+/** URL assinada temporária para exibir a foto de perfil. */
+export async function getAvatarSignedUrl(path: string): Promise<string | null> {
+  if (!supabase || !path) return null;
+  const { data } = await supabase.storage.from(AVATARS_BUCKET).createSignedUrl(path, 60 * 60);
+  return data?.signedUrl ?? null;
+}
+
+export async function removeAvatarFile(path: string): Promise<void> {
+  if (!supabase || !path) return;
+  await supabase.storage.from(AVATARS_BUCKET).remove([path]);
+}
