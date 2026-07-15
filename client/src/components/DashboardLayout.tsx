@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
+import { useRole } from "@/hooks/useRole";
 import { supabase } from "@/lib/supabase";
 import { NotificationsBell } from "./NotificationsBell";
 import { Calendar, LayoutDashboard, LogOut, PanelLeft, UserRound, Users, Video } from "lucide-react";
@@ -29,12 +30,19 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
-const menuItems = [
+// Menu da psicóloga (acesso clínico completo).
+const therapistMenu = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Users, label: "Pacientes", path: "/records" },
   { icon: Calendar, label: "Agendamentos", path: "/appointments" },
   { icon: Video, label: "Videochamada", path: "/videocall" },
   { icon: UserRound, label: "Perfil", path: "/profile" },
+];
+
+// Menu do paciente: só o próprio cadastro e a videochamada do atendimento.
+const patientMenu = [
+  { icon: UserRound, label: "Meu Cadastro", path: "/profile" },
+  { icon: Video, label: "Videochamada", path: "/videocall" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -110,6 +118,7 @@ function DashboardLayoutContent({
   setSidebarWidth,
 }: DashboardLayoutContentProps) {
   const { user, logout } = useAuth();
+  const { isTherapist } = useRole();
   const [location, setLocation] = useLocation();
 
   // Logout: encerra a sessão do Supabase e a do backend, e volta ao login.
@@ -127,6 +136,7 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const menuItems = isTherapist ? therapistMenu : patientMenu;
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
 
@@ -265,7 +275,7 @@ function DashboardLayoutContent({
               {activeMenuItem?.label ?? "Menu"}
             </span>
           </div>
-          <NotificationsBell />
+          {isTherapist && <NotificationsBell />}
         </div>
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>

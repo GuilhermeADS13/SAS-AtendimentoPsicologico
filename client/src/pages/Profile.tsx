@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useRole } from "@/hooks/useRole";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
+import PatientProfile from "./PatientProfile";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,6 +13,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { UserRound } from "lucide-react";
 
 export default function Profile() {
+  const { isTherapist, loading: roleLoading } = useRole();
+
+  // Paciente vê o próprio cadastro; a psicóloga vê o perfil profissional.
+  if (roleLoading) {
+    return (
+      <DashboardLayout>
+        <p className="text-muted-foreground">Carregando...</p>
+      </DashboardLayout>
+    );
+  }
+
+  if (!isTherapist) {
+    return (
+      <DashboardLayout>
+        <PatientProfile />
+      </DashboardLayout>
+    );
+  }
+
+  return <TherapistProfile />;
+}
+
+/** Perfil profissional da psicóloga (CRP, especialidades, bio). */
+function TherapistProfile() {
   const { user } = useAuth();
   const utils = trpc.useUtils();
   const { data: therapist, isLoading } = trpc.therapists.me.useQuery();

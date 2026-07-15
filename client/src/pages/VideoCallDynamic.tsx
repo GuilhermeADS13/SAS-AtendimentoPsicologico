@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { usePresence } from "@/hooks/usePresence";
+import { useRole } from "@/hooks/useRole";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import MiroTalkMeeting from "@/components/MiroTalkMeeting";
@@ -39,7 +40,10 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const params = new URLSearchParams(search);
   const appointmentId = Number(params.get("apt")) || 0;
   const patientId = Number(params.get("pat")) || 0;
-  const notesEnabled = appointmentId > 0 && patientId > 0;
+  // Prontuário/anotações/gravação são exclusivos da psicóloga. O paciente na
+  // sala só tem o vídeo e a confirmação de presença.
+  const { isTherapist } = useRole();
+  const notesEnabled = isTherapist && appointmentId > 0 && patientId > 0;
 
   // Carrega as anotações já salvas para este agendamento.
   const savedNotes = trpc.sessionNotes.getByAppointment.useQuery(
@@ -87,9 +91,9 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
 
   const displayName = user?.name || "Psicóloga";
 
-  // Presença em tempo real: usuário autenticado é a psicóloga; sem login, é o
-  // paciente que abriu o link. A psicóloga recebe um aviso quando o paciente entra.
-  const presenceRole: "therapist" | "patient" = user ? "therapist" : "patient";
+  // Presença em tempo real: o papel vem do usuário (paciente também loga).
+  // A psicóloga recebe o aviso quando o paciente entra na sala.
+  const presenceRole: "therapist" | "patient" = isTherapist ? "therapist" : "patient";
   const presenceName = user?.name || "Paciente";
   usePresence(room, presenceRole, presenceName, (msg) => {
     if (msg.type === "patient-joined") {
@@ -112,11 +116,11 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   // (sem paciente) o painel não é exibido — prontuário e vídeo ficam separados.
   const { data: patient } = trpc.patients.get.useQuery(
     { id: patientId },
-    { enabled: patientId > 0 },
+    { enabled: isTherapist && patientId > 0 },
   );
   const { data: patientSessions = [] } = trpc.sessions.getByPatient.useQuery(
     { patientId },
-    { enabled: patientId > 0 },
+    { enabled: isTherapist && patientId > 0 },
   );
   const lastSession = patientSessions[0];
 
@@ -130,7 +134,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
         console.error("Falha ao registrar fim da videochamada:", err);
       }
     }
-    setLocation("/dashboard");
+    setLocation(isTherapist ? "/dashboard" : "/profile");
   };
 
   const copyRoomLink = () => {
