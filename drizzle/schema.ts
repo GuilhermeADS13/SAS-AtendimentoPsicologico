@@ -85,6 +85,8 @@ export type InsertTherapist = typeof therapists.$inferInsert;
 export const patients = pgTable("patients", {
   id: serial("id").primaryKey(),
   therapistId: integer("therapistId").notNull(),
+  /** Conta do paciente (users.id) quando ele mesmo se cadastra. Null = criado pela psicóloga. */
+  userId: integer("userId").unique(),
   firstName: varchar("firstName", { length: 128 }).notNull(),
   lastName: varchar("lastName", { length: 128 }).notNull(),
   email: varchar("email", { length: 320 }).notNull(),

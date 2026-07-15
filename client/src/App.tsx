@@ -11,22 +11,48 @@ import Login from "@/pages/Login";
 import Home from "@/pages/Home";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { TherapistOnly } from "./components/TherapistOnly";
 import { ThemeProvider } from "./contexts/ThemeContext";
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
+  // Rotas clínicas ficam atrás do TherapistOnly; o paciente só acessa /profile
+  // (seu cadastro) e /videocall (o atendimento).
   return (
     <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/login"} component={Login} />
-      <Route path={"/dashboard"} component={Dashboard} />
+      <Route path={"/dashboard"}>
+        {() => (
+          <TherapistOnly>
+            <Dashboard />
+          </TherapistOnly>
+        )}
+      </Route>
       <Route path={"/videocall"}>{() => <VideoCallDynamic />}</Route>
       <Route path={"/videocall/:roomId"}>
         {(params) => <VideoCallDynamic roomId={params.roomId} />}
       </Route>
-      <Route path={"/records"} component={Records} />
-      <Route path={"/records/:id"} component={PatientDetail} />
-      <Route path={"/appointments"} component={Appointments} />
+      <Route path={"/records"}>
+        {() => (
+          <TherapistOnly>
+            <Records />
+          </TherapistOnly>
+        )}
+      </Route>
+      <Route path={"/records/:id"}>
+        {() => (
+          <TherapistOnly>
+            <PatientDetail />
+          </TherapistOnly>
+        )}
+      </Route>
+      <Route path={"/appointments"}>
+        {() => (
+          <TherapistOnly>
+            <Appointments />
+          </TherapistOnly>
+        )}
+      </Route>
       <Route path={"/profile"} component={Profile} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}

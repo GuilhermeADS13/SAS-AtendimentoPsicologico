@@ -1,7 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, therapistProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { getDb } from "./db";
 import { patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications } from "../drizzle/schema";
@@ -27,9 +27,99 @@ export const appRouter = router({
     }),
   }),
 
+  // Área do PACIENTE: só o próprio cadastro e as próprias consultas.
+  // Qualquer usuário autenticado pode usar (não expõe dados de outros).
+  me: router({
+    profile: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return null;
+
+      const rows = await db
+        .select()
+        .from(patients)
+        .where(eq(patients.userId, ctx.user.id))
+        .limit(1);
+
+      return rows[0] ?? null;
+    }),
+
+    saveProfile: protectedProcedure
+      .input(z.object({
+        firstName: z.string().min(1),
+        lastName: z.string().min(1),
+        phone: z.string().optional(),
+        dateOfBirth: z.string().optional(),
+        address: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const dob = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
+
+        const existing = await db
+          .select()
+          .from(patients)
+          .where(eq(patients.userId, ctx.user.id))
+          .limit(1);
+
+        if (existing.length) {
+          await db
+            .update(patients)
+            .set({
+              firstName: input.firstName,
+              lastName: input.lastName,
+              phone: input.phone,
+              address: input.address,
+              dateOfBirth: dob,
+            })
+            .where(eq(patients.id, existing[0].id));
+          return { success: true, action: "updated" as const };
+        }
+
+        // Primeiro cadastro: vincula à psicóloga da clínica.
+        const therapist = await db.select().from(therapists).orderBy(therapists.id).limit(1);
+        if (!therapist.length) {
+          throw new Error("A psicóloga ainda não configurou o perfil. Tente novamente mais tarde.");
+        }
+
+        await db.insert(patients).values({
+          therapistId: therapist[0].id,
+          userId: ctx.user.id,
+          firstName: input.firstName,
+          lastName: input.lastName,
+          email: ctx.user.email ?? "",
+          phone: input.phone,
+          address: input.address,
+          dateOfBirth: dob,
+        });
+        return { success: true, action: "created" as const };
+      }),
+
+    // Consultas do paciente logado (para ele ver/entrar na sala).
+    appointments: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return [];
+
+      const p = await db
+        .select()
+        .from(patients)
+        .where(eq(patients.userId, ctx.user.id))
+        .limit(1);
+
+      if (!p.length) return [];
+
+      return db
+        .select()
+        .from(appointments)
+        .where(eq(appointments.patientId, p[0].id))
+        .orderBy(desc(appointments.scheduledAt));
+    }),
+  }),
+
   // Perfil profissional da psicóloga (dados de therapists).
   therapists: router({
-    me: protectedProcedure.query(async ({ ctx }) => {
+    me: therapistProcedure.query(async ({ ctx }) => {
       const db = await getDb();
       if (!db) return null;
 
@@ -42,7 +132,7 @@ export const appRouter = router({
       return rows[0] ?? null;
     }),
 
-    upsert: protectedProcedure
+    upsert: therapistProcedure
       .input(z.object({
         crp: z.string().min(1),
         specialties: z.string().optional(),
@@ -84,7 +174,7 @@ export const appRouter = router({
   }),
 
   patients: router({
-    list: protectedProcedure.query(async ({ ctx }) => {
+    list: therapistProcedure.query(async ({ ctx }) => {
       const db = await getDb();
       if (!db) return [];
 
@@ -103,7 +193,7 @@ export const appRouter = router({
         .where(eq(patients.therapistId, therapist[0].id));
     }),
     
-    create: protectedProcedure
+    create: therapistProcedure
       .input(z.object({
         firstName: z.string(),
         lastName: z.string(),
@@ -136,7 +226,7 @@ export const appRouter = router({
       }),
 
     // Busca um paciente pelo id (somente se pertence ao terapeuta logado).
-    get: protectedProcedure
+    get: therapistProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ ctx, input }) => {
         const db = await getDb();
@@ -160,7 +250,7 @@ export const appRouter = router({
       }),
 
     // Edita os dados de um paciente do terapeuta logado.
-    update: protectedProcedure
+    update: therapistProcedure
       .input(z.object({
         id: z.number(),
         firstName: z.string().min(1).optional(),
@@ -218,7 +308,7 @@ export const appRouter = router({
   }),
 
   appointments: router({
-    list: protectedProcedure.query(async ({ ctx }) => {
+    list: therapistProcedure.query(async ({ ctx }) => {
       const db = await getDb();
       if (!db) return [];
       
@@ -236,7 +326,7 @@ export const appRouter = router({
         .where(eq(appointments.therapistId, therapist[0].id));
     }),
     
-    create: protectedProcedure
+    create: therapistProcedure
       .input(z.object({
         patientId: z.number(),
         scheduledAt: z.string(),
@@ -274,7 +364,7 @@ export const appRouter = router({
       }),
 
     // Atualiza o status de um agendamento do terapeuta logado.
-    updateStatus: protectedProcedure
+    updateStatus: therapistProcedure
       .input(z.object({
         id: z.number(),
         status: z.enum(["scheduled", "completed", "cancelled", "no_show"]),
@@ -321,7 +411,7 @@ export const appRouter = router({
   }),
 
   sessions: router({
-    list: protectedProcedure.query(async ({ ctx }) => {
+    list: therapistProcedure.query(async ({ ctx }) => {
       const db = await getDb();
       if (!db) return [];
       
@@ -340,7 +430,7 @@ export const appRouter = router({
     }),
 
     // Lista as sessões de um paciente do terapeuta logado (mais recentes primeiro).
-    getByPatient: protectedProcedure
+    getByPatient: therapistProcedure
       .input(z.object({ patientId: z.number() }))
       .query(async ({ ctx, input }) => {
         const db = await getDb();
@@ -366,7 +456,7 @@ export const appRouter = router({
           .orderBy(desc(sessions.startedAt));
       }),
 
-    create: protectedProcedure
+    create: therapistProcedure
       .input(z.object({
         appointmentId: z.number().optional().default(0),
         patientId: z.number(),
@@ -410,7 +500,7 @@ export const appRouter = router({
   }),
 
   sessionNotes: router({
-    save: protectedProcedure
+    save: therapistProcedure
       .input(z.object({
         sessionId: z.number().optional(),
         appointmentId: z.number(),
@@ -478,7 +568,7 @@ export const appRouter = router({
         }
       }),
 
-    getByAppointment: protectedProcedure
+    getByAppointment: therapistProcedure
       .input(z.object({
         appointmentId: z.number(),
       }))
@@ -511,7 +601,7 @@ export const appRouter = router({
         }
       }),
 
-    getByPatient: protectedProcedure
+    getByPatient: therapistProcedure
       .input(z.object({
         patientId: z.number(),
       }))
@@ -547,7 +637,7 @@ export const appRouter = router({
 
   // Documentos dos prontuários (metadados; o arquivo fica no Supabase Storage).
   documents: router({
-    getByPatient: protectedProcedure
+    getByPatient: therapistProcedure
       .input(z.object({ patientId: z.number() }))
       .query(async ({ ctx, input }) => {
         const db = await getDb();
@@ -574,7 +664,7 @@ export const appRouter = router({
       }),
 
     // Registra os metadados após o upload do arquivo no Storage.
-    create: protectedProcedure
+    create: therapistProcedure
       .input(z.object({
         patientId: z.number(),
         fileName: z.string(),
@@ -621,7 +711,7 @@ export const appRouter = router({
       }),
 
     // Remove o metadado (o caller apaga o arquivo do Storage usando o fileKey).
-    delete: protectedProcedure
+    delete: therapistProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
@@ -650,7 +740,7 @@ export const appRouter = router({
 
   // Lembretes/notificações: histórico in-app e disparo do ciclo de envio.
   notifications: router({
-    list: protectedProcedure.query(async ({ ctx }) => {
+    list: therapistProcedure.query(async ({ ctx }) => {
       const db = await getDb();
       if (!db) return [];
 
@@ -681,7 +771,7 @@ export const appRouter = router({
     }),
 
     // Enfileira lembretes/alertas e processa a fila (envia os pendentes).
-    run: protectedProcedure.mutation(async () => {
+    run: therapistProcedure.mutation(async () => {
       await sendAppointmentReminders();
       await sendTherapistAlerts();
       await sendCancellationAlerts();
@@ -691,7 +781,7 @@ export const appRouter = router({
 
   videoCalls: router({
     // Histórico de videochamadas de um paciente, com URLs de gravação.
-    getByPatient: protectedProcedure
+    getByPatient: therapistProcedure
       .input(z.object({ patientId: z.number() }))
       .query(async ({ ctx, input }) => {
         const db = await getDb();
@@ -717,7 +807,7 @@ export const appRouter = router({
       }),
 
     // Registra o início de uma videochamada (idempotente por roomId único).
-    start: protectedProcedure
+    start: therapistProcedure
       .input(z.object({
         appointmentId: z.number(),
         patientId: z.number(),
@@ -768,7 +858,7 @@ export const appRouter = router({
       }),
 
     // Finaliza a chamada e persiste a gravação (URL + duração em segundos).
-    finish: protectedProcedure
+    finish: therapistProcedure
       .input(z.object({
         roomId: z.string(),
         durationSeconds: z.number().optional(),

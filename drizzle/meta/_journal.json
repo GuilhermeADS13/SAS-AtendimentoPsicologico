@@ -15,6 +15,13 @@
       "when": 1783623844043,
       "tag": "0001_familiar_jackpot",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784116105645,
+      "tag": "0002_demonic_santa_claus",
+      "breakpoints": true
     }
   ]
 }
