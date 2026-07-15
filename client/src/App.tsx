@@ -8,6 +8,7 @@ import Appointments from "@/pages/Appointments";
 import PatientDetail from "@/pages/PatientDetail";
 import Profile from "@/pages/Profile";
 import MyAppointments from "@/pages/MyAppointments";
+import TherapistRequests from "@/pages/TherapistRequests";
 import Login from "@/pages/Login";
 import Home from "@/pages/Home";
 import { Route, Switch } from "wouter";
@@ -52,6 +53,13 @@ function Router() {
         {() => (
           <TherapistOnly>
             <Appointments />
+          </TherapistOnly>
+        )}
+      </Route>
+      <Route path={"/solicitacoes"}>
+        {() => (
+          <TherapistOnly adminOnly>
+            <TherapistRequests />
           </TherapistOnly>
         )}
       </Route>

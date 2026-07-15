@@ -23,7 +23,7 @@ import { useIsMobile } from "@/hooks/useMobile";
 import { useRole } from "@/hooks/useRole";
 import { supabase } from "@/lib/supabase";
 import { NotificationsBell } from "./NotificationsBell";
-import { Calendar, LayoutDashboard, LogOut, PanelLeft, UserRound, Users, Video } from "lucide-react";
+import { BadgeCheck, Calendar, LayoutDashboard, LogOut, PanelLeft, UserRound, Users, Video } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -39,6 +39,9 @@ const therapistMenu = [
   { icon: Calendar, label: "Agendamentos", path: "/appointments" },
   { icon: UserRound, label: "Perfil", path: "/profile" },
 ];
+
+// Só a dona da clínica (admin) aprova quem pede acesso profissional.
+const adminMenu = [{ icon: BadgeCheck, label: "Solicitações", path: "/solicitacoes" }];
 
 // Menu do paciente: as consultas vêm primeiro (é o que ele abre no dia a dia);
 // o cadastro fica ao lado, para quando mudar telefone/endereço. A videochamada
@@ -132,7 +135,7 @@ function DashboardLayoutContent({
   setSidebarWidth,
 }: DashboardLayoutContentProps) {
   const { user, logout } = useAuth();
-  const { isTherapist } = useRole();
+  const { isTherapist, isAdmin } = useRole();
   const [location, setLocation] = useLocation();
 
   // Logout: encerra a sessão do Supabase e a do backend, e volta ao login.
@@ -150,7 +153,9 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const menuItems = isTherapist ? therapistMenu : patientMenu;
+  const menuItems = isTherapist
+    ? [...therapistMenu, ...(isAdmin ? adminMenu : [])]
+    : patientMenu;
   const activeMenuItem = menuItems.find(item => item.path === location);
   // A sala de vídeo não está no menu do paciente, mas o cabeçalho deve nomeá-la.
   const headerTitle =

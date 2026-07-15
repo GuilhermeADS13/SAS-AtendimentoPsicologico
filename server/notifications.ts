@@ -32,29 +32,55 @@ export async function notifyAdminOfTherapistRequest(req: {
     return;
   }
 
+  const appUrl = process.env.APP_URL || "https://sas-atendimento-psicologico.onrender.com";
+
   const html = `
     <p><strong>Nova solicitação de acesso como psicóloga.</strong></p>
     <ul>
       <li><strong>Nome:</strong> ${req.fullName}</li>
       <li><strong>CRP:</strong> ${req.crp}</li>
       <li><strong>E-mail:</strong> ${req.email}</li>
-      <li><strong>userId:</strong> ${req.userId}</li>
     </ul>
     <p>Confira o CRP no Cadastro Nacional de Psicólogos:
       <a href="https://cadastro.cfp.org.br">cadastro.cfp.org.br</a>
     </p>
-    <p>Para <strong>aprovar</strong>, rode no banco (Supabase → SQL Editor):</p>
-    <pre>
-UPDATE public.users SET role = 'therapist' WHERE id = ${req.userId};
-UPDATE public."therapistRequests" SET status = 'approved', "reviewedAt" = now() WHERE "userId" = ${req.userId};
-    </pre>
-    <p>Para <strong>recusar</strong>:</p>
-    <pre>
-UPDATE public."therapistRequests" SET status = 'rejected', "reviewedAt" = now() WHERE "userId" = ${req.userId};
-    </pre>
+    <p>
+      Depois, aprove ou recuse em
+      <a href="${appUrl}/solicitacoes">${appUrl}/solicitacoes</a>.
+    </p>
   `;
 
   await sendEmail(to, `[SAS] Solicitação de acesso — ${req.fullName} (CRP ${req.crp})`, html);
+}
+
+/** Avisa quem pediu acesso profissional do resultado da análise. */
+export async function notifyTherapistRequestReviewed(req: {
+  email: string;
+  fullName: string;
+  approved: boolean;
+}): Promise<void> {
+  if (!req.email) return;
+
+  const appUrl = process.env.APP_URL || "https://sas-atendimento-psicologico.onrender.com";
+  const primeiroNome = req.fullName.trim().split(/\s+/)[0];
+
+  const html = req.approved
+    ? `<p>Olá, ${primeiroNome}!</p>
+       <p>Seu <strong>acesso profissional foi aprovado</strong>. Entre em
+         <a href="${appUrl}/login">${appUrl}</a> — sua área clínica já está liberada.</p>
+       <p>Se você já estava com o site aberto, saia e entre de novo para o acesso valer.</p>`
+    : `<p>Olá, ${primeiroNome}.</p>
+       <p>Sua solicitação de acesso profissional <strong>não foi aprovada</strong>.
+         Sua conta continua ativa como paciente.</p>
+       <p>Se acredita que houve um engano, responda este e-mail.</p>`;
+
+  await sendEmail(
+    req.email,
+    req.approved
+      ? "[SAS] Seu acesso profissional foi aprovado"
+      : "[SAS] Sobre sua solicitação de acesso profissional",
+    html,
+  );
 }
 
 type NotificationRow = typeof notifications.$inferSelect;

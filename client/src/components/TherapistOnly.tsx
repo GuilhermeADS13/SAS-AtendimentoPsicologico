@@ -8,13 +8,22 @@ import DashboardLayout from "./DashboardLayout";
  * para o próprio cadastro. O backend também barra (therapistProcedure) — isto
  * é a camada de UX, não a de segurança.
  */
-export function TherapistOnly({ children }: { children: ReactNode }) {
-  const { isTherapist, loading } = useRole();
+export function TherapistOnly({
+  children,
+  adminOnly = false,
+}: {
+  children: ReactNode;
+  /** Restringe ainda mais: só o admin (ex.: aprovar solicitações de acesso). */
+  adminOnly?: boolean;
+}) {
+  const { isTherapist, isAdmin, loading } = useRole();
   const [, setLocation] = useLocation();
+  const permitido = adminOnly ? isAdmin : isTherapist;
 
   useEffect(() => {
-    if (!loading && !isTherapist) setLocation("/consultas");
-  }, [loading, isTherapist, setLocation]);
+    if (loading || permitido) return;
+    setLocation(isTherapist ? "/dashboard" : "/consultas");
+  }, [loading, permitido, isTherapist, setLocation]);
 
   if (loading) {
     return (
@@ -24,7 +33,7 @@ export function TherapistOnly({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!isTherapist) return null;
+  if (!permitido) return null;
 
   return <>{children}</>;
 }
