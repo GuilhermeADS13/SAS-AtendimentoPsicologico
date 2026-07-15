@@ -39,11 +39,10 @@ const therapistMenu = [
   { icon: UserRound, label: "Perfil", path: "/profile" },
 ];
 
-// Menu do paciente: só o próprio cadastro e a videochamada do atendimento.
-const patientMenu = [
-  { icon: UserRound, label: "Meu Cadastro", path: "/profile" },
-  { icon: Video, label: "Videochamada", path: "/videocall" },
-];
+// Menu do paciente: só o próprio cadastro. A videochamada NÃO entra aqui de
+// propósito — sala avulsa seria um link vazio; o paciente entra pela consulta
+// ("Minhas Consultas" → Entrar na sala), que garante a mesma sala da psicóloga.
+const patientMenu = [{ icon: UserRound, label: "Meu Cadastro", path: "/profile" }];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
@@ -138,6 +137,9 @@ function DashboardLayoutContent({
   const sidebarRef = useRef<HTMLDivElement>(null);
   const menuItems = isTherapist ? therapistMenu : patientMenu;
   const activeMenuItem = menuItems.find(item => item.path === location);
+  // A sala de vídeo não está no menu do paciente, mas o cabeçalho deve nomeá-la.
+  const headerTitle =
+    activeMenuItem?.label ?? (location.startsWith("/videocall") ? "Videochamada" : "Menu");
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -272,7 +274,7 @@ function DashboardLayoutContent({
           <div className="flex items-center gap-2">
             {isMobile && <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />}
             <span className="tracking-tight text-foreground font-medium">
-              {activeMenuItem?.label ?? "Menu"}
+              {headerTitle}
             </span>
           </div>
           {isTherapist && <NotificationsBell />}
