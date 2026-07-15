@@ -15,6 +15,7 @@ import {
 } from "@shared/passwordPolicy";
 import { Check, X } from "lucide-react";
 import { LogoFull, APP_NAME, APP_TAGLINE } from "@/components/Logo";
+import { maskCrp, isValidCrp } from "@shared/crp";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -65,7 +66,7 @@ export default function Login() {
       return;
     }
 
-    if (isPsychologist && !/^\d{2}\/\d{3,6}$/.test(crp.trim())) {
+    if (isPsychologist && !isValidCrp(crp)) {
       toast.error("Informe o CRP no formato 06/123456");
       return;
     }
@@ -222,8 +223,13 @@ export default function Login() {
                       <Input
                         id="crp"
                         value={crp}
-                        onChange={(e) => setCrp(e.target.value)}
+                        onChange={(e) => setCrp(maskCrp(e.target.value))}
                         placeholder="06/123456"
+                        // inputMode numérico: no celular abre o teclado de
+                        // números direto. A barra o campo põe sozinho.
+                        inputMode="numeric"
+                        autoComplete="off"
+                        maxLength={9}
                       />
                       <p className="text-xs text-muted-foreground">
                         Seu acesso profissional é liberado após a verificação do CRP
