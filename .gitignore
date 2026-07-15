@@ -35,3 +35,6 @@ mirotalk/rec/*
 
 # Logs de runtime do Manus
 .manus-logs
+
+# Sondas temporárias de diagnóstico (não versionar)
+.poll*.mjs
