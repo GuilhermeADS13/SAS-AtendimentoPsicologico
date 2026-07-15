@@ -74,6 +74,35 @@ describe("patients router", () => {
   });
 });
 
+describe("admin router — aprovação de acesso profissional", () => {
+  it("nega a fila de solicitações para um paciente", async () => {
+    const caller = appRouter.createCaller(createAuthContext(2, "user"));
+    await expect(caller.admin.therapistRequests()).rejects.toThrow();
+  });
+
+  // O ponto: quem já foi aprovado não pode aprovar os próximos, senão o
+  // primeiro therapist vira porta de entrada para qualquer um.
+  it("nega a aprovação para uma psicóloga (therapist) — só o admin aprova", async () => {
+    const caller = appRouter.createCaller(createAuthContext(3, "therapist"));
+    await expect(
+      caller.admin.reviewTherapistRequest({ id: 1, action: "approve" }),
+    ).rejects.toThrow();
+  });
+
+  it("admin.therapistRequests devolve lista vazia sem banco", async () => {
+    const caller = appRouter.createCaller(createAuthContext(1, "admin"));
+    const result = await caller.admin.therapistRequests();
+    expect(result).toEqual([]);
+  });
+
+  it("admin.reviewTherapistRequest falha sem banco", async () => {
+    const caller = appRouter.createCaller(createAuthContext(1, "admin"));
+    await expect(
+      caller.admin.reviewTherapistRequest({ id: 1, action: "approve" }),
+    ).rejects.toThrow("Database not available");
+  });
+});
+
 describe("sessions router", () => {
   it("sessions.getByPatient returns an empty list when there is no database", async () => {
     const caller = appRouter.createCaller(createAuthContext());

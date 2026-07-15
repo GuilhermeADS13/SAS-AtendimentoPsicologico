@@ -8,7 +8,7 @@ Estado em 2026-07-15. Em produção: https://sas-atendimento-psicologico.onrende
 - [x] Aprovação manual da psicóloga (o CRP é público, não prova identidade) + e-mail ao admin
 - [x] Gestão de papéis: `therapistProcedure` (admin/therapist) vs `protectedProcedure` (paciente)
 - [x] Paciente não enxerga prontuário — só suas consultas e seu cadastro
-- [ ] Aprovar/recusar solicitação pela interface (hoje é UPDATE no banco na mão)
+- [x] Aprovar/recusar solicitação pela interface (/solicitacoes, só admin) + e-mail ao solicitante
 
 ## Design e Identidade Visual
 - [x] Paleta de cores (#EAD2A8, #8B6946) no Tailwind

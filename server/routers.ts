@@ -1,7 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, therapistProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, therapistProcedure, adminProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { getDb } from "./db";
 import { patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users } from "../drizzle/schema";
@@ -12,6 +12,7 @@ import {
   sendCancellationAlerts,
   processPendingNotifications,
   notifyAdminOfTherapistRequest,
+  notifyTherapistRequestReviewed,
 } from "./notifications";
 
 export const appRouter = router({
@@ -229,6 +230,95 @@ export const appRouter = router({
         .where(eq(appointments.patientId, p[0].id))
         .orderBy(desc(appointments.scheduledAt));
     }),
+  }),
+
+  /**
+   * Área do admin (a dona da clínica). Só `admin`: um `therapist` aprovado não
+   * pode aprovar os próximos — senão o primeiro aprovado vira porta de entrada
+   * para qualquer um.
+   */
+  admin: router({
+    // Fila de solicitações de acesso profissional, pendentes primeiro.
+    therapistRequests: adminProcedure.query(async () => {
+      const db = await getDb();
+      if (!db) return [];
+
+      return db
+        .select()
+        .from(therapistRequests)
+        .orderBy(desc(therapistRequests.createdAt));
+    }),
+
+    /**
+     * Aprova ou recusa uma solicitação.
+     *
+     * Aprovar promove o usuário a `therapist` e cria o perfil profissional com
+     * o CRP informado. A conferência do CRP no CNP (cadastro.cfp.org.br) é sua,
+     * fora do sistema: o número é público, então não prova identidade sozinho.
+     */
+    reviewTherapistRequest: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        action: z.enum(["approve", "reject"]),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const found = await db
+          .select()
+          .from(therapistRequests)
+          .where(eq(therapistRequests.id, input.id))
+          .limit(1);
+
+        if (!found.length) throw new Error("Solicitação não encontrada.");
+        const req = found[0];
+
+        if (input.action === "reject") {
+          await db
+            .update(therapistRequests)
+            .set({ status: "rejected", reviewedAt: new Date() })
+            .where(eq(therapistRequests.id, req.id));
+
+          void notifyTherapistRequestReviewed({
+            email: req.email ?? "",
+            fullName: req.fullName,
+            approved: false,
+          }).catch((e) => console.warn("[TherapistRequest] e-mail de recusa falhou:", e));
+
+          return { action: "rejected" as const };
+        }
+
+        await db
+          .update(users)
+          .set({ role: "therapist" })
+          .where(eq(users.id, req.userId));
+
+        // Sem perfil profissional a psicóloga não tem therapistId, e sem ele
+        // nenhum paciente/agendamento dela existe. Cria junto com a aprovação.
+        const perfil = await db
+          .select({ id: therapists.id })
+          .from(therapists)
+          .where(eq(therapists.userId, req.userId))
+          .limit(1);
+
+        if (!perfil.length) {
+          await db.insert(therapists).values({ userId: req.userId, crp: req.crp });
+        }
+
+        await db
+          .update(therapistRequests)
+          .set({ status: "approved", reviewedAt: new Date() })
+          .where(eq(therapistRequests.id, req.id));
+
+        void notifyTherapistRequestReviewed({
+          email: req.email ?? "",
+          fullName: req.fullName,
+          approved: true,
+        }).catch((e) => console.warn("[TherapistRequest] e-mail de aprovação falhou:", e));
+
+        return { action: "approved" as const };
+      }),
   }),
 
   // Perfil profissional da psicóloga (dados de therapists).
