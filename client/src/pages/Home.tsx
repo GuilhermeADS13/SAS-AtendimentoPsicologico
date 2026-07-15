@@ -2,6 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { useRole } from "@/hooks/useRole";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { LogoLockup, APP_NAME } from "@/components/Logo";
 import { ArrowRight, Calendar, FileText, Users, Video, Lock, Clock } from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
@@ -21,12 +22,7 @@ export default function Home() {
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">BC</span>
-            </div>
-            <span className="font-semibold text-foreground">Beatriz Chagas</span>
-          </div>
+          <LogoLockup markClassName="w-8 h-8" />
           <Button
             onClick={() => setLocation("/login")}
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
@@ -191,7 +187,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-border bg-background/50">
         <div className="container mx-auto px-4 py-8 text-center text-muted-foreground">
-          <p>&copy; 2026 Beatriz Chagas - Psicologia. Todos os direitos reservados.</p>
+          <p>&copy; 2026 {APP_NAME}. Todos os direitos reservados.</p>
         </div>
       </footer>
     </div>
