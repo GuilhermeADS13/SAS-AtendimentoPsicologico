@@ -36,6 +36,12 @@ export default function MiroTalkMeeting({
       room: roomName,
       name: displayName,
       ...(email && { email }),
+      // notify=0 desliga o popup "Share the room" do MiroTalk, que abre em
+      // inglês ao entrar na sala. A UI deles não tem parâmetro de idioma, e o
+      // popup é redundante: quem convida usa o botão "Copiar link" daqui.
+      notify: "0",
+      // Sem senha: o controle de acesso é nosso (a sala é sala-apt<id>).
+      roomPassword: "0",
     });
 
     const iframeUrl = `${apiUrl}/join/${roomName}?${params.toString()}`;

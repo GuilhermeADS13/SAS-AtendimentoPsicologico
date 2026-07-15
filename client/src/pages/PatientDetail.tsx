@@ -80,14 +80,22 @@ export default function PatientDetail() {
   });
 
   const handleSave = () => {
+    // Paciente com conta: manda só o que é da psicóloga. Reenviar os dados
+    // pessoais gravaria por cima do que ele mantém no "Meu Cadastro".
+    const pessoais = patient?.userId
+      ? {}
+      : {
+          firstName: form.firstName,
+          lastName: form.lastName,
+          email: form.email,
+          phone: form.phone,
+          dateOfBirth: form.dateOfBirth || undefined,
+          address: form.address,
+        };
+
     updatePatient.mutate({
       id: patientId,
-      firstName: form.firstName,
-      lastName: form.lastName,
-      email: form.email,
-      phone: form.phone,
-      dateOfBirth: form.dateOfBirth || undefined,
-      address: form.address,
+      ...pessoais,
       medicalHistory: form.medicalHistory,
       emergencyContact: form.emergencyContact,
       emergencyPhone: form.emergencyPhone,
@@ -205,6 +213,11 @@ export default function PatientDetail() {
   const statusLabel =
     patient.status === "active" ? "Ativo" : patient.status === "inactive" ? "Inativo" : "Arquivado";
 
+  // Com conta vinculada, os dados pessoais vêm do "Meu Cadastro" do paciente e
+  // chegam aqui sozinhos — editar por fora só criaria divergência (foi o que
+  // aconteceu com o endereço). Sem conta, ninguém mais mantém: a psicóloga edita.
+  const vinculado = !!patient.userId;
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -223,7 +236,7 @@ export default function PatientDetail() {
           </div>
           <Button onClick={() => setIsEditOpen(true)} className="bg-primary hover:bg-primary/90">
             <Pencil className="w-4 h-4 mr-2" />
-            Editar dados
+            {vinculado ? "Editar dados clínicos" : "Editar dados"}
           </Button>
         </div>
 
@@ -272,6 +285,11 @@ export default function PatientDetail() {
             <Card>
               <CardHeader>
                 <CardTitle>Informações Pessoais</CardTitle>
+                {vinculado && (
+                  <p className="text-sm text-muted-foreground">
+                    Mantidas pelo próprio paciente — atualizam aqui automaticamente.
+                  </p>
+                )}
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -430,63 +448,75 @@ export default function PatientDetail() {
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar dados do paciente</DialogTitle>
+            <DialogTitle>
+              {vinculado ? "Editar dados clínicos" : "Editar dados do paciente"}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="firstName">Nome</Label>
-                <Input
-                  id="firstName"
-                  value={form.firstName}
-                  onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastName">Sobrenome</Label>
-                <Input
-                  id="lastName"
-                  value={form.lastName}
-                  onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input
-                id="email"
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="phone">Telefone</Label>
-                <Input
-                  id="phone"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="dateOfBirth">Data de Nascimento</Label>
-                <Input
-                  id="dateOfBirth"
-                  type="date"
-                  value={form.dateOfBirth}
-                  onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="address">Endereço</Label>
-              <Input
-                id="address"
-                value={form.address}
-                onChange={(e) => setForm({ ...form, address: e.target.value })}
-              />
-            </div>
+            {vinculado ? (
+              <p className="text-sm text-muted-foreground rounded-md bg-muted p-3">
+                Nome, e-mail, telefone, nascimento e endereço são mantidos pelo
+                próprio paciente em "Meu Cadastro" e atualizam aqui sozinhos.
+                Abaixo ficam os dados que são seus.
+              </p>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">Nome</Label>
+                    <Input
+                      id="firstName"
+                      value={form.firstName}
+                      onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Sobrenome</Label>
+                    <Input
+                      id="lastName"
+                      value={form.lastName}
+                      onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">E-mail</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Telefone</Label>
+                    <Input
+                      id="phone"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="dateOfBirth">Data de Nascimento</Label>
+                    <Input
+                      id="dateOfBirth"
+                      type="date"
+                      value={form.dateOfBirth}
+                      onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="address">Endereço</Label>
+                  <Input
+                    id="address"
+                    value={form.address}
+                    onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  />
+                </div>
+              </>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="emergencyContact">Contato de Emergência</Label>

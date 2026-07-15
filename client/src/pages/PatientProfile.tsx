@@ -59,22 +59,10 @@ export default function PatientProfile() {
     onError: (e) => toast.error(e.message || "Erro ao salvar"),
   });
 
-  // Solicitação de acesso profissional (psicóloga).
+  // Quem pediu acesso profissional fez isso na criação da conta ("Você é
+  // psicólogo(a)?"). Aqui só acompanha o andamento — não há formulário: para
+  // quem se cadastrou como paciente, pedir CRP nesta tela não faz sentido.
   const { data: request } = trpc.me.therapistRequest.useQuery();
-  const [crp, setCrp] = useState("");
-  const [fullName, setFullName] = useState("");
-  const requestTherapist = trpc.me.requestTherapist.useMutation({
-    onSuccess: () => {
-      utils.me.therapistRequest.invalidate();
-      toast.success("Solicitação enviada! Aguarde a verificação do CRP.");
-    },
-    onError: (e) => toast.error(e.message || "Erro ao enviar solicitação"),
-  });
-
-  // Reaproveita o nome da conta na solicitação também.
-  useEffect(() => {
-    if (user?.name) setFullName((v) => v || user.name || "");
-  }, [user]);
 
   const handleSave = () => {
     if (!form.firstName.trim() || !form.lastName.trim()) {
@@ -169,65 +157,35 @@ export default function PatientProfile() {
         </CardContent>
       </Card>
 
-      {/* Acesso profissional (psicóloga) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BadgeCheck className="w-5 h-5 text-primary" />
-            Acesso profissional
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {request?.status === "pending" ? (
-            <p className="text-sm text-muted-foreground">
-              ⏳ Sua solicitação (CRP <strong>{request.crp}</strong>) está{" "}
-              <strong>em análise</strong>. Você será liberado(a) assim que o CRP for
-              verificado no Cadastro Nacional de Psicólogos.
-            </p>
-          ) : request?.status === "rejected" ? (
-            <p className="text-sm text-destructive">
-              Sua solicitação não foi aprovada. Se acredita que houve um engano,
-              reenvie com os dados corretos abaixo.
-            </p>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              É psicólogo(a)? Solicite o acesso profissional informando seu CRP.
-              A liberação é feita após verificação manual.
-            </p>
-          )}
-
-          {request?.status !== "pending" && (
-            <div className="space-y-3 pt-1">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="reqName">Nome completo</Label>
-                  <Input
-                    id="reqName"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reqCrp">CRP</Label>
-                  <Input
-                    id="reqCrp"
-                    value={crp}
-                    onChange={(e) => setCrp(e.target.value)}
-                    placeholder="06/123456"
-                  />
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => requestTherapist.mutate({ fullName, crp: crp.trim() })}
-                disabled={requestTherapist.isPending}
-              >
-                {requestTherapist.isPending ? "Enviando..." : "Solicitar acesso profissional"}
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Só aparece para quem pediu acesso profissional no cadastro. */}
+      {request && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BadgeCheck className="w-5 h-5 text-primary" />
+              Acesso profissional
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {request.status === "pending" ? (
+              <p className="text-sm text-muted-foreground">
+                ⏳ Sua solicitação (CRP <strong>{request.crp}</strong>) está{" "}
+                <strong>em análise</strong>. Você será liberado(a) assim que o CRP for
+                verificado no Cadastro Nacional de Psicólogos.
+              </p>
+            ) : request.status === "rejected" ? (
+              <p className="text-sm text-destructive">
+                Sua solicitação (CRP <strong>{request.crp}</strong>) não foi aprovada.
+                Se acredita que houve um engano, entre em contato com a clínica.
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                ✅ Acesso profissional aprovado (CRP <strong>{request.crp}</strong>).
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
     </div>
   );
