@@ -4,6 +4,21 @@ import { eq, and, lt, gte } from "drizzle-orm";
 import { sendEmail } from "./mailer";
 
 /**
+ * Base dos links enviados por e-mail.
+ *
+ * `RENDER_EXTERNAL_URL` é injetada pelo Render com a URL pública do serviço e
+ * acompanha o rename sozinha — por isso a URL não fica chumbada aqui. `APP_URL`
+ * vem antes para o dia em que existir domínio próprio, que o Render não conhece.
+ */
+function appUrl(): string {
+  return (
+    process.env.APP_URL ||
+    process.env.RENDER_EXTERNAL_URL ||
+    "http://localhost:3000"
+  );
+}
+
+/**
  * Avisa o admin que alguém pediu acesso como psicóloga.
  * Destinatário: ADMIN_EMAIL, ou o e-mail do usuário com papel `admin`.
  */
@@ -32,7 +47,7 @@ export async function notifyAdminOfTherapistRequest(req: {
     return;
   }
 
-  const appUrl = process.env.APP_URL || "https://sas-atendimento-psicologico.onrender.com";
+  const base = appUrl();
 
   const html = `
     <p><strong>Nova solicitação de acesso como psicóloga.</strong></p>
@@ -46,11 +61,15 @@ export async function notifyAdminOfTherapistRequest(req: {
     </p>
     <p>
       Depois, aprove ou recuse em
-      <a href="${appUrl}/solicitacoes">${appUrl}/solicitacoes</a>.
+      <a href="${base}/solicitacoes">${base}/solicitacoes</a>.
     </p>
   `;
 
-  await sendEmail(to, `[SAS] Solicitação de acesso — ${req.fullName} (CRP ${req.crp})`, html);
+  await sendEmail(
+    to,
+    `[VozInterior] Solicitação de acesso — ${req.fullName} (CRP ${req.crp})`,
+    html,
+  );
 }
 
 /** Avisa quem pediu acesso profissional do resultado da análise. */
@@ -61,13 +80,13 @@ export async function notifyTherapistRequestReviewed(req: {
 }): Promise<void> {
   if (!req.email) return;
 
-  const appUrl = process.env.APP_URL || "https://sas-atendimento-psicologico.onrender.com";
+  const base = appUrl();
   const primeiroNome = req.fullName.trim().split(/\s+/)[0];
 
   const html = req.approved
     ? `<p>Olá, ${primeiroNome}!</p>
        <p>Seu <strong>acesso profissional foi aprovado</strong>. Entre em
-         <a href="${appUrl}/login">${appUrl}</a> — sua área clínica já está liberada.</p>
+         <a href="${base}/login">${base}</a> — sua área clínica já está liberada.</p>
        <p>Se você já estava com o site aberto, saia e entre de novo para o acesso valer.</p>`
     : `<p>Olá, ${primeiroNome}.</p>
        <p>Sua solicitação de acesso profissional <strong>não foi aprovada</strong>.
@@ -77,8 +96,8 @@ export async function notifyTherapistRequestReviewed(req: {
   await sendEmail(
     req.email,
     req.approved
-      ? "[SAS] Seu acesso profissional foi aprovado"
-      : "[SAS] Sobre sua solicitação de acesso profissional",
+      ? "[VozInterior] Seu acesso profissional foi aprovado"
+      : "[VozInterior] Sobre sua solicitação de acesso profissional",
     html,
   );
 }

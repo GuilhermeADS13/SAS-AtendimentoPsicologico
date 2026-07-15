@@ -1,6 +1,6 @@
 # Plataforma de Atendimento Psicológico Online — TODO
 
-Estado em 2026-07-15. Em produção: https://sas-atendimento-psicologico.onrender.com
+Estado em 2026-07-15. Em produção: https://vozinteriorpsi.onrender.com
 
 ## Autenticação e Usuários
 - [x] Login/cadastro por e-mail e senha (Supabase Auth, JWT verificado por JWKS)
