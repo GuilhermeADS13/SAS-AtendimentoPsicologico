@@ -19,16 +19,15 @@ import { Textarea } from "@/components/ui/textarea";
 const mirotalkUrl = import.meta.env.VITE_MIROTALK_URL || "https://sfu.mirotalk.com";
 
 interface VideoCallDynamicProps {
-  // Opcional: quando ausente (rota /videocall), geramos uma sala ad-hoc.
-  roomId?: string;
+  /** Sala da consulta (sala-apt<id>), sempre vinda da rota /videocall/:roomId. */
+  roomId: string;
 }
 
 export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const search = useSearch();
-  // Sala estável: usa o roomId da rota ou gera uma sala ad-hoc uma única vez.
-  const [room] = useState(() => roomId || `sala-${Date.now()}`);
+  const room = roomId;
   const [isCallReady, setIsCallReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSidebar, setShowSidebar] = useState(true);

@@ -28,7 +28,8 @@ function Router() {
           </TherapistOnly>
         )}
       </Route>
-      <Route path={"/videocall"}>{() => <VideoCallDynamic />}</Route>
+      {/* A sala sempre vem de um agendamento (ou de um link compartilhado).
+          Não existe sala avulsa: sem paciente não há prontuário nem anotações. */}
       <Route path={"/videocall/:roomId"}>
         {(params) => <VideoCallDynamic roomId={params.roomId} />}
       </Route>

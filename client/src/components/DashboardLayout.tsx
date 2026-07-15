@@ -30,11 +30,13 @@ import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
 // Menu da psicóloga (acesso clínico completo).
+// "Videochamada" NÃO é um item: toda sala nasce de um agendamento
+// (sala-apt<id>), que é o que liga prontuário, anotações e gravação. Uma sala
+// avulsa seria "cega" — sem paciente, as anotações da sessão se perderiam.
 const therapistMenu = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Users, label: "Pacientes", path: "/records" },
   { icon: Calendar, label: "Agendamentos", path: "/appointments" },
-  { icon: Video, label: "Videochamada", path: "/videocall" },
   { icon: UserRound, label: "Perfil", path: "/profile" },
 ];
 
