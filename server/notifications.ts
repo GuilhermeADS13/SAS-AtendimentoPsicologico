@@ -3,6 +3,60 @@ import { notifications, appointments, patients, therapists, users } from "../dri
 import { eq, and, lt, gte } from "drizzle-orm";
 import { sendEmail } from "./mailer";
 
+/**
+ * Avisa o admin que alguém pediu acesso como psicóloga.
+ * Destinatário: ADMIN_EMAIL, ou o e-mail do usuário com papel `admin`.
+ */
+export async function notifyAdminOfTherapistRequest(req: {
+  fullName: string;
+  crp: string;
+  email: string;
+  userId: number;
+}): Promise<void> {
+  let to = process.env.ADMIN_EMAIL || "";
+
+  if (!to) {
+    const db = await getDb();
+    if (db) {
+      const admin = await db
+        .select({ email: users.email })
+        .from(users)
+        .where(eq(users.role, "admin"))
+        .limit(1);
+      to = admin[0]?.email ?? "";
+    }
+  }
+
+  if (!to) {
+    console.warn("[TherapistRequest] sem ADMIN_EMAIL nem admin cadastrado — e-mail não enviado.");
+    return;
+  }
+
+  const html = `
+    <p><strong>Nova solicitação de acesso como psicóloga.</strong></p>
+    <ul>
+      <li><strong>Nome:</strong> ${req.fullName}</li>
+      <li><strong>CRP:</strong> ${req.crp}</li>
+      <li><strong>E-mail:</strong> ${req.email}</li>
+      <li><strong>userId:</strong> ${req.userId}</li>
+    </ul>
+    <p>Confira o CRP no Cadastro Nacional de Psicólogos:
+      <a href="https://cadastro.cfp.org.br">cadastro.cfp.org.br</a>
+    </p>
+    <p>Para <strong>aprovar</strong>, rode no banco (Supabase → SQL Editor):</p>
+    <pre>
+UPDATE public.users SET role = 'therapist' WHERE id = ${req.userId};
+UPDATE public."therapistRequests" SET status = 'approved', "reviewedAt" = now() WHERE "userId" = ${req.userId};
+    </pre>
+    <p>Para <strong>recusar</strong>:</p>
+    <pre>
+UPDATE public."therapistRequests" SET status = 'rejected', "reviewedAt" = now() WHERE "userId" = ${req.userId};
+    </pre>
+  `;
+
+  await sendEmail(to, `[SAS] Solicitação de acesso — ${req.fullName} (CRP ${req.crp})`, html);
+}
+
 type NotificationRow = typeof notifications.$inferSelect;
 
 // Monta assunto + corpo HTML conforme o tipo da notificação.

@@ -17,10 +17,19 @@ export default function Login() {
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Cadastro: paciente (padrão) ou psicólogo(a) — este último vira solicitação
+  // pendente com o CRP, aprovada manualmente pelo admin.
+  const [isPsychologist, setIsPsychologist] = useState(false);
+  const [crp, setCrp] = useState("");
+
+  const requestTherapist = trpc.me.requestTherapist.useMutation();
+
   const afterAuth = async () => {
-    // Revalida o auth.me (agora o token vai no header) e vai para o dashboard.
+    // Revalida o auth.me (o token já vai no header) e entra na área do papel.
     await utils.auth.me.invalidate();
-    setLocation("/dashboard");
+    const me = await utils.auth.me.fetch();
+    const isTherapist = me?.role === "admin" || me?.role === "therapist";
+    setLocation(isTherapist ? "/dashboard" : "/profile");
   };
 
   const handleLogin = async () => {
@@ -40,6 +49,10 @@ export default function Login() {
 
   const handleSignup = async () => {
     if (!supabase) return;
+    if (isPsychologist && !/^\d{2}\/\d{3,6}$/.test(crp.trim())) {
+      toast.error("Informe o CRP no formato 06/123456");
+      return;
+    }
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -48,12 +61,31 @@ export default function Login() {
         options: { data: { name } },
       });
       if (error) throw error;
-      if (data.session) {
-        toast.success("Conta criada!");
-        await afterAuth();
-      } else {
+
+      if (!data.session) {
         toast.success("Conta criada! Confirme o e-mail para entrar.");
+        return;
       }
+
+      // Psicólogo(a): registra a solicitação (o acesso clínico só sai após
+      // aprovação manual — o CRP é público e não prova identidade).
+      if (isPsychologist) {
+        try {
+          await requestTherapist.mutateAsync({ fullName: name, crp: crp.trim() });
+          toast.success(
+            "Solicitação enviada! Seu acesso profissional será liberado após a verificação do CRP.",
+            { duration: 8000 },
+          );
+        } catch (e) {
+          toast.error(
+            e instanceof Error ? e.message : "Conta criada, mas a solicitação falhou.",
+          );
+        }
+      } else {
+        toast.success("Conta criada!");
+      }
+
+      await afterAuth();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha no cadastro");
     } finally {
@@ -110,6 +142,51 @@ export default function Login() {
                   <Label htmlFor="password-s">Senha</Label>
                   <Input id="password-s" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
                 </div>
+
+                {/* Paciente (padrão) x psicólogo(a) — este vira solicitação. */}
+                <div className="rounded-lg border border-border p-3 space-y-3">
+                  <p className="text-sm font-medium text-foreground">
+                    Você é psicólogo(a)?
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={isPsychologist ? "outline" : "default"}
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setIsPsychologist(false)}
+                    >
+                      Não, sou paciente
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={isPsychologist ? "default" : "outline"}
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setIsPsychologist(true)}
+                    >
+                      Sim, sou psicólogo(a)
+                    </Button>
+                  </div>
+
+                  {isPsychologist && (
+                    <div className="space-y-2 pt-1">
+                      <Label htmlFor="crp">CRP *</Label>
+                      <Input
+                        id="crp"
+                        value={crp}
+                        onChange={(e) => setCrp(e.target.value)}
+                        placeholder="06/123456"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Seu acesso profissional é liberado após a verificação do CRP
+                        no Cadastro Nacional de Psicólogos. Até lá, sua conta fica
+                        como paciente.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <Button onClick={handleSignup} disabled={loading} className="w-full bg-primary hover:bg-primary/90">
                   {loading ? "Criando..." : "Criar conta"}
                 </Button>

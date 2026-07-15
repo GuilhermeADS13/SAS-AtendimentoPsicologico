@@ -410,6 +410,44 @@ estiver configurado, o passo de deploy é apenas pulado (sem falhar o build).
 
 ---
 
+## 👥 Papéis e cadastro de psicólogas
+
+O sistema tem dois papéis:
+
+| Papel | Acesso |
+|-------|--------|
+| **Psicóloga** (`admin` / `therapist`) | Tudo: prontuários, sessões, agenda, documentos, notificações |
+| **Paciente** (qualquer outro papel) | Só o próprio cadastro (`/profile`) e a videochamada |
+
+Todo cadastro novo entra como **paciente**. Quem marca *"Sou psicólogo(a)"* no
+cadastro informa o **CRP** e gera uma **solicitação pendente** — que **não dá
+acesso**: o CRP é informação pública, então o número não prova identidade. A
+liberação é **manual**, feita pelo admin após conferir o CRP no
+[Cadastro Nacional de Psicólogos](https://cadastro.cfp.org.br).
+
+Quando alguém solicita, o admin recebe um **e-mail** (destinatário: `ADMIN_EMAIL`
+ou o e-mail do usuário `admin`; requer SMTP configurado — sem ele o pedido fica
+registrado na tabela `therapistRequests`).
+
+### Aprovar uma solicitação (Supabase → SQL Editor)
+
+```sql
+-- 1) Veja os pedidos pendentes
+SELECT id, "userId", "fullName", crp, email, "createdAt"
+FROM public."therapistRequests" WHERE status = 'pending';
+
+-- 2) Confira o CRP em https://cadastro.cfp.org.br e então APROVE:
+UPDATE public.users SET role = 'therapist' WHERE id = <userId>;
+UPDATE public."therapistRequests"
+   SET status = 'approved', "reviewedAt" = now() WHERE "userId" = <userId>;
+
+-- Para RECUSAR:
+UPDATE public."therapistRequests"
+   SET status = 'rejected', "reviewedAt" = now() WHERE "userId" = <userId>;
+```
+
+> O usuário precisa **sair e entrar** de novo para o novo papel valer.
+
 ## 🔐 Segurança
 
 ### Boas Práticas Implementadas
