@@ -75,12 +75,15 @@ async function startServer() {
           sendTherapistAlerts,
           sendCancellationAlerts,
           processPendingNotifications,
+          notifyPendingTherapistRequests,
         } = await import("../notifications");
         await sendAppointmentReminders();
         await sendTherapistAlerts();
         await sendCancellationAlerts();
+        // Reenvia o aviso de solicitação de acesso que não saiu na hora.
+        const pedidos = await notifyPendingTherapistRequests();
         const result = await processPendingNotifications();
-        console.log("[Notifications] ciclo:", result);
+        console.log("[Notifications] ciclo:", { ...result, solicitacoes: pedidos });
       } catch (error) {
         console.error("[Notifications] erro no ciclo:", error);
       }

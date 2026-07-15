@@ -1,0 +1,1 @@
+ALTER TABLE "therapistRequests" ADD COLUMN "notifiedAt" timestamp with time zone;

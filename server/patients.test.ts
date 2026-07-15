@@ -278,6 +278,32 @@ describe("solicitação de acesso profissional", () => {
     ).rejects.toThrow(/nome completo/i);
   });
 
+  /**
+   * O aviso ao admin é o único canal que conta que alguém pediu acesso. Ele é
+   * disparado em segundo plano, então PRECISA ser retentável: sem `notifiedAt`,
+   * um deploy no meio do envio faz o pedido sumir em silêncio — foi o que
+   * aconteceu com a solicitação da Beatriz.
+   */
+  it("o aviso ao admin é retentável: notifiedAt só é marcado após o envio", () => {
+    const fonte = readFileSync(new URL("./notifications.ts", import.meta.url), "utf8");
+    const avisar = fonte.slice(
+      fonte.indexOf("async function avisarAdmin"),
+      fonte.indexOf("export async function notifyAdminOfTherapistRequest"),
+    );
+    // Sai antes de marcar quando o envio não aconteceu.
+    expect(avisar).toContain("if (!entregue) return false;");
+    // E o marcador vem depois do envio, nunca antes.
+    expect(avisar.indexOf("const entregue")).toBeLessThan(avisar.indexOf("notifiedAt: new Date()"));
+    // A rede de segurança existe e só pega pendente ainda não avisado.
+    expect(fonte).toContain("export async function notifyPendingTherapistRequests");
+    expect(fonte).toContain("isNull(therapistRequests.notifiedAt)");
+  });
+
+  it("o agendador roda o reenvio das solicitações", () => {
+    const idx = readFileSync(new URL("./_core/index.ts", import.meta.url), "utf8");
+    expect(idx).toContain("notifyPendingTherapistRequests");
+  });
+
   it("solicitar NÃO promove o usuário (segue sem acesso clínico)", async () => {
     // Mesmo após pedir, o papel continua o mesmo — a promoção é manual.
     await expect(caller().patients.list()).rejects.toThrow(/restrito/i);

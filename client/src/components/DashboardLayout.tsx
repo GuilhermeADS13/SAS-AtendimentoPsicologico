@@ -22,6 +22,7 @@ import {
 import { useIsMobile } from "@/hooks/useMobile";
 import { useRole } from "@/hooks/useRole";
 import { supabase } from "@/lib/supabase";
+import { trpc } from "@/lib/trpc";
 import { NotificationsBell } from "./NotificationsBell";
 import { LogoLockup } from "./Logo";
 import { BadgeCheck, Calendar, LayoutDashboard, LogOut, PanelLeft, Stethoscope, UserRound, Users, Video } from "lucide-react";
@@ -140,6 +141,13 @@ function DashboardLayoutContent({
   const { isTherapist, isAdmin } = useRole();
   const [location, setLocation] = useLocation();
 
+  const { data: solicitacoes = [] } = trpc.admin.therapistRequests.useQuery(undefined, {
+    enabled: isAdmin,
+    refetchInterval: 60_000,
+    retry: false,
+  });
+  const solicitacoesPendentes = solicitacoes.filter((r) => r.status === "pending").length;
+
   // Logout: encerra a sessão do Supabase e a do backend, e volta ao login.
   const handleLogout = async () => {
     try {
@@ -237,6 +245,13 @@ function DashboardLayoutContent({
                         className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
                       />
                       <span>{item.label}</span>
+                      {/* Solicitações pendentes ficam visíveis aqui: o aviso não
+                          pode depender de o e-mail ter chegado. */}
+                      {item.path === "/solicitacoes" && solicitacoesPendentes > 0 && (
+                        <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium flex items-center justify-center">
+                          {solicitacoesPendentes}
+                        </span>
+                      )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
