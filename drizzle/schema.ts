@@ -95,7 +95,9 @@ export const therapists = pgTable("therapists", {
   crp: varchar("crp", { length: 64 }).notNull(),
   specialties: text("specialties"), // JSON array de especialidades
   bio: text("bio"),
-  photoUrl: text("photoUrl"),
+  /** Path da foto no bucket `avatars` — NÃO é URL: o bucket é privado e a
+   *  exibição passa por URL assinada. */
+  photoKey: text("photoKey"),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
     .defaultNow()
@@ -120,6 +122,8 @@ export const patients = pgTable("patients", {
   phone: varchar("phone", { length: 20 }),
   dateOfBirth: timestamp("dateOfBirth", { withTimezone: true, mode: "date" }),
   address: text("address"),
+  /** Path da foto no bucket `avatars`. Opcional — o paciente põe se quiser. */
+  photoKey: text("photoKey"),
   medicalHistory: text("medicalHistory"),
   emergencyContact: varchar("emergencyContact", { length: 128 }),
   emergencyPhone: varchar("emergencyPhone", { length: 20 }),

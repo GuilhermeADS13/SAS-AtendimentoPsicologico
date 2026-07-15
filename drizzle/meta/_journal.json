@@ -29,6 +29,20 @@
       "when": 1784116952807,
       "tag": "0003_pretty_nico_minoru",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784139443550,
+      "tag": "0004_drop_photo_url_add_patient_photo",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784139471526,
+      "tag": "0005_add_therapist_photo_key",
+      "breakpoints": true
     }
   ]
 }

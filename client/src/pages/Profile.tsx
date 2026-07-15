@@ -10,7 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AvatarUpload } from "@/components/AvatarUpload";
 import { maskCrp } from "@shared/crp";
+import { iniciais } from "@/lib/iniciais";
 import { UserRound } from "lucide-react";
 
 export default function Profile() {
@@ -46,7 +48,7 @@ function TherapistProfile() {
     crp: "",
     specialties: "",
     bio: "",
-    photoUrl: "",
+    photoKey: "",
   });
 
   useEffect(() => {
@@ -55,7 +57,7 @@ function TherapistProfile() {
       crp: therapist.crp ?? "",
       specialties: therapist.specialties ?? "",
       bio: therapist.bio ?? "",
-      photoUrl: therapist.photoUrl ?? "",
+      photoKey: therapist.photoKey ?? "",
     });
   }, [therapist]);
 
@@ -76,7 +78,7 @@ function TherapistProfile() {
       crp: form.crp,
       specialties: form.specialties || undefined,
       bio: form.bio || undefined,
-      photoUrl: form.photoUrl || undefined,
+      photoKey: form.photoKey,
     });
   };
 
@@ -103,6 +105,14 @@ function TherapistProfile() {
             ) : (
               <>
                 <div className="space-y-2">
+                  <Label>Foto</Label>
+                  <AvatarUpload
+                    value={form.photoKey}
+                    onChange={(photoKey) => setForm({ ...form, photoKey })}
+                    fallback={iniciais(user?.name)}
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="crp">CRP (Conselho Regional de Psicologia) *</Label>
                   <Input
                     id="crp"
@@ -121,15 +131,6 @@ function TherapistProfile() {
                     value={form.specialties}
                     onChange={(e) => setForm({ ...form, specialties: e.target.value })}
                     placeholder="Ex.: Terapia Cognitivo-Comportamental, Ansiedade, Casais"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="photoUrl">URL da Foto</Label>
-                  <Input
-                    id="photoUrl"
-                    value={form.photoUrl}
-                    onChange={(e) => setForm({ ...form, photoUrl: e.target.value })}
-                    placeholder="https://..."
                   />
                 </div>
                 <div className="space-y-2">

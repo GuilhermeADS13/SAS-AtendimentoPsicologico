@@ -52,12 +52,15 @@ export const appRouter = router({
         phone: z.string().optional(),
         dateOfBirth: z.string().optional(),
         address: z.string().optional(),
+        /** Path no bucket `avatars`. "" remove a foto. Opcional. */
+        photoKey: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new Error("Database not available");
 
         const dob = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
+        const photoKey = input.photoKey === undefined ? undefined : input.photoKey || null;
 
         const existing = await db
           .select()
@@ -74,6 +77,7 @@ export const appRouter = router({
               phone: input.phone,
               address: input.address,
               dateOfBirth: dob,
+              ...(photoKey !== undefined && { photoKey }),
             })
             .where(eq(patients.id, existing[0].id));
           return { success: true, action: "updated" as const };
@@ -99,6 +103,7 @@ export const appRouter = router({
               phone: input.phone,
               address: input.address,
               dateOfBirth: dob,
+              ...(photoKey !== undefined && { photoKey }),
             })
             .where(eq(patients.id, byEmail[0].id));
           return { success: true, action: "linked" as const };
@@ -131,6 +136,7 @@ export const appRouter = router({
           phone: input.phone,
           address: input.address,
           dateOfBirth: dob,
+          photoKey: photoKey ?? null,
         });
         return { success: true, action: "created" as const };
       }),
@@ -341,7 +347,7 @@ export const appRouter = router({
         crp: z.string().min(1),
         specialties: z.string().optional(),
         bio: z.string().optional(),
-        photoUrl: z.string().optional(),
+        photoKey: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
@@ -360,7 +366,7 @@ export const appRouter = router({
               crp: input.crp,
               specialties: input.specialties,
               bio: input.bio,
-              photoUrl: input.photoUrl,
+              photoKey: input.photoKey,
             })
             .where(eq(therapists.id, existing[0].id));
           return { success: true, action: "updated" as const };
@@ -371,7 +377,7 @@ export const appRouter = router({
           crp: input.crp,
           specialties: input.specialties,
           bio: input.bio,
-          photoUrl: input.photoUrl,
+          photoKey: input.photoKey,
         });
         return { success: true, action: "created" as const };
       }),
