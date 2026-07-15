@@ -132,8 +132,10 @@ export default function Dashboard() {
               <FileText className="w-6 h-6" />
               <span>Prontuários</span>
             </Button>
+            {/* A chamada começa pela agenda: é o agendamento que leva à sala
+                com o prontuário e as anotações do paciente. */}
             <Button
-              onClick={() => setLocation("/videocall")}
+              onClick={() => setLocation("/appointments")}
               className="h-24 flex flex-col items-center justify-center gap-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground"
             >
               <Video className="w-6 h-6" />
