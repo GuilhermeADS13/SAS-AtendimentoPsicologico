@@ -10,11 +10,11 @@ export const APP_NAME = "VozInterior";
 export const APP_TAGLINE = "Atendimento Psicológico Online";
 
 /**
- * Verde-petróleo da logo. Fica explícito (e não em `text-primary`) porque o
- * `--primary` do app hoje é azul: usar o token pintaria "VozInterior" de azul
- * ao lado de um símbolo verde.
+ * Verde-petróleo da logo (amostrado do wordmark). Fica explícito (e não em
+ * `text-primary`) porque o `--primary` do app hoje é azul: usar o token
+ * pintaria "VozInterior" de azul ao lado de uma coruja verde.
  */
-export const BRAND_TEAL = "#305F60";
+export const BRAND_TEAL = "#215756";
 
 /** Só o símbolo (rosto + ondas). Para sidebar, favicon e espaços apertados. */
 export function LogoMark({ className = "w-8 h-8" }: { className?: string }) {
