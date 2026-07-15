@@ -448,6 +448,27 @@ UPDATE public."therapistRequests"
 
 > O usuário precisa **sair e entrar** de novo para o novo papel valer.
 
+### E-mails com Gmail (grátis)
+
+O Gmail **não aceita a senha da conta** no SMTP — é preciso uma **Senha de App**:
+
+1. Ligue a **verificação em 2 etapas**: [myaccount.google.com/security](https://myaccount.google.com/security)
+2. Gere a senha: [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+   → escolha "Outro (nome personalizado)" → `SAS` → copie os **16 caracteres**.
+3. Configure no host (Render → Environment):
+
+| Variável | Valor |
+|----------|-------|
+| `SMTP_HOST` | `smtp.gmail.com` |
+| `SMTP_PORT` | `587` |
+| `SMTP_USER` | seu e-mail do Gmail |
+| `SMTP_PASS` | a **senha de app** (16 caracteres, sem espaços) |
+| `SMTP_FROM` | o mesmo e-mail (o Gmail exige que o remetente seja a conta) |
+| `ADMIN_EMAIL` | quem recebe os avisos de solicitação |
+| `NOTIFICATIONS_ENABLED` | `true` (liga também os lembretes automáticos) |
+
+> Limite do Gmail: ~500 e-mails/dia — de sobra para esse uso.
+
 ## 🔐 Segurança
 
 ### Boas Práticas Implementadas

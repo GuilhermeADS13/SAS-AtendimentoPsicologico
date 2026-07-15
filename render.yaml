@@ -36,7 +36,13 @@ services:
       - key: OAUTH_SERVER_URL
         value: https://api.manus.im
 
-      # Lembretes por e-mail (opcional). Ative NOTIFICATIONS_ENABLED e preencha o SMTP.
+      # Recebe o aviso quando alguém solicita acesso como psicóloga.
+      # Se vazio, cai no e-mail do usuário com papel `admin`.
+      - key: ADMIN_EMAIL
+        sync: false
+
+      # Lembretes/avisos por e-mail. Com Gmail: host smtp.gmail.com, porta 587,
+      # user = seu gmail e SMTP_PASS = **Senha de App** (não a senha da conta).
       - key: NOTIFICATIONS_ENABLED
         value: "false"
       - key: SMTP_HOST
