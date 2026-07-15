@@ -8,7 +8,17 @@ import { relations } from "drizzle-orm";
 
 // ── Enums (tipos nativos do Postgres) ─────────────────────────────────────────
 export const roleEnum = pgEnum("role", ["user", "admin", "therapist", "patient"]);
-export const patientStatusEnum = pgEnum("patient_status", ["active", "inactive", "archived"]);
+/**
+ * `pending`: o paciente se cadastrou sozinho e escolheu a psicóloga, mas ela
+ * ainda não aceitou. Fica fora da grade clínica até a confirmação — senão
+ * qualquer um se plantaria na lista de pacientes de qualquer psicóloga.
+ */
+export const patientStatusEnum = pgEnum("patient_status", [
+  "pending",
+  "active",
+  "inactive",
+  "archived",
+]);
 export const appointmentStatusEnum = pgEnum("appointment_status", [
   "scheduled",
   "completed",

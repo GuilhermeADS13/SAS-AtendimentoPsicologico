@@ -1,0 +1,1 @@
+ALTER TYPE "public"."patient_status" ADD VALUE 'pending' BEFORE 'active';

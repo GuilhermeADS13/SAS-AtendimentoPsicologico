@@ -43,6 +43,13 @@
       "when": 1784139471526,
       "tag": "0005_add_therapist_photo_key",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784140341675,
+      "tag": "0006_patient_status_pending",
+      "breakpoints": true
     }
   ]
 }
