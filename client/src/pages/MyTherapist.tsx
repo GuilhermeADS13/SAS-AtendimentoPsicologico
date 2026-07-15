@@ -51,7 +51,7 @@ export default function MyTherapist() {
           <p className="text-muted-foreground">Carregando...</p>
         ) : !psi ? (
           <Card>
-            <CardContent className="pt-6 text-muted-foreground">
+            <CardContent className="text-muted-foreground">
               <UserRound className="w-5 h-5 mb-2" />
               Complete seu cadastro para ver a psicóloga que vai te atender.
             </CardContent>
@@ -59,7 +59,7 @@ export default function MyTherapist() {
         ) : (
           <>
             <Card>
-              <CardContent className="pt-6">
+              <CardContent>
                 <div className="flex items-start gap-5">
                   <Avatar className="h-24 w-24 border">
                     {fotoUrl ? <AvatarImage src={fotoUrl} alt={psi.nome ?? ""} /> : null}
@@ -98,7 +98,7 @@ export default function MyTherapist() {
 
             {psi.bio && (
               <Card>
-                <CardContent className="pt-6">
+                <CardContent>
                   <h2 className="font-semibold text-foreground mb-2">Sobre</h2>
                   <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">
                     {psi.bio}

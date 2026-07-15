@@ -63,7 +63,7 @@ export default function MyAppointments() {
         {/* Sem cadastro ainda, a psicóloga não consegue agendar. */}
         {!isLoading && !profile && (
           <Card className="border-primary/40 bg-primary/5">
-            <CardContent className="pt-6 flex items-center justify-between gap-4">
+            <CardContent className="flex items-center justify-between gap-4">
               <div>
                 <p className="font-medium text-foreground">Complete seu cadastro</p>
                 <p className="text-sm text-muted-foreground">
@@ -95,14 +95,14 @@ export default function MyAppointments() {
           <p className="text-muted-foreground">Carregando...</p>
         ) : appointments.length === 0 ? (
           <Card>
-            <CardContent className="pt-6 text-muted-foreground">
+            <CardContent className="text-muted-foreground">
               <Calendar className="w-5 h-5 mb-2" />
               Nenhuma consulta agendada ainda. Quando a psicóloga marcar, ela aparece aqui.
             </CardContent>
           </Card>
         ) : filtradas.length === 0 ? (
           <Card>
-            <CardContent className="pt-6 text-muted-foreground">
+            <CardContent className="text-muted-foreground">
               Nenhuma consulta encontrada para "{busca}".
             </CardContent>
           </Card>
@@ -113,17 +113,22 @@ export default function MyAppointments() {
                 <h2 className="text-lg font-semibold text-foreground">Próximas</h2>
                 {proximas.map((a) => (
                   <Card key={a.id} className="border-primary/30">
-                    <CardContent className="pt-6 flex flex-wrap items-center justify-between gap-4">
+                    <CardContent className="flex flex-wrap items-center justify-between gap-4">
                       <div className="min-w-0">
+                        {/* Com quem é a consulta vem primeiro: é o que o
+                            paciente procura ao bater o olho. */}
                         <p className="font-semibold text-foreground">
+                          {a.therapistName || "Sua psicóloga"}
+                          {a.therapistCrp ? (
+                            <span className="font-normal text-muted-foreground">
+                              {" "}
+                              · CRP {a.therapistCrp}
+                            </span>
+                          ) : null}
+                        </p>
+                        <p className="text-sm text-foreground/80">
                           {new Date(a.scheduledAt).toLocaleString("pt-BR")}
                         </p>
-                        {a.therapistName && (
-                          <p className="text-sm text-foreground/80">
-                            com {a.therapistName}
-                            {a.therapistCrp ? ` · CRP ${a.therapistCrp}` : ""}
-                          </p>
-                        )}
                         <p className="text-xs text-muted-foreground">
                           {a.duration} min
                           {a.confirmedAt ? " · presença confirmada ✓" : ""}
@@ -148,14 +153,14 @@ export default function MyAppointments() {
                 <h2 className="text-lg font-semibold text-foreground">Anteriores</h2>
                 {anteriores.map((a) => (
                   <Card key={a.id}>
-                    <CardContent className="pt-6 flex flex-wrap items-center justify-between gap-3">
+                    <CardContent className="flex flex-wrap items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm text-foreground">
+                        <p className="font-semibold text-foreground">
+                          {a.therapistName || "Sua psicóloga"}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
                           {new Date(a.scheduledAt).toLocaleString("pt-BR")}
                         </p>
-                        {a.therapistName && (
-                          <p className="text-xs text-muted-foreground">com {a.therapistName}</p>
-                        )}
                       </div>
                       <span className="text-xs text-muted-foreground">
                         {STATUS_LABEL[a.status] ?? a.status}
