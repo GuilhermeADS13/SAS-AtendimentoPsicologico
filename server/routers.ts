@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, therapistProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { getDb } from "./db";
-import { patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests } from "../drizzle/schema";
+import { patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users } from "../drizzle/schema";
 import { eq, and, desc, isNull } from "drizzle-orm";
 import {
   sendAppointmentReminders,
@@ -103,14 +103,26 @@ export const appRouter = router({
           return { success: true, action: "linked" as const };
         }
 
-        // Primeiro cadastro: vincula à psicóloga da clínica.
-        const therapist = await db.select().from(therapists).orderBy(therapists.id).limit(1);
-        if (!therapist.length) {
-          throw new Error("A psicóloga ainda não configurou o perfil. Tente novamente mais tarde.");
+        // Primeiro cadastro: vincula à psicóloga da clínica — a do usuário
+        // `admin`. (Pegar "o primeiro da tabela" ligava o paciente a qualquer
+        // terapeuta residual, como o usuário de desenvolvimento.)
+        const clinicTherapist = await db
+          .select({ id: therapists.id })
+          .from(therapists)
+          .innerJoin(users, eq(users.id, therapists.userId))
+          .where(eq(users.role, "admin"))
+          .orderBy(therapists.id)
+          .limit(1);
+
+        const therapistId = clinicTherapist[0]?.id;
+        if (!therapistId) {
+          throw new Error(
+            "A psicóloga ainda não configurou o perfil profissional. Tente novamente mais tarde.",
+          );
         }
 
         await db.insert(patients).values({
-          therapistId: therapist[0].id,
+          therapistId,
           userId: ctx.user.id,
           firstName: input.firstName,
           lastName: input.lastName,
