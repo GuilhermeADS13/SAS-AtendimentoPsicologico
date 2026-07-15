@@ -8,6 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  getPasswordChecks,
+  validatePassword,
+  PASSWORD_RULE_LABELS,
+} from "@shared/passwordPolicy";
+import { Check, X } from "lucide-react";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -23,6 +29,8 @@ export default function Login() {
   const [crp, setCrp] = useState("");
 
   const requestTherapist = trpc.me.requestTherapist.useMutation();
+
+  const senhaChecks = getPasswordChecks(password);
 
   const afterAuth = async () => {
     // Revalida o auth.me (o token já vai no header) e entra na área do papel.
@@ -49,6 +57,13 @@ export default function Login() {
 
   const handleSignup = async () => {
     if (!supabase) return;
+
+    const erroSenha = validatePassword(password);
+    if (erroSenha) {
+      toast.error(erroSenha);
+      return;
+    }
+
     if (isPsychologist && !/^\d{2}\/\d{3,6}$/.test(crp.trim())) {
       toast.error("Informe o CRP no formato 06/123456");
       return;
@@ -140,7 +155,36 @@ export default function Login() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password-s">Senha</Label>
-                  <Input id="password-s" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                  <Input
+                    id="password-s"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  {/* Requisitos visíveis enquanto digita: errar e só descobrir
+                      no "Criar conta" é o que faz a pessoa desistir. */}
+                  {password.length > 0 && (
+                    <ul className="space-y-1 pt-1">
+                      {PASSWORD_RULE_LABELS.map(({ key, label }) => {
+                        const ok = senhaChecks[key];
+                        return (
+                          <li
+                            key={key}
+                            className={`flex items-center gap-2 text-xs ${
+                              ok ? "text-green-600" : "text-muted-foreground"
+                            }`}
+                          >
+                            {ok ? (
+                              <Check className="w-3 h-3 shrink-0" />
+                            ) : (
+                              <X className="w-3 h-3 shrink-0" />
+                            )}
+                            {label}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </div>
 
                 {/* Paciente (padrão) x psicólogo(a) — este vira solicitação. */}
