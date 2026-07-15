@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
@@ -210,6 +211,18 @@ describe("solicitação de acesso profissional", () => {
   it("solicitar NÃO promove o usuário (segue sem acesso clínico)", async () => {
     // Mesmo após pedir, o papel continua o mesmo — a promoção é manual.
     await expect(caller().patients.list()).rejects.toThrow(/restrito/i);
+  });
+
+  // A aprovação concede `therapist`, nunca `admin`: a fila de solicitações é só
+  // da dona da clínica. Se um aprovado virasse admin, ele aprovaria os próximos.
+  it("aprovar concede therapist, nunca admin", () => {
+    const fonte = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
+    const trecho = fonte.slice(
+      fonte.indexOf("reviewTherapistRequest"),
+      fonte.indexOf("therapists: router("),
+    );
+    expect(trecho).toContain('.set({ role: "therapist" })');
+    expect(trecho).not.toContain('role: "admin"');
   });
 });
 
