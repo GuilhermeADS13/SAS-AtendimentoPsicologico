@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { UserRound, Calendar, BadgeCheck } from "lucide-react";
+import { UserRound, BadgeCheck } from "lucide-react";
 
 function toDateInput(value: unknown): string {
   if (!value) return "";
@@ -19,7 +19,6 @@ export default function PatientProfile() {
   const { user } = useAuth();
   const utils = trpc.useUtils();
   const { data: profile, isLoading } = trpc.me.profile.useQuery();
-  const { data: appointments = [] } = trpc.me.appointments.useQuery();
 
   const [form, setForm] = useState({
     firstName: "",
@@ -230,52 +229,6 @@ export default function PatientProfile() {
         </CardContent>
       </Card>
 
-      {/* Consultas do paciente */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-primary" />
-            Minhas Consultas
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {appointments.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              Nenhuma consulta agendada. A psicóloga enviará o link da sala quando agendar.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {appointments.map((a) => (
-                <div
-                  key={a.id}
-                  className="flex items-center justify-between rounded border border-border p-3"
-                >
-                  <div>
-                    <p className="font-medium text-foreground">
-                      {new Date(a.scheduledAt).toLocaleString("pt-BR")}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {a.duration} min · {a.status === "scheduled" ? "Agendada" : a.status}
-                      {a.confirmedAt ? " · presença confirmada" : ""}
-                    </p>
-                  </div>
-                  {a.status === "scheduled" && (
-                    <Button
-                      size="sm"
-                      onClick={() =>
-                        (window.location.href = `/videocall/sala-apt${a.id}?apt=${a.id}&pat=${a.patientId}`)
-                      }
-                      className="bg-primary hover:bg-primary/90"
-                    >
-                      Entrar na sala
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

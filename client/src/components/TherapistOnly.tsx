@@ -13,7 +13,7 @@ export function TherapistOnly({ children }: { children: ReactNode }) {
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    if (!loading && !isTherapist) setLocation("/profile");
+    if (!loading && !isTherapist) setLocation("/consultas");
   }, [loading, isTherapist, setLocation]);
 
   if (loading) {

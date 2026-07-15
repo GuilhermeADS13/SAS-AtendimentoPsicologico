@@ -326,7 +326,20 @@ export const appRouter = router({
           .limit(1);
         
         if (!therapist.length) throw new Error("Therapist not found");
-        
+
+        // Impede duplicata: o mesmo e-mail já cadastrado nesta clínica. (Era o
+        // que gerava dois registros da mesma pessoa quando ela também criava
+        // conta pelo site.)
+        const jaExiste = await db
+          .select({ id: patients.id })
+          .from(patients)
+          .where(and(eq(patients.therapistId, therapist[0].id), eq(patients.email, input.email)))
+          .limit(1);
+
+        if (jaExiste.length) {
+          throw new Error("Já existe um paciente cadastrado com esse e-mail.");
+        }
+
         const result = await db.insert(patients).values({
           therapistId: therapist[0].id,
           firstName: input.firstName,

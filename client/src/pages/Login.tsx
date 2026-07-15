@@ -29,7 +29,7 @@ export default function Login() {
     await utils.auth.me.invalidate();
     const me = await utils.auth.me.fetch();
     const isTherapist = me?.role === "admin" || me?.role === "therapist";
-    setLocation(isTherapist ? "/dashboard" : "/profile");
+    setLocation(isTherapist ? "/dashboard" : "/consultas");
   };
 
   const handleLogin = async () => {

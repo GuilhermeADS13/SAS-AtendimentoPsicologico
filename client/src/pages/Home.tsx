@@ -13,7 +13,7 @@ export default function Home() {
 
   // Redireciona autenticados conforme o papel (efeito, nunca durante o render).
   useEffect(() => {
-    if (isAuthenticated) setLocation(isTherapist ? "/dashboard" : "/profile");
+    if (isAuthenticated) setLocation(isTherapist ? "/dashboard" : "/consultas");
   }, [isAuthenticated, isTherapist, setLocation]);
 
   return (

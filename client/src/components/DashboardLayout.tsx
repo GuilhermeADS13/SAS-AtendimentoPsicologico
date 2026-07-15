@@ -40,10 +40,14 @@ const therapistMenu = [
   { icon: UserRound, label: "Perfil", path: "/profile" },
 ];
 
-// Menu do paciente: só o próprio cadastro. A videochamada NÃO entra aqui de
-// propósito — sala avulsa seria um link vazio; o paciente entra pela consulta
-// ("Minhas Consultas" → Entrar na sala), que garante a mesma sala da psicóloga.
-const patientMenu = [{ icon: UserRound, label: "Meu Cadastro", path: "/profile" }];
+// Menu do paciente: as consultas vêm primeiro (é o que ele abre no dia a dia);
+// o cadastro fica ao lado, para quando mudar telefone/endereço. A videochamada
+// NÃO entra aqui de propósito — sala avulsa seria um link vazio; o paciente
+// entra pela consulta ("Entrar na sala"), que garante a mesma sala da psicóloga.
+const patientMenu = [
+  { icon: Calendar, label: "Minhas Consultas", path: "/consultas" },
+  { icon: UserRound, label: "Meu Cadastro", path: "/profile" },
+];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;

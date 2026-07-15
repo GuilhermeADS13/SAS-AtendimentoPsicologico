@@ -133,7 +133,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
         console.error("Falha ao registrar fim da videochamada:", err);
       }
     }
-    setLocation(isTherapist ? "/dashboard" : "/profile");
+    setLocation(isTherapist ? "/dashboard" : "/consultas");
   };
 
   const copyRoomLink = () => {
