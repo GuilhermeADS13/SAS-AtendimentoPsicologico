@@ -36,22 +36,21 @@ services:
       - key: OAUTH_SERVER_URL
         value: https://api.manus.im
 
-      # Recebe o aviso quando alguém solicita acesso como psicóloga.
-      # Se vazio, cai no e-mail do usuário com papel `admin`.
-      - key: ADMIN_EMAIL
-        sync: false
-
-      # Lembretes/avisos por e-mail. Com Gmail: host smtp.gmail.com, porta 587,
-      # user = seu gmail e SMTP_PASS = **Senha de App** (não a senha da conta).
-      - key: NOTIFICATIONS_ENABLED
-        value: "false"
+      # ── E-mails (Gmail SMTP) ────────────────────────────────────────────
+      # Só o SMTP_PASS é secreto (Senha de App do Gmail) — preencha no painel.
+      # Os demais o Render cria sozinho ao sincronizar este blueprint.
+      - key: ADMIN_EMAIL # recebe os avisos de solicitação de acesso
+        value: codexmaciel@gmail.com
+      - key: NOTIFICATIONS_ENABLED # liga o agendador de lembretes (15 em 15 min)
+        value: "true"
       - key: SMTP_HOST
-        sync: false
+        value: smtp.gmail.com
       - key: SMTP_PORT
         value: "587"
       - key: SMTP_USER
-        sync: false
+        value: codexmaciel@gmail.com
+      - key: SMTP_FROM # o Gmail exige que o remetente seja a própria conta
+        value: codexmaciel@gmail.com
+      # SENHA DE APP do Gmail (16 caracteres). NUNCA no repositório.
       - key: SMTP_PASS
-        sync: false
-      - key: SMTP_FROM
         sync: false
