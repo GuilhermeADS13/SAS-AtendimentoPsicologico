@@ -19,7 +19,6 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useRole } from "@/hooks/useRole";
 import { supabase } from "@/lib/supabase";
@@ -51,14 +50,18 @@ const MAX_WIDTH = 480;
 
 export default function DashboardLayout({
   children,
+  allowAnonymous = false,
 }: {
   children: React.ReactNode;
+  /** Permite acesso sem conta (sala de vídeo aberta por link). */
+  allowAnonymous?: boolean;
 }) {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
   const { loading, user } = useAuth();
+  const [, setLocation] = useLocation();
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
@@ -68,24 +71,30 @@ export default function DashboardLayout({
     return <DashboardLayoutSkeleton />
   }
 
+  // Convidado (sem conta): usado pela sala de vídeo — quem recebe o link entra
+  // direto, sem cadastro. Mostra só o conteúdo, sem menu lateral.
+  if (!user && allowAnonymous) {
+    return <div className="min-h-screen p-4">{children}</div>;
+  }
+
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
           <div className="flex flex-col items-center gap-6">
             <h1 className="text-2xl font-semibold tracking-tight text-center">
-              Sign in to continue
+              Entre para continuar
             </h1>
             <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Access to this dashboard requires authentication. Continue to launch the login flow.
+              Esta área exige login. Acesse com sua conta ou crie uma em segundos.
             </p>
           </div>
           <Button
-            onClick={() => startLogin()}
+            onClick={() => setLocation("/login")}
             size="lg"
             className="w-full shadow-lg hover:shadow-xl transition-all"
           >
-            Sign in
+            Entrar / Criar conta
           </Button>
         </div>
       </div>
