@@ -243,13 +243,13 @@ export default function PatientDetail() {
         {/* Patient Info cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
-            <CardContent className="pt-6">
+            <CardContent>
               <p className="text-sm text-muted-foreground">Telefone</p>
               <p className="text-lg font-semibold text-foreground">{patient.phone || "—"}</p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
+            <CardContent>
               <p className="text-sm text-muted-foreground">Data de Nascimento</p>
               <p className="text-lg font-semibold text-foreground">
                 {patient.dateOfBirth
@@ -259,13 +259,13 @@ export default function PatientDetail() {
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
+            <CardContent>
               <p className="text-sm text-muted-foreground">Status</p>
               <p className="text-lg font-semibold text-green-600">{statusLabel}</p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
+            <CardContent>
               <p className="text-sm text-muted-foreground">Total de Sessões</p>
               <p className="text-lg font-semibold text-foreground">{patientSessions.length}</p>
             </CardContent>
@@ -325,7 +325,7 @@ export default function PatientDetail() {
 
             {patientSessions.length === 0 ? (
               <Card>
-                <CardContent className="pt-6 text-muted-foreground">
+                <CardContent className="text-muted-foreground">
                   <MessageSquare className="w-5 h-5 mb-2" />
                   Nenhuma sessão registrada ainda. Clique em "Nova Sessão" para
                   registrar a evolução clínica.
@@ -335,7 +335,7 @@ export default function PatientDetail() {
               <div className="space-y-3">
                 {patientSessions.map((session) => (
                   <Card key={session.id}>
-                    <CardContent className="pt-6 space-y-2">
+                    <CardContent className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4 text-primary" />
@@ -396,7 +396,7 @@ export default function PatientDetail() {
 
             {(documentsQuery.data?.length ?? 0) === 0 ? (
               <Card>
-                <CardContent className="pt-6 text-muted-foreground">
+                <CardContent className="text-muted-foreground">
                   <FileText className="w-5 h-5 mb-2" />
                   Nenhum documento enviado ainda (laudos, receitas, anexos).
                 </CardContent>
@@ -405,7 +405,7 @@ export default function PatientDetail() {
               <div className="space-y-3">
                 {documentsQuery.data?.map((doc) => (
                   <Card key={doc.id}>
-                    <CardContent className="pt-6 flex items-center justify-between gap-3">
+                    <CardContent className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
                         <FileText className="w-5 h-5 text-primary shrink-0" />
                         <div className="min-w-0">

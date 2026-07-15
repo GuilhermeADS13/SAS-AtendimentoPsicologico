@@ -63,7 +63,7 @@ export default function TherapistRequests() {
 
               {pendentes.length === 0 ? (
                 <Card>
-                  <CardContent className="pt-6 text-muted-foreground">
+                  <CardContent className="text-muted-foreground">
                     <Inbox className="w-5 h-5 mb-2" />
                     Nenhuma solicitação esperando análise.
                   </CardContent>
@@ -71,7 +71,7 @@ export default function TherapistRequests() {
               ) : (
                 pendentes.map((r) => (
                   <Card key={r.id} className="border-primary/30">
-                    <CardContent className="pt-6 space-y-4">
+                    <CardContent className="space-y-4">
                       <div>
                         <p className="font-semibold text-foreground">{r.fullName}</p>
                         <p className="text-sm text-muted-foreground">{r.email}</p>
@@ -140,7 +140,7 @@ export default function TherapistRequests() {
                 <h2 className="text-lg font-semibold text-foreground">Já analisadas</h2>
                 {analisadas.map((r) => (
                   <Card key={r.id}>
-                    <CardContent className="pt-6 flex items-center justify-between gap-4">
+                    <CardContent className="flex items-center justify-between gap-4">
                       <div>
                         <p className="text-sm font-medium text-foreground">
                           {r.fullName} · CRP {r.crp}

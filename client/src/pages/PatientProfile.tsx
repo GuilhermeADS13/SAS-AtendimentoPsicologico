@@ -138,7 +138,7 @@ export default function PatientProfile() {
 
       {!profile && convite && (
         <Card className="border-primary/40 bg-primary/5">
-          <CardContent className="pt-6 flex items-start gap-3">
+          <CardContent className="flex items-start gap-3">
             <BadgeCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
             <p className="text-sm text-foreground">
               <strong>{convite.therapistName}</strong> já cadastrou você como
@@ -152,7 +152,7 @@ export default function PatientProfile() {
 
       {profile?.status === "pending" && (
         <Card className="border-primary/40 bg-primary/5">
-          <CardContent className="pt-6 flex items-start gap-3">
+          <CardContent className="flex items-start gap-3">
             <Clock className="w-5 h-5 text-primary shrink-0 mt-0.5" />
             <p className="text-sm text-foreground">
               <strong>Aguardando confirmação da psicóloga.</strong> Assim que ela
