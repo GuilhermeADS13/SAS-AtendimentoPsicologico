@@ -290,10 +290,17 @@ describe("solicitação de acesso profissional", () => {
       fonte.indexOf("async function avisarAdmin"),
       fonte.indexOf("export async function notifyAdminOfTherapistRequest"),
     );
-    // Sai antes de marcar quando o envio não aconteceu.
-    expect(avisar).toContain("if (!entregue) return false;");
-    // E o marcador vem depois do envio, nunca antes.
-    expect(avisar.indexOf("const entregue")).toBeLessThan(avisar.indexOf("notifiedAt: new Date()"));
+    // Sai antes de marcar quando o envio não aconteceu. Casa com o corpo em
+    // bloco ou em uma linha: o que importa é existir a saída antecipada, não a
+    // formatação — a versão anterior deste teste quebrou só por reformatação.
+    expect(avisar).toMatch(/if \(!entregue\)/);
+    // O marcador vem DEPOIS do envio, nunca antes. É o coração da retentativa:
+    // marcar antes faria um aviso que falhou parecer entregue, para sempre.
+    expect(avisar.indexOf("await sendEmail")).toBeLessThan(
+      avisar.indexOf("notifiedAt: new Date()"),
+    );
+    // Falha registra o motivo em vez de sumir no log.
+    expect(avisar).toMatch(/registrarErro/);
     // A rede de segurança existe e só pega pendente ainda não avisado.
     expect(fonte).toContain("export async function notifyPendingTherapistRequests");
     expect(fonte).toContain("isNull(therapistRequests.notifiedAt)");
