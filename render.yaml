@@ -41,8 +41,10 @@ services:
       # Os demais o Render cria sozinho ao sincronizar este blueprint.
       - key: ADMIN_EMAIL # recebe os avisos de solicitação de acesso
         value: codexmaciel@gmail.com
-      - key: APP_URL # base dos links dentro dos e-mails
-        value: https://sas-atendimento-psicologico.onrender.com
+      # APP_URL não é declarada de propósito: sem ela, os e-mails usam a
+      # RENDER_EXTERNAL_URL que o Render injeta, e os links acompanham o nome do
+      # serviço sozinhos. Defina APP_URL só quando houver domínio próprio, que o
+      # Render não tem como adivinhar.
       - key: NOTIFICATIONS_ENABLED # liga o agendador de lembretes (15 em 15 min)
         value: "true"
       - key: SMTP_HOST
