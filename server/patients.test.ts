@@ -58,6 +58,20 @@ describe("patients router", () => {
       "Database not available",
     );
   });
+
+  it("patients.delete rejects when there is no database", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    await expect(caller.patients.delete({ id: 1 })).rejects.toThrow(
+      "Database not available",
+    );
+  });
+
+  it("patients.delete is denied for a patient (only the therapist manages the grid)", async () => {
+    const caller = appRouter.createCaller(createAuthContext(2, "user"));
+    await expect(caller.patients.delete({ id: 1 })).rejects.toThrow(
+      "Acesso restrito à psicóloga.",
+    );
+  });
 });
 
 describe("sessions router", () => {

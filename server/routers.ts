@@ -432,6 +432,67 @@ export const appRouter = router({
 
         return { success: true } as const;
       }),
+
+    // Tira o paciente da grade da psicóloga.
+    //
+    // Só apaga de verdade quem não tem nada clínico registrado (cadastro errado,
+    // duplicata, teste). Havendo sessão/anotação/documento/consulta, o registro
+    // é ARQUIVADO em vez de apagado: o prontuário tem guarda obrigatória de 5
+    // anos (CFP 001/2009), então sumir com ele seria perder prova de
+    // atendimento. Arquivado sai da lista, mas continua acessível pelo id.
+    delete: therapistProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const therapist = await db
+          .select()
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+
+        if (!therapist.length) throw new Error("Therapist not found");
+
+        const owned = await db
+          .select()
+          .from(patients)
+          .where(and(eq(patients.id, input.id), eq(patients.therapistId, therapist[0].id)))
+          .limit(1);
+
+        if (!owned.length) throw new Error("Patient not found for this therapist");
+
+        const [apts, sess, notes, docs] = await Promise.all([
+          db.select({ id: appointments.id }).from(appointments).where(eq(appointments.patientId, input.id)),
+          db.select({ id: sessions.id }).from(sessions).where(eq(sessions.patientId, input.id)),
+          db.select({ id: sessionNotes.id }).from(sessionNotes).where(eq(sessionNotes.patientId, input.id)),
+          db.select({ id: documents.id }).from(documents).where(eq(documents.patientId, input.id)),
+        ]);
+
+        const clinico = sess.length + notes.length + docs.length;
+
+        if (clinico > 0 || apts.length > 0) {
+          await db
+            .update(patients)
+            .set({ status: "archived" })
+            .where(eq(patients.id, input.id));
+
+          return {
+            action: "archived" as const,
+            consultas: apts.length,
+            sessoes: sess.length,
+            anotacoes: notes.length,
+            documentos: docs.length,
+          };
+        }
+
+        // Sem histórico: não há FK no banco, então não existe cascade para
+        // deixar órfão. Some com a linha.
+        await db.delete(videoCalls).where(eq(videoCalls.patientId, input.id));
+        await db.delete(patients).where(eq(patients.id, input.id));
+
+        return { action: "deleted" as const };
+      }),
   }),
 
   appointments: router({

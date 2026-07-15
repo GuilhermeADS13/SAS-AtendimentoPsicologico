@@ -16,6 +16,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -23,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Eye, Edit2, Trash2 } from "lucide-react";
+import { Plus, Search, Eye, Trash2 } from "lucide-react";
 
 const emptyForm = {
   firstName: "",
@@ -51,10 +61,29 @@ export default function Records() {
     onError: (e) => toast.error(e.message || "Erro ao cadastrar paciente"),
   });
 
-  const filteredPatients = patients.filter((patient) =>
-    `${patient.firstName} ${patient.lastName} ${patient.email}`
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase())
+  // Paciente a excluir (o AlertDialog abre com ele).
+  const [toDelete, setToDelete] = useState<{ id: number; nome: string } | null>(null);
+
+  const deletePatient = trpc.patients.delete.useMutation({
+    onSuccess: (r) => {
+      utils.patients.list.invalidate();
+      setToDelete(null);
+      toast.success(
+        r.action === "deleted"
+          ? "Paciente excluído."
+          : `Paciente arquivado — o prontuário foi mantido (${r.sessoes} sessão(ões), ${r.consultas} consulta(s)).`,
+      );
+    },
+    onError: (e) => toast.error(e.message || "Erro ao excluir paciente"),
+  });
+
+  // Arquivado sai da grade, mas o prontuário continua no banco.
+  const filteredPatients = patients.filter(
+    (patient) =>
+      patient.status !== "archived" &&
+      `${patient.firstName} ${patient.lastName} ${patient.email}`
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase())
   );
 
   const handleAddPatient = () => {
@@ -230,18 +259,14 @@ export default function Records() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => setLocation(`/records/${patient.id}`)}
-                              className="text-secondary hover:bg-secondary/10"
-                              title="Editar"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => toast.info("Exclusão de paciente — em breve")}
+                              onClick={() =>
+                                setToDelete({
+                                  id: patient.id,
+                                  nome: `${patient.firstName} ${patient.lastName}`,
+                                })
+                              }
                               className="text-destructive hover:bg-destructive/10"
-                              title="Excluir"
+                              title="Excluir da minha grade"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -264,6 +289,32 @@ export default function Records() {
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {toDelete?.nome}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O paciente sai da sua grade. Se ele já tiver consulta, sessão ou
+              documento registrado, o prontuário é <strong>arquivado</strong> em vez
+              de apagado — a guarda do prontuário é obrigatória por 5 anos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (toDelete) deletePatient.mutate({ id: toDelete.id });
+              }}
+              disabled={deletePatient.isPending}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {deletePatient.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
