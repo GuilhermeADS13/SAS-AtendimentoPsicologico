@@ -91,6 +91,12 @@ export const therapistRequests = pgTable("therapistRequests", {
   status: therapistRequestStatusEnum("status").default("pending").notNull(),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   reviewedAt: timestamp("reviewedAt", { withTimezone: true, mode: "date" }),
+  /**
+   * Quando o admin foi avisado por e-mail. Nulo = ainda não avisado, e o
+   * agendador tenta de novo no próximo ciclo. É o que impede o aviso de sumir
+   * quando o envio falha (deploy no meio, SMTP fora do ar, cold start).
+   */
+  notifiedAt: timestamp("notifiedAt", { withTimezone: true, mode: "date" }),
 });
 
 export type TherapistRequest = typeof therapistRequests.$inferSelect;

@@ -188,6 +188,8 @@ export const appRouter = router({
           return { success: true, status: "pending" as const, alreadyRequested: true };
         }
 
+        let requestId: number;
+
         if (existing.length) {
           await db
             .update(therapistRequests)
@@ -197,26 +199,29 @@ export const appRouter = router({
               message: input.message,
               status: "pending",
               reviewedAt: null,
+              notifiedAt: null, // reenviado: é um pedido novo para o admin
             })
             .where(eq(therapistRequests.id, existing[0].id));
+          requestId = existing[0].id;
         } else {
-          await db.insert(therapistRequests).values({
-            userId: ctx.user.id,
-            fullName: input.fullName,
-            crp: input.crp,
-            email: ctx.user.email ?? "",
-            message: input.message,
-          });
+          const inserido = await db
+            .insert(therapistRequests)
+            .values({
+              userId: ctx.user.id,
+              fullName: input.fullName,
+              crp: input.crp,
+              email: ctx.user.email ?? "",
+              message: input.message,
+            })
+            .returning({ id: therapistRequests.id });
+          requestId = inserido[0].id;
         }
 
         // Avisa o admin em segundo plano: o SMTP pode levar dezenas de segundos
         // e não deve segurar a resposta (o pedido já está salvo de qualquer forma).
-        void notifyAdminOfTherapistRequest({
-          fullName: input.fullName,
-          crp: input.crp,
-          email: ctx.user.email ?? "",
-          userId: ctx.user.id,
-        }).catch((error) => {
+        // Se falhar — inclusive se o container morrer aqui, num deploy —, o
+        // `notifiedAt` fica nulo e o agendador reenvia no próximo ciclo.
+        void notifyAdminOfTherapistRequest(requestId).catch((error) => {
           console.warn("[TherapistRequest] falha ao notificar admin:", error);
         });
 

@@ -1,6 +1,13 @@
 import { getDb } from "./db";
-import { notifications, appointments, patients, therapists, users } from "../drizzle/schema";
-import { eq, and, lt, gte } from "drizzle-orm";
+import {
+  notifications,
+  appointments,
+  patients,
+  therapists,
+  users,
+  therapistRequests,
+} from "../drizzle/schema";
+import { eq, and, lt, gte, isNull } from "drizzle-orm";
 import { sendEmail } from "./mailer";
 
 /**
@@ -18,43 +25,49 @@ function appUrl(): string {
   );
 }
 
-/**
- * Avisa o admin que alguém pediu acesso como psicóloga.
- * Destinatário: ADMIN_EMAIL, ou o e-mail do usuário com papel `admin`.
- */
-export async function notifyAdminOfTherapistRequest(req: {
+/** Para quem vai o aviso: ADMIN_EMAIL, ou o e-mail do usuário com papel `admin`. */
+async function emailDoAdmin(): Promise<string> {
+  const configurado = process.env.ADMIN_EMAIL || "";
+  if (configurado) return configurado;
+
+  const db = await getDb();
+  if (!db) return "";
+
+  const admin = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(eq(users.role, "admin"))
+    .limit(1);
+
+  return admin[0]?.email ?? "";
+}
+
+type SolicitacaoParaAvisar = {
+  id: number;
   fullName: string;
   crp: string;
-  email: string;
-  userId: number;
-}): Promise<void> {
-  let to = process.env.ADMIN_EMAIL || "";
+  email: string | null;
+};
 
-  if (!to) {
-    const db = await getDb();
-    if (db) {
-      const admin = await db
-        .select({ email: users.email })
-        .from(users)
-        .where(eq(users.role, "admin"))
-        .limit(1);
-      to = admin[0]?.email ?? "";
-    }
-  }
-
+/**
+ * Manda o e-mail de uma solicitação e marca `notifiedAt`.
+ * Devolve false se não deu para enviar — aí `notifiedAt` fica nulo e o próximo
+ * ciclo do agendador tenta de novo.
+ */
+async function avisarAdmin(req: SolicitacaoParaAvisar): Promise<boolean> {
+  const to = await emailDoAdmin();
   if (!to) {
     console.warn("[TherapistRequest] sem ADMIN_EMAIL nem admin cadastrado — e-mail não enviado.");
-    return;
+    return false;
   }
 
   const base = appUrl();
-
   const html = `
     <p><strong>Nova solicitação de acesso como psicóloga.</strong></p>
     <ul>
       <li><strong>Nome:</strong> ${req.fullName}</li>
       <li><strong>CRP:</strong> ${req.crp}</li>
-      <li><strong>E-mail:</strong> ${req.email}</li>
+      <li><strong>E-mail:</strong> ${req.email ?? "—"}</li>
     </ul>
     <p>Confira o CRP no Cadastro Nacional de Psicólogos:
       <a href="https://cadastro.cfp.org.br">cadastro.cfp.org.br</a>
@@ -65,11 +78,87 @@ export async function notifyAdminOfTherapistRequest(req: {
     </p>
   `;
 
-  await sendEmail(
+  const entregue = await sendEmail(
     to,
     `[VozInterior] Solicitação de acesso — ${req.fullName} (CRP ${req.crp})`,
     html,
   );
+
+  if (!entregue) return false;
+
+  const db = await getDb();
+  if (db) {
+    await db
+      .update(therapistRequests)
+      .set({ notifiedAt: new Date() })
+      .where(eq(therapistRequests.id, req.id));
+  }
+  return true;
+}
+
+/**
+ * Avisa o admin de uma solicitação recém-criada (caminho rápido).
+ *
+ * Falhar aqui não perde o aviso: sem `notifiedAt`, o agendador reenvia. Foi o
+ * que faltou quando a solicitação da Beatriz caiu junto com um deploy — o
+ * e-mail era disparado e esquecido, e ninguém ficava sabendo que falhou.
+ */
+export async function notifyAdminOfTherapistRequest(requestId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  const rows = await db
+    .select({
+      id: therapistRequests.id,
+      fullName: therapistRequests.fullName,
+      crp: therapistRequests.crp,
+      email: therapistRequests.email,
+    })
+    .from(therapistRequests)
+    .where(eq(therapistRequests.id, requestId))
+    .limit(1);
+
+  if (!rows.length) return;
+  await avisarAdmin(rows[0]);
+}
+
+/**
+ * Rede de segurança: reenvia o aviso das solicitações pendentes que ainda não
+ * foram notificadas. Roda no ciclo do agendador, a cada 15 min.
+ */
+export async function notifyPendingTherapistRequests(): Promise<{
+  sent: number;
+  failed: number;
+}> {
+  const db = await getDb();
+  if (!db) return { sent: 0, failed: 0 };
+
+  const pendentes = await db
+    .select({
+      id: therapistRequests.id,
+      fullName: therapistRequests.fullName,
+      crp: therapistRequests.crp,
+      email: therapistRequests.email,
+    })
+    .from(therapistRequests)
+    .where(
+      and(eq(therapistRequests.status, "pending"), isNull(therapistRequests.notifiedAt)),
+    )
+    .limit(20);
+
+  let sent = 0;
+  let failed = 0;
+
+  for (const req of pendentes) {
+    try {
+      (await avisarAdmin(req)) ? sent++ : failed++;
+    } catch (error) {
+      failed++;
+      console.warn(`[TherapistRequest] falha ao reenviar aviso #${req.id}:`, error);
+    }
+  }
+
+  return { sent, failed };
 }
 
 /** Avisa quem pediu acesso profissional do resultado da análise. */
