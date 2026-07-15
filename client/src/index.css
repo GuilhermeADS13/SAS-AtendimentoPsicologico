@@ -42,47 +42,64 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* Paleta VozInterior.
+ *
+ * Verde-petróleo #215756 e bege #D6BFA2 vêm da logo (amostrados da arte). O
+ * `--primary` era `blue-700`, herdado do template: azul de botão ao lado de uma
+ * coruja verde é o que fazia a tela parecer inacabada.
+ *
+ * Os neutros são quentes de propósito (matiz 65, o bege da marca), mas claros:
+ * o fundo bege forte de antes achatava tudo e sujava o branco dos cartões.
+ */
 :root {
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-600);
-  --sidebar-primary-foreground: var(--color-blue-50);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
-  --radius: 0.65rem;
-  --background: oklch(0.92 0.02 65);
-  --foreground: oklch(0.35 0.05 65);
-  --card: oklch(0.95 0.01 65);
-  --card-foreground: oklch(0.35 0.05 65);
-  --popover: oklch(0.95 0.01 65);
-  --popover-foreground: oklch(0.35 0.05 65);
-  --secondary: oklch(0.88 0.03 65);
-  --secondary-foreground: oklch(0.35 0.05 65);
-  --muted: oklch(0.85 0.02 65);
-  --muted-foreground: oklch(0.50 0.04 65);
-  --accent: oklch(0.60 0.08 65);
-  --accent-foreground: oklch(0.95 0.01 65);
+  --brand: oklch(0.421 0.057 193.5);        /* #215756 — verde da logo */
+  --brand-soft: oklch(0.511 0.069 191.3);   /* hover/realce */
+  --brand-sand: oklch(0.817 0.047 73.5);    /* #D6BFA2 — bege da logo */
+
+  --primary: var(--brand);
+  --primary-foreground: oklch(0.98 0.008 73);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: oklch(0.98 0.008 73);
+  --chart-1: var(--brand);
+  --chart-2: var(--brand-soft);
+  --chart-3: oklch(0.62 0.06 190);
+  --chart-4: var(--brand-sand);
+  --chart-5: oklch(0.70 0.05 80);
+  --radius: 0.75rem;
+  --background: oklch(0.985 0.006 73);
+  --foreground: oklch(0.29 0.02 200);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.29 0.02 200);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.29 0.02 200);
+  --secondary: oklch(0.955 0.016 73);
+  --secondary-foreground: oklch(0.38 0.03 195);
+  --muted: oklch(0.96 0.010 73);
+  --muted-foreground: oklch(0.53 0.015 195);
+  --accent: oklch(0.94 0.025 73);
+  --accent-foreground: var(--brand);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.88 0.02 65);
-  --input: oklch(0.88 0.02 65);
-  --ring: oklch(0.623 0.214 259.815);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.35 0.05 65);
-  --sidebar-accent: oklch(0.60 0.08 65);
-  --sidebar-accent-foreground: oklch(0.95 0.01 65);
-  --sidebar-border: oklch(0.88 0.02 65);
-  --sidebar-ring: oklch(0.623 0.214 259.815);
+  --border: oklch(0.90 0.012 73);
+  --input: oklch(0.90 0.012 73);
+  --ring: var(--brand);
+  --sidebar: oklch(0.995 0.004 73);
+  --sidebar-foreground: oklch(0.35 0.02 200);
+  --sidebar-accent: oklch(0.95 0.018 73);
+  --sidebar-accent-foreground: var(--brand);
+  --sidebar-border: oklch(0.91 0.012 73);
+  --sidebar-ring: var(--brand);
 }
 
 .dark {
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-500);
-  --sidebar-primary-foreground: var(--color-blue-50);
+  --brand: oklch(0.62 0.070 190);       /* clareado: o verde da logo não tem
+                                           contraste suficiente no escuro */
+  --brand-soft: oklch(0.70 0.065 190);
+  --brand-sand: oklch(0.817 0.047 73.5);
+  --primary: var(--brand);
+  --primary-foreground: oklch(0.20 0.02 200);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: oklch(0.20 0.02 200);
   --background: oklch(0.25 0.04 65);
   --foreground: oklch(0.92 0.02 65);
   --card: oklch(0.30 0.05 65);
@@ -98,18 +115,18 @@
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.488 0.243 264.376);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
+  --ring: var(--brand);
+  --chart-1: var(--brand);
+  --chart-2: var(--brand-soft);
+  --chart-3: oklch(0.75 0.05 190);
+  --chart-4: var(--brand-sand);
+  --chart-5: oklch(0.70 0.05 80);
   --sidebar: oklch(0.21 0.006 285.885);
   --sidebar-foreground: oklch(0.85 0.005 65);
   --sidebar-accent: oklch(0.274 0.006 286.033);
   --sidebar-accent-foreground:  oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.488 0.243 264.376);
+  --sidebar-ring: var(--brand);
 }
 
 @layer base {
