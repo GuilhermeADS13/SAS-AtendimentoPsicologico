@@ -159,17 +159,16 @@ export const appRouter = router({
           });
         }
 
-        // Avisa o admin (dry-run se o SMTP não estiver configurado).
-        try {
-          await notifyAdminOfTherapistRequest({
-            fullName: input.fullName,
-            crp: input.crp,
-            email: ctx.user.email ?? "",
-            userId: ctx.user.id,
-          });
-        } catch (error) {
+        // Avisa o admin em segundo plano: o SMTP pode levar dezenas de segundos
+        // e não deve segurar a resposta (o pedido já está salvo de qualquer forma).
+        void notifyAdminOfTherapistRequest({
+          fullName: input.fullName,
+          crp: input.crp,
+          email: ctx.user.email ?? "",
+          userId: ctx.user.id,
+        }).catch((error) => {
           console.warn("[TherapistRequest] falha ao notificar admin:", error);
-        }
+        });
 
         return { success: true, status: "pending" as const, alreadyRequested: false };
       }),
