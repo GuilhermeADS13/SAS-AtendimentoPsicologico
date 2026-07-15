@@ -57,6 +57,13 @@
       "when": 1784142302067,
       "tag": "0007_therapist_request_notified_at",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784145235457,
+      "tag": "0008_therapist_request_notify_error",
+      "breakpoints": true
     }
   ]
 }

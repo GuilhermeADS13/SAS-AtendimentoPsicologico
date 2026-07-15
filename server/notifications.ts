@@ -49,6 +49,16 @@ type SolicitacaoParaAvisar = {
   email: string | null;
 };
 
+/** Guarda o motivo da falha na própria solicitação, para ficar visível na tela. */
+async function registrarErro(id: number, motivo: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(therapistRequests)
+    .set({ notifyError: motivo.slice(0, 500) })
+    .where(eq(therapistRequests.id, id));
+}
+
 /**
  * Manda o e-mail de uma solicitação e marca `notifiedAt`.
  * Devolve false se não deu para enviar — aí `notifiedAt` fica nulo e o próximo
@@ -57,7 +67,9 @@ type SolicitacaoParaAvisar = {
 async function avisarAdmin(req: SolicitacaoParaAvisar): Promise<boolean> {
   const to = await emailDoAdmin();
   if (!to) {
-    console.warn("[TherapistRequest] sem ADMIN_EMAIL nem admin cadastrado — e-mail não enviado.");
+    const motivo = "sem ADMIN_EMAIL nem usuário admin cadastrado";
+    console.warn(`[TherapistRequest] ${motivo} — e-mail não enviado.`);
+    await registrarErro(req.id, motivo);
     return false;
   }
 
@@ -78,19 +90,32 @@ async function avisarAdmin(req: SolicitacaoParaAvisar): Promise<boolean> {
     </p>
   `;
 
-  const entregue = await sendEmail(
-    to,
-    `[VozInterior] Solicitação de acesso — ${req.fullName} (CRP ${req.crp})`,
-    html,
-  );
+  let entregue: boolean;
+  try {
+    entregue = await sendEmail(
+      to,
+      `[VozInterior] Solicitação de acesso — ${req.fullName} (CRP ${req.crp})`,
+      html,
+    );
+  } catch (error) {
+    // O motivo real (401 da Brevo, remetente não verificado, cota) vive aqui.
+    // Sem gravar, ele morreria no log do Render e o aviso pareceria só "não saiu".
+    const motivo = error instanceof Error ? error.message : String(error);
+    console.warn(`[TherapistRequest] falha ao enviar aviso #${req.id}:`, motivo);
+    await registrarErro(req.id, motivo);
+    return false;
+  }
 
-  if (!entregue) return false;
+  if (!entregue) {
+    await registrarErro(req.id, "e-mail não configurado (dry-run)");
+    return false;
+  }
 
   const db = await getDb();
   if (db) {
     await db
       .update(therapistRequests)
-      .set({ notifiedAt: new Date() })
+      .set({ notifiedAt: new Date(), notifyError: null })
       .where(eq(therapistRequests.id, req.id));
   }
   return true;
