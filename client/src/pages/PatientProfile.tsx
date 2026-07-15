@@ -30,15 +30,27 @@ export default function PatientProfile() {
   });
 
   useEffect(() => {
-    if (!profile) return;
-    setForm({
-      firstName: profile.firstName ?? "",
-      lastName: profile.lastName ?? "",
-      phone: profile.phone ?? "",
-      dateOfBirth: toDateInput(profile.dateOfBirth),
-      address: profile.address ?? "",
-    });
-  }, [profile]);
+    if (profile) {
+      setForm({
+        firstName: profile.firstName ?? "",
+        lastName: profile.lastName ?? "",
+        phone: profile.phone ?? "",
+        dateOfBirth: toDateInput(profile.dateOfBirth),
+        address: profile.address ?? "",
+      });
+      return;
+    }
+    // Ainda sem cadastro: aproveita o nome informado na criação da conta,
+    // para o paciente não precisar digitar de novo.
+    if (user?.name) {
+      const [first, ...rest] = user.name.trim().split(/\s+/);
+      setForm((f) => ({
+        ...f,
+        firstName: f.firstName || first || "",
+        lastName: f.lastName || rest.join(" "),
+      }));
+    }
+  }, [profile, user]);
 
   const save = trpc.me.saveProfile.useMutation({
     onSuccess: () => {
@@ -59,6 +71,11 @@ export default function PatientProfile() {
     },
     onError: (e) => toast.error(e.message || "Erro ao enviar solicitação"),
   });
+
+  // Reaproveita o nome da conta na solicitação também.
+  useEffect(() => {
+    if (user?.name) setFullName((v) => v || user.name || "");
+  }, [user]);
 
   const handleSave = () => {
     if (!form.firstName.trim() || !form.lastName.trim()) {
