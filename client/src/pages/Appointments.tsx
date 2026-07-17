@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import {
   Dialog,
   DialogContent,
@@ -50,6 +50,17 @@ export default function Appointments() {
 
   const { data: appointments = [] } = trpc.appointments.list.useQuery();
   const { data: patients = [] } = trpc.patients.list.useQuery();
+
+  // Consulta a destacar quando se chega pela sineta (/agendamentos?ap=<id>):
+  // a notificação leva direto aqui e realça qual consulta é.
+  const search = useSearch();
+  const highlightId = Number(new URLSearchParams(search).get("ap")) || 0;
+
+  useEffect(() => {
+    if (!highlightId || appointments.length === 0) return;
+    const el = document.querySelector(`[data-appt="${highlightId}"]`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [highlightId, appointments.length]);
 
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
@@ -277,8 +288,15 @@ export default function Appointments() {
                       const scheduled = new Date(appointment.scheduledAt);
                       const status = appointment.status as Status;
                       const roomUrl = roomUrlFor(appointment.id, appointment.patientId);
+                      const destacada = appointment.id === highlightId;
                       return (
-                        <TableRow key={appointment.id}>
+                        <TableRow
+                          key={appointment.id}
+                          data-appt={appointment.id}
+                          className={
+                            destacada ? "bg-primary/10 ring-1 ring-primary/40" : ""
+                          }
+                        >
                           <TableCell className="font-medium">
                             {patientName(appointment.patientId)}
                           </TableCell>
