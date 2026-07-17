@@ -60,10 +60,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values.role = user.role;
       updateSet.role = user.role;
     } else if (ENV.ownerOpenId && user.openId === ENV.ownerOpenId) {
-      // Resíduo do Manus (OWNER_OPEN_ID). Não está configurado em produção, e o
-      // teste de vazio é obrigatório: sem ele, ownerOpenId === "" compararia
-      // igual a qualquer openId vazio e promoveria a admin no login. O admin do
-      // SAS é definido só no banco — nenhum fluxo da aplicação concede o papel.
+      
       values.role = 'admin';
       updateSet.role = 'admin';
     }

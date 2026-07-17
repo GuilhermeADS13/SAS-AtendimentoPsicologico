@@ -29,7 +29,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink } from "lucide-react";
+import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, MessageCircle } from "lucide-react";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 type Status = "scheduled" | "completed" | "cancelled" | "no_show";
 
@@ -44,6 +45,7 @@ const emptyForm = { patientId: "", date: "", time: "", duration: "60" };
 export default function Appointments() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
+  const { user } = useAuth();
 
   const { data: appointments = [] } = trpc.appointments.list.useQuery();
   const { data: patients = [] } = trpc.patients.list.useQuery();
@@ -51,9 +53,35 @@ export default function Appointments() {
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
 
+  const patientOf = (patientId: number) => patients.find((pt) => pt.id === patientId);
+
   const patientName = (patientId: number) => {
-    const p = patients.find((pt) => pt.id === patientId);
+    const p = patientOf(patientId);
     return p ? `${p.firstName} ${p.lastName}` : "Paciente";
+  };
+
+  // Monta o link wa.me que abre o WhatsApp com o número do paciente e a mensagem
+  // pronta. Quem envia é a psicóloga (abre no aparelho dela) — não é automático.
+  // Retorna null se o paciente não tem telefone (aí o botão fica desabilitado).
+  const whatsappHref = (appt: (typeof appointments)[number]): string | null => {
+    const digits = (patientOf(appt.patientId)?.phone ?? "").replace(/\D/g, "");
+    if (!digits) return null;
+    const numero = digits.startsWith("55") ? digits : `55${digits}`; // 55 = Brasil
+
+    const dt = new Date(appt.scheduledAt);
+    const data = dt.toLocaleDateString("pt-BR");
+    const hora = dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const url = `${window.location.origin}${roomUrlFor(appt.id, appt.patientId)}`;
+    const primeiroNome = patientName(appt.patientId).split(" ")[0];
+    const comPsi = user?.name ? ` com ${user.name}` : "";
+
+    const msg =
+      `Olá, ${primeiroNome}! 👋\n\n` +
+      `Lembrete da sua consulta${comPsi}: ${data} às ${hora}.\n\n` +
+      `No horário, é só entrar pela sala: ${url}\n\n` +
+      `Qualquer dúvida, me chame por aqui.`;
+
+    return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
   };
 
   const createAppt = trpc.appointments.create.useMutation({
@@ -282,15 +310,39 @@ export default function Appointments() {
                             ) : null}
                           </TableCell>
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => copyToClipboard(roomUrl)}
-                              className="p-1 h-auto"
-                              title="Copiar link da sala"
-                            >
-                              <Copy className="w-4 h-4" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => copyToClipboard(roomUrl)}
+                                className="p-1 h-auto"
+                                title="Copiar link da sala"
+                              >
+                                <Copy className="w-4 h-4" />
+                              </Button>
+                              {status === "scheduled" &&
+                                (() => {
+                                  const href = whatsappHref(appointment);
+                                  return (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      disabled={!href}
+                                      onClick={() =>
+                                        href && window.open(href, "_blank", "noopener")
+                                      }
+                                      className="p-1 h-auto text-green-600 hover:bg-green-50 disabled:text-muted-foreground"
+                                      title={
+                                        href
+                                          ? "Avisar por WhatsApp"
+                                          : "Paciente sem telefone cadastrado"
+                                      }
+                                    >
+                                      <MessageCircle className="w-4 h-4" />
+                                    </Button>
+                                  );
+                                })()}
+                            </div>
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
