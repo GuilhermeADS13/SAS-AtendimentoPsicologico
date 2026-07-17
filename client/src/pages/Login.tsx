@@ -57,6 +57,34 @@ export default function Login() {
     }
   };
 
+  // "Esqueci minha senha": manda o link de recuperação pelo e-mail nativo do
+  // Supabase (do domínio autenticado dele, entrega melhor que o nosso remetente).
+  // O link leva a /redefinir-senha, onde a pessoa define a nova senha.
+  const handleForgotPassword = async () => {
+    if (!supabase) return;
+    const alvo = email.trim().toLowerCase();
+    if (!alvo) {
+      toast.error("Digite seu e-mail no campo acima para receber o link.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(alvo, {
+        redirectTo: `${window.location.origin}/redefinir-senha`,
+      });
+      if (error) throw error;
+      // Mensagem genérica de propósito: não revela se o e-mail tem conta.
+      toast.success(
+        "Se houver uma conta com esse e-mail, enviamos um link para redefinir a senha. Confira também o spam.",
+        { duration: 9000 },
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível enviar o link");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSignup = async () => {
     if (!supabase) return;
 
@@ -146,6 +174,14 @@ export default function Login() {
                 <Button onClick={handleLogin} disabled={loading} className="w-full bg-primary hover:bg-primary/90">
                   {loading ? "Entrando..." : "Entrar"}
                 </Button>
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={loading}
+                  className="w-full text-center text-sm text-primary hover:underline disabled:opacity-50"
+                >
+                  Esqueci minha senha
+                </button>
               </TabsContent>
 
               <TabsContent value="signup" className="space-y-4 pt-4">
