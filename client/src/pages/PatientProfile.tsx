@@ -6,13 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { AvatarUpload } from "@/components/AvatarUpload";
 import { iniciais } from "@/lib/iniciais";
 import { UserRound, BadgeCheck, Clock } from "lucide-react";
@@ -38,20 +31,15 @@ export default function PatientProfile() {
     photoKey: "",
   });
 
-  // Quem a psicóloga já cadastrou (mesmo e-mail, conta ainda não vinculada) não
-  // escolhe nada: o vínculo já existe e o saveProfile casa por e-mail.
+  // Quem inicia o vínculo é a psicóloga: ela cadastra o paciente pelo e-mail, e
+  // este `convite` é aquele registro esperando a conta ser criada.
   const { data: convite, isLoading: carregandoConvite } = trpc.me.invitation.useQuery(
     undefined,
     { enabled: !isLoading && !profile },
   );
 
-  // Só escolhe psicóloga quem chegou por conta própria, sem cadastro prévio.
-  const precisaEscolher = !isLoading && !profile && !carregandoConvite && !convite;
-
-  const [therapistId, setTherapistId] = useState<number | null>(null);
-  const { data: psicologas = [] } = trpc.me.availableTherapists.useQuery(undefined, {
-    enabled: precisaEscolher,
-  });
+  // Sem cadastro e sem convite: não há o que salvar — o servidor recusaria.
+  const semConvite = !isLoading && !profile && !carregandoConvite && !convite;
 
   useEffect(() => {
     if (profile) {
@@ -89,15 +77,10 @@ export default function PatientProfile() {
   }, [profile, user, convite]);
 
   const save = trpc.me.saveProfile.useMutation({
-    onSuccess: (r) => {
+    onSuccess: () => {
       utils.me.profile.invalidate();
       utils.me.therapist.invalidate();
-      toast.success(
-        r.status === "pending"
-          ? "Cadastro enviado! Aguarde a psicóloga confirmar o atendimento."
-          : "Cadastro salvo!",
-        r.status === "pending" ? { duration: 7000 } : undefined,
-      );
+      toast.success("Cadastro salvo!");
     },
     onError: (e) => toast.error(e.message || "Erro ao salvar"),
   });
@@ -112,10 +95,6 @@ export default function PatientProfile() {
       toast.error("Informe nome e sobrenome.");
       return;
     }
-    if (precisaEscolher && !therapistId) {
-      toast.error("Escolha a psicóloga que vai te atender.");
-      return;
-    }
     save.mutate({
       firstName: form.firstName,
       lastName: form.lastName,
@@ -123,7 +102,6 @@ export default function PatientProfile() {
       dateOfBirth: form.dateOfBirth || undefined,
       address: form.address || undefined,
       photoKey: form.photoKey,
-      ...(therapistId ? { therapistId } : {}),
     });
   };
 
@@ -143,21 +121,23 @@ export default function PatientProfile() {
             <p className="text-sm text-foreground">
               <strong>{convite.therapistName}</strong> já cadastrou você como
               paciente{convite.therapistCrp ? ` (CRP ${convite.therapistCrp})` : ""}.
-              Confira seus dados e salve — não precisa escolher psicóloga nem
-              esperar confirmação.
+              Confira seus dados e salve.
             </p>
           </CardContent>
         </Card>
       )}
 
-      {profile?.status === "pending" && (
+      {/* Sem convite não há o que salvar: quem cria o cadastro é a psicóloga.
+          Melhor dizer isso aqui do que deixar a pessoa preencher tudo e tomar
+          um erro no botão. */}
+      {semConvite && (
         <Card className="border-primary/40 bg-primary/5">
           <CardContent className="flex items-start gap-3">
             <Clock className="w-5 h-5 text-primary shrink-0 mt-0.5" />
             <p className="text-sm text-foreground">
-              <strong>Aguardando confirmação da psicóloga.</strong> Assim que ela
-              aceitar, você poderá ter consultas agendadas. Seus dados já estão
-              salvos — pode editar à vontade.
+              <strong>Seu cadastro é feito pela sua psicóloga.</strong> Peça a ela
+              para cadastrar o e-mail <strong>{user?.email}</strong> — o mesmo
+              desta conta. Assim que ela fizer, seus dados aparecem aqui.
             </p>
           </CardContent>
         </Card>
@@ -171,34 +151,14 @@ export default function PatientProfile() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isLoading ? (
+          {isLoading || carregandoConvite ? (
             <p className="text-muted-foreground">Carregando...</p>
+          ) : semConvite ? (
+            <p className="text-sm text-muted-foreground">
+              O formulário aparece assim que sua psicóloga cadastrar este e-mail.
+            </p>
           ) : (
             <>
-              {precisaEscolher && (
-                <div className="space-y-2">
-                  <Label htmlFor="psi">Psicóloga *</Label>
-                  <Select
-                    value={therapistId ? String(therapistId) : ""}
-                    onValueChange={(v) => setTherapistId(Number(v))}
-                  >
-                    <SelectTrigger id="psi">
-                      <SelectValue placeholder="Escolha quem vai te atender" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {psicologas.map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {p.nome} · CRP {p.crp}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Ela recebe sua solicitação e confirma o atendimento.
-                  </p>
-                </div>
-              )}
-
               <div className="space-y-2">
                 <Label>Foto (opcional)</Label>
                 <AvatarUpload

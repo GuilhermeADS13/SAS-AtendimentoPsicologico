@@ -9,9 +9,11 @@ import { relations } from "drizzle-orm";
 // ── Enums (tipos nativos do Postgres) ─────────────────────────────────────────
 export const roleEnum = pgEnum("role", ["user", "admin", "therapist", "patient"]);
 /**
- * `pending`: o paciente se cadastrou sozinho e escolheu a psicóloga, mas ela
- * ainda não aceitou. Fica fora da grade clínica até a confirmação — senão
- * qualquer um se plantaria na lista de pacientes de qualquer psicóloga.
+ * `pending` é LEGADO e nada mais o cria: existiu no fluxo em que o paciente se
+ * cadastrava sozinho escolhendo a psicóloga (removido em 2026-07-15 — quem
+ * cadastra é ela). Continua no enum de propósito: o Postgres não remove valor de
+ * enum sem recriar o tipo e recadastrar a coluna, risco real em produção para um
+ * ganho só cosmético. Nenhuma linha usa este valor.
  */
 export const patientStatusEnum = pgEnum("patient_status", [
   "pending",

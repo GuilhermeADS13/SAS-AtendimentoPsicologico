@@ -5,7 +5,7 @@ import { publicProcedure, protectedProcedure, therapistProcedure, adminProcedure
 import { z } from "zod";
 import { getDb } from "./db";
 import { patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users } from "../drizzle/schema";
-import { eq, and, desc, isNull, ne } from "drizzle-orm";
+import { eq, and, desc, isNull } from "drizzle-orm";
 import {
   sendAppointmentReminders,
   sendTherapistAlerts,
@@ -54,8 +54,6 @@ export const appRouter = router({
         address: z.string().optional(),
         /** Path no bucket `avatars`. "" remove a foto. Opcional. */
         photoKey: z.string().optional(),
-        /** Psicóloga escolhida. Só usado no primeiro cadastro. */
-        therapistId: z.number().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
@@ -111,40 +109,14 @@ export const appRouter = router({
           return { success: true, action: "linked" as const };
         }
 
-        // Primeiro cadastro por conta própria: o paciente escolhe a psicóloga.
-        // Antes o vínculo ia para a conta `admin`, o que só funcionava enquanto
-        // existia uma psicóloga só — com mais de uma, todo paciente novo caía na
-        // errada.
-        if (!input.therapistId) {
-          throw new Error("Escolha a psicóloga que vai te atender.");
-        }
-
-        const escolhida = await db
-          .select({ id: therapists.id })
-          .from(therapists)
-          .where(eq(therapists.id, input.therapistId))
-          .limit(1);
-
-        if (!escolhida.length) {
-          throw new Error("Psicóloga não encontrada.");
-        }
-
-        // Entra como `pending`: aparece para ela aceitar, não na grade clínica.
-        // Sem isso, qualquer pessoa se colocaria na lista de pacientes de
-        // qualquer psicóloga só por ter escolhido o nome dela.
-        await db.insert(patients).values({
-          therapistId: escolhida[0].id,
-          userId: ctx.user.id,
-          firstName: input.firstName,
-          lastName: input.lastName,
-          email: ctx.user.email ?? "",
-          phone: input.phone,
-          address: input.address,
-          dateOfBirth: dob,
-          photoKey: photoKey ?? null,
-          status: "pending",
-        });
-        return { success: true, action: "created" as const, status: "pending" as const };
+        // Chegou aqui: ninguém cadastrou este e-mail. Quem inicia o vínculo é a
+        // psicóloga — ela cadastra o paciente (nome, sobrenome, e-mail) e o
+        // casamento acontece no `byEmail` acima, quando a pessoa cria a conta.
+        // Não existe auto-cadastro: sem isso, qualquer um entraria na grade
+        // clínica de uma psicóloga que nunca o aceitou.
+        throw new Error(
+          "Seu cadastro precisa ser feito pela sua psicóloga. Peça a ela para cadastrar este e-mail e tente de novo.",
+        );
       }),
 
     // Situação da solicitação de acesso profissional do usuário logado.
@@ -256,30 +228,6 @@ export const appRouter = router({
         .limit(1);
 
       return rows[0] ?? null;
-    }),
-
-    /**
-     * Psicólogas disponíveis para o paciente escolher no cadastro.
-     *
-     * Só o que é profissional e já público (nome, CRP, especialidades) — sem
-     * e-mail. A lista existe para o paciente ESCOLHER de um menu em vez de
-     * digitar o CRP: ele não sabe o CRP de cor, e digitar um número público não
-     * prova vínculo nenhum.
-     */
-    availableTherapists: protectedProcedure.query(async () => {
-      const db = await getDb();
-      if (!db) return [];
-
-      return db
-        .select({
-          id: therapists.id,
-          nome: users.name,
-          crp: therapists.crp,
-          specialties: therapists.specialties,
-        })
-        .from(therapists)
-        .innerJoin(users, eq(users.id, therapists.userId))
-        .orderBy(therapists.id);
     }),
 
     /**
@@ -499,14 +447,7 @@ export const appRouter = router({
   }),
 
   patients: router({
-    /**
-     * Pacientes da psicóloga logada.
-     *
-     * NÃO inclui `pending`: quem ainda não foi aceito não é paciente dela. Isso
-     * é o que impede o pendente de aparecer no seletor de agendamento e na
-     * contagem do dashboard — filtrar só na tela deixaria as outras furadas.
-     * A fila de espera vem de `patients.pendingRequests`.
-     */
+    /** Pacientes da psicóloga logada. */
     list: therapistProcedure.query(async ({ ctx }) => {
       const db = await getDb();
       if (!db) return [];
@@ -523,33 +464,9 @@ export const appRouter = router({
       return db
         .select()
         .from(patients)
-        .where(
-          and(eq(patients.therapistId, therapist[0].id), ne(patients.status, "pending")),
-        );
+        .where(eq(patients.therapistId, therapist[0].id));
     }),
 
-    /** Fila: quem se cadastrou sozinho e escolheu esta psicóloga. */
-    pendingRequests: therapistProcedure.query(async ({ ctx }) => {
-      const db = await getDb();
-      if (!db) return [];
-
-      const therapist = await db
-        .select()
-        .from(therapists)
-        .where(eq(therapists.userId, ctx.user.id))
-        .limit(1);
-
-      if (!therapist.length) return [];
-
-      return db
-        .select()
-        .from(patients)
-        .where(
-          and(eq(patients.therapistId, therapist[0].id), eq(patients.status, "pending")),
-        )
-        .orderBy(patients.createdAt);
-    }),
-    
     create: therapistProcedure
       .input(z.object({
         firstName: z.string(),
@@ -676,54 +593,6 @@ export const appRouter = router({
         return { success: true } as const;
       }),
 
-    /**
-     * Aceita ou recusa um paciente que se cadastrou sozinho e escolheu esta
-     * psicóloga (status `pending`).
-     *
-     * Recusar apaga o registro: quem nunca foi aceito não gerou atendimento, e
-     * portanto não há prontuário a guardar — diferente de `patients.delete`.
-     */
-    reviewRequest: therapistProcedure
-      .input(z.object({
-        id: z.number(),
-        action: z.enum(["accept", "reject"]),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        const db = await getDb();
-        if (!db) throw new Error("Database not available");
-
-        const therapist = await db
-          .select()
-          .from(therapists)
-          .where(eq(therapists.userId, ctx.user.id))
-          .limit(1);
-
-        if (!therapist.length) throw new Error("Therapist not found");
-
-        const owned = await db
-          .select({ id: patients.id, status: patients.status })
-          .from(patients)
-          .where(and(eq(patients.id, input.id), eq(patients.therapistId, therapist[0].id)))
-          .limit(1);
-
-        if (!owned.length) throw new Error("Solicitação não encontrada.");
-        if (owned[0].status !== "pending") {
-          throw new Error("Esta solicitação já foi respondida.");
-        }
-
-        if (input.action === "reject") {
-          await db.delete(patients).where(eq(patients.id, input.id));
-          return { action: "rejected" as const };
-        }
-
-        await db
-          .update(patients)
-          .set({ status: "active" })
-          .where(eq(patients.id, input.id));
-
-        return { action: "accepted" as const };
-      }),
-
     // Tira o paciente da grade da psicóloga.
     //
     // Só apaga de verdade quem não tem nada clínico registrado (cadastro errado,
@@ -832,14 +701,6 @@ export const appRouter = router({
           .limit(1);
 
         if (!patient.length) throw new Error("Patient not found for this therapist");
-
-        // Quem ainda não foi aceito não é paciente: agendar antes criaria uma
-        // consulta com alguém que a psicóloga nunca confirmou que atende.
-        if (patient[0].status === "pending") {
-          throw new Error(
-            "Aceite a solicitação deste paciente antes de agendar a consulta.",
-          );
-        }
 
         return db.insert(appointments).values({
           therapistId: therapist[0].id,

@@ -33,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Eye, Trash2, Check, X } from "lucide-react";
+import { Plus, Search, Eye, Trash2 } from "lucide-react";
 
 const emptyForm = {
   firstName: "",
@@ -63,8 +63,6 @@ export default function Records() {
 
   // Paciente a excluir (o AlertDialog abre com ele).
   const [toDelete, setToDelete] = useState<{ id: number; nome: string } | null>(null);
-  // Solicitação a recusar — recusar apaga o cadastro, então confirma antes.
-  const [toReject, setToReject] = useState<{ id: number; nome: string } | null>(null);
 
   const deletePatient = trpc.patients.delete.useMutation({
     onSuccess: (r) => {
@@ -79,24 +77,7 @@ export default function Records() {
     onError: (e) => toast.error(e.message || "Erro ao excluir paciente"),
   });
 
-  // Quem se cadastrou sozinho e escolheu esta psicóloga: espera aceite.
-  const { data: pendentes = [] } = trpc.patients.pendingRequests.useQuery();
-
-  const reviewRequest = trpc.patients.reviewRequest.useMutation({
-    onSuccess: (r) => {
-      utils.patients.pendingRequests.invalidate();
-      utils.patients.list.invalidate();
-      toast.success(
-        r.action === "accepted"
-          ? "Paciente aceito! Já pode agendar consultas."
-          : "Solicitação recusada.",
-      );
-    },
-    onError: (e) => toast.error(e.message || "Erro ao responder a solicitação"),
-  });
-
-  // Arquivado sai da grade, mas o prontuário continua no banco. (Pendente já
-  // não vem no patients.list.)
+  // Arquivado sai da grade, mas o prontuário continua no banco.
   const filteredPatients = patients.filter(
     (patient) =>
       patient.status !== "archived" &&
@@ -223,59 +204,6 @@ export default function Records() {
           </Dialog>
         </div>
 
-        {/* Solicitações de vínculo: quem se cadastrou sozinho escolhendo você. */}
-        {pendentes.length > 0 && (
-          <Card className="border-primary/40 bg-primary/5">
-            <CardHeader>
-              <CardTitle className="text-base">
-                Solicitações de atendimento ({pendentes.length})
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Estas pessoas se cadastraram no site e escolheram você. Elas só
-                entram na sua grade depois que você aceitar.
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {pendentes.map((p) => (
-                <div
-                  key={p.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4"
-                >
-                  <div className="min-w-0">
-                    <p className="font-medium text-foreground">
-                      {p.firstName} {p.lastName}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {p.email}
-                      {p.phone ? ` · ${p.phone}` : ""}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      disabled={reviewRequest.isPending}
-                      onClick={() => reviewRequest.mutate({ id: p.id, action: "accept" })}
-                    >
-                      <Check className="w-4 h-4 mr-2" />
-                      Aceitar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={reviewRequest.isPending}
-                      onClick={() => setToReject({ id: p.id, nome: `${p.firstName} ${p.lastName}` })}
-                      className="text-destructive hover:bg-destructive/10"
-                    >
-                      <X className="w-4 h-4 mr-2" />
-                      Recusar
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
-
         {/* Patients Table */}
         <Card>
           <CardHeader>
@@ -361,37 +289,6 @@ export default function Records() {
           </CardContent>
         </Card>
       </div>
-
-      <AlertDialog open={!!toReject} onOpenChange={(o) => !o && setToReject(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Recusar {toReject?.nome}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              O cadastro é apagado e a pessoa não entra na sua grade. Como você
-              nunca a atendeu, não há prontuário a guardar. Ela pode se cadastrar
-              de novo depois.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                if (toReject) {
-                  reviewRequest.mutate(
-                    { id: toReject.id, action: "reject" },
-                    { onSuccess: () => setToReject(null) },
-                  );
-                }
-              }}
-              disabled={reviewRequest.isPending}
-              className="bg-destructive hover:bg-destructive/90"
-            >
-              {reviewRequest.isPending ? "Recusando..." : "Recusar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>
