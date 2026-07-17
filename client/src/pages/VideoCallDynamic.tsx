@@ -100,16 +100,9 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
     }
   });
 
-  // Confirmação de presença do paciente (via link, sem login).
-  const [confirmed, setConfirmed] = useState(false);
-  const confirmPresence = trpc.appointments.confirm.useMutation({
-    onSuccess: () => {
-      setConfirmed(true);
-      toast.success("Presença confirmada!");
-    },
-    onError: (e) => toast.error(e.message || "Não foi possível confirmar"),
-  });
-  const canConfirm = presenceRole === "patient" && appointmentId > 0 && !confirmed;
+  // A confirmação de presença saiu da sala (era redundante — quem está na sala
+  // já está presente). Agora o paciente confirma ANTES, em "Minhas Consultas",
+  // e a psicóloga é avisada na sineta. Ver me.confirmAppointment.
 
   // Prontuário real do paciente vinculado à sala (?pat=). Em sala avulsa
   // (sem paciente) o painel não é exibido — prontuário e vídeo ficam separados.
@@ -153,17 +146,6 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {canConfirm && (
-              <Button
-                size="sm"
-                onClick={() => confirmPresence.mutate({ id: appointmentId, roomId: room })}
-                disabled={confirmPresence.isPending}
-                className="bg-primary hover:bg-primary/90"
-              >
-                <CheckCircle2 className="w-4 h-4 mr-2" />
-                Confirmar presença
-              </Button>
-            )}
             {/* Só a psicóloga compartilha a sala — o link não serve ao paciente. */}
             {isTherapist && (
               <Button variant="outline" size="sm" onClick={copyRoomLink}>
