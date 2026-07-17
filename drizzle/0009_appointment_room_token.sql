@@ -1,0 +1,1 @@
+ALTER TABLE "appointments" ADD COLUMN "roomToken" varchar(32);

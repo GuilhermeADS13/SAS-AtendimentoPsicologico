@@ -35,11 +35,15 @@ import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 
 type Status = "scheduled" | "completed" | "cancelled" | "no_show";
 
-// A sala carrega os ids do agendamento/paciente na query (?apt=&pat=), que a
-// VideoCallDynamic usa para o auto-save real das anotações no router sessionNotes.
-const roomIdFor = (appointmentId: number) => `sala-apt${appointmentId}`;
-const roomUrlFor = (appointmentId: number, patientId: number) =>
-  `/videocall/${roomIdFor(appointmentId)}?apt=${appointmentId}&pat=${patientId}`;
+// Nome da sala = apt<id>-<roomToken>. O token aleatório torna o link impossível
+// de adivinhar (o modelo Zoom/Meet); antes era sala-apt<id>, sequencial. Os ids
+// vão na query (?apt=&pat=), que a VideoCallDynamic usa para o auto-save das
+// anotações. Consultas antigas sem token caem no formato legado (só a sala nova
+// é segura).
+const roomNameFor = (appointmentId: number, roomToken: string | null) =>
+  roomToken ? `apt${appointmentId}-${roomToken}` : `sala-apt${appointmentId}`;
+const roomUrlFor = (appointmentId: number, patientId: number, roomToken: string | null) =>
+  `/videocall/${roomNameFor(appointmentId, roomToken)}?apt=${appointmentId}&pat=${patientId}`;
 
 const emptyForm = { patientId: "", date: "", time: "", duration: "60" };
 
@@ -83,7 +87,7 @@ export default function Appointments() {
     const dt = new Date(appt.scheduledAt);
     const data = dt.toLocaleDateString("pt-BR");
     const hora = dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    const url = `${window.location.origin}${roomUrlFor(appt.id, appt.patientId)}`;
+    const url = `${window.location.origin}${roomUrlFor(appt.id, appt.patientId, appt.roomToken)}`;
     const primeiroNome = patientName(appt.patientId).split(" ")[0];
     const comPsi = user?.name ? ` com ${user.name}` : "";
 
@@ -287,7 +291,11 @@ export default function Appointments() {
                     appointments.map((appointment) => {
                       const scheduled = new Date(appointment.scheduledAt);
                       const status = appointment.status as Status;
-                      const roomUrl = roomUrlFor(appointment.id, appointment.patientId);
+                      const roomUrl = roomUrlFor(
+                        appointment.id,
+                        appointment.patientId,
+                        appointment.roomToken,
+                      );
                       const destacada = appointment.id === highlightId;
                       return (
                         <TableRow
