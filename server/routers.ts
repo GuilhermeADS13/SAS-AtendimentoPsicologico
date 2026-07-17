@@ -312,6 +312,66 @@ export const appRouter = router({
         .where(eq(appointments.patientId, paciente.id))
         .orderBy(desc(appointments.scheduledAt));
     }),
+
+    /**
+     * O paciente confirma que vai comparecer a uma consulta agendada.
+     *
+     * Protegido (o paciente logado) e só na própria consulta — mais seguro que a
+     * confirmação por link da sala, que qualquer um com o link acionaria. Avisa a
+     * psicóloga pela sineta (cria a notificação ligada à consulta dela). É
+     * idempotente: confirmar de novo não duplica o aviso.
+     */
+    confirmAppointment: protectedProcedure
+      .input(z.object({ appointmentId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const paciente = await pacienteDoUsuario(db, ctx.user);
+        if (!paciente) throw new Error("Cadastro não encontrado.");
+
+        const appt = await db
+          .select()
+          .from(appointments)
+          .where(
+            and(
+              eq(appointments.id, input.appointmentId),
+              eq(appointments.patientId, paciente.id),
+            ),
+          )
+          .limit(1);
+
+        if (!appt.length) throw new Error("Consulta não encontrada.");
+        if (appt[0].status !== "scheduled") {
+          throw new Error("Só dá para confirmar uma consulta agendada.");
+        }
+
+        // Já confirmada: não faz nada (nem duplica a notificação).
+        if (appt[0].confirmedAt) return { success: true, alreadyConfirmed: true as const };
+
+        await db
+          .update(appointments)
+          .set({ confirmedAt: new Date() })
+          .where(eq(appointments.id, input.appointmentId));
+
+        // Avisa a psicóloga na sineta. A notificação aparece para ela porque o
+        // `notifications.list` casa pelo appointmentId → therapistId da consulta.
+        const psi = await db
+          .select({ email: users.email })
+          .from(therapists)
+          .innerJoin(users, eq(users.id, therapists.userId))
+          .where(eq(therapists.id, appt[0].therapistId))
+          .limit(1);
+
+        await db.insert(notifications).values({
+          appointmentId: input.appointmentId,
+          recipientType: "therapist",
+          recipientEmail: psi[0]?.email ?? "",
+          notificationType: "appointment_confirmation",
+        });
+
+        return { success: true, alreadyConfirmed: false as const };
+      }),
   }),
 
   /**
@@ -758,23 +818,6 @@ export const appRouter = router({
 
     // Confirmação de presença pelo paciente (via link da sala, sem login).
     // O roomId (sala-apt<id>) funciona como token leve contra IDs sequenciais.
-    confirm: publicProcedure
-      .input(z.object({ id: z.number(), roomId: z.string() }))
-      .mutation(async ({ input }) => {
-        if (input.roomId !== `sala-apt${input.id}`) {
-          throw new Error("Sala inválida para confirmação.");
-        }
-
-        const db = await getDb();
-        if (!db) throw new Error("Database not available");
-
-        await db
-          .update(appointments)
-          .set({ confirmedAt: new Date() })
-          .where(eq(appointments.id, input.id));
-
-        return { success: true } as const;
-      }),
   }),
 
   sessions: router({

@@ -82,7 +82,9 @@ describe.runIf(RUN)("fluxo de integração (Postgres real)", () => {
     expect(p?.firstName).toBe("IntEditado");
   });
 
-  it("agenda, confirma presença e conclui a consulta", async () => {
+  it("agenda e conclui a consulta", async () => {
+    // A confirmação de presença é do paciente logado (me.confirmAppointment),
+    // coberta no teste unitário; aqui o caller é a psicóloga.
     await caller.appointments.create({
       patientId,
       scheduledAt: new Date().toISOString(),
@@ -92,18 +94,10 @@ describe.runIf(RUN)("fluxo de integração (Postgres real)", () => {
     expect(list.length).toBe(1);
     appointmentId = list[0].id;
 
-    await caller.appointments.confirm({ id: appointmentId, roomId: `sala-apt${appointmentId}` });
     await caller.appointments.updateStatus({ id: appointmentId, status: "completed" });
 
     const after = await caller.appointments.list();
     expect(after[0].status).toBe("completed");
-    expect(after[0].confirmedAt).not.toBeNull();
-  });
-
-  it("rejeita confirmação com sala inválida", async () => {
-    await expect(
-      caller.appointments.confirm({ id: appointmentId, roomId: "sala-errada" }),
-    ).rejects.toThrow("Sala inválida");
   });
 
   it("registra sessão e documento do paciente", async () => {

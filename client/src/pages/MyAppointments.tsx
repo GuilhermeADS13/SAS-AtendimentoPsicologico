@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Calendar, Search, Video, UserRound } from "lucide-react";
+import { Calendar, Search, Video, UserRound, CheckCircle2 } from "lucide-react";
 
 const STATUS_LABEL: Record<string, string> = {
   scheduled: "Agendada",
@@ -17,9 +18,18 @@ const STATUS_LABEL: Record<string, string> = {
 /** Tela principal do paciente: suas consultas e o acesso à sala. */
 export default function MyAppointments() {
   const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
   const { data: appointments = [], isLoading } = trpc.me.appointments.useQuery();
   const { data: profile } = trpc.me.profile.useQuery();
   const [busca, setBusca] = useState("");
+
+  const confirmar = trpc.me.confirmAppointment.useMutation({
+    onSuccess: () => {
+      utils.me.appointments.invalidate();
+      toast.success("Presença confirmada! A psicóloga foi avisada.");
+    },
+    onError: (e) => toast.error(e.message || "Não foi possível confirmar"),
+  });
 
   const termo = busca.trim().toLowerCase();
 
@@ -134,14 +144,26 @@ export default function MyAppointments() {
                           {a.confirmedAt ? " · presença confirmada ✓" : ""}
                         </p>
                       </div>
-                      <Button
-                        onClick={() =>
-                          setLocation(`/videocall/sala-apt${a.id}?apt=${a.id}&pat=${a.patientId}`)
-                        }
-                      >
-                        <Video className="w-4 h-4 mr-2" />
-                        Entrar na sala
-                      </Button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {!a.confirmedAt && (
+                          <Button
+                            variant="outline"
+                            onClick={() => confirmar.mutate({ appointmentId: a.id })}
+                            disabled={confirmar.isPending}
+                          >
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                            Confirmar presença
+                          </Button>
+                        )}
+                        <Button
+                          onClick={() =>
+                            setLocation(`/videocall/sala-apt${a.id}?apt=${a.id}&pat=${a.patientId}`)
+                          }
+                        >
+                          <Video className="w-4 h-4 mr-2" />
+                          Entrar na sala
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}

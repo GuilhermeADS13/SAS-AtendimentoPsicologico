@@ -232,11 +232,11 @@ describe("appointments router", () => {
     ).rejects.toThrow("Database not available");
   });
 
-  it("appointments.confirm rejects a mismatched roomId", async () => {
-    const caller = appRouter.createCaller(createAuthContext());
+  it("me.confirmAppointment falha sem banco (o paciente confirma a própria consulta)", async () => {
+    const caller = appRouter.createCaller(createAuthContext(2, "user"));
     await expect(
-      caller.appointments.confirm({ id: 1, roomId: "sala-errada" }),
-    ).rejects.toThrow("Sala inválida");
+      caller.me.confirmAppointment({ appointmentId: 1 }),
+    ).rejects.toThrow("Database not available");
   });
 });
 
