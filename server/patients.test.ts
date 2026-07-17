@@ -14,7 +14,7 @@ function createAuthContext(
     openId: "test-user",
     email: "test@example.com",
     name: "Test User",
-    loginMethod: "manus",
+    loginMethod: "supabase",
     role,
     createdAt: new Date(),
     updatedAt: new Date(),
