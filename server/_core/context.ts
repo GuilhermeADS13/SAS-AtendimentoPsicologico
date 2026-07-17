@@ -1,6 +1,5 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { User } from "../../drizzle/schema";
-import { sdk } from "./sdk";
 import { getOrCreateDevUser } from "../devAuth";
 import { verifySupabaseToken } from "../supabaseAuth";
 import { upsertUser, getUserByOpenId } from "../db";
@@ -16,15 +15,12 @@ export async function createContext(
 ): Promise<TrpcContext> {
   let user: User | null = null;
 
-  try {
-    user = await sdk.authenticateRequest(opts.req);
-  } catch (error) {
-    // Authentication is optional for public procedures.
-    user = null;
-  }
-
-  // Supabase Auth: valida o Bearer token (JWT) e mapeia para a nossa tabela users.
-  if (!user) {
+  // Autenticação: SÓ Supabase. O login OAuth do Manus foi removido — ele
+  // validava um cookie/Bearer JWT assinado com JWT_SECRET (o mesmo segredo do
+  // banco), então quem tivesse esse segredo forjava sessão de qualquer usuário,
+  // inclusive admin. Como o cliente já usa 100% Supabase, era superfície de
+  // ataque sem uso. Valida o Bearer token do Supabase e mapeia para users.
+  {
     const authHeader = opts.req.headers["authorization"];
     const token =
       typeof authHeader === "string" && authHeader.startsWith("Bearer ")
