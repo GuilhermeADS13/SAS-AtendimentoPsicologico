@@ -737,6 +737,66 @@ export const appRouter = router({
   }),
 
   appointments: router({
+    /**
+     * Quem pode entrar na sala de vídeo. Fecha o buraco: antes, qualquer um com
+     * o link entrava — inclusive sem conta. Agora exige login (protectedProcedure)
+     * E confere no servidor que o usuário é participante DESTA consulta.
+     *
+     * A sala nasce como apt<id>-<token>. O token é o segredo: mesmo sabendo o id
+     * da consulta, sem o token exato não entra (link velho/forjado é negado).
+     * Participante = a psicóloga dona da consulta OU o paciente dela. Mais
+     * ninguém — nem outra psicóloga, nem outro paciente logado.
+     */
+    roomAccess: protectedProcedure
+      .input(z.object({ roomId: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const negar = { allowed: false as const };
+        const db = await getDb();
+        if (!db) return negar;
+
+        const m = /^apt(\d+)-(.+)$/.exec(input.roomId);
+        if (!m) return negar;
+        const appointmentId = Number(m[1]);
+        const token = m[2];
+
+        const appt = await db
+          .select()
+          .from(appointments)
+          .where(eq(appointments.id, appointmentId))
+          .limit(1);
+        if (!appt.length) return negar;
+        const a = appt[0];
+        if (!a.roomToken || a.roomToken !== token) return negar;
+
+        // A psicóloga dona da consulta.
+        const therapist = await db
+          .select({ id: therapists.id })
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+        if (therapist.length && therapist[0].id === a.therapistId) {
+          return {
+            allowed: true as const,
+            role: "therapist" as const,
+            appointmentId,
+            patientId: a.patientId,
+          };
+        }
+
+        // O paciente daquela consulta (vincula o convite se ainda faltar).
+        const paciente = await pacienteDoUsuario(db, ctx.user);
+        if (paciente && paciente.id === a.patientId) {
+          return {
+            allowed: true as const,
+            role: "patient" as const,
+            appointmentId,
+            patientId: a.patientId,
+          };
+        }
+
+        return negar;
+      }),
+
     list: therapistProcedure.query(async ({ ctx }) => {
       const db = await getDb();
       if (!db) return [];

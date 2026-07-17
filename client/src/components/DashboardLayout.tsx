@@ -62,11 +62,8 @@ const MAX_WIDTH = 480;
 
 export default function DashboardLayout({
   children,
-  allowAnonymous = false,
 }: {
   children: React.ReactNode;
-  /** Permite acesso sem conta (sala de vídeo aberta por link). */
-  allowAnonymous?: boolean;
 }) {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
@@ -81,12 +78,6 @@ export default function DashboardLayout({
 
   if (loading) {
     return <DashboardLayoutSkeleton />
-  }
-
-  // Convidado (sem conta): usado pela sala de vídeo — quem recebe o link entra
-  // direto, sem cadastro. Mostra só o conteúdo, sem menu lateral.
-  if (!user && allowAnonymous) {
-    return <div className="min-h-screen p-4">{children}</div>;
   }
 
   if (!user) {
