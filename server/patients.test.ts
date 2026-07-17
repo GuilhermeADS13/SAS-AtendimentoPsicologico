@@ -75,73 +75,50 @@ describe("patients router", () => {
   });
 });
 
+/**
+ * Quem inicia o vínculo é a psicóloga: ela cadastra o paciente (nome, sobrenome,
+ * e-mail) e o vínculo se completa quando a pessoa cria a conta com aquele
+ * e-mail. Não existe auto-cadastro nem escolha de psicóloga pelo paciente.
+ */
 describe("vínculo paciente ↔ psicóloga", () => {
-  it("me.availableTherapists é acessível ao paciente (ele precisa escolher)", async () => {
-    const caller = appRouter.createCaller(createAuthContext(2, "user"));
-    const result = await caller.me.availableTherapists();
-    expect(Array.isArray(result)).toBe(true);
-  });
-
   it("me.invitation é acessível ao paciente", async () => {
     const caller = appRouter.createCaller(createAuthContext(2, "user"));
     expect(await caller.me.invitation()).toBeNull(); // sem banco nos testes
   });
 
+  it("o paciente não escolhe psicóloga: a rota da lista não existe", () => {
+    const fonte = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
+    expect(fonte).not.toContain("availableTherapists");
+    // Nem por chamada direta à API: o input não aceita therapistId.
+    expect(fonte.slice(
+      fonte.indexOf("saveProfile: protectedProcedure"),
+      fonte.indexOf("invitation: protectedProcedure"),
+    )).not.toContain("therapistId: z.number()");
+  });
+
   /**
-   * A ordem importa: o casamento por e-mail (paciente que a psicóloga já
-   * cadastrou) tem que vir ANTES da exigência de escolher psicóloga. Invertido,
-   * quem foi cadastrado pela psicóloga seria obrigado a escolher — e poderia
-   * escolher outra, contradizendo o vínculo que já existe.
+   * A ordem importa: casar por e-mail (a psicóloga já cadastrou este paciente)
+   * vem ANTES da recusa. Invertido, ninguém conseguiria completar o cadastro —
+   * nem quem foi devidamente convidado.
    */
-  it("saveProfile casa por e-mail antes de exigir a escolha da psicóloga", () => {
+  it("saveProfile casa por e-mail antes de recusar o auto-cadastro", () => {
     const fonte = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
     const save = fonte.slice(
       fonte.indexOf("saveProfile: protectedProcedure"),
       fonte.indexOf("invitation: protectedProcedure"),
     );
     const posEmail = save.indexOf("byEmail.length");
-    const posEscolha = save.indexOf("Escolha a psicóloga que vai te atender");
+    const posRecusa = save.indexOf("precisa ser feito pela sua psicóloga");
     expect(posEmail).toBeGreaterThan(-1);
-    expect(posEscolha).toBeGreaterThan(-1);
-    expect(posEmail).toBeLessThan(posEscolha);
+    expect(posRecusa).toBeGreaterThan(-1);
+    expect(posEmail).toBeLessThan(posRecusa);
   });
 
-  it("primeiro cadastro sem escolher psicóloga é recusado", async () => {
+  it("quem não foi cadastrado pela psicóloga não consegue criar o próprio cadastro", async () => {
     const caller = appRouter.createCaller(createAuthContext(2, "user"));
-    // Sem banco o erro vem antes; o que importa é o contrato do input aceitar
-    // therapistId opcional e a validação existir no servidor.
     await expect(
       caller.me.saveProfile({ firstName: "Ana", lastName: "Souza" }),
     ).rejects.toThrow();
-  });
-
-  it("paciente não pode aceitar a si mesmo (só a psicóloga responde)", async () => {
-    const caller = appRouter.createCaller(createAuthContext(2, "user"));
-    await expect(
-      caller.patients.reviewRequest({ id: 1, action: "accept" }),
-    ).rejects.toThrow(/restrito/i);
-  });
-
-  it("paciente não enxerga a fila de solicitações", async () => {
-    const caller = appRouter.createCaller(createAuthContext(2, "user"));
-    await expect(caller.patients.pendingRequests()).rejects.toThrow(/restrito/i);
-  });
-
-  it("patients.reviewRequest falha sem banco", async () => {
-    const caller = appRouter.createCaller(createAuthContext());
-    await expect(
-      caller.patients.reviewRequest({ id: 1, action: "accept" }),
-    ).rejects.toThrow("Database not available");
-  });
-
-  // A trava que impede agendar para quem a psicóloga nunca aceitou. Sem banco
-  // não dá para exercitar o caminho todo, mas o contrato precisa existir.
-  it("appointments.create rejeita paciente pendente (contrato no servidor)", () => {
-    const fonte = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
-    const trecho = fonte.slice(fonte.indexOf("appointments: router("));
-    const create = trecho.slice(trecho.indexOf("create: therapistProcedure"));
-    expect(create).toContain('patient[0].status === "pending"');
-    expect(create).toMatch(/Aceite a solicitação deste paciente/);
   });
 });
 
