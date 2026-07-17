@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { Bell } from "lucide-react";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -24,6 +25,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function NotificationsBell() {
+  const [, setLocation] = useLocation();
   const { data: notifications = [] } = trpc.notifications.list.useQuery(undefined, {
     refetchInterval: 60_000,
     retry: false,
@@ -52,7 +54,11 @@ export function NotificationsBell() {
           </div>
         ) : (
           notifications.slice(0, 8).map((n) => (
-            <DropdownMenuItem key={n.id} className="flex flex-col items-start gap-0.5">
+            <DropdownMenuItem
+              key={n.id}
+              onClick={() => setLocation(`/appointments?ap=${n.appointmentId}`)}
+              className="flex flex-col items-start gap-0.5 cursor-pointer"
+            >
               <span className="text-sm font-medium text-foreground">
                 {TYPE_LABEL[n.notificationType] ?? "Notificação"}
               </span>
