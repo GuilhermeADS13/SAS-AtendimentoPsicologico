@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 import {
   uploadDocumentFile,
   getDocumentSignedUrl,
   removeDocumentFile,
 } from "@/lib/supabase";
+import { exportProntuarioPDF, exportProntuarioDOCX } from "@/lib/prontuario-export";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -17,10 +19,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, FileText, Calendar, MessageSquare, Pencil, Plus, Upload, Download, Trash2 } from "lucide-react";
+import { ArrowLeft, FileText, Calendar, MessageSquare, Pencil, Plus, Upload, Download, Trash2, FileDown, Loader2 } from "lucide-react";
 
 // Converte Date | string | null para o formato do <input type="date"> (YYYY-MM-DD).
 function toDateInput(value: unknown): string {
@@ -34,6 +42,8 @@ export default function PatientDetail() {
   const params = useParams();
   const patientId = Number(params.id);
   const utils = trpc.useUtils();
+  const { user } = useAuth();
+  const [baixando, setBaixando] = useState<null | "pdf" | "docx">(null);
 
   const { data: patient, isLoading } = trpc.patients.get.useQuery(
     { id: patientId },
@@ -218,6 +228,26 @@ export default function PatientDetail() {
   // aconteceu com o endereço). Sem conta, ninguém mais mantém: a psicóloga edita.
   const vinculado = !!patient.userId;
 
+  // Baixa o prontuário no formato escolhido. Gera no navegador (ver
+  // prontuario-export.ts): a cópia sai direto para o PC do profissional.
+  const baixarProntuario = async (formato: "pdf" | "docx") => {
+    setBaixando(formato);
+    try {
+      const dados = {
+        patient,
+        sessions: patientSessions,
+        documents: documentsQuery.data ?? [],
+        emitidoPor: user?.name,
+      };
+      if (formato === "pdf") await exportProntuarioPDF(dados);
+      else await exportProntuarioDOCX(dados);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao gerar o prontuário");
+    } finally {
+      setBaixando(null);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -234,10 +264,34 @@ export default function PatientDetail() {
               <p className="text-muted-foreground">{patient.email}</p>
             </div>
           </div>
-          <Button onClick={() => setIsEditOpen(true)} className="bg-primary hover:bg-primary/90">
-            <Pencil className="w-4 h-4 mr-2" />
-            {vinculado ? "Editar dados clínicos" : "Editar dados"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={!!baixando}>
+                  {baixando ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileDown className="w-4 h-4 mr-2" />
+                  )}
+                  Baixar prontuário
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => baixarProntuario("pdf")}>
+                  <FileText className="w-4 h-4 mr-2" />
+                  PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => baixarProntuario("docx")}>
+                  <FileText className="w-4 h-4 mr-2" />
+                  Word (.docx)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button onClick={() => setIsEditOpen(true)} className="bg-primary hover:bg-primary/90">
+              <Pencil className="w-4 h-4 mr-2" />
+              {vinculado ? "Editar dados clínicos" : "Editar dados"}
+            </Button>
+          </div>
         </div>
 
         {/* Patient Info cards */}
