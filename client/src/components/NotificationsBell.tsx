@@ -1,6 +1,8 @@
+import { useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Bell } from "lucide-react";
 import { useLocation } from "wouter";
+import { playNotificationPing } from "@/lib/sound";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -32,6 +34,23 @@ export function NotificationsBell() {
   });
 
   const pending = notifications.filter((n) => n.status === "pending").length;
+
+  // Toca um "ping" quando chega notificação nova. O maior id conhecido é a
+  // referência; na primeira carga não toca (senão apitaria a cada abertura da
+  // página). A lista é buscada de 60 em 60s, então o som pode atrasar até 1 min.
+  const ultimoIdConhecido = useRef<number | null>(null);
+  useEffect(() => {
+    if (notifications.length === 0) return;
+    const maiorId = Math.max(...notifications.map((n) => n.id));
+    if (ultimoIdConhecido.current === null) {
+      ultimoIdConhecido.current = maiorId; // primeira carga: só memoriza
+      return;
+    }
+    if (maiorId > ultimoIdConhecido.current) {
+      playNotificationPing();
+      ultimoIdConhecido.current = maiorId;
+    }
+  }, [notifications]);
 
   return (
     <DropdownMenu>
