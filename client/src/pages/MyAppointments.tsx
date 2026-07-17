@@ -157,7 +157,11 @@ export default function MyAppointments() {
                         )}
                         <Button
                           onClick={() =>
-                            setLocation(`/videocall/sala-apt${a.id}?apt=${a.id}&pat=${a.patientId}`)
+                            setLocation(
+                              `/videocall/${
+                                a.roomToken ? `apt${a.id}-${a.roomToken}` : `sala-apt${a.id}`
+                              }?apt=${a.id}&pat=${a.patientId}`,
+                            )
                           }
                         >
                           <Video className="w-4 h-4 mr-2" />

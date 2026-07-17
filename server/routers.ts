@@ -6,6 +6,7 @@ import { z } from "zod";
 import { getDb } from "./db";
 import { patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users } from "../drizzle/schema";
 import { eq, and, desc, isNull } from "drizzle-orm";
+import { nanoid } from "nanoid";
 import {
   sendAppointmentReminders,
   sendTherapistAlerts,
@@ -303,6 +304,7 @@ export const appRouter = router({
           status: appointments.status,
           notes: appointments.notes,
           confirmedAt: appointments.confirmedAt,
+          roomToken: appointments.roomToken,
           therapistName: users.name,
           therapistCrp: therapists.crp,
         })
@@ -787,6 +789,9 @@ export const appRouter = router({
           scheduledAt: new Date(input.scheduledAt),
           duration: input.duration,
           notes: input.notes,
+          // Token aleatório: o nome da sala vira apt<id>-<token>, impossível de
+          // adivinhar (antes era sala-apt<id>, sequencial e enumerável).
+          roomToken: nanoid(16),
         });
       }),
 

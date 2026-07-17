@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 const mirotalkUrl = import.meta.env.VITE_MIROTALK_URL || "https://sfu.mirotalk.com";
 
 interface VideoCallDynamicProps {
-  /** Sala da consulta (sala-apt<id>), sempre vinda da rota /videocall/:roomId. */
+  /** Nome da sala (apt<id>-<token>), sempre vindo da rota /videocall/:roomId. */
   roomId: string;
 }
 
