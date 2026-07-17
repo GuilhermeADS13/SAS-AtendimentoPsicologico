@@ -29,8 +29,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, MessageCircle } from "lucide-react";
+import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 
 type Status = "scheduled" | "completed" | "cancelled" | "no_show";
 
@@ -338,7 +339,7 @@ export default function Appointments() {
                                           : "Paciente sem telefone cadastrado"
                                       }
                                     >
-                                      <MessageCircle className="w-4 h-4" />
+                                      <WhatsAppIcon className="w-4 h-4" />
                                     </Button>
                                   );
                                 })()}

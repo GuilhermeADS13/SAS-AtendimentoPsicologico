@@ -3,6 +3,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { usePresence } from "@/hooks/usePresence";
 import { useRole } from "@/hooks/useRole";
+import { playPresenceChime } from "@/lib/sound";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import MiroTalkMeeting from "@/components/MiroTalkMeeting";
@@ -95,7 +96,9 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const presenceRole: "therapist" | "patient" = isTherapist ? "therapist" : "patient";
   const presenceName = user?.name || "Paciente";
   usePresence(room, presenceRole, presenceName, (msg) => {
-    if (msg.type === "patient-joined") {
+    // Só a psicóloga é avisada (som + toast) quando o paciente entra.
+    if (msg.type === "patient-joined" && isTherapist) {
+      playPresenceChime();
       toast.info(`${msg.name} entrou na sala`);
     }
   });
