@@ -15,6 +15,62 @@ import {
   notifyTherapistRequestReviewed,
 } from "./notifications";
 
+/**
+ * E-mail normalizado para comparação: sem espaços e em minúsculas.
+ *
+ * O vínculo paciente↔psicóloga é feito por e-mail, e o Supabase Auth guarda o
+ * dele em minúsculas. Se a psicóloga digitar "Fulano@Gmail.com" no cadastro, uma
+ * comparação literal nunca casaria — o paciente entraria e veria "peça à sua
+ * psicóloga para cadastrar", com o cadastro já feito bem na frente dela.
+ */
+function normalizarEmail(email: string | null | undefined): string {
+  return (email ?? "").trim().toLowerCase();
+}
+
+/**
+ * A linha de `patients` do usuário logado, vinculando o convite se preciso.
+ *
+ * Quando a psicóloga cadastra alguém, a linha nasce com `userId` nulo — ela não
+ * tem como saber o id de uma conta que talvez nem exista. O vínculo se fecha
+ * aqui, na primeira vez que o paciente abre a área dele.
+ *
+ * Por que não deixar isso só no `saveProfile`: a psicóloga cadastra e agenda a
+ * consulta; se o vínculo dependesse de o paciente clicar em "Salvar cadastro",
+ * ele entraria e veria "Minhas Consultas" VAZIA — com a consulta marcada e ele
+ * sem saber. O efeito colateral numa leitura é feio, mas é idempotente: roda uma
+ * vez só, porque na próxima o `userId` já está lá.
+ */
+async function pacienteDoUsuario(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  user: { id: number; email?: string | null },
+) {
+  const porUserId = await db
+    .select()
+    .from(patients)
+    .where(eq(patients.userId, user.id))
+    .limit(1);
+
+  if (porUserId.length) return porUserId[0];
+
+  const email = normalizarEmail(user.email);
+  if (!email) return null;
+
+  const convite = await db
+    .select()
+    .from(patients)
+    .where(and(eq(patients.email, email), isNull(patients.userId)))
+    .limit(1);
+
+  if (!convite.length) return null;
+
+  await db
+    .update(patients)
+    .set({ userId: user.id })
+    .where(eq(patients.id, convite[0].id));
+
+  return { ...convite[0], userId: user.id };
+}
+
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
@@ -36,13 +92,7 @@ export const appRouter = router({
       const db = await getDb();
       if (!db) return null;
 
-      const rows = await db
-        .select()
-        .from(patients)
-        .where(eq(patients.userId, ctx.user.id))
-        .limit(1);
-
-      return rows[0] ?? null;
+      return pacienteDoUsuario(db, ctx.user);
     }),
 
     saveProfile: protectedProcedure
@@ -62,61 +112,31 @@ export const appRouter = router({
         const dob = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
         const photoKey = input.photoKey === undefined ? undefined : input.photoKey || null;
 
-        const existing = await db
-          .select()
-          .from(patients)
-          .where(eq(patients.userId, ctx.user.id))
-          .limit(1);
-
-        if (existing.length) {
-          await db
-            .update(patients)
-            .set({
-              firstName: input.firstName,
-              lastName: input.lastName,
-              phone: input.phone,
-              address: input.address,
-              dateOfBirth: dob,
-              ...(photoKey !== undefined && { photoKey }),
-            })
-            .where(eq(patients.id, existing[0].id));
-          return { success: true, action: "updated" as const };
-        }
-
-        // Se a psicóloga já cadastrou este paciente (mesmo e-mail, ainda sem
-        // conta vinculada), assume aquele registro em vez de duplicar.
-        const byEmail = ctx.user.email
-          ? await db
-              .select()
-              .from(patients)
-              .where(and(eq(patients.email, ctx.user.email), isNull(patients.userId)))
-              .limit(1)
-          : [];
-
-        if (byEmail.length) {
-          await db
-            .update(patients)
-            .set({
-              userId: ctx.user.id,
-              firstName: input.firstName,
-              lastName: input.lastName,
-              phone: input.phone,
-              address: input.address,
-              dateOfBirth: dob,
-              ...(photoKey !== undefined && { photoKey }),
-            })
-            .where(eq(patients.id, byEmail[0].id));
-          return { success: true, action: "linked" as const };
-        }
-
-        // Chegou aqui: ninguém cadastrou este e-mail. Quem inicia o vínculo é a
-        // psicóloga — ela cadastra o paciente (nome, sobrenome, e-mail) e o
-        // casamento acontece no `byEmail` acima, quando a pessoa cria a conta.
-        // Não existe auto-cadastro: sem isso, qualquer um entraria na grade
+        // Acha a linha do paciente — vinculando o convite da psicóloga, se for a
+        // primeira vez. Não existe auto-cadastro: quem não foi cadastrado por
+        // ninguém não vira paciente sozinho, senão qualquer um entraria na grade
         // clínica de uma psicóloga que nunca o aceitou.
-        throw new Error(
-          "Seu cadastro precisa ser feito pela sua psicóloga. Peça a ela para cadastrar este e-mail e tente de novo.",
-        );
+        const paciente = await pacienteDoUsuario(db, ctx.user);
+
+        if (!paciente) {
+          throw new Error(
+            "Seu cadastro precisa ser feito pela sua psicóloga. Peça a ela para cadastrar este e-mail e tente de novo.",
+          );
+        }
+
+        await db
+          .update(patients)
+          .set({
+            firstName: input.firstName,
+            lastName: input.lastName,
+            phone: input.phone,
+            address: input.address,
+            dateOfBirth: dob,
+            ...(photoKey !== undefined && { photoKey }),
+          })
+          .where(eq(patients.id, paciente.id));
+
+        return { success: true, action: "updated" as const };
       }),
 
     // Situação da solicitação de acesso profissional do usuário logado.
@@ -211,7 +231,8 @@ export const appRouter = router({
      */
     invitation: protectedProcedure.query(async ({ ctx }) => {
       const db = await getDb();
-      if (!db || !ctx.user.email) return null;
+      const email = normalizarEmail(ctx.user.email);
+      if (!db || !email) return null;
 
       const rows = await db
         .select({
@@ -224,7 +245,7 @@ export const appRouter = router({
         .from(patients)
         .innerJoin(therapists, eq(therapists.id, patients.therapistId))
         .innerJoin(users, eq(users.id, therapists.userId))
-        .where(and(eq(patients.email, ctx.user.email), isNull(patients.userId)))
+        .where(and(eq(patients.email, email), isNull(patients.userId)))
         .limit(1);
 
       return rows[0] ?? null;
@@ -240,13 +261,8 @@ export const appRouter = router({
       const db = await getDb();
       if (!db) return null;
 
-      const p = await db
-        .select({ therapistId: patients.therapistId })
-        .from(patients)
-        .where(eq(patients.userId, ctx.user.id))
-        .limit(1);
-
-      if (!p.length) return null;
+      const paciente = await pacienteDoUsuario(db, ctx.user);
+      if (!paciente) return null;
 
       const rows = await db
         .select({
@@ -259,7 +275,7 @@ export const appRouter = router({
         })
         .from(therapists)
         .innerJoin(users, eq(users.id, therapists.userId))
-        .where(eq(therapists.id, p[0].therapistId))
+        .where(eq(therapists.id, paciente.therapistId))
         .limit(1);
 
       return rows[0] ?? null;
@@ -270,13 +286,10 @@ export const appRouter = router({
       const db = await getDb();
       if (!db) return [];
 
-      const p = await db
-        .select()
-        .from(patients)
-        .where(eq(patients.userId, ctx.user.id))
-        .limit(1);
-
-      if (!p.length) return [];
+      // Vincula o convite se ainda não tiver sido: a psicóloga pode ter
+      // cadastrado E agendado antes de o paciente abrir o cadastro dele.
+      const paciente = await pacienteDoUsuario(db, ctx.user);
+      if (!paciente) return [];
 
       // Traz o nome da psicóloga junto: sem isso a tela mostraria só data e
       // hora, e o paciente não saberia com quem é a consulta.
@@ -296,7 +309,7 @@ export const appRouter = router({
         .from(appointments)
         .leftJoin(therapists, eq(therapists.id, appointments.therapistId))
         .leftJoin(users, eq(users.id, therapists.userId))
-        .where(eq(appointments.patientId, p[0].id))
+        .where(eq(appointments.patientId, paciente.id))
         .orderBy(desc(appointments.scheduledAt));
     }),
   }),
@@ -487,13 +500,18 @@ export const appRouter = router({
         
         if (!therapist.length) throw new Error("Therapist not found");
 
+        // Normaliza antes de gravar: é este e-mail que vai casar com o da conta
+        // do paciente. Guardado como digitado ("Fulano@Gmail.com"), o vínculo
+        // nunca aconteceria — o Supabase guarda o da conta em minúsculas.
+        const email = normalizarEmail(input.email);
+
         // Impede duplicata: o mesmo e-mail já cadastrado nesta clínica. (Era o
         // que gerava dois registros da mesma pessoa quando ela também criava
         // conta pelo site.)
         const jaExiste = await db
           .select({ id: patients.id })
           .from(patients)
-          .where(and(eq(patients.therapistId, therapist[0].id), eq(patients.email, input.email)))
+          .where(and(eq(patients.therapistId, therapist[0].id), eq(patients.email, email)))
           .limit(1);
 
         if (jaExiste.length) {
@@ -504,7 +522,7 @@ export const appRouter = router({
           therapistId: therapist[0].id,
           firstName: input.firstName,
           lastName: input.lastName,
-          email: input.email,
+          email,
           phone: input.phone,
           medicalHistory: input.medicalHistory,
         });
@@ -575,7 +593,8 @@ export const appRouter = router({
         const set: Partial<typeof patients.$inferInsert> = {};
         if (input.firstName !== undefined) set.firstName = input.firstName;
         if (input.lastName !== undefined) set.lastName = input.lastName;
-        if (input.email !== undefined) set.email = input.email;
+        // Normalizado igual ao create: é a chave do vínculo com a conta.
+        if (input.email !== undefined) set.email = normalizarEmail(input.email);
         if (input.phone !== undefined) set.phone = input.phone;
         if (input.address !== undefined) set.address = input.address;
         if (input.medicalHistory !== undefined) set.medicalHistory = input.medicalHistory;

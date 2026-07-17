@@ -97,21 +97,21 @@ describe("vínculo paciente ↔ psicóloga", () => {
   });
 
   /**
-   * A ordem importa: casar por e-mail (a psicóloga já cadastrou este paciente)
-   * vem ANTES da recusa. Invertido, ninguém conseguiria completar o cadastro —
-   * nem quem foi devidamente convidado.
+   * A ordem importa: procurar o paciente (inclusive casando o convite por
+   * e-mail) vem ANTES da recusa. Invertido, ninguém completaria o cadastro —
+   * nem quem foi devidamente cadastrado pela psicóloga.
    */
-  it("saveProfile casa por e-mail antes de recusar o auto-cadastro", () => {
+  it("saveProfile procura o convite antes de recusar o auto-cadastro", () => {
     const fonte = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
     const save = fonte.slice(
       fonte.indexOf("saveProfile: protectedProcedure"),
-      fonte.indexOf("invitation: protectedProcedure"),
+      fonte.indexOf("therapistRequest: protectedProcedure"),
     );
-    const posEmail = save.indexOf("byEmail.length");
+    const posBusca = save.indexOf("pacienteDoUsuario(db, ctx.user)");
     const posRecusa = save.indexOf("precisa ser feito pela sua psicóloga");
-    expect(posEmail).toBeGreaterThan(-1);
+    expect(posBusca).toBeGreaterThan(-1);
     expect(posRecusa).toBeGreaterThan(-1);
-    expect(posEmail).toBeLessThan(posRecusa);
+    expect(posBusca).toBeLessThan(posRecusa);
   });
 
   it("quem não foi cadastrado pela psicóloga não consegue criar o próprio cadastro", async () => {
@@ -119,6 +119,48 @@ describe("vínculo paciente ↔ psicóloga", () => {
     await expect(
       caller.me.saveProfile({ firstName: "Ana", lastName: "Souza" }),
     ).rejects.toThrow();
+  });
+
+  /**
+   * O e-mail é a ÚNICA chave do vínculo. A psicóloga digita à mão e o Supabase
+   * guarda o da conta em minúsculas — sem normalizar, "Fulano@Gmail.com" nunca
+   * casaria com "fulano@gmail.com" e o paciente veria "peça à sua psicóloga
+   * para cadastrar", com o cadastro feito bem na frente dela.
+   */
+  it("o e-mail é normalizado ao gravar e ao comparar", () => {
+    const fonte = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
+    // Grava normalizado (cadastro e edição feitos pela psicóloga).
+    const create = fonte.slice(
+      fonte.indexOf("create: therapistProcedure"),
+      fonte.indexOf("// Busca um paciente pelo id"),
+    );
+    expect(create).toContain("normalizarEmail(input.email)");
+    expect(fonte).toContain("set.email = normalizarEmail(input.email)");
+    // E compara normalizado ao procurar o convite.
+    const helper = fonte.slice(
+      fonte.indexOf("async function pacienteDoUsuario"),
+      fonte.indexOf("export const appRouter"),
+    );
+    expect(helper).toContain("normalizarEmail(user.email)");
+  });
+
+  /**
+   * A psicóloga cadastra E agenda antes de o paciente entrar. Se o vínculo só
+   * fechasse quando ele clicasse em "Salvar cadastro", ele abriria "Minhas
+   * Consultas" vazia — com a consulta marcada e ele sem saber.
+   */
+  it("as consultas e o perfil vinculam o convite sozinhos, sem depender de salvar", () => {
+    const fonte = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
+    const me = fonte.slice(fonte.indexOf("me: router({"), fonte.indexOf("admin: router({"));
+    // As três entradas da área do paciente passam pelo helper que vincula.
+    const usos = me.match(/pacienteDoUsuario\(db, ctx\.user\)/g) ?? [];
+    expect(usos.length).toBeGreaterThanOrEqual(4); // profile, saveProfile, therapist, appointments
+    // E o helper de fato grava o vínculo.
+    const helper = fonte.slice(
+      fonte.indexOf("async function pacienteDoUsuario"),
+      fonte.indexOf("export const appRouter"),
+    );
+    expect(helper).toContain("set({ userId: user.id })");
   });
 });
 
