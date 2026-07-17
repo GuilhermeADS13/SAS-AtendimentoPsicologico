@@ -56,17 +56,27 @@ Estado em 2026-07-15. Em produção: https://sas-atendimento-psicologico.onrende
 - [ ] Calendário com escolha de horário pelo paciente
 
 ## Lembretes e Notificações
-- [x] E-mail para pacientes (fila + SMTP Gmail + agendador opt-in)
+- [x] Fila de e-mail com retentativa (agendador a cada 15 min)
 - [x] Alertas para a psicóloga (novo agendamento, cancelamento, nova solicitação de CRP)
-- [x] Histórico de notificações enviadas
+- [x] Aviso de solicitação com notifiedAt/notifyError (não se perde, mostra o motivo da falha)
+- [ ] **Envio de e-mail via API HTTP da Brevo** — código pronto; falta o usuário pôr
+      BREVO_API_KEY (xkeysib-...) no Render. O Render free bloqueia SMTP.
+- [ ] Deliverability: remetente é @gmail (freemail) → Gmail/Outlook mandam p/ spam.
+      Resolve com domínio próprio (o mesmo do item da URL).
 
 ## Infra, Segurança e Testes
 - [x] Postgres no Supabase (migrado do MySQL) via pooler de transações
 - [x] RLS ligado em todas as 10 tabelas (sem políticas = trancado na API pública)
+- [x] Auth SÓ Supabase — login OAuth do Manus (forjável) removido, 9 arquivos mortos apagados
+- [x] Senha forte imposta no Supabase Auth (min 8, maiúscula/minúscula/número/símbolo)
 - [x] Deploy contínuo no Render (Docker, plano free)
-- [x] CI no GitHub Actions (typecheck + 24 testes unitários + testes de integração com Postgres)
-- [ ] **Rotacionar segredos que vazaram no chat**: App Password do Gmail, senha do banco, PAT do Supabase
+- [x] CI no GitHub Actions (typecheck + testes unitários + integração com Postgres)
+- [x] Schema do código == banco de produção (auditado programaticamente em 2026-07-15)
+- [ ] **Rotacionar segredos que vazaram no chat**: JWT_SECRET, senha do banco,
+      App Password do Gmail, PAT do Supabase, chave da Brevo
 - [ ] **Projeto Supabase separado para dev** — hoje `.env.local` aponta para produção
+- [ ] Leaked Password Protection (HaveIBeenPwned) — só no plano Pro do Supabase
+- [ ] Sem FOREIGN KEY no banco: órfão é possível. Evitado no código; considerar FKs.
 - [ ] Ligar "Leaked Password Protection" no painel do Supabase Auth
 - [ ] Backup e recuperação de dados
 - [ ] Remover resíduo do framework Manus em `server/_core/`
