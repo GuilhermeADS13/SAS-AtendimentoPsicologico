@@ -11,6 +11,7 @@ import MyAppointments from "@/pages/MyAppointments";
 import MyTherapist from "@/pages/MyTherapist";
 import TherapistRequests from "@/pages/TherapistRequests";
 import Login from "@/pages/Login";
+import ResetPassword from "@/pages/ResetPassword";
 import Home from "@/pages/Home";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -24,6 +25,7 @@ function Router() {
     <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/login"} component={Login} />
+      <Route path={"/redefinir-senha"} component={ResetPassword} />
       <Route path={"/dashboard"}>
         {() => (
           <TherapistOnly>
