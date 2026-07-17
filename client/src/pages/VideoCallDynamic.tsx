@@ -2,15 +2,14 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { usePresence } from "@/hooks/usePresence";
-import { useRole } from "@/hooks/useRole";
 import { playPresenceChime } from "@/lib/sound";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import MiroTalkMeeting from "@/components/MiroTalkMeeting";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Phone, AlertCircle, ChevronDown, ChevronUp, Edit2, Save, CheckCircle2, Copy } from "lucide-react";
-import { useLocation, useSearch } from "wouter";
+import { Phone, AlertCircle, ChevronDown, ChevronUp, Edit2, Save, CheckCircle2, Copy, ShieldAlert, Loader2 } from "lucide-react";
+import { useLocation } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -27,7 +26,6 @@ interface VideoCallDynamicProps {
 export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
-  const search = useSearch();
   const room = roomId;
   const [isCallReady, setIsCallReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,14 +33,22 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [sessionNotes, setSessionNotes] = useState("");
 
-  // IDs do agendamento/paciente chegam por query string (?apt=&pat=), enviados
-  // pela página de Agendamentos. Sem eles (sala ad-hoc), o auto-save fica inerte.
-  const params = new URLSearchParams(search);
-  const appointmentId = Number(params.get("apt")) || 0;
-  const patientId = Number(params.get("pat")) || 0;
-  // Prontuário/anotações/gravação são exclusivos da psicóloga. O paciente na
-  // sala só tem o vídeo e a confirmação de presença.
-  const { isTherapist } = useRole();
+  // Controle de acesso da sala. O servidor confere, pelo token embutido no nome
+  // da sala (apt<id>-<token>), que o usuário logado é participante DESTA consulta
+  // — a psicóloga dona ou o paciente dela. Ninguém mais entra, mesmo com o link.
+  // (Anônimo nem chega aqui: o DashboardLayout exige login, sem acesso sem conta.)
+  const roomAccess = trpc.appointments.roomAccess.useQuery(
+    { roomId: room },
+    { enabled: !!user, retry: false },
+  );
+  const access = roomAccess.data;
+  const allowed = access?.allowed === true;
+  // IDs vêm do servidor, não da query string: o token é a fonte da verdade, então
+  // não dá para entrar noutra consulta trocando ?apt= na URL.
+  const appointmentId = access?.allowed ? access.appointmentId : 0;
+  const patientId = access?.allowed ? access.patientId : 0;
+  // Prontuário/anotações/gravação são exclusivos da psicóloga DESTA consulta.
+  const isTherapist = access?.allowed ? access.role === "therapist" : false;
   const notesEnabled = isTherapist && appointmentId > 0 && patientId > 0;
 
   // Carrega as anotações já salvas para este agendamento.
@@ -82,12 +88,17 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
     { enabled: notesEnabled },
   );
   const startedAtRef = useRef<number>(Date.now());
+  const startedRef = useRef(false);
   useEffect(() => {
-    if (notesEnabled) {
+    // Só registra a sessão quando o acesso já foi liberado (antes disso
+    // notesEnabled é falso). Dispara uma única vez por sala.
+    if (notesEnabled && !startedRef.current) {
+      startedRef.current = true;
+      startedAtRef.current = Date.now();
       startCall.mutate({ appointmentId, patientId, roomId: room });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [notesEnabled, appointmentId, patientId, room]);
 
   const displayName = user?.name || "Psicóloga";
 
@@ -95,7 +106,8 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   // A psicóloga recebe o aviso quando o paciente entra na sala.
   const presenceRole: "therapist" | "patient" = isTherapist ? "therapist" : "patient";
   const presenceName = user?.name || "Paciente";
-  usePresence(room, presenceRole, presenceName, (msg) => {
+  // Só conecta a presença quando o acesso foi liberado (sala vazia = não conecta).
+  usePresence(allowed ? room : "", presenceRole, presenceName, (msg) => {
     // Só a psicóloga é avisada (som + toast) quando o paciente entra.
     if (msg.type === "patient-joined" && isTherapist) {
       playPresenceChime();
@@ -119,6 +131,43 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   );
   const lastSession = patientSessions[0];
 
+  // Sala fechada. Quem não está logado já foi barrado pelo DashboardLayout
+  // (tela "Entre para continuar"). Aqui tratamos o usuário logado: enquanto o
+  // servidor verifica, e quando ele não é participante da consulta.
+  if (user && roomAccess.isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Card className="p-6 flex items-center gap-3 text-muted-foreground">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            Verificando seu acesso à sala…
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
+  if (user && !allowed) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Card className="max-w-md p-6 text-center space-y-4">
+            <ShieldAlert className="w-9 h-9 text-destructive mx-auto" />
+            <div className="space-y-1">
+              <p className="font-semibold text-foreground">Você não tem acesso a esta sala</p>
+              <p className="text-sm text-muted-foreground">
+                Esta videochamada é reservada à psicóloga e ao paciente da consulta.
+                Se você deveria estar aqui, entre pela sua própria lista de consultas.
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => window.history.back()}>
+              Voltar
+            </Button>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   const handleEndCall = async () => {
     if (notesEnabled) {
       const durationSeconds = Math.round((Date.now() - startedAtRef.current) / 1000);
@@ -139,7 +188,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   };
 
   return (
-    <DashboardLayout allowAnonymous>
+    <DashboardLayout>
       <div className="space-y-4 h-full flex flex-col">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2">
