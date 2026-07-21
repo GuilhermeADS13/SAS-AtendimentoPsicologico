@@ -9,6 +9,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import DashboardLayout from "@/components/DashboardLayout";
 import { LogoLockup } from "@/components/Logo";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useRole } from "@/hooks/useRole";
@@ -318,7 +319,7 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
  */
 export default function Ajuda() {
   const whats = linkWhatsApp();
-  const { isTherapist } = useRole();
+  const { user, loading, isTherapist } = useRole();
 
   // Enquanto ninguém escolheu uma aba, ela segue o papel de quem está logado —
   // assim a psicóloga cai direto na parte dela. Deslogado (ou paciente), abre na
@@ -339,21 +340,8 @@ export default function Ajuda() {
     </Accordion>
   );
 
-  return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card/60">
-        <div className="max-w-2xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-          <LogoLockup />
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/login">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Voltar
-            </Link>
-          </Button>
-        </div>
-      </header>
-
-      <main className="max-w-2xl mx-auto px-4 py-10 space-y-10">
+  const conteudo = (
+    <div className="max-w-2xl mx-auto space-y-10">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
             <LifeBuoy className="w-7 h-7 text-primary" />
@@ -436,7 +424,33 @@ export default function Ajuda() {
             </div>
           </CardContent>
         </Card>
-      </main>
+    </div>
+  );
+
+  // Enquanto o papel não chegou, não escolhe layout: renderizar um e trocar para
+  // o outro faria a tela piscar.
+  if (loading) return <div className="min-h-screen bg-background" />;
+
+  // Logada, a ajuda é mais uma página do app e mantém o menu lateral. Sem isso,
+  // clicar em "Ajuda" no menu jogaria a pessoa numa tela sem navegação nenhuma.
+  if (user) return <DashboardLayout>{conteudo}</DashboardLayout>;
+
+  // Deslogada, precisa de layout próprio: o DashboardLayout exige login, e é
+  // justamente quem não conseguiu entrar que mais precisa desta página.
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="border-b bg-card/60">
+        <div className="max-w-2xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+          <LogoLockup />
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/login">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Voltar
+            </Link>
+          </Button>
+        </div>
+      </header>
+      <main className="px-4 py-10">{conteudo}</main>
     </div>
   );
 }
