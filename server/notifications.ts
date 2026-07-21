@@ -25,6 +25,52 @@ function appUrl(): string {
   );
 }
 
+const FUSO = "America/Sao_Paulo";
+
+/**
+ * Escapa texto vindo do banco antes de interpolar no HTML do e-mail.
+ * Nome de paciente é digitado por gente — não pode virar marcação.
+ */
+function esc(texto: string): string {
+  return texto
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** "quinta-feira, 24 de julho de 2026 às 15:00" — sempre no horário de Brasília. */
+function formatarQuando(d: Date | null): string | null {
+  if (!d) return null;
+  const data = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: FUSO,
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(d);
+  const hora = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: FUSO,
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
+  return `${data} às ${hora}`;
+}
+
+/** "24/07 às 15:00" — versão curta, que cabe no assunto do e-mail. */
+function quandoCurto(d: Date | null): string | null {
+  if (!d) return null;
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: FUSO,
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+    .format(d)
+    .replace(", ", " às ");
+}
+
 /** Para quem vai o aviso: ADMIN_EMAIL, ou o e-mail do usuário com papel `admin`. */
 async function emailDoAdmin(): Promise<string> {
   const configurado = process.env.ADMIN_EMAIL || "";
@@ -77,9 +123,9 @@ async function avisarAdmin(req: SolicitacaoParaAvisar): Promise<boolean> {
   const html = `
     <p><strong>Nova solicitação de acesso como psicóloga.</strong></p>
     <ul>
-      <li><strong>Nome:</strong> ${req.fullName}</li>
-      <li><strong>CRP:</strong> ${req.crp}</li>
-      <li><strong>E-mail:</strong> ${req.email ?? "—"}</li>
+      <li><strong>Nome:</strong> ${esc(req.fullName)}</li>
+      <li><strong>CRP:</strong> ${esc(req.crp)}</li>
+      <li><strong>E-mail:</strong> ${esc(req.email ?? "—")}</li>
     </ul>
     <p>Confira o CRP no Cadastro Nacional de Psicólogos:
       <a href="https://cadastro.cfp.org.br">cadastro.cfp.org.br</a>
@@ -218,31 +264,94 @@ export async function notifyTherapistRequestReviewed(req: {
 
 type NotificationRow = typeof notifications.$inferSelect;
 
-// Monta assunto + corpo HTML conforme o tipo da notificação.
-function composeEmail(n: NotificationRow): { subject: string; html: string } {
+/** A notificação junto com os dados da consulta que ela cita. */
+type NotificacaoComContexto = {
+  n: NotificationRow;
+  scheduledAt: Date | null;
+  duration: number | null;
+  patientFirstName: string | null;
+  patientLastName: string | null;
+  therapistName: string | null;
+};
+
+/**
+ * Monta assunto + corpo do e-mail.
+ *
+ * Antes dizia só "Uma consulta foi cancelada", e ninguém sabia QUAL. Agora leva
+ * o nome da outra pessoa e a data/hora — inclusive no assunto, que é o que
+ * aparece na lista da caixa de entrada, muitas vezes a única coisa que se lê.
+ *
+ * Cada lado quer um nome diferente: a psicóloga precisa saber de qual paciente
+ * se trata; o paciente, com qual psicóloga é a consulta.
+ */
+export function composeEmail(row: NotificacaoComContexto): { subject: string; html: string } {
+  const { n } = row;
+  const paraPsicologa = n.recipientType === "therapist";
+  const base = appUrl();
+
+  const paciente = [row.patientFirstName, row.patientLastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const psicologa = (row.therapistName ?? "").trim();
+  const quando = formatarQuando(row.scheduledAt);
+  const curto = quandoCurto(row.scheduledAt);
+
+  const aOutraPessoa = paraPsicologa ? paciente : psicologa;
+  const rotulo = paraPsicologa ? "Paciente" : "Psicóloga";
+  const link = paraPsicologa ? `${base}/appointments` : `${base}/consultas`;
+
+  // Bloco de detalhes, igual em todos os avisos: é exatamente o que faltava.
+  // Cada linha só aparece se o dado existir (notificação sem consulta ligada,
+  // cadastro sem nome) — melhor omitir do que mostrar "undefined".
+  const detalhes = `
+    <ul>
+      ${aOutraPessoa ? `<li><strong>${rotulo}:</strong> ${esc(aOutraPessoa)}</li>` : ""}
+      ${quando ? `<li><strong>Quando:</strong> ${quando}</li>` : ""}
+      ${row.duration ? `<li><strong>Duração:</strong> ${row.duration} minutos</li>` : ""}
+    </ul>
+    <p><a href="${link}">Ver no VozInterior</a></p>
+  `;
+
+  // Sem prefixo "[VozInterior]" de propósito: o remetente já se identifica, e o
+  // prefixo empurraria nome e horário para fora da tela no celular.
+  const sufixo = [aOutraPessoa, curto].filter(Boolean).join(" — ");
+  const assunto = (titulo: string) => (sufixo ? `${titulo}: ${sufixo}` : titulo);
+
   switch (n.notificationType) {
     case "appointment_reminder":
       return {
-        subject: "Lembrete de consulta",
-        html: `<p>Olá,</p><p>Este é um lembrete da sua consulta agendada. Nos vemos em breve!</p>`,
+        subject: assunto("Lembrete de consulta"),
+        // Os nomes ficam só no bloco de detalhes: repeti-los na frase deixava o
+        // e-mail dizendo o mesmo nome duas vezes, com duas linhas de distância.
+        html: `<p>Olá!</p>
+          <p>Passando para lembrar da sua consulta.</p>
+          ${detalhes}`,
       };
     case "appointment_confirmation":
       return {
-        subject: "Confirmação de consulta",
-        html: `<p>Sua consulta foi confirmada.</p>`,
+        subject: assunto("Presença confirmada"),
+        html: `<p>O paciente <strong>confirmou presença</strong> na consulta.</p>
+          ${detalhes}`,
       };
     case "appointment_cancelled":
       return {
-        subject: "Consulta cancelada",
-        html: `<p>Uma consulta foi cancelada.</p>`,
+        subject: assunto("Consulta cancelada"),
+        html: `<p>A consulta abaixo foi <strong>cancelada</strong>.</p>
+          ${detalhes}
+          <p>Se foi engano, é só agendar de novo pelo sistema.</p>`,
       };
     case "new_appointment":
       return {
-        subject: "Novo agendamento",
-        html: `<p>Um novo agendamento foi criado.</p>`,
+        subject: assunto("Nova consulta agendada"),
+        html: `<p>Uma nova consulta foi agendada.</p>
+          ${detalhes}`,
       };
     default:
-      return { subject: "Notificação", html: `<p>Você tem uma notificação.</p>` };
+      return {
+        subject: assunto("Notificação"),
+        html: `<p>Você tem uma notificação sobre uma consulta.</p>${detalhes}`,
+      };
   }
 }
 
@@ -256,9 +365,23 @@ export async function processPendingNotifications(
   const db = await getDb();
   if (!db) return { sent: 0, failed: 0, skipped: 0 };
 
+  // Traz a consulta (e os nomes dos dois lados) junto da notificação: sem isso o
+  // e-mail não teria como dizer de qual consulta está falando. leftJoin porque
+  // uma notificação pode não estar ligada a nenhuma consulta.
   const pending = await db
-    .select()
+    .select({
+      n: notifications,
+      scheduledAt: appointments.scheduledAt,
+      duration: appointments.duration,
+      patientFirstName: patients.firstName,
+      patientLastName: patients.lastName,
+      therapistName: users.name,
+    })
     .from(notifications)
+    .leftJoin(appointments, eq(appointments.id, notifications.appointmentId))
+    .leftJoin(patients, eq(patients.id, appointments.patientId))
+    .leftJoin(therapists, eq(therapists.id, appointments.therapistId))
+    .leftJoin(users, eq(users.id, therapists.userId))
     .where(eq(notifications.status, "pending"))
     .limit(limit);
 
@@ -266,8 +389,9 @@ export async function processPendingNotifications(
   let failed = 0;
   let skipped = 0;
 
-  for (const n of pending) {
-    const { subject, html } = composeEmail(n);
+  for (const row of pending) {
+    const n = row.n;
+    const { subject, html } = composeEmail(row);
     try {
       const delivered = await sendEmail(n.recipientEmail, subject, html);
       if (delivered) {
