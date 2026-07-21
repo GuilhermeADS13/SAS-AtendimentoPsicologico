@@ -13,7 +13,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { LogoLockup } from "@/components/Logo";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useRole } from "@/hooks/useRole";
-import { ArrowLeft, LifeBuoy, Mail, Phone } from "lucide-react";
+import { ArrowLeft, CircleHelp, Mail, Phone } from "lucide-react";
 
 /**
  * Número do suporte técnico, em dígitos com DDD (o 55 do Brasil é acrescentado
@@ -404,7 +404,7 @@ export default function Ajuda() {
     <div className="max-w-2xl mx-auto space-y-10">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-            <LifeBuoy className="w-7 h-7 text-primary" />
+            <CircleHelp className="w-7 h-7 text-primary" />
             Como podemos ajudar?
           </h1>
           <p className="text-muted-foreground">
