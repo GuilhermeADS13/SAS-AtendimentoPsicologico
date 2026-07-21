@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import {
   Accordion,
@@ -5,10 +6,12 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LogoLockup } from "@/components/Logo";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
+import { useRole } from "@/hooks/useRole";
 import { ArrowLeft, LifeBuoy, Phone } from "lucide-react";
 
 /**
@@ -29,12 +32,13 @@ function linkWhatsApp(): string | null {
   return `https://wa.me/${numero}?text=${encodeURIComponent(MENSAGEM_PRONTA)}`;
 }
 
+type Duvida = { pergunta: string; resposta: React.ReactNode };
+
 /**
- * As dúvidas estão na ordem em que aparecem na vida real: quase todo pedido de
- * suporte é "não consigo entrar". As respostas resolvem sozinhas — a ideia é que
- * a pessoa saia daqui sem precisar falar com ninguém.
+ * Dúvidas do paciente, na ordem em que aparecem na vida real: quase todo pedido
+ * de suporte é "não consigo entrar".
  */
-const DUVIDAS: { pergunta: string; resposta: React.ReactNode }[] = [
+const DUVIDAS_PACIENTE: Duvida[] = [
   {
     pergunta: "Não consigo entrar na minha conta",
     resposta: (
@@ -143,14 +147,197 @@ const DUVIDAS: { pergunta: string; resposta: React.ReactNode }[] = [
 ];
 
 /**
+ * Dúvidas da psicóloga. Outro público, outras perguntas: aqui ninguém pergunta
+ * "como entro na sala", e sim "como cadastro", "como agendo", "onde fica o
+ * prontuário". A primeira é a que mais gera confusão — o vínculo entre o
+ * cadastro e a conta do paciente é feito pelo e-mail.
+ */
+const DUVIDAS_PSICOLOGA: Duvida[] = [
+  {
+    pergunta: "Como cadastro um paciente novo",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Vá em <strong>Pacientes</strong> e clique em <strong>“Novo Paciente”</strong>.
+        </li>
+        <li>
+          O <strong>e-mail é o dado mais importante</strong>: é ele que liga o cadastro à
+          conta do paciente. Use o mesmo e-mail que ele vai usar para entrar (maiúsculas e
+          minúsculas não importam).
+        </li>
+        <li>
+          O telefone vale a pena preencher — sem ele o botão de avisar por WhatsApp fica
+          desligado.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Cadastrei o paciente, mas ele não vê as consultas dele",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Quase sempre é <strong>e-mail diferente</strong>: o cadastro é ligado à conta
+          pelo e-mail, então se ele criou a conta com outro endereço, os dois não se
+          encontram.
+        </li>
+        <li>
+          Abra o paciente em <strong>Pacientes</strong> e confira se o e-mail é o mesmo
+          que ele usa para entrar. Corrigindo o e-mail, o vínculo acontece sozinho.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Como agendo uma consulta",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Vá em <strong>Agendamentos</strong> e clique em <strong>“Nova Consulta”</strong>
+          .
+        </li>
+        <li>Escolha o paciente, a data, o horário e a duração.</li>
+        <li>
+          A sala de vídeo é criada junto, sozinha — você não precisa preparar nada antes.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Como começo a videochamada",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Em <strong>Agendamentos</strong>, na linha da consulta, use o botão{" "}
+          <strong>“Entrar na videochamada”</strong>.
+        </li>
+        <li>
+          Os botões da linha são <strong>ícones, sem texto</strong>. Passe o mouse por
+          cima para ver o que cada um faz.
+        </li>
+        <li>
+          Entre sempre pela consulta do dia. Cada consulta tem a sua sala — link antigo
+          leva a uma sala vazia.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Como aviso o paciente da consulta",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Na linha da consulta, o ícone verde do WhatsApp (
+          <strong>“Avisar por WhatsApp”</strong>) abre a conversa com a mensagem já
+          escrita.
+        </li>
+        <li>
+          <strong>Nada é enviado sozinho</strong>: abre no seu aparelho, você lê, ajusta se
+          quiser e envia.
+        </li>
+        <li>
+          Se o ícone estiver apagado, é porque o paciente está sem telefone no cadastro.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Como sei se o paciente confirmou presença",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Na linha da consulta aparece <strong>“✓ Presença confirmada”</strong>.
+        </li>
+        <li>
+          Você também recebe o aviso na <strong>sineta</strong>, no alto da tela. Clicando
+          nele, o sistema leva direto à consulta.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Onde escrevo as anotações da sessão",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Dentro da sala de vídeo, no painel do lado direito — dá para atender e anotar ao
+          mesmo tempo.
+        </li>
+        <li>
+          As anotações <strong>salvam sozinhas</strong> enquanto você digita, e ficam
+          guardadas no prontuário daquele paciente.
+        </li>
+        <li>
+          Só você vê esse painel. O paciente, na sala dele, vê apenas o vídeo.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Como registro uma sessão no prontuário",
+    resposta: (
+      <p>
+        Abra o paciente em <strong>Pacientes</strong> e clique em{" "}
+        <strong>“Nova Sessão”</strong>. Ali entram a evolução, o humor e os próximos
+        passos — é o registro clínico, diferente das anotações rápidas feitas durante a
+        chamada.
+      </p>
+    ),
+  },
+  {
+    pergunta: "Como baixo o prontuário em PDF ou Word",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Abra o paciente e clique em <strong>“Baixar prontuário”</strong>, escolhendo PDF
+          ou Word.
+        </li>
+        <li>
+          O arquivo é gerado na hora, no seu computador, com os dados, o histórico e todas
+          as sessões.
+        </li>
+        <li>
+          Serve como <strong>cópia de segurança e para arquivar</strong>. Vale baixar de
+          tempos em tempos.
+        </li>
+      </ul>
+    ),
+  },
+];
+
+/**
  * Página de ajuda — pública, de propósito.
  *
  * A maior parte dos pedidos de suporte é "não consigo entrar". Se esta página
  * exigisse login, ela falharia justamente quando é necessária. Por isso fica
  * fora do DashboardLayout e é acessível deslogado.
+ *
+ * Duas abas porque são dois públicos com dúvidas que não se cruzam: o paciente
+ * nunca vai perguntar como baixar um prontuário, e a psicóloga não precisa
+ * caçar a resposta dela no meio das dúvidas de acesso do paciente.
  */
 export default function Ajuda() {
   const whats = linkWhatsApp();
+  const { isTherapist } = useRole();
+
+  // Enquanto ninguém escolheu uma aba, ela segue o papel de quem está logado —
+  // assim a psicóloga cai direto na parte dela. Deslogado (ou paciente), abre na
+  // aba do paciente, que é a maioria. Depois do primeiro clique, manda a escolha.
+  const [abaEscolhida, setAbaEscolhida] = useState<string | null>(null);
+  const aba = abaEscolhida ?? (isTherapist ? "psicologa" : "paciente");
+
+  const listaDeDuvidas = (duvidas: Duvida[], prefixo: string) => (
+    <Accordion type="single" collapsible className="w-full">
+      {duvidas.map((d, i) => (
+        <AccordionItem key={d.pergunta} value={`${prefixo}-${i}`}>
+          <AccordionTrigger className="text-left">{d.pergunta}</AccordionTrigger>
+          <AccordionContent className="text-muted-foreground text-sm leading-relaxed">
+            {d.resposta}
+          </AccordionContent>
+        </AccordionItem>
+      ))}
+    </Accordion>
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -173,21 +360,23 @@ export default function Ajuda() {
             Como podemos ajudar?
           </h1>
           <p className="text-muted-foreground">
-            Veja se a sua dúvida já está respondida aqui embaixo. Se não estiver, é só
+            Escolha o seu caso e veja se a dúvida já está respondida. Se não estiver, é só
             chamar a gente.
           </p>
         </div>
 
-        <Accordion type="single" collapsible className="w-full">
-          {DUVIDAS.map((d, i) => (
-            <AccordionItem key={d.pergunta} value={`item-${i}`}>
-              <AccordionTrigger className="text-left">{d.pergunta}</AccordionTrigger>
-              <AccordionContent className="text-muted-foreground text-sm leading-relaxed">
-                {d.resposta}
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
+        <Tabs value={aba} onValueChange={setAbaEscolhida} className="w-full space-y-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="paciente">Sou paciente</TabsTrigger>
+            <TabsTrigger value="psicologa">Sou psicóloga</TabsTrigger>
+          </TabsList>
+          <TabsContent value="paciente">
+            {listaDeDuvidas(DUVIDAS_PACIENTE, "pac")}
+          </TabsContent>
+          <TabsContent value="psicologa">
+            {listaDeDuvidas(DUVIDAS_PSICOLOGA, "psi")}
+          </TabsContent>
+        </Tabs>
 
         <Card className="border-primary/30 bg-primary/5">
           <CardContent className="space-y-4">
