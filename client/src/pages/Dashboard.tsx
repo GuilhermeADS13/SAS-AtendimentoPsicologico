@@ -69,7 +69,10 @@ export default function Dashboard() {
 
           <Card className="bg-gradient-to-br from-secondary/10 to-secondary/5 border-secondary/20">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-secondary flex items-center gap-2">
+              {/* -foreground, não -secondary: --secondary é cor de FUNDO (0.955
+                  de luminosidade) e como texto ficava em 1.14:1 sobre o cartão
+                  branco — ilegível. O par -foreground é o tom de texto do tema. */}
+              <CardTitle className="text-sm font-medium text-secondary-foreground flex items-center gap-2">
                 <Users className="w-4 h-4" />
                 Pacientes
               </CardTitle>
@@ -82,7 +85,7 @@ export default function Dashboard() {
 
           <Card className="bg-gradient-to-br from-accent/10 to-accent/5 border-accent/20">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-accent flex items-center gap-2">
+              <CardTitle className="text-sm font-medium text-accent-foreground flex items-center gap-2">
                 <FileText className="w-4 h-4" />
                 Prontuários
               </CardTitle>
