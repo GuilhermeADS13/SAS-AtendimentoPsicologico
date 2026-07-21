@@ -79,7 +79,15 @@ export default function Appointments() {
   // Monta o link wa.me que abre o WhatsApp com o número do paciente e a mensagem
   // pronta. Quem envia é a psicóloga (abre no aparelho dela) — não é automático.
   // Retorna null se o paciente não tem telefone (aí o botão fica desabilitado).
-  const whatsappHref = (appt: (typeof appointments)[number]): string | null => {
+  //
+  // O cancelamento também passa por aqui porque o e-mail não é confiável: o
+  // remetente é de domínio gratuito e cai em spam. Um lembrete perdido é um
+  // aborrecimento; um CANCELAMENTO perdido faz o paciente entrar numa sala vazia
+  // esperando por uma consulta que não vai acontecer.
+  const whatsappHref = (
+    appt: (typeof appointments)[number],
+    tipo: "lembrete" | "cancelamento" = "lembrete",
+  ): string | null => {
     const digits = (patientOf(appt.patientId)?.phone ?? "").replace(/\D/g, "");
     if (!digits) return null;
     const numero = digits.startsWith("55") ? digits : `55${digits}`; // 55 = Brasil
@@ -91,11 +99,17 @@ export default function Appointments() {
     const primeiroNome = patientName(appt.patientId).split(" ")[0];
     const comPsi = user?.name ? ` com ${user.name}` : "";
 
+    // No cancelamento não vai link de sala: mandar a sala de uma consulta que não
+    // vai acontecer é justamente o engano que se quer evitar.
     const msg =
-      `Olá, ${primeiroNome}! 👋\n\n` +
-      `Lembrete da sua consulta${comPsi}: ${data} às ${hora}.\n\n` +
-      `No horário, é só entrar pela sala: ${url}\n\n` +
-      `Qualquer dúvida, me chame por aqui.`;
+      tipo === "cancelamento"
+        ? `Olá, ${primeiroNome}!\n\n` +
+          `Preciso cancelar nossa consulta do dia ${data} às ${hora}.\n\n` +
+          `Me avise um horário que funcione para você que eu remarco. Desculpe o transtorno!`
+        : `Olá, ${primeiroNome}! 👋\n\n` +
+          `Lembrete da sua consulta${comPsi}: ${data} às ${hora}.\n\n` +
+          `No horário, é só entrar pela sala: ${url}\n\n` +
+          `Qualquer dúvida, me chame por aqui.`;
 
     return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
   };
@@ -111,9 +125,40 @@ export default function Appointments() {
   });
 
   const updateStatus = trpc.appointments.updateStatus.useMutation({
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       utils.appointments.list.invalidate();
-      toast.success("Status atualizado");
+
+      if (vars.status !== "cancelled") {
+        toast.success("Status atualizado");
+        return;
+      }
+
+      // Cancelamento é o aviso que não pode se perder. O e-mail sai, mas pode
+      // cair em spam — e aí o paciente entra numa sala vazia esperando por uma
+      // consulta que não existe mais. Então oferece o WhatsApp na hora.
+      //
+      // Não abre sozinho de propósito: o navegador bloquearia a janela fora de
+      // um clique, e a psicóloga precisa ler a mensagem antes de enviar.
+      const appt = appointments.find((a) => a.id === vars.id);
+      const href = appt ? whatsappHref(appt, "cancelamento") : null;
+
+      if (!href) {
+        toast.success("Consulta cancelada", {
+          description:
+            "Avise o paciente: ele não tem telefone no cadastro para o WhatsApp.",
+          duration: 10_000,
+        });
+        return;
+      }
+
+      toast.success("Consulta cancelada", {
+        description: "Avise o paciente — o e-mail pode cair no spam dele.",
+        duration: 15_000,
+        action: {
+          label: "Avisar no WhatsApp",
+          onClick: () => window.open(href, "_blank", "noopener"),
+        },
+      });
     },
     onError: (e) => toast.error(e.message || "Erro ao atualizar status"),
   });
