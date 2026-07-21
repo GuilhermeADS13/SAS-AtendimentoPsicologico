@@ -89,6 +89,44 @@ const DUVIDAS_PACIENTE: Duvida[] = [
     ),
   },
   {
+    pergunta: "O que é “Confirmar presença”?",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          É você avisando que vai comparecer. O botão fica na consulta, em{" "}
+          <strong>Minhas Consultas</strong>.
+        </li>
+        <li>
+          Sua psicóloga é avisada na hora, e a consulta passa a mostrar{" "}
+          <strong>“presença confirmada ✓”</strong>.
+        </li>
+        <li>
+          Confirmar <strong>não</strong> abre a sala nem substitui entrar na consulta — no
+          horário marcado você ainda clica em “Entrar na sala”.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Como atualizo meu telefone, endereço ou foto",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Vá em <strong>Meu Cadastro</strong>. Ali você altera nome, telefone, data de
+          nascimento, endereço e foto.
+        </li>
+        <li>
+          Depois de salvar, sua psicóloga já vê os dados novos — você não precisa avisar
+          ninguém.
+        </li>
+        <li>
+          Manter o telefone em dia ajuda: é por ele que ela consegue te avisar de alguma
+          mudança.
+        </li>
+      </ul>
+    ),
+  },
+  {
     pergunta: "Minha câmera ou meu microfone não funcionam",
     resposta: (
       <ul className="list-disc pl-5 space-y-1">
