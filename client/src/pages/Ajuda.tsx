@@ -17,7 +17,7 @@ import { ArrowLeft, LifeBuoy, Phone } from "lucide-react";
  * não numa variável VITE_*, que exigiria mexer no Dockerfile e nos build args do
  * Render para um dado que muda uma vez na vida. Vazio = mostra o e-mail no lugar.
  */
-const SUPORTE_WHATSAPP = "";
+const SUPORTE_WHATSAPP = "81992419511";
 
 const MENSAGEM_PRONTA = "Olá! Preciso de ajuda com o VozInterior.";
 const SUPORTE_EMAIL = "codexmaciel@gmail.com";
