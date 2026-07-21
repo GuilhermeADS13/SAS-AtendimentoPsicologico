@@ -398,7 +398,7 @@ export default function PatientDetail() {
                           </span>
                         </div>
                         {session.mood ? (
-                          <span className="text-xs bg-secondary/10 text-secondary px-2 py-1 rounded-full">
+                          <span className="text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded-full">
                             Humor: {session.mood}
                           </span>
                         ) : null}
