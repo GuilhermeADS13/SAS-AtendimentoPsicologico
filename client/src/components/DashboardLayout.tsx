@@ -25,7 +25,7 @@ import { supabase } from "@/lib/supabase";
 import { trpc } from "@/lib/trpc";
 import { NotificationsBell } from "./NotificationsBell";
 import { LogoLockup } from "./Logo";
-import { BadgeCheck, Calendar, LayoutDashboard, LifeBuoy, LogOut, PanelLeft, Stethoscope, UserRound, Users, Video } from "lucide-react";
+import { BadgeCheck, Calendar, CircleHelp, LayoutDashboard, LogOut, PanelLeft, Stethoscope, UserRound, Users, Video } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -42,7 +42,7 @@ const therapistMenu = [
   { icon: UserRound, label: "Perfil", path: "/profile" },
   // Ajuda no menu, não escondida no menu da conta: ninguém abre "Sair" para
   // procurar ajuda — quem precisa dela está com um problema, não indo embora.
-  { icon: LifeBuoy, label: "Ajuda", path: "/ajuda" },
+  { icon: CircleHelp, label: "Ajuda", path: "/ajuda" },
 ];
 
 // Só a dona da clínica (admin) aprova quem pede acesso profissional.
@@ -56,7 +56,7 @@ const patientMenu = [
   { icon: Calendar, label: "Minhas Consultas", path: "/consultas" },
   { icon: Stethoscope, label: "Minha Psicóloga", path: "/psicologa" },
   { icon: UserRound, label: "Meu Cadastro", path: "/profile" },
-  { icon: LifeBuoy, label: "Ajuda", path: "/ajuda" },
+  { icon: CircleHelp, label: "Ajuda", path: "/ajuda" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
