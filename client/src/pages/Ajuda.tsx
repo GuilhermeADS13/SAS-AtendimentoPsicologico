@@ -24,7 +24,29 @@ import { ArrowLeft, LifeBuoy, Phone } from "lucide-react";
 const SUPORTE_WHATSAPP = "81992419511";
 
 const MENSAGEM_PRONTA = "Olá! Preciso de ajuda com o VozInterior.";
-const SUPORTE_EMAIL = "codexmaciel@gmail.com";
+
+/**
+ * E-mail do suporte. Fica vazio até existir um endereço criado só para isso —
+ * esta página é pública, e endereço exposto aqui é coletado por robôs de spam.
+ * Por isso não vai um e-mail pessoal: o WhatsApp já cobre o canal, e endereço
+ * que começa a circular não para de circular.
+ *
+ * Ao contrário do envio automático (que sai pela Brevo e cai em spam), este
+ * caminho é confiável: é o cliente de e-mail da própria pessoa escrevendo
+ * direto, sem passar por serviço nenhum.
+ */
+const SUPORTE_EMAIL = "";
+
+function linkEmail(): string | null {
+  if (!SUPORTE_EMAIL) return null;
+  const assunto = encodeURIComponent("Ajuda — VozInterior");
+  // Já deixa a pergunta feita: sem saber a tela, a primeira resposta seria só
+  // "em qual tela aconteceu?", custando um dia de ida e volta.
+  const corpo = encodeURIComponent(
+    "Conte o que aconteceu e em qual tela você estava:\n\n",
+  );
+  return `mailto:${SUPORTE_EMAIL}?subject=${assunto}&body=${corpo}`;
+}
 
 function linkWhatsApp(): string | null {
   const digitos = SUPORTE_WHATSAPP.replace(/\D/g, "");
@@ -357,6 +379,7 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
  */
 export default function Ajuda() {
   const whats = linkWhatsApp();
+  const email = linkEmail();
   const { user, loading, isTherapist } = useRole();
 
   // Enquanto ninguém escolheu uma aba, ela segue o papel de quem está logado —
@@ -413,19 +436,25 @@ export default function Ajuda() {
                 estava — isso resolve bem mais rápido.
               </p>
             </div>
-            {whats ? (
+            {/* WhatsApp em destaque: é o canal que a gente vê na hora. O e-mail
+                vem como alternativa discreta — dois botões do mesmo tamanho
+                fariam a pessoa parar para escolher em vez de pedir ajuda. */}
+            {whats && (
               <Button asChild size="lg">
                 <a href={whats} target="_blank" rel="noreferrer">
                   <WhatsAppIcon className="w-5 h-5 mr-2" />
                   Falar no WhatsApp
                 </a>
               </Button>
-            ) : (
-              <Button asChild size="lg" variant="outline">
-                <a href={`mailto:${SUPORTE_EMAIL}?subject=${encodeURIComponent("Ajuda — VozInterior")}`}>
-                  Escrever para o suporte
+            )}
+
+            {email && (
+              <p className="text-sm text-muted-foreground">
+                {whats ? "Prefere escrever? " : "Escreva para "}
+                <a href={email} className="text-primary underline underline-offset-4">
+                  {SUPORTE_EMAIL}
                 </a>
-              </Button>
+              </p>
             )}
           </CardContent>
         </Card>
