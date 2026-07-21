@@ -26,16 +26,15 @@ const SUPORTE_WHATSAPP = "81992419511";
 const MENSAGEM_PRONTA = "Olá! Preciso de ajuda com o VozInterior.";
 
 /**
- * E-mail do suporte. Fica vazio até existir um endereço criado só para isso —
- * esta página é pública, e endereço exposto aqui é coletado por robôs de spam.
- * Por isso não vai um e-mail pessoal: o WhatsApp já cobre o canal, e endereço
- * que começa a circular não para de circular.
+ * E-mail do suporte. É uma conta criada só para isto, não um endereço pessoal:
+ * esta página é pública e endereço exposto aqui é coletado por robôs de spam —
+ * o que começa a circular não para de circular.
  *
  * Ao contrário do envio automático (que sai pela Brevo e cai em spam), este
  * caminho é confiável: é o cliente de e-mail da própria pessoa escrevendo
  * direto, sem passar por serviço nenhum.
  */
-const SUPORTE_EMAIL = "";
+const SUPORTE_EMAIL = "suportevozinterior@gmail.com";
 
 function linkEmail(): string | null {
   if (!SUPORTE_EMAIL) return null;
