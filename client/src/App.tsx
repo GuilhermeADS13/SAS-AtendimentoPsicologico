@@ -13,6 +13,7 @@ import TherapistRequests from "@/pages/TherapistRequests";
 import Login from "@/pages/Login";
 import ResetPassword from "@/pages/ResetPassword";
 import Home from "@/pages/Home";
+import Ajuda from "@/pages/Ajuda";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { TherapistOnly } from "./components/TherapistOnly";
@@ -26,6 +27,9 @@ function Router() {
       <Route path={"/"} component={Home} />
       <Route path={"/login"} component={Login} />
       <Route path={"/redefinir-senha"} component={ResetPassword} />
+      {/* Pública de propósito: quase todo pedido de suporte é "não consigo
+          entrar" — atrás do login, a ajuda falharia quando mais é precisa. */}
+      <Route path={"/ajuda"} component={Ajuda} />
       <Route path={"/dashboard"}>
         {() => (
           <TherapistOnly>

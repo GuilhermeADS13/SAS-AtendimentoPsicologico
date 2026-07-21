@@ -25,7 +25,7 @@ import { supabase } from "@/lib/supabase";
 import { trpc } from "@/lib/trpc";
 import { NotificationsBell } from "./NotificationsBell";
 import { LogoLockup } from "./Logo";
-import { BadgeCheck, Calendar, LayoutDashboard, LogOut, PanelLeft, Stethoscope, UserRound, Users, Video } from "lucide-react";
+import { BadgeCheck, Calendar, LayoutDashboard, LifeBuoy, LogOut, PanelLeft, Stethoscope, UserRound, Users, Video } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -270,6 +270,13 @@ function DashboardLayoutContent({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem
+                  onClick={() => setLocation("/ajuda")}
+                  className="cursor-pointer"
+                >
+                  <LifeBuoy className="mr-2 h-4 w-4" />
+                  <span>Ajuda</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handleLogout}
                   className="cursor-pointer text-destructive focus:text-destructive"
