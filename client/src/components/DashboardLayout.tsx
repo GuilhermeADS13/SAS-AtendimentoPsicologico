@@ -40,6 +40,9 @@ const therapistMenu = [
   { icon: Users, label: "Pacientes", path: "/records" },
   { icon: Calendar, label: "Agendamentos", path: "/appointments" },
   { icon: UserRound, label: "Perfil", path: "/profile" },
+  // Ajuda no menu, não escondida no menu de sair: ninguém abre "Sign out" para
+  // procurar ajuda — quem precisa dela está com um problema, não indo embora.
+  { icon: LifeBuoy, label: "Ajuda", path: "/ajuda" },
 ];
 
 // Só a dona da clínica (admin) aprova quem pede acesso profissional.
@@ -53,6 +56,7 @@ const patientMenu = [
   { icon: Calendar, label: "Minhas Consultas", path: "/consultas" },
   { icon: Stethoscope, label: "Minha Psicóloga", path: "/psicologa" },
   { icon: UserRound, label: "Meu Cadastro", path: "/profile" },
+  { icon: LifeBuoy, label: "Ajuda", path: "/ajuda" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -270,13 +274,6 @@ function DashboardLayoutContent({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem
-                  onClick={() => setLocation("/ajuda")}
-                  className="cursor-pointer"
-                >
-                  <LifeBuoy className="mr-2 h-4 w-4" />
-                  <span>Ajuda</span>
-                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handleLogout}
                   className="cursor-pointer text-destructive focus:text-destructive"
