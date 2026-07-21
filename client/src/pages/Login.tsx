@@ -139,7 +139,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-secondary/20 p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background via-background to-secondary/20 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center pb-2">
           {/* A imagem já traz o nome e "Atendimento Psicológico Online"; repetir
@@ -284,6 +284,15 @@ export default function Login() {
           )}
         </CardContent>
       </Card>
+
+      {/* Fora do cartão, sempre visível: quem não consegue entrar está nesta
+          tela, e é exatamente essa a pessoa que precisa da ajuda. */}
+      <p className="mt-6 text-sm text-muted-foreground">
+        Problemas para entrar?{" "}
+        <a href="/ajuda" className="text-primary underline underline-offset-4">
+          Veja a ajuda
+        </a>
+      </p>
     </div>
   );
 }
