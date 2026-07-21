@@ -13,7 +13,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { LogoLockup } from "@/components/Logo";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useRole } from "@/hooks/useRole";
-import { ArrowLeft, LifeBuoy, Phone } from "lucide-react";
+import { ArrowLeft, LifeBuoy, Mail, Phone } from "lucide-react";
 
 /**
  * Número do suporte técnico, em dígitos com DDD (o 55 do Brasil é acrescentado
@@ -426,37 +426,59 @@ export default function Ajuda() {
           </TabsContent>
         </Tabs>
 
-        <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="space-y-4">
-            <div className="space-y-1">
-              <p className="font-semibold text-foreground">Ainda precisa de ajuda?</p>
-              <p className="text-sm text-muted-foreground">
-                Chame o suporte e conte o que aconteceu. Se puder, diga em qual tela você
-                estava — isso resolve bem mais rápido.
-              </p>
-            </div>
-            {/* WhatsApp em destaque: é o canal que a gente vê na hora. O e-mail
-                vem como alternativa discreta — dois botões do mesmo tamanho
-                fariam a pessoa parar para escolher em vez de pedir ajuda. */}
+        {/* Um cartão por canal, cada um com o seu botão. Antes era um cartão só,
+            de fundo quase branco, com o e-mail reduzido a um link miúdo no pé —
+            o bloco inteiro sumia na página. Aqui cada canal tem peso próprio, e
+            a diferença entre eles fica na frase, não em apagar um dos dois. */}
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <h2 className="text-xl font-semibold text-foreground">
+              Ainda precisa de ajuda?
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Conte o que aconteceu e, se puder, diga em qual tela você estava — isso
+              resolve bem mais rápido.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
             {whats && (
-              <Button asChild size="lg">
-                <a href={whats} target="_blank" rel="noreferrer">
-                  <WhatsAppIcon className="w-5 h-5 mr-2" />
-                  Falar no WhatsApp
-                </a>
-              </Button>
+              <Card className="border-primary/40">
+                <CardContent className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <WhatsAppIcon className="w-5 h-5 text-primary" />
+                    <span className="font-semibold text-foreground">WhatsApp</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    O jeito mais rápido — costumamos responder no mesmo dia.
+                  </p>
+                  <Button asChild className="w-full">
+                    <a href={whats} target="_blank" rel="noreferrer">
+                      Chamar no WhatsApp
+                    </a>
+                  </Button>
+                </CardContent>
+              </Card>
             )}
 
             {email && (
-              <p className="text-sm text-muted-foreground">
-                {whats ? "Prefere escrever? " : "Escreva para "}
-                <a href={email} className="text-primary underline underline-offset-4">
-                  {SUPORTE_EMAIL}
-                </a>
-              </p>
+              <Card className="border-primary/40">
+                <CardContent className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-5 h-5 text-primary" />
+                    <span className="font-semibold text-foreground">E-mail</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Para escrever com calma ou mandar uma foto da tela.
+                  </p>
+                  <Button asChild variant="outline" className="w-full text-foreground">
+                    <a href={email}>Enviar e-mail</a>
+                  </Button>
+                </CardContent>
+              </Card>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/*
           Fronteira clínica. Este é um app de saúde mental: mais cedo ou mais
