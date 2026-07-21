@@ -33,14 +33,14 @@ import { Button } from "./ui/button";
 
 // Menu da psicóloga (acesso clínico completo).
 // "Videochamada" NÃO é um item: toda sala nasce de um agendamento
-// (sala-apt<id>), que é o que liga prontuário, anotações e gravação. Uma sala
+// (apt<id>-<token>), que é o que liga prontuário, anotações e gravação. Uma sala
 // avulsa seria "cega" — sem paciente, as anotações da sessão se perderiam.
 const therapistMenu = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Users, label: "Pacientes", path: "/records" },
   { icon: Calendar, label: "Agendamentos", path: "/appointments" },
   { icon: UserRound, label: "Perfil", path: "/profile" },
-  // Ajuda no menu, não escondida no menu de sair: ninguém abre "Sign out" para
+  // Ajuda no menu, não escondida no menu da conta: ninguém abre "Sair" para
   // procurar ajuda — quem precisa dela está com um problema, não indo embora.
   { icon: LifeBuoy, label: "Ajuda", path: "/ajuda" },
 ];
@@ -216,7 +216,7 @@ function DashboardLayoutContent({
               <button
                 onClick={toggleSidebar}
                 className="h-8 w-8 flex items-center justify-center hover:bg-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
-                aria-label="Toggle navigation"
+                aria-label="Alternar menu lateral"
               >
                 <PanelLeft className="h-4 w-4 text-muted-foreground" />
               </button>
@@ -279,7 +279,7 @@ function DashboardLayoutContent({
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign out</span>
+                  <span>Sair</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
