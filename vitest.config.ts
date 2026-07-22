@@ -15,5 +15,9 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["server/**/*.test.ts", "server/**/*.spec.ts"],
+    // Roda no fuso dos usuários (Brasil). Sem isso, numa máquina/CI em UTC os
+    // testes de data passariam trivialmente — o bug de fuso (nascimento um dia
+    // atrás, e-mail com horário errado) só aparece em fuso negativo.
+    env: { TZ: "America/Sao_Paulo" },
   },
 });

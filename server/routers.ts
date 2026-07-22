@@ -5,7 +5,7 @@ import { publicProcedure, protectedProcedure, therapistProcedure, adminProcedure
 import { z } from "zod";
 import { getDb } from "./db";
 import { patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users } from "../drizzle/schema";
-import { eq, and, desc, isNull } from "drizzle-orm";
+import { eq, and, desc, isNull, ne } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
   sendAppointmentReminders,
@@ -56,10 +56,15 @@ async function pacienteDoUsuario(
   const email = normalizarEmail(user.email);
   if (!email) return null;
 
+  // ORDER BY id: se por acaso houver mais de um convite com este e-mail (ex.:
+  // duas psicólogas cadastrando a mesma pessoa, no futuro multi-clínica), o
+  // vínculo precisa ser estável — sem ordenar, o "escolhido" pelo LIMIT 1 seria
+  // arbitrário e poderia mudar de uma chamada para outra.
   const convite = await db
     .select()
     .from(patients)
     .where(and(eq(patients.email, email), isNull(patients.userId)))
+    .orderBy(patients.id)
     .limit(1);
 
   if (!convite.length) return null;
@@ -652,6 +657,28 @@ export const appRouter = router({
 
         if (!owned.length) throw new Error("Patient not found for this therapist");
 
+        // Mesmo guard do create: não deixar dois pacientes desta psicóloga com o
+        // mesmo e-mail. O vínculo paciente↔conta é por e-mail, então duplicata o
+        // tornaria ambíguo. Só checa quando o e-mail está mudando, e ignora o
+        // próprio registro (salvar sem trocar o e-mail não pode acusar colisão).
+        if (input.email !== undefined) {
+          const emailNovo = normalizarEmail(input.email);
+          const colisao = await db
+            .select({ id: patients.id })
+            .from(patients)
+            .where(
+              and(
+                eq(patients.therapistId, therapist[0].id),
+                eq(patients.email, emailNovo),
+                ne(patients.id, input.id),
+              ),
+            )
+            .limit(1);
+          if (colisao.length) {
+            throw new Error("Já existe outro paciente com esse e-mail.");
+          }
+        }
+
         const set: Partial<typeof patients.$inferInsert> = {};
         if (input.firstName !== undefined) set.firstName = input.firstName;
         if (input.lastName !== undefined) set.lastName = input.lastName;
@@ -880,9 +907,6 @@ export const appRouter = router({
 
         return { success: true } as const;
       }),
-
-    // Confirmação de presença pelo paciente (via link da sala, sem login).
-    // O roomId (sala-apt<id>) funciona como token leve contra IDs sequenciais.
   }),
 
   sessions: router({

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Phone, AlertCircle, ChevronDown, ChevronUp, Edit2, Save, CheckCircle2, Copy, ShieldAlert, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
+import { formatarNascimento } from "@shared/datas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -296,9 +297,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                         Data de Nascimento
                       </p>
                       <p className="text-sm text-foreground">
-                        {patient?.dateOfBirth
-                          ? new Date(patient.dateOfBirth).toLocaleDateString("pt-BR")
-                          : "—"}
+                        {formatarNascimento(patient?.dateOfBirth)}
                       </p>
                     </div>
 
