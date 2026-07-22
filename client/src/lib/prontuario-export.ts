@@ -10,6 +10,7 @@
  * profissional clica em baixar, sem pesar no carregamento do app.
  */
 import type { RouterOutputs } from "@/lib/trpc";
+import { formatarNascimento } from "@shared/datas";
 
 type Patient = NonNullable<RouterOutputs["patients"]["get"]>;
 type Session = RouterOutputs["sessions"]["getByPatient"][number];
@@ -97,7 +98,9 @@ function montar(dados: ProntuarioData): Prontuario {
           { rotulo: "Nome", valor: nome },
           { rotulo: "E-mail", valor: p.email || traco },
           { rotulo: "Telefone", valor: p.phone || traco },
-          { rotulo: "Nascimento", valor: data(p.dateOfBirth) },
+          // Nascimento em UTC (dia puro); as demais datas do doc têm hora e vão
+          // no fuso local via data(). Ver shared/datas.ts.
+          { rotulo: "Nascimento", valor: formatarNascimento(p.dateOfBirth) },
           { rotulo: "Endereço", valor: p.address || traco },
           { rotulo: "Status", valor: statusLabel(p.status) },
         ],

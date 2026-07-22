@@ -8,6 +8,7 @@ import {
   removeDocumentFile,
 } from "@/lib/supabase";
 import { exportProntuarioPDF, exportProntuarioDOCX } from "@/lib/prontuario-export";
+import { formatarNascimento } from "@shared/datas";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -189,7 +190,13 @@ export default function PatientDetail() {
   const handleDeleteDoc = async (id: number, fileKey: string) => {
     try {
       await deleteDocument.mutateAsync({ id });
-      await removeDocumentFile(fileKey);
+      // O metadado é a fonte da verdade — apagado ele, o documento já sumiu do
+      // prontuário. Remover o arquivo do Storage é melhor-esforço: se falhar,
+      // sobra um órfão (some depois), mas não é motivo para mostrar erro nem
+      // deixar a lista inconsistente com um "Falha" sobre algo que já foi feito.
+      await removeDocumentFile(fileKey).catch((e) =>
+        console.warn("Arquivo órfão no Storage (metadado já removido):", e),
+      );
       await documentsQuery.refetch();
       toast.success("Documento removido.");
     } catch (e) {
@@ -307,7 +314,7 @@ export default function PatientDetail() {
               <p className="text-sm text-muted-foreground">Data de Nascimento</p>
               <p className="text-lg font-semibold text-foreground">
                 {patient.dateOfBirth
-                  ? new Date(patient.dateOfBirth).toLocaleDateString("pt-BR")
+                  ? formatarNascimento(patient.dateOfBirth)
                   : "—"}
               </p>
             </CardContent>

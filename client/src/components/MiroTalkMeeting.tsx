@@ -40,7 +40,9 @@ export default function MiroTalkMeeting({
       // inglês ao entrar na sala. A UI deles não tem parâmetro de idioma, e o
       // popup é redundante: quem convida usa o botão "Copiar link" daqui.
       notify: "0",
-      // Sem senha: o controle de acesso é nosso (a sala é sala-apt<id>).
+      // Sem senha do MiroTalk: o controle de acesso é nosso — o nome da sala
+      // (apt<id>-<token>) é impossível de adivinhar e o servidor confere se o
+      // usuário é participante da consulta (ver appointments.roomAccess).
       roomPassword: "0",
     });
 
