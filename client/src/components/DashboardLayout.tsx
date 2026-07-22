@@ -24,6 +24,7 @@ import { useRole } from "@/hooks/useRole";
 import { supabase } from "@/lib/supabase";
 import { trpc } from "@/lib/trpc";
 import { NotificationsBell } from "./NotificationsBell";
+import { PatientNotificationsBell } from "./PatientNotificationsBell";
 import { LogoLockup } from "./Logo";
 import { BadgeCheck, Calendar, CircleHelp, LayoutDashboard, LogOut, PanelLeft, Stethoscope, UserRound, Users, Video } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
@@ -303,7 +304,7 @@ function DashboardLayoutContent({
               {headerTitle}
             </span>
           </div>
-          {isTherapist && <NotificationsBell />}
+          {isTherapist ? <NotificationsBell /> : <PatientNotificationsBell />}
         </div>
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>

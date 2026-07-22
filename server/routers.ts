@@ -5,7 +5,7 @@ import { publicProcedure, protectedProcedure, therapistProcedure, adminProcedure
 import { z } from "zod";
 import { getDb } from "./db";
 import { patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users } from "../drizzle/schema";
-import { eq, and, desc, isNull, ne } from "drizzle-orm";
+import { eq, and, desc, isNull, ne, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
   sendAppointmentReminders,
@@ -379,6 +379,97 @@ export const appRouter = router({
 
         return { success: true, alreadyConfirmed: false as const };
       }),
+
+    /**
+     * Notificações do PACIENTE (lembrete/cancelamento das consultas dele).
+     *
+     * Feed limpo: só o tipo e a data — nada de status de envio ("falhou") nem
+     * e-mail, que só fariam sentido para quem administra a fila. Escopado às
+     * consultas do próprio paciente e às notificações a ele destinadas.
+     */
+    notifications: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return [];
+
+      const paciente = await pacienteDoUsuario(db, ctx.user);
+      if (!paciente) return [];
+
+      return db
+        .select({
+          id: notifications.id,
+          appointmentId: notifications.appointmentId,
+          notificationType: notifications.notificationType,
+          createdAt: notifications.createdAt,
+        })
+        .from(notifications)
+        .innerJoin(appointments, eq(appointments.id, notifications.appointmentId))
+        .where(
+          and(
+            eq(appointments.patientId, paciente.id),
+            eq(notifications.recipientType, "patient"),
+            isNull(notifications.dismissedAt),
+          ),
+        )
+        .orderBy(desc(notifications.createdAt))
+        .limit(50);
+    }),
+
+    /** Oculta UMA notificação do paciente (mesma lógica de dismiss da psicóloga). */
+    dismissNotification: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const paciente = await pacienteDoUsuario(db, ctx.user);
+        if (!paciente) throw new Error("Cadastro não encontrado.");
+
+        const rows = await db
+          .select({ id: notifications.id })
+          .from(notifications)
+          .innerJoin(appointments, eq(appointments.id, notifications.appointmentId))
+          .where(
+            and(
+              eq(notifications.id, input.id),
+              eq(appointments.patientId, paciente.id),
+              eq(notifications.recipientType, "patient"),
+            ),
+          )
+          .limit(1);
+        if (!rows.length) throw new Error("Notificação não encontrada.");
+
+        await db
+          .update(notifications)
+          .set({ dismissedAt: new Date() })
+          .where(eq(notifications.id, input.id));
+        return { success: true } as const;
+      }),
+
+    /** Oculta TODAS as notificações do paciente de uma vez. */
+    dismissAllNotifications: protectedProcedure.mutation(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      const paciente = await pacienteDoUsuario(db, ctx.user);
+      if (!paciente) throw new Error("Cadastro não encontrado.");
+
+      const minhasConsultas = db
+        .select({ id: appointments.id })
+        .from(appointments)
+        .where(eq(appointments.patientId, paciente.id));
+
+      await db
+        .update(notifications)
+        .set({ dismissedAt: new Date() })
+        .where(
+          and(
+            inArray(notifications.appointmentId, minhasConsultas),
+            eq(notifications.recipientType, "patient"),
+            isNull(notifications.dismissedAt),
+          ),
+        );
+      return { success: true } as const;
+    }),
   }),
 
   /**
@@ -1264,9 +1355,87 @@ export const appRouter = router({
         })
         .from(notifications)
         .innerJoin(appointments, eq(notifications.appointmentId, appointments.id))
-        .where(eq(appointments.therapistId, therapist[0].id))
+        // Oculta as que a psicóloga já limpou (dismissedAt). O registro continua
+        // no banco para o dedupe do agendador — ver notifications.dismiss.
+        .where(
+          and(
+            eq(appointments.therapistId, therapist[0].id),
+            isNull(notifications.dismissedAt),
+          ),
+        )
         .orderBy(desc(notifications.createdAt))
         .limit(50);
+    }),
+
+    /**
+     * Oculta UMA notificação da lista da psicóloga.
+     *
+     * Não apaga de propósito: o agendador roda a cada 15 min e recria as
+     * notificações que faltam (dedupe por consulta+tipo+destinatário). Se a linha
+     * sumisse, ele a recriaria e reenviaria o e-mail. Marcar dismissedAt tira da
+     * vista sem mexer nesse controle.
+     */
+    dismiss: therapistProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const therapist = await db
+          .select({ id: therapists.id })
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+        if (!therapist.length) throw new Error("Therapist not found");
+
+        // Confere que a notificação é de uma consulta desta psicóloga.
+        const rows = await db
+          .select({ id: notifications.id })
+          .from(notifications)
+          .innerJoin(appointments, eq(appointments.id, notifications.appointmentId))
+          .where(
+            and(
+              eq(notifications.id, input.id),
+              eq(appointments.therapistId, therapist[0].id),
+            ),
+          )
+          .limit(1);
+        if (!rows.length) throw new Error("Notificação não encontrada.");
+
+        await db
+          .update(notifications)
+          .set({ dismissedAt: new Date() })
+          .where(eq(notifications.id, input.id));
+        return { success: true } as const;
+      }),
+
+    /** Oculta TODAS as notificações da psicóloga (limpar a lista de uma vez). */
+    dismissAll: therapistProcedure.mutation(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      const therapist = await db
+        .select({ id: therapists.id })
+        .from(therapists)
+        .where(eq(therapists.userId, ctx.user.id))
+        .limit(1);
+      if (!therapist.length) throw new Error("Therapist not found");
+
+      const minhasConsultas = db
+        .select({ id: appointments.id })
+        .from(appointments)
+        .where(eq(appointments.therapistId, therapist[0].id));
+
+      await db
+        .update(notifications)
+        .set({ dismissedAt: new Date() })
+        .where(
+          and(
+            inArray(notifications.appointmentId, minhasConsultas),
+            isNull(notifications.dismissedAt),
+          ),
+        );
+      return { success: true } as const;
     }),
 
     // Enfileira lembretes/alertas e processa a fila (envia os pendentes).
