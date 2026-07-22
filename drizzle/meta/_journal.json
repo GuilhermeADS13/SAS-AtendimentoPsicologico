@@ -71,6 +71,13 @@
       "when": 1784321123250,
       "tag": "0009_appointment_room_token",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784691657895,
+      "tag": "0010_notification_dismissed",
+      "breakpoints": true
     }
   ]
 }

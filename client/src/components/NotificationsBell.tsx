@@ -1,17 +1,9 @@
 import { useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
-import { Bell } from "lucide-react";
 import { useLocation } from "wouter";
+import { toast } from "sonner";
 import { playNotificationPing } from "@/lib/sound";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { NotificationsMenu, type NotifItem } from "./NotificationsMenu";
 
 const TYPE_LABEL: Record<string, string> = {
   appointment_reminder: "Lembrete de consulta",
@@ -26,11 +18,22 @@ const STATUS_LABEL: Record<string, string> = {
   failed: "falhou",
 };
 
+/** Sineta da psicóloga: histórico das notificações das consultas dela. */
 export function NotificationsBell() {
   const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
   const { data: notifications = [] } = trpc.notifications.list.useQuery(undefined, {
     refetchInterval: 60_000,
     retry: false,
+  });
+
+  const dismiss = trpc.notifications.dismiss.useMutation({
+    onSuccess: () => utils.notifications.list.invalidate(),
+    onError: (e) => toast.error(e.message || "Não foi possível remover"),
+  });
+  const dismissAll = trpc.notifications.dismissAll.useMutation({
+    onSuccess: () => utils.notifications.list.invalidate(),
+    onError: (e) => toast.error(e.message || "Não foi possível limpar"),
   });
 
   const pending = notifications.filter((n) => n.status === "pending").length;
@@ -52,43 +55,26 @@ export function NotificationsBell() {
     }
   }, [notifications]);
 
+  const items: NotifItem[] = notifications.map((n) => ({
+    id: n.id,
+    titulo: TYPE_LABEL[n.notificationType] ?? "Notificação",
+    subtitulo: `${n.recipientEmail} · ${new Date(n.createdAt).toLocaleDateString("pt-BR")} · ${
+      STATUS_LABEL[n.status] ?? n.status
+    }`,
+  }));
+
+  const irParaConsulta = (id: number) => {
+    const n = notifications.find((x) => x.id === id);
+    if (n) setLocation(`/appointments?ap=${n.appointmentId}`);
+  };
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative" aria-label="Notificações">
-          <Bell className="w-5 h-5" />
-          {pending > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold flex items-center justify-center">
-              {pending > 9 ? "9+" : pending}
-            </span>
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80">
-        <DropdownMenuLabel>Notificações</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {notifications.length === 0 ? (
-          <div className="px-2 py-6 text-sm text-muted-foreground text-center">
-            Nenhuma notificação
-          </div>
-        ) : (
-          notifications.slice(0, 8).map((n) => (
-            <DropdownMenuItem
-              key={n.id}
-              onClick={() => setLocation(`/appointments?ap=${n.appointmentId}`)}
-              className="flex flex-col items-start gap-0.5 cursor-pointer"
-            >
-              <span className="text-sm font-medium text-foreground">
-                {TYPE_LABEL[n.notificationType] ?? "Notificação"}
-              </span>
-              <span className="text-xs text-muted-foreground truncate max-w-full">
-                {n.recipientEmail} · {new Date(n.createdAt).toLocaleDateString("pt-BR")} ·{" "}
-                {STATUS_LABEL[n.status] ?? n.status}
-              </span>
-            </DropdownMenuItem>
-          ))
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <NotificationsMenu
+      items={items}
+      badge={pending}
+      onItemClick={irParaConsulta}
+      onDismiss={(id) => dismiss.mutate({ id })}
+      onClearAll={() => dismissAll.mutate()}
+    />
   );
 }

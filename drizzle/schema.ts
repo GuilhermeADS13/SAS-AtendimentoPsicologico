@@ -255,6 +255,13 @@ export const notifications = pgTable("notifications", {
   sentAt: timestamp("sentAt", { withTimezone: true, mode: "date" }),
   errorMessage: text("errorMessage"),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  /**
+   * Quando o destinatário ocultou a notificação da sua lista. Não apaga: o
+   * agendador ainda precisa "vê-la" para o dedupe, senão recriaria a
+   * notificação e reenviaria o e-mail no ciclo seguinte. `list` filtra as que
+   * têm este campo preenchido; os alerts (dedupe) ignoram este campo de propósito.
+   */
+  dismissedAt: timestamp("dismissedAt", { withTimezone: true, mode: "date" }),
 });
 
 export type Notification = typeof notifications.$inferSelect;
