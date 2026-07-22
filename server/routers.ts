@@ -278,6 +278,8 @@ export const appRouter = router({
           specialties: therapists.specialties,
           bio: therapists.bio,
           photoKey: therapists.photoKey,
+          formacao: therapists.formacao,
+          publicoAtendido: therapists.publicoAtendido,
         })
         .from(therapists)
         .innerJoin(users, eq(users.id, therapists.userId))
@@ -582,6 +584,8 @@ export const appRouter = router({
         specialties: z.string().optional(),
         bio: z.string().optional(),
         photoKey: z.string().optional(),
+        formacao: z.string().optional(),
+        publicoAtendido: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
@@ -601,6 +605,8 @@ export const appRouter = router({
               specialties: input.specialties,
               bio: input.bio,
               photoKey: input.photoKey,
+              formacao: input.formacao,
+              publicoAtendido: input.publicoAtendido,
             })
             .where(eq(therapists.id, existing[0].id));
           return { success: true, action: "updated" as const };
@@ -612,6 +618,8 @@ export const appRouter = router({
           specialties: input.specialties,
           bio: input.bio,
           photoKey: input.photoKey,
+          formacao: input.formacao,
+          publicoAtendido: input.publicoAtendido,
         });
         return { success: true, action: "created" as const };
       }),

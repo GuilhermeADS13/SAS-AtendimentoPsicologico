@@ -118,8 +118,12 @@ export const therapists = pgTable("therapists", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull().unique(),
   crp: varchar("crp", { length: 64 }).notNull(),
-  specialties: text("specialties"), // JSON array de especialidades
+  specialties: text("specialties"), // texto separado por vírgula
   bio: text("bio"),
+  /** Graduação/pós, texto livre. Ex.: "Psicologia — USP; Especialização em TCC". */
+  formacao: text("formacao"),
+  /** Público atendido, separado por vírgula (ex.: "Adultos, Casais"). */
+  publicoAtendido: text("publicoAtendido"),
   /** Path da foto no bucket `avatars` — NÃO é URL: o bucket é privado e a
    *  exibição passa por URL assinada. */
   photoKey: text("photoKey"),

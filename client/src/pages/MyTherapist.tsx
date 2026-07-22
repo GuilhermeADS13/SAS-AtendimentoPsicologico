@@ -96,6 +96,33 @@ export default function MyTherapist() {
               </CardContent>
             </Card>
 
+            {(psi.publicoAtendido?.trim() || psi.formacao?.trim()) && (
+              <Card>
+                <CardContent className="space-y-4">
+                  {psi.publicoAtendido?.trim() && (
+                    <div>
+                      <h2 className="font-semibold text-foreground mb-1">Atende</h2>
+                      <p className="text-muted-foreground">
+                        {psi.publicoAtendido
+                          .split(",")
+                          .map((p) => p.trim())
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    </div>
+                  )}
+                  {psi.formacao?.trim() && (
+                    <div>
+                      <h2 className="font-semibold text-foreground mb-1">Formação</h2>
+                      <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                        {psi.formacao}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {psi.bio && (
               <Card>
                 <CardContent>
