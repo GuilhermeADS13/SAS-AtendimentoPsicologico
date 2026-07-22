@@ -13,7 +13,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { LogoLockup } from "@/components/Logo";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useRole } from "@/hooks/useRole";
-import { ArrowLeft, CircleHelp, Mail, Phone } from "lucide-react";
+import { ArrowLeft, CircleHelp, Mail } from "lucide-react";
 
 /**
  * Número do suporte técnico, em dígitos com DDD (o 55 do Brasil é acrescentado
@@ -479,39 +479,6 @@ export default function Ajuda() {
             )}
           </div>
         </div>
-
-        {/*
-          Fronteira clínica. Este é um app de saúde mental: mais cedo ou mais
-          tarde alguém escreve ao suporte em sofrimento agudo, achando que é
-          atendimento. Isso não pode ficar numa fila de dúvidas técnicas
-          esperando alguém ler amanhã — daí o encaminhamento explícito ao CVV.
-        */}
-        <Card className="border-destructive/30">
-          <CardContent className="flex gap-3">
-            <Phone className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
-            <div className="space-y-1 text-sm">
-              <p className="font-semibold text-foreground">
-                Se você está em crise, não espere por aqui
-              </p>
-              <p className="text-muted-foreground">
-                Este canal é para dúvidas sobre o aplicativo e não é atendimento de
-                emergência. Se você está passando por um momento difícil ou pensando em se
-                machucar, ligue <strong className="text-foreground">188</strong> (CVV,
-                24 horas, gratuito), converse em{" "}
-                <a
-                  href="https://www.cvv.org.br"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary underline"
-                >
-                  cvv.org.br
-                </a>{" "}
-                ou procure o CAPS mais próximo. Em emergência, ligue{" "}
-                <strong className="text-foreground">192</strong>.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
     </div>
   );
 
