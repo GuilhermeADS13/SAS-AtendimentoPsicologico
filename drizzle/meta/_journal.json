@@ -78,6 +78,13 @@
       "when": 1784691657895,
       "tag": "0010_notification_dismissed",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784692594341,
+      "tag": "0011_therapist_formacao_publico",
+      "breakpoints": true
     }
   ]
 }

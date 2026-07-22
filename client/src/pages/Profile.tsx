@@ -42,6 +42,9 @@ export default function Profile() {
 
 const BIO_MAX = 600;
 
+// Opções de público atendido (conjunto fixo, na ordem etária + arranjos).
+const PUBLICOS = ["Crianças", "Adolescentes", "Adultos", "Idosos", "Casais", "Famílias"];
+
 /** Perfil profissional da psicóloga (CRP, especialidades, bio). */
 function TherapistProfile() {
   const { user } = useAuth();
@@ -53,6 +56,8 @@ function TherapistProfile() {
     specialties: "",
     bio: "",
     photoKey: "",
+    formacao: "",
+    publicoAtendido: "",
   });
   // Campo de digitação das especialidades (o valor confirmado vira etiqueta).
   const [novaEsp, setNovaEsp] = useState("");
@@ -67,6 +72,8 @@ function TherapistProfile() {
       specialties: therapist.specialties ?? "",
       bio: therapist.bio ?? "",
       photoKey: therapist.photoKey ?? "",
+      formacao: therapist.formacao ?? "",
+      publicoAtendido: therapist.publicoAtendido ?? "",
     });
   }, [therapist]);
 
@@ -118,6 +125,19 @@ function TherapistProfile() {
     }));
   };
 
+  // Público atendido: conjunto fixo, guardado como texto separado por vírgula
+  // (igual às especialidades). Alterna ao clicar na etiqueta.
+  const publicos = form.publicoAtendido
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const togglePublico = (p: string) => {
+    const novo = publicos.includes(p)
+      ? publicos.filter((x) => x !== p)
+      : [...publicos, p];
+    setForm((f) => ({ ...f, publicoAtendido: novo.join(", ") }));
+  };
+
   const handleSave = () => {
     if (!form.crp.trim()) {
       toast.error("Informe o CRP.");
@@ -135,6 +155,8 @@ function TherapistProfile() {
       specialties: specialties || undefined,
       bio: form.bio || undefined,
       photoKey: form.photoKey,
+      formacao: form.formacao || undefined,
+      publicoAtendido: form.publicoAtendido || undefined,
     });
   };
 
@@ -224,6 +246,45 @@ function TherapistProfile() {
                   </div>
 
                   <div className="space-y-2">
+                    <Label>Público atendido</Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {PUBLICOS.map((p) => {
+                        const ativo = publicos.includes(p);
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => togglePublico(p)}
+                            aria-pressed={ativo}
+                            className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                              ativo
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-transparent text-muted-foreground border-border hover:border-primary/50"
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Clique para marcar quem você atende.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="formacao">Formação</Label>
+                    <Textarea
+                      id="formacao"
+                      rows={3}
+                      value={form.formacao}
+                      maxLength={400}
+                      onChange={(e) => setForm({ ...form, formacao: e.target.value })}
+                      placeholder="Ex.: Graduação em Psicologia — USP&#10;Especialização em Terapia Cognitivo-Comportamental"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
                     <Label htmlFor="bio">Bio / Apresentação</Label>
                     <Textarea
                       id="bio"
@@ -286,6 +347,22 @@ function TherapistProfile() {
                         {e}
                       </span>
                     ))}
+                  </div>
+                )}
+
+                {publicos.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold text-foreground text-sm mb-1">Atende</h3>
+                    <p className="text-sm text-muted-foreground">{publicos.join(" · ")}</p>
+                  </div>
+                )}
+
+                {form.formacao.trim() && (
+                  <div>
+                    <h3 className="font-semibold text-foreground text-sm mb-1">Formação</h3>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                      {form.formacao}
+                    </p>
                   </div>
                 )}
 
