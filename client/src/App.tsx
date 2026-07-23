@@ -14,6 +14,7 @@ import Login from "@/pages/Login";
 import ResetPassword from "@/pages/ResetPassword";
 import Home from "@/pages/Home";
 import Ajuda from "@/pages/Ajuda";
+import Privacidade from "@/pages/Privacidade";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { TherapistOnly } from "./components/TherapistOnly";
@@ -30,6 +31,8 @@ function Router() {
       {/* Pública de propósito: quase todo pedido de suporte é "não consigo
           entrar" — atrás do login, a ajuda falharia quando mais é precisa. */}
       <Route path={"/ajuda"} component={Ajuda} />
+      {/* Pública: o consentimento do cadastro aponta para cá. */}
+      <Route path={"/privacidade"} component={Privacidade} />
       <Route path={"/dashboard"}>
         {() => (
           <TherapistOnly>

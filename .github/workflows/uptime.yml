@@ -1,0 +1,30 @@
+name: uptime
+
+# Duas funções num ping só, a cada 10 minutos:
+# 1. MONITORAMENTO: se o site não responder, o job falha e o GitHub avisa o dono
+#    por e-mail (Settings > Notifications já cobre workflow failure).
+# 2. KEEP-ALIVE: o Render free hiberna após 15 min sem tráfego — e a primeira
+#    visita do dia levava ~1 min acordando o serviço. O ping impede a hibernação.
+#    Cabe no limite: 24/7 ≈ 720h/mês, e o free do Render dá 750h.
+#
+# Em repositório público, os minutos de Actions são gratuitos. O cron do GitHub
+# pode atrasar alguns minutos sob carga; se um ping atrasar além dos 15 min, o
+# serviço hiberna e o ping seguinte o acorda — o efeito líquido continua bom.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping no site
+        # --retry 3: um soluço de rede não pode virar alarme falso; só falha
+        # (e só avisa) se o site ficar fora de verdade.
+        run: |
+          curl --fail --silent --show-error --output /dev/null \
+            --max-time 30 --retry 3 --retry-delay 10 \
+            https://sas-atendimento-psicologico.onrender.com/
+          echo "no ar"
