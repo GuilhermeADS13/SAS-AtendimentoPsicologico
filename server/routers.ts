@@ -947,6 +947,15 @@ export const appRouter = router({
         scheduledAt: z.string(),
         duration: z.number().default(60),
         notes: z.string().optional(),
+        /**
+         * Recorrência semanal: terapia é semanal, e marcar a mesma paciente toda
+         * semana na mão era o trabalho mais repetitivo da psicóloga. Sem tabela de
+         * recorrência de propósito — "repetir por N semanas" só cria N consultas
+         * normais e independentes (cancela/remarca uma sem afetar as outras).
+         * Somar semanas em horas fixas não desloca o horário: o Brasil não tem
+         * mais horário de verão.
+         */
+        repetirSemanas: z.number().int().min(1).max(12).default(1),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
@@ -969,16 +978,21 @@ export const appRouter = router({
 
         if (!patient.length) throw new Error("Patient not found for this therapist");
 
-        return db.insert(appointments).values({
+        const base = new Date(input.scheduledAt);
+        const SEMANA_MS = 7 * 24 * 60 * 60 * 1000;
+        const linhas = Array.from({ length: input.repetirSemanas }, (_, i) => ({
           therapistId: therapist[0].id,
           patientId: input.patientId,
-          scheduledAt: new Date(input.scheduledAt),
+          scheduledAt: new Date(base.getTime() + i * SEMANA_MS),
           duration: input.duration,
           notes: input.notes,
-          // Token aleatório: o nome da sala vira apt<id>-<token>, impossível de
-          // adivinhar (antes era sala-apt<id>, sequencial e enumerável).
+          // Token aleatório POR CONSULTA: o nome da sala vira apt<id>-<token>,
+          // impossível de adivinhar — cada semana tem a sua sala.
           roomToken: nanoid(16),
-        });
+        }));
+
+        await db.insert(appointments).values(linhas);
+        return { criadas: linhas.length } as const;
       }),
 
     // Atualiza o status de um agendamento do terapeuta logado.

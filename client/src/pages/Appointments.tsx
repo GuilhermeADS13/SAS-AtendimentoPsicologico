@@ -45,7 +45,7 @@ const roomNameFor = (appointmentId: number, roomToken: string | null) =>
 const roomUrlFor = (appointmentId: number, patientId: number, roomToken: string | null) =>
   `/videocall/${roomNameFor(appointmentId, roomToken)}?apt=${appointmentId}&pat=${patientId}`;
 
-const emptyForm = { patientId: "", date: "", time: "", duration: "60" };
+const emptyForm = { patientId: "", date: "", time: "", duration: "60", repetir: "1" };
 
 export default function Appointments() {
   const [, setLocation] = useLocation();
@@ -115,11 +115,15 @@ export default function Appointments() {
   };
 
   const createAppt = trpc.appointments.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       utils.appointments.list.invalidate();
       setFormData(emptyForm);
       setIsOpen(false);
-      toast.success("Consulta agendada com sucesso!");
+      toast.success(
+        data.criadas > 1
+          ? `${data.criadas} consultas agendadas, uma por semana!`
+          : "Consulta agendada com sucesso!",
+      );
     },
     onError: (e) => toast.error(e.message || "Erro ao agendar"),
   });
@@ -178,6 +182,7 @@ export default function Appointments() {
       patientId: Number(formData.patientId),
       scheduledAt,
       duration: parseInt(formData.duration),
+      repetirSemanas: parseInt(formData.repetir) || 1,
     });
   };
 
@@ -294,6 +299,31 @@ export default function Appointments() {
                     <SelectItem value="120">2 horas</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              {/* Terapia é semanal: repetir cria N consultas independentes, no
+                  mesmo dia/hora das semanas seguintes, cada uma com sua sala. */}
+              <div className="space-y-2">
+                <Label htmlFor="repetir">Repetir semanalmente</Label>
+                <Select
+                  value={formData.repetir}
+                  onValueChange={(value) => setFormData({ ...formData, repetir: value })}
+                >
+                  <SelectTrigger id="repetir">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Não repetir (só esta)</SelectItem>
+                    <SelectItem value="4">Por 4 semanas</SelectItem>
+                    <SelectItem value="8">Por 8 semanas</SelectItem>
+                    <SelectItem value="12">Por 12 semanas</SelectItem>
+                  </SelectContent>
+                </Select>
+                {formData.repetir !== "1" && (
+                  <p className="text-xs text-muted-foreground">
+                    Serão criadas {formData.repetir} consultas, sempre no mesmo dia e
+                    horário. Cada uma pode ser cancelada ou remarcada sozinha.
+                  </p>
+                )}
               </div>
               <Button
                 onClick={handleAddAppointment}
