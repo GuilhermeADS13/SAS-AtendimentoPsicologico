@@ -29,6 +29,8 @@ export default function Login() {
   // pendente com o CRP, aprovada manualmente pelo admin.
   const [isPsychologist, setIsPsychologist] = useState(false);
   const [crp, setCrp] = useState("");
+  // LGPD: dado de saúde exige consentimento explícito — sem marcar, não cria conta.
+  const [aceitouPolitica, setAceitouPolitica] = useState(false);
 
   const requestTherapist = trpc.me.requestTherapist.useMutation();
 
@@ -276,7 +278,35 @@ export default function Login() {
                   )}
                 </div>
 
-                <Button onClick={handleSignup} disabled={loading} className="w-full bg-primary hover:bg-primary/90">
+                {/* LGPD: o app trata dado de saúde (categoria sensível) — o
+                    consentimento precisa ser explícito, não presumido. */}
+                <label className="flex items-start gap-2 text-sm text-muted-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={aceitouPolitica}
+                    onChange={(e) => setAceitouPolitica(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-primary"
+                  />
+                  <span>
+                    Li e concordo com a{" "}
+                    <a
+                      href="/privacidade"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-primary underline underline-offset-4"
+                    >
+                      Política de Privacidade
+                    </a>
+                    , incluindo o tratamento dos meus dados de saúde para o
+                    atendimento.
+                  </span>
+                </label>
+
+                <Button
+                  onClick={handleSignup}
+                  disabled={loading || !aceitouPolitica}
+                  className="w-full bg-primary hover:bg-primary/90"
+                >
                   {loading ? "Criando..." : "Criar conta"}
                 </Button>
               </TabsContent>
