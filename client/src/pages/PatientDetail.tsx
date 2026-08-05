@@ -29,7 +29,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, FileText, Calendar, MessageSquare, Pencil, Plus, Upload, Download, Trash2, FileDown, Loader2 } from "lucide-react";
+import { ArrowLeft, FileText, Calendar, MessageSquare, Pencil, Plus, Upload, Download, Trash2, FileDown, Loader2, Wallet, CheckCircle2 } from "lucide-react";
+import { formatarBRL } from "@shared/dinheiro";
 
 // Converte Date | string | null para o formato do <input type="date"> (YYYY-MM-DD).
 function toDateInput(value: unknown): string {
@@ -157,6 +158,29 @@ export default function PatientDetail() {
   const [uploading, setUploading] = useState(false);
   const createDocument = trpc.documents.create.useMutation();
   const deleteDocument = trpc.documents.delete.useMutation();
+
+  // Pagamentos DESTE paciente. appointments.list traz todas as consultas da
+  // psicóloga; filtramos por este paciente. "Falta pagar" = pendentes que não
+  // foram canceladas/faltadas; cobrar por consulta que não houve não faz sentido.
+  const { data: todasConsultas = [] } = trpc.appointments.list.useQuery();
+  const consultasDoPaciente = todasConsultas.filter((a) => a.patientId === patientId);
+  const ativa = (a: (typeof todasConsultas)[number]) =>
+    a.status !== "cancelled" && a.status !== "no_show";
+  const faltaPagar = consultasDoPaciente
+    .filter((a) => !a.paid && ativa(a))
+    .reduce((soma, a) => soma + (a.price ?? 0), 0);
+  const jaPago = consultasDoPaciente
+    .filter((a) => a.paid)
+    .reduce((soma, a) => soma + (a.price ?? 0), 0);
+  const temPagamentos = consultasDoPaciente.some((a) => (a.price ?? 0) > 0 || a.paid);
+
+  const setPayment = trpc.appointments.setPayment.useMutation({
+    onSuccess: () => {
+      utils.appointments.list.invalidate();
+      toast.success("Pagamento atualizado.");
+    },
+    onError: (e) => toast.error(e.message || "Não foi possível atualizar"),
+  });
 
   const handleUpload = async (file: File) => {
     setUploading(true);
@@ -333,12 +357,42 @@ export default function PatientDetail() {
           </Card>
         </div>
 
+        {/* Situação de pagamento — visível de cara. Só aparece se houver valor
+            lançado; sem preço nas consultas, não polui a tela. */}
+        {temPagamentos && (
+          <Card className={faltaPagar > 0 ? "border-yellow-300" : "border-primary/30"}>
+            <CardContent className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Wallet
+                  className={`w-5 h-5 shrink-0 ${
+                    faltaPagar > 0 ? "text-yellow-600" : "text-primary"
+                  }`}
+                />
+                <div>
+                  {faltaPagar > 0 ? (
+                    <p className="font-semibold text-foreground">
+                      Falta pagar:{" "}
+                      <span className="text-yellow-700">{formatarBRL(faltaPagar)}</span>
+                    </p>
+                  ) : (
+                    <p className="font-semibold text-foreground">Pagamentos em dia</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Já pago: {formatarBRL(jaPago)}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Tabs */}
         <Tabs defaultValue="info" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="info">Informações</TabsTrigger>
             <TabsTrigger value="sessions">Sessões</TabsTrigger>
             <TabsTrigger value="documents">Documentos</TabsTrigger>
+            <TabsTrigger value="pagamentos">Pagamentos</TabsTrigger>
           </TabsList>
 
           {/* Info Tab */}
@@ -499,6 +553,71 @@ export default function PatientDetail() {
                     </CardContent>
                   </Card>
                 ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Pagamentos deste paciente */}
+          <TabsContent value="pagamentos" className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold text-foreground">Pagamentos</h2>
+              <span className="text-sm">
+                {faltaPagar > 0 ? (
+                  <>
+                    Falta{" "}
+                    <strong className="text-yellow-700">{formatarBRL(faltaPagar)}</strong>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">Em dia</span>
+                )}
+              </span>
+            </div>
+
+            {consultasDoPaciente.filter(ativa).length === 0 ? (
+              <Card>
+                <CardContent className="text-muted-foreground">
+                  Nenhuma consulta com valor para acompanhar ainda. O valor é lançado ao
+                  agendar (em Agendamentos).
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {[...consultasDoPaciente]
+                  .filter(ativa)
+                  .sort((a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt))
+                  .map((a) => (
+                    <Card key={a.id}>
+                      <CardContent className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
+                          <div>
+                            <p className="font-medium text-foreground">
+                              {new Date(a.scheduledAt).toLocaleDateString("pt-BR")}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {formatarBRL(a.price)}
+                            </p>
+                          </div>
+                        </div>
+                        {/* Clicável: alterna pago/pendente na hora. */}
+                        <button
+                          onClick={() =>
+                            setPayment.mutate({ id: a.id, paid: !a.paid })
+                          }
+                          disabled={setPayment.isPending}
+                          title="Clique para alternar pago/pendente"
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
+                            a.paid
+                              ? "bg-green-100 text-green-800 hover:bg-green-200"
+                              : "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
+                          }`}
+                        >
+                          {a.paid && <CheckCircle2 className="w-3 h-3" />}
+                          {a.paid ? "Pago" : "Pendente"}
+                        </button>
+                      </CardContent>
+                    </Card>
+                  ))}
               </div>
             )}
           </TabsContent>
