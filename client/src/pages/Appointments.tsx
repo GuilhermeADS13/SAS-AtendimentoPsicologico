@@ -29,9 +29,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, Wallet } from "lucide-react";
+import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, Wallet, Table as TableIcon, CalendarDays } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
+import { CalendarioSemana } from "@/components/CalendarioSemana";
 import { reaisParaCentavos, centavosParaInput, formatarBRL } from "@shared/dinheiro";
 
 type Status = "scheduled" | "completed" | "cancelled" | "no_show";
@@ -71,6 +72,7 @@ export default function Appointments() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
+  const [vista, setVista] = useState<"tabela" | "calendario">("tabela");
 
   const patientOf = (patientId: number) => patients.find((pt) => pt.id === patientId);
 
@@ -423,12 +425,43 @@ export default function Appointments() {
           </div>
         )}
 
-        {/* Tabela */}
+        {/* Consultas: tabela ou calendário — os mesmos dados, duas visões. */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
             <CardTitle>Consultas Agendadas</CardTitle>
+            <div className="inline-flex rounded-lg border border-border p-0.5">
+              <button
+                onClick={() => setVista("tabela")}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm transition-colors ${
+                  vista === "tabela"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <TableIcon className="w-4 h-4" /> Tabela
+              </button>
+              <button
+                onClick={() => setVista("calendario")}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm transition-colors ${
+                  vista === "calendario"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <CalendarDays className="w-4 h-4" /> Calendário
+              </button>
+            </div>
           </CardHeader>
           <CardContent>
+            {vista === "calendario" ? (
+              <CalendarioSemana
+                appointments={appointments}
+                patientName={patientName}
+                onSelect={(a) =>
+                  setLocation(roomUrlFor(a.id, a.patientId, a.roomToken))
+                }
+              />
+            ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -601,6 +634,7 @@ export default function Appointments() {
                 </TableBody>
               </Table>
             </div>
+            )}
           </CardContent>
         </Card>
       </div>
