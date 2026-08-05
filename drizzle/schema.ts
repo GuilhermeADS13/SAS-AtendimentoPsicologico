@@ -1,4 +1,4 @@
-import { integer, pgEnum, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
 /**
@@ -124,6 +124,9 @@ export const therapists = pgTable("therapists", {
   formacao: text("formacao"),
   /** Público atendido, separado por vírgula (ex.: "Adultos, Casais"). */
   publicoAtendido: text("publicoAtendido"),
+  /** Preço padrão da consulta, em CENTAVOS (ver shared/dinheiro.ts). Prefill do
+   *  valor de cada consulta nova; a psicóloga pode sobrescrever por consulta. */
+  sessionPrice: integer("sessionPrice"),
   /** Path da foto no bucket `avatars` — NÃO é URL: o bucket é privado e a
    *  exibição passa por URL assinada. */
   photoKey: text("photoKey"),
@@ -187,6 +190,12 @@ export const appointments = pgTable("appointments", {
    */
   roomToken: varchar("roomToken", { length: 32 }),
   notes: text("notes"),
+  /** Valor da consulta em CENTAVOS (ver shared/dinheiro.ts). Nasce do preço
+   *  padrão da psicóloga; nulo = sem valor definido. */
+  price: integer("price"),
+  /** Se já foi paga. paidAt guarda quando foi marcada como paga (registro). */
+  paid: boolean("paid").default(false).notNull(),
+  paidAt: timestamp("paidAt", { withTimezone: true, mode: "date" }),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
     .defaultNow()

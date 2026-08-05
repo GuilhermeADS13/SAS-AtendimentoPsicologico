@@ -14,6 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AvatarUpload } from "@/components/AvatarUpload";
 import { getAvatarSignedUrl } from "@/lib/supabase";
 import { maskCrp } from "@shared/crp";
+import { reaisParaCentavos, centavosParaInput } from "@shared/dinheiro";
 import { iniciais } from "@/lib/iniciais";
 import { UserRound, BadgeCheck, Eye, X } from "lucide-react";
 
@@ -58,6 +59,7 @@ function TherapistProfile() {
     photoKey: "",
     formacao: "",
     publicoAtendido: "",
+    preco: "", // preço padrão em reais (texto do input); convertido no salvar
   });
   // Campo de digitação das especialidades (o valor confirmado vira etiqueta).
   const [novaEsp, setNovaEsp] = useState("");
@@ -74,6 +76,7 @@ function TherapistProfile() {
       photoKey: therapist.photoKey ?? "",
       formacao: therapist.formacao ?? "",
       publicoAtendido: therapist.publicoAtendido ?? "",
+      preco: centavosParaInput(therapist.sessionPrice),
     });
   }, [therapist]);
 
@@ -157,6 +160,8 @@ function TherapistProfile() {
       photoKey: form.photoKey,
       formacao: form.formacao || undefined,
       publicoAtendido: form.publicoAtendido || undefined,
+      // Reais (texto) → centavos. Vazio manda null (limpa o preço padrão).
+      sessionPrice: reaisParaCentavos(form.preco),
     });
   };
 
@@ -204,6 +209,27 @@ function TherapistProfile() {
                       autoComplete="off"
                       maxLength={9}
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="preco">Preço padrão da consulta</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                        R$
+                      </span>
+                      <Input
+                        id="preco"
+                        value={form.preco}
+                        onChange={(e) => setForm({ ...form, preco: e.target.value })}
+                        placeholder="150,00"
+                        inputMode="decimal"
+                        className="pl-9"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Preenche o valor de cada consulta nova (dá para mudar por consulta).
+                      Não aparece para o paciente.
+                    </p>
                   </div>
 
                   <div className="space-y-2">
