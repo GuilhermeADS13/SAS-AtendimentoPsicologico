@@ -26,7 +26,7 @@ import { trpc } from "@/lib/trpc";
 import { NotificationsBell } from "./NotificationsBell";
 import { PatientNotificationsBell } from "./PatientNotificationsBell";
 import { LogoLockup } from "./Logo";
-import { BadgeCheck, Calendar, CircleHelp, LayoutDashboard, LogOut, PanelLeft, Stethoscope, UserRound, Users, Video } from "lucide-react";
+import { BadgeCheck, Calendar, CircleHelp, LayoutDashboard, LogOut, PanelLeft, Stethoscope, UserRound, Users, Video, Wallet } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -40,6 +40,7 @@ const therapistMenu = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Users, label: "Pacientes", path: "/records" },
   { icon: Calendar, label: "Agendamentos", path: "/appointments" },
+  { icon: Wallet, label: "Financeiro", path: "/financeiro" },
   { icon: UserRound, label: "Perfil", path: "/profile" },
   // Ajuda no menu, não escondida no menu da conta: ninguém abre "Sair" para
   // procurar ajuda — quem precisa dela está com um problema, não indo embora.

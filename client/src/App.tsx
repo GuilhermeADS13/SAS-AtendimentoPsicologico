@@ -15,6 +15,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import Home from "@/pages/Home";
 import Ajuda from "@/pages/Ajuda";
 import Privacidade from "@/pages/Privacidade";
+import Financeiro from "@/pages/Financeiro";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { TherapistOnly } from "./components/TherapistOnly";
@@ -63,6 +64,13 @@ function Router() {
         {() => (
           <TherapistOnly>
             <Appointments />
+          </TherapistOnly>
+        )}
+      </Route>
+      <Route path={"/financeiro"}>
+        {() => (
+          <TherapistOnly>
+            <Financeiro />
           </TherapistOnly>
         )}
       </Route>
