@@ -32,7 +32,7 @@ import {
 import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, Wallet, Table as TableIcon, CalendarDays } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
-import { CalendarioSemana } from "@/components/CalendarioSemana";
+import { CalendarioAgenda } from "@/components/CalendarioAgenda";
 import { reaisParaCentavos, centavosParaInput, formatarBRL } from "@shared/dinheiro";
 
 type Status = "scheduled" | "completed" | "cancelled" | "no_show";
@@ -454,7 +454,7 @@ export default function Appointments() {
           </CardHeader>
           <CardContent>
             {vista === "calendario" ? (
-              <CalendarioSemana
+              <CalendarioAgenda
                 appointments={appointments}
                 patientName={patientName}
                 onSelect={(a) =>
