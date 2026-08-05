@@ -53,11 +53,9 @@ export default function Financeiro() {
   const { data: appointments = [] } = trpc.appointments.list.useQuery();
   const { data: patients = [] } = trpc.patients.list.useQuery();
 
+  // Sem toast por chamada: quem confirma é a ação do grupo (marcar tudo pago),
+  // que dá uma única mensagem no fim — senão apareceriam N toasts de uma vez.
   const setPayment = trpc.appointments.setPayment.useMutation({
-    onSuccess: () => {
-      utils.appointments.list.invalidate();
-      toast.success("Pagamento atualizado.");
-    },
     onError: (e) => toast.error(e.message || "Não foi possível atualizar"),
   });
 
@@ -85,29 +83,68 @@ export default function Financeiro() {
   const consultasPeriodo = noPeriodo.filter(ativa).length;
 
   // "Quem não pagou" olha TODO o histórico, não só o período: uma dívida de dois
-  // meses atrás ainda importa. Mais antigas primeiro (é o que se cobra antes).
+  // meses atrás ainda importa.
   const pendentes = appointments
     .filter((a) => !a.paid && ativa(a) && (a.price ?? 0) > 0)
-    .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
+    .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt)); // mais antigas primeiro
   const totalPendente = pendentes.reduce((soma, a) => soma + (a.price ?? 0), 0);
 
-  // Lembrete de pagamento pelo WhatsApp — semiautomático, igual aos outros
-  // avisos: abre no aparelho da psicóloga com a mensagem pronta, ela revisa e
-  // envia. null se o paciente não tem telefone.
-  const lembrarHref = (a: (typeof appointments)[number]): string | null => {
-    const digits = (pacienteDe(a.patientId)?.phone ?? "").replace(/\D/g, "");
+  // Agrupado por PACIENTE: "quem não pagou" é pergunta sobre pessoas, não sobre
+  // consultas soltas. Um card por paciente, com o total que deve e desde quando.
+  // As consultas já vêm ordenadas (mais antiga primeiro), então consultas[0] é a
+  // dívida mais antiga da pessoa — e ordenamos os grupos por ela (mais atrasado
+  // no topo).
+  type Grupo = { patientId: number; consultas: typeof pendentes; total: number };
+  const grupos: Grupo[] = [];
+  const porId = new Map<number, Grupo>();
+  for (const a of pendentes) {
+    let g = porId.get(a.patientId);
+    if (!g) {
+      g = { patientId: a.patientId, consultas: [], total: 0 };
+      porId.set(a.patientId, g);
+      grupos.push(g);
+    }
+    g.consultas.push(a);
+    g.total += a.price ?? 0;
+  }
+  grupos.sort(
+    (x, y) =>
+      +new Date(x.consultas[0].scheduledAt) - +new Date(y.consultas[0].scheduledAt),
+  );
+
+  // Marca TODAS as consultas pendentes do paciente como pagas de uma vez (o caso
+  // comum: a pessoa acertou tudo). Para baixa parcial, a aba Pagamentos do
+  // paciente permite consulta a consulta.
+  const marcarGrupoPago = async (g: Grupo) => {
+    try {
+      await Promise.all(
+        g.consultas.map((a) => setPayment.mutateAsync({ id: a.id, paid: true })),
+      );
+      utils.appointments.list.invalidate();
+      toast.success(`${nomePaciente(g.patientId)}: pagamento em dia!`);
+    } catch {
+      /* o onError da mutation já avisa */
+    }
+  };
+
+  // Lembrete pelo WhatsApp com o total do paciente (1 ou N consultas).
+  const lembrarGrupoHref = (g: Grupo): string | null => {
+    const digits = (pacienteDe(g.patientId)?.phone ?? "").replace(/\D/g, "");
     if (!digits) return null;
     const numero = digits.startsWith("55") ? digits : `55${digits}`;
-    const nome = nomePaciente(a.patientId).split(" ")[0];
-    const data = new Date(a.scheduledAt).toLocaleDateString("pt-BR");
-    const msg =
-      `Olá, ${nome}! 😊\n\n` +
-      `Passando para lembrar do pagamento da nossa consulta do dia ${data} ` +
-      `(${formatarBRL(a.price)}).\n\n` +
-      `Qualquer dúvida, estou à disposição!`;
+    const nome = nomePaciente(g.patientId).split(" ")[0];
+    const corpo =
+      g.consultas.length === 1
+        ? `do pagamento da nossa consulta do dia ${new Date(
+            g.consultas[0].scheduledAt,
+          ).toLocaleDateString("pt-BR")} (${formatarBRL(g.total)})`
+        : `do pagamento de ${g.consultas.length} consultas (total ${formatarBRL(g.total)})`;
+    const msg = `Olá, ${nome}! 😊\n\nPassando para lembrar ${corpo}.\n\nQualquer dúvida, estou à disposição!`;
     return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
   };
 
+  // Lembrete de pagamento pelo WhatsApp — semiautomático, igual aos outros
+  // avisos: abre no aparelho da psicóloga com a mensagem pronta, ela revisa e
   return (
     <DashboardLayout>
       <div className="space-y-6 max-w-4xl">
@@ -183,7 +220,7 @@ export default function Financeiro() {
             )}
           </div>
 
-          {pendentes.length === 0 ? (
+          {grupos.length === 0 ? (
             <Card>
               <CardContent className="flex items-center gap-3 text-muted-foreground">
                 <CheckCircle2 className="w-5 h-5 text-primary" />
@@ -192,21 +229,24 @@ export default function Financeiro() {
             </Card>
           ) : (
             <div className="space-y-2">
-              {pendentes.map((a) => {
-                const href = lembrarHref(a);
+              {grupos.map((g) => {
+                const href = lembrarGrupoHref(g);
+                const desde = new Date(g.consultas[0].scheduledAt).toLocaleDateString("pt-BR");
+                const n = g.consultas.length;
                 return (
-                  <Card key={a.id}>
+                  <Card key={g.patientId}>
                     <CardContent className="flex flex-wrap items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-medium text-foreground flex items-center gap-2">
                           <Users className="w-4 h-4 text-muted-foreground shrink-0" />
-                          {nomePaciente(a.patientId)}
+                          {nomePaciente(g.patientId)}
+                          <span className="text-base font-bold text-yellow-700">
+                            {formatarBRL(g.total)}
+                          </span>
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {new Date(a.scheduledAt).toLocaleDateString("pt-BR")} ·{" "}
-                          <span className="font-semibold text-foreground">
-                            {formatarBRL(a.price)}
-                          </span>
+                          {n} consulta{n === 1 ? "" : "s"} pendente{n === 1 ? "" : "s"}
+                          {n === 1 ? ` (${desde})` : ` · desde ${desde}`}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -224,10 +264,10 @@ export default function Financeiro() {
                         <Button
                           size="sm"
                           disabled={setPayment.isPending}
-                          onClick={() => setPayment.mutate({ id: a.id, paid: true })}
+                          onClick={() => marcarGrupoPago(g)}
                         >
                           <CheckCircle2 className="w-4 h-4 mr-2" />
-                          Marcar pago
+                          {n === 1 ? "Marcar pago" : "Marcar tudo pago"}
                         </Button>
                       </div>
                     </CardContent>
