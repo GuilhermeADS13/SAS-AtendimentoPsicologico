@@ -586,6 +586,8 @@ export const appRouter = router({
         photoKey: z.string().optional(),
         formacao: z.string().optional(),
         publicoAtendido: z.string().optional(),
+        // Preço padrão em centavos (ver shared/dinheiro.ts). null limpa o valor.
+        sessionPrice: z.number().int().min(0).nullish(),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
@@ -607,6 +609,7 @@ export const appRouter = router({
               photoKey: input.photoKey,
               formacao: input.formacao,
               publicoAtendido: input.publicoAtendido,
+              sessionPrice: input.sessionPrice ?? null,
             })
             .where(eq(therapists.id, existing[0].id));
           return { success: true, action: "updated" as const };
@@ -620,6 +623,7 @@ export const appRouter = router({
           photoKey: input.photoKey,
           formacao: input.formacao,
           publicoAtendido: input.publicoAtendido,
+          sessionPrice: input.sessionPrice ?? null,
         });
         return { success: true, action: "created" as const };
       }),
@@ -947,6 +951,9 @@ export const appRouter = router({
         scheduledAt: z.string(),
         duration: z.number().default(60),
         notes: z.string().optional(),
+        // Valor da consulta em centavos (o cliente já preenche com o preço
+        // padrão da psicóloga). Vale para todas as recorrentes criadas juntas.
+        price: z.number().int().min(0).nullish(),
         /**
          * Recorrência semanal: terapia é semanal, e marcar a mesma paciente toda
          * semana na mão era o trabalho mais repetitivo da psicóloga. Sem tabela de
@@ -986,6 +993,7 @@ export const appRouter = router({
           scheduledAt: new Date(base.getTime() + i * SEMANA_MS),
           duration: input.duration,
           notes: input.notes,
+          price: input.price ?? null,
           // Token aleatório POR CONSULTA: o nome da sala vira apt<id>-<token>,
           // impossível de adivinhar — cada semana tem a sua sala.
           roomToken: nanoid(16),
@@ -1016,6 +1024,44 @@ export const appRouter = router({
         await db
           .update(appointments)
           .set({ status: input.status })
+          .where(and(eq(appointments.id, input.id), eq(appointments.therapistId, therapist[0].id)));
+
+        return { success: true } as const;
+      }),
+
+    /**
+     * Marca pago/pendente e/ou ajusta o valor de uma consulta. Registro
+     * financeiro simples (não é gateway): a psicóloga controla quem já acertou.
+     * paidAt guarda quando foi marcada como paga; some ao voltar para pendente.
+     */
+    setPayment: therapistProcedure
+      .input(z.object({
+        id: z.number(),
+        paid: z.boolean().optional(),
+        price: z.number().int().min(0).nullish(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const therapist = await db
+          .select({ id: therapists.id })
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+        if (!therapist.length) throw new Error("Therapist not found");
+
+        const set: Partial<typeof appointments.$inferInsert> = {};
+        if (input.paid !== undefined) {
+          set.paid = input.paid;
+          set.paidAt = input.paid ? new Date() : null;
+        }
+        if (input.price !== undefined) set.price = input.price ?? null;
+        if (Object.keys(set).length === 0) return { success: true } as const;
+
+        await db
+          .update(appointments)
+          .set(set)
           .where(and(eq(appointments.id, input.id), eq(appointments.therapistId, therapist[0].id)));
 
         return { success: true } as const;

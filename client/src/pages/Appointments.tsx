@@ -29,9 +29,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink } from "lucide-react";
+import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, Wallet } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
+import { reaisParaCentavos, centavosParaInput, formatarBRL } from "@shared/dinheiro";
 
 type Status = "scheduled" | "completed" | "cancelled" | "no_show";
 
@@ -45,7 +46,7 @@ const roomNameFor = (appointmentId: number, roomToken: string | null) =>
 const roomUrlFor = (appointmentId: number, patientId: number, roomToken: string | null) =>
   `/videocall/${roomNameFor(appointmentId, roomToken)}?apt=${appointmentId}&pat=${patientId}`;
 
-const emptyForm = { patientId: "", date: "", time: "", duration: "60", repetir: "1" };
+const emptyForm = { patientId: "", date: "", time: "", duration: "60", repetir: "1", valor: "" };
 
 export default function Appointments() {
   const [, setLocation] = useLocation();
@@ -54,6 +55,8 @@ export default function Appointments() {
 
   const { data: appointments = [] } = trpc.appointments.list.useQuery();
   const { data: patients = [] } = trpc.patients.list.useQuery();
+  // Preço padrão da psicóloga: preenche o valor de cada consulta nova.
+  const { data: therapist } = trpc.therapists.me.useQuery();
 
   // Consulta a destacar quando se chega pela sineta (/agendamentos?ap=<id>):
   // a notificação leva direto aqui e realça qual consulta é.
@@ -167,6 +170,11 @@ export default function Appointments() {
     onError: (e) => toast.error(e.message || "Erro ao atualizar status"),
   });
 
+  const setPayment = trpc.appointments.setPayment.useMutation({
+    onSuccess: () => utils.appointments.list.invalidate(),
+    onError: (e) => toast.error(e.message || "Erro ao atualizar o pagamento"),
+  });
+
   const copyToClipboard = (path: string) => {
     navigator.clipboard.writeText(`${window.location.origin}${path}`);
     toast.success("Link copiado para a área de transferência!");
@@ -183,8 +191,25 @@ export default function Appointments() {
       scheduledAt,
       duration: parseInt(formData.duration),
       repetirSemanas: parseInt(formData.repetir) || 1,
+      price: reaisParaCentavos(formData.valor),
     });
   };
+
+  // Resumo financeiro do MÊS corrente (por data da consulta): recebido = pagas;
+  // a receber = ainda não pagas que não foram canceladas/faltadas. Calculado no
+  // cliente sobre a lista já carregada — sem query nova, escala do piloto.
+  const agora = new Date();
+  const doMes = appointments.filter((a) => {
+    const d = new Date(a.scheduledAt);
+    return d.getMonth() === agora.getMonth() && d.getFullYear() === agora.getFullYear();
+  });
+  const recebidoMes = doMes
+    .filter((a) => a.paid)
+    .reduce((soma, a) => soma + (a.price ?? 0), 0);
+  const aReceberMes = doMes
+    .filter((a) => !a.paid && a.status !== "cancelled" && a.status !== "no_show")
+    .reduce((soma, a) => soma + (a.price ?? 0), 0);
+  const mesLabel = agora.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
   const getStatusColor = (status: Status) => {
     switch (status) {
@@ -227,7 +252,19 @@ export default function Appointments() {
         </div>
 
         {/* Nova Consulta */}
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog
+          open={isOpen}
+          onOpenChange={(aberto) => {
+            setIsOpen(aberto);
+            // Ao abrir, preenche o valor com o preço padrão (se estiver vazio).
+            if (aberto) {
+              setFormData((f) => ({
+                ...f,
+                valor: f.valor || centavosParaInput(therapist?.sessionPrice),
+              }));
+            }
+          }}
+        >
           <DialogTrigger asChild>
             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
               <Plus className="w-4 h-4 mr-2" />
@@ -325,6 +362,25 @@ export default function Appointments() {
                   </p>
                 )}
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="valor">Valor da consulta</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                    R$
+                  </span>
+                  <Input
+                    id="valor"
+                    value={formData.valor}
+                    onChange={(e) => setFormData({ ...formData, valor: e.target.value })}
+                    placeholder="150,00"
+                    inputMode="decimal"
+                    className="pl-9"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Já vem do preço padrão do seu perfil. Deixe vazio se não quiser registrar valor.
+                </p>
+              </div>
               <Button
                 onClick={handleAddAppointment}
                 disabled={createAppt.isPending}
@@ -335,6 +391,37 @@ export default function Appointments() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Resumo financeiro do mês. Só aparece quando há valor a mostrar —
+            sem preço registrado, não polui a tela com "R$ 0,00". */}
+        {(recebidoMes > 0 || aReceberMes > 0) && (
+          <div className="grid gap-3 sm:grid-cols-2 max-w-xl">
+            <Card className="border-primary/20">
+              <CardContent className="flex items-center gap-3">
+                <Wallet className="w-5 h-5 text-primary shrink-0" />
+                <div>
+                  <p className="text-xs text-muted-foreground capitalize">
+                    Recebido · {mesLabel}
+                  </p>
+                  <p className="text-lg font-bold text-foreground">
+                    {formatarBRL(recebidoMes)}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-border">
+              <CardContent className="flex items-center gap-3">
+                <Clock className="w-5 h-5 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="text-xs text-muted-foreground">A receber</p>
+                  <p className="text-lg font-bold text-foreground">
+                    {formatarBRL(aReceberMes)}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Tabela */}
         <Card>
@@ -351,6 +438,7 @@ export default function Appointments() {
                     <TableHead>Hora</TableHead>
                     <TableHead>Duração</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Pagamento</TableHead>
                     <TableHead>Sala</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
@@ -358,7 +446,7 @@ export default function Appointments() {
                 <TableBody>
                   {appointments.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         Nenhuma consulta agendada.
                       </TableCell>
                     </TableRow>
@@ -410,6 +498,31 @@ export default function Appointments() {
                                 ✓ Presença confirmada
                               </span>
                             ) : null}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col items-start gap-1">
+                              <span className="text-sm text-foreground">
+                                {formatarBRL(appointment.price)}
+                              </span>
+                              {/* Clicável: alterna pago/pendente na hora. */}
+                              <button
+                                onClick={() =>
+                                  setPayment.mutate({
+                                    id: appointment.id,
+                                    paid: !appointment.paid,
+                                  })
+                                }
+                                disabled={setPayment.isPending}
+                                title="Clique para alternar pago/pendente"
+                                className={`px-2 py-0.5 rounded-full text-xs font-semibold transition-colors ${
+                                  appointment.paid
+                                    ? "bg-green-100 text-green-800 hover:bg-green-200"
+                                    : "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
+                                }`}
+                              >
+                                {appointment.paid ? "Pago" : "Pendente"}
+                              </button>
+                            </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
