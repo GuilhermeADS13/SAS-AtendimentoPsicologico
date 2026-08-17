@@ -306,6 +306,7 @@ export function AIChatBox({
       <form
         ref={inputAreaRef}
         onSubmit={handleSubmit}
+        data-testid="ai-chat-form"
         className="flex gap-2 p-4 border-t bg-background/50 items-end"
       >
         <Textarea
@@ -314,6 +315,7 @@ export function AIChatBox({
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
+          data-testid="ai-chat-input"
           className="flex-1 max-h-32 resize-none min-h-9"
           rows={1}
         />
@@ -321,6 +323,7 @@ export function AIChatBox({
           type="submit"
           size="icon"
           disabled={!input.trim() || isLoading}
+          data-testid="ai-chat-submit"
           className="shrink-0 h-[38px] w-[38px]"
         >
           {isLoading ? (

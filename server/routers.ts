@@ -10,6 +10,7 @@ import { nanoid } from "nanoid";
 import { runOpenSourceAgent } from "./ai/llm";
 import { resolveAiAccessContext } from "./ai/clinical-tools";
 import { enqueueDocumentIndexing, getDocumentIndexingStatus } from "./ai/document-queue";
+import { getDocumentQueueMetrics, queueMetricsToPrometheus } from "./ai/queue-metrics";
 import {
   sendAppointmentReminders,
   sendTherapistAlerts,
@@ -517,6 +518,11 @@ export const appRouter = router({
    * para qualquer um.
    */
   admin: router({
+    queueMetrics: adminProcedure.query(async () => {
+      const metrics = await getDocumentQueueMetrics();
+      return { ...metrics, prometheus: queueMetricsToPrometheus(metrics) };
+    }),
+
     // Fila de solicitações de acesso profissional, pendentes primeiro.
     therapistRequests: adminProcedure.query(async () => {
       const db = await getDb();

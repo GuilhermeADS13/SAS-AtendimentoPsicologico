@@ -1,0 +1,26 @@
+[Unit]
+Description=SAS Atendimento Psicológico - AI OCR/RAG worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sas-app
+Group=sas-app
+WorkingDirectory=/opt/SAS-AtendimentoPsicologico
+EnvironmentFile=/etc/sas-atendimento/ai-worker.env
+ExecStart=/usr/bin/node /opt/SAS-AtendimentoPsicologico/node_modules/.bin/tsx server/ai/worker.ts
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/SAS-AtendimentoPsicologico
+MemoryMax=1024M
+TasksMax=128
+
+[Install]
+WantedBy=multi-user.target

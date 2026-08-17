@@ -15,6 +15,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import Home from "@/pages/Home";
 import Ajuda from "@/pages/Ajuda";
 import Privacidade from "@/pages/Privacidade";
+import E2EAgentChat from "@/pages/E2EAgentChat";
 import Financeiro from "@/pages/Financeiro";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -34,6 +35,9 @@ function Router() {
       <Route path={"/ajuda"} component={Ajuda} />
       {/* Pública: o consentimento do cadastro aponta para cá. */}
       <Route path={"/privacidade"} component={Privacidade} />
+      {import.meta.env.VITE_E2E === "true" && (
+        <Route path={"/__e2e__/agent-chat"} component={E2EAgentChat} />
+      )}
       <Route path={"/dashboard"}>
         {() => (
           <TherapistOnly>
