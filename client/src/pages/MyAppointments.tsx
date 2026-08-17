@@ -6,7 +6,8 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Brain, Calendar, Search, Video, UserRound, CheckCircle2 } from "lucide-react";
+import { Bot, Brain, Calendar, MessageCircle, Search, Video, UserRound, CheckCircle2 } from "lucide-react";
+import { LogoMark } from "@/components/Logo";
 
 const STATUS_LABEL: Record<string, string> = {
   scheduled: "Agendada",
@@ -75,6 +76,30 @@ export default function MyAppointments() {
             </Button>
           </div>
         </div>
+
+        <Card className="overflow-hidden border-primary/25 bg-gradient-to-r from-primary/10 via-white to-secondary/20 shadow-sm">
+          <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-primary/15">
+                <LogoMark className="h-9 w-9" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <Bot className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <p className="font-semibold text-foreground">Converse com a Luma</p>
+                </div>
+                <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+                  Sua coruja de apoio para organizar dúvidas e preparar a próxima conversa com a psicóloga.
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">A Luma acessa somente informações autorizadas e não substitui atendimento profissional.</p>
+              </div>
+            </div>
+            <Button onClick={() => setLocation("/luma")} className="shrink-0">
+              <MessageCircle className="mr-2 h-4 w-4" />
+              Abrir chatbot
+            </Button>
+          </CardContent>
+        </Card>
 
         {/* Sem cadastro ainda, a psicóloga não consegue agendar. */}
         {!isLoading && !profile && (
