@@ -1,6 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { createAgent } from "langchain";
-import { createClinicalTools, type AiSourceReference } from "./clinical-tools";
+import { createClinicalTools, hasAuthorizedClinicalData, type AiSourceReference } from "./clinical-tools";
 import type { AiAccessContext } from "./access";
 import { buildAgentCacheKey, getCachedAgentResponse, setCachedAgentResponse } from "./response-cache";
 import { recordAgentCacheMiss, recordAgentKillSwitch, recordAgentRequest, recordAgentSafetyIntercept } from "./runtime-metrics";
@@ -104,6 +104,14 @@ export function clinicalSystemPrompt(ctx: AiAccessContext, requestedPatientId?: 
   ].filter(Boolean).join(" ");
 }
 
+export function buildNoClinicalDataResponse(userMessage: string): string {
+  const asksForActivities = /atividad|evoluç|próxim|acompanh/i.test(userMessage);
+  if (asksForActivities) {
+    return "Não encontrei registros clínicos autorizados para este paciente. Para não inventar informações, não vou atribuir atividades específicas ao prontuário. Posso, no entanto, ajudar a organizar uma atividade geral de acompanhamento, desde que ela seja definida e revisada pela profissional responsável.";
+  }
+  return "Não encontrei registros clínicos autorizados para este paciente. Verifique se o paciente correto foi selecionado ou se os registros ainda foram lançados no sistema.";
+}
+
 export async function runOpenSourceAgent(
   messages: OpenSourceChatMessage[],
   ctx: AiAccessContext,
@@ -127,6 +135,18 @@ export async function runOpenSourceAgent(
     recordAgentSafetyIntercept();
     recordAgentRequest(Date.now() - startedAt, "success");
     return { content: buildCrisisSafeResponse(), model: "clinical-safety-policy", sources: [] };
+  }
+
+  // Se o escopo não possui nenhum dado, não desperdice tempo com embeddings ou Ollama.
+  // A checagem mantém o mesmo filtro de autorização usado pelas ferramentas clínicas.
+  const scopedPatientId = requestedPatientId ?? ctx.patientId ?? undefined;
+  if (isAiRagEnabled() && scopedPatientId != null && !(await hasAuthorizedClinicalData(ctx, scopedPatientId, db))) {
+    recordAgentRequest(Date.now() - startedAt, "success");
+    return {
+      content: buildNoClinicalDataResponse(latestUserMessage?.content ?? ""),
+      model: "clinical-empty-scope",
+      sources: [],
+    };
   }
 
   const cacheKey = buildAgentCacheKey({

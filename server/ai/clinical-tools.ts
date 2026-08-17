@@ -116,6 +116,25 @@ export async function readPatientDocuments(
 
 export type AiSourceReference = Pick<RagSource, "sourceType" | "sourceId" | "patientId" | "requiresReview">;
 
+/** Verificação barata para evitar embeddings quando o escopo não possui registros. */
+export async function hasAuthorizedClinicalData(
+  ctx: AiAccessContext,
+  requestedPatientId: number | undefined,
+  db: Db,
+): Promise<boolean> {
+  if (ctx.role === "admin") return false;
+  const patient = await authorizedPatient(db, ctx, requestedPatientId);
+  const [appointmentRows, sessionRows, documentRows] = await Promise.all([
+    db.select({ id: appointments.id }).from(appointments)
+      .where(and(eq(appointments.patientId, patient.id), eq(appointments.therapistId, patient.therapistId))).limit(1),
+    db.select({ id: sessions.id }).from(sessions)
+      .where(and(eq(sessions.patientId, patient.id), eq(sessions.therapistId, patient.therapistId))).limit(1),
+    db.select({ id: documents.id }).from(documents)
+      .where(and(eq(documents.patientId, patient.id), eq(documents.therapistId, patient.therapistId))).limit(1),
+  ]);
+  return appointmentRows.length > 0 || sessionRows.length > 0 || documentRows.length > 0;
+}
+
 export function createClinicalTools(
   ctx: AiAccessContext,
   db: Db,
@@ -140,6 +159,9 @@ export function createClinicalTools(
       schema: patientIdSchema,
     }),
     tool(async ({ query, patientId }) => {
+      if (!(await hasAuthorizedClinicalData(ctx, patientId, db))) {
+        return "Nenhum registro clínico autorizado foi encontrado para este paciente. Não invente informações; informe isso claramente e ofereça apenas ajuda geral que não dependa de prontuários.";
+      }
       const queryEmbedding = await embeddingForCurrentEnvironment().getTextEmbedding(query);
       const indexedChunks = await searchIndexedDocumentChunks(
         ctx,
