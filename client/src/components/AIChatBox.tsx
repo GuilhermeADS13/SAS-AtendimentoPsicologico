@@ -257,7 +257,7 @@ export function AIChatBox({
           <div className="flex h-full flex-col p-4">
             <div className="flex flex-1 flex-col items-center justify-center gap-6 text-muted-foreground">
               <div className="flex flex-col items-center gap-3">
-                <Sparkles className="size-12 opacity-20" />
+                <LumaOwlIcon className="size-16 opacity-85" />
                 <p className="text-sm">{emptyStateMessage}</p>
               </div>
 

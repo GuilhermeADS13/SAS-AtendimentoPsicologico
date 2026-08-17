@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { LogoLockup, LumaOwlIcon } from "@/components/Logo";
+import { LumaOwlIcon } from "@/components/Logo";
 
 export default function Luma() {
   const [, setLocation] = useLocation();
@@ -119,10 +119,6 @@ export default function Luma() {
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-7xl space-y-5">
-        <div className="flex items-center justify-between rounded-2xl border border-primary/15 bg-white/80 px-5 py-3 shadow-sm" aria-label="Identidade da plataforma">
-          <LogoLockup markClassName="h-9 w-9" />
-          <span className="text-sm text-muted-foreground">Assistência segura para o atendimento psicológico</span>
-        </div>
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
         <section className="space-y-4" aria-labelledby="luma-title">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -159,8 +155,8 @@ export default function Luma() {
             agentSubtitle={isTherapist ? "Coruja de apoio à leitura clínica autorizada" : "Ajuda para navegar no SAS"}
             processingLabel={isTherapist ? "Luma está consultando somente registros autorizados..." : "Luma está localizando essa área no site..."}
             placeholder={isTherapist && !selectedPatientId ? "Selecione um paciente para começar..." : "Escreva uma pergunta sobre o uso do site..."}
-            emptyStateMessage={isTherapist ? "Selecione um paciente e pergunte sobre os registros autorizados." : "Pergunte como usar as áreas e funções do SAS."}
-            suggestedPrompts={isTherapist ? ["Resuma os últimos registros autorizados.", "Organize os próximos pontos para a sessão."] : ["Como vejo minhas consultas?", "Como entro na videochamada?", "Como atualizo meu perfil?"]}
+            emptyStateMessage={isTherapist ? "Olá! Eu sou a Luma, sua coruja de apoio. Escolha um paciente e selecione uma atividade para começar." : "Olá! Eu sou a Luma, sua coruja de apoio no SAS. Escolha uma sugestão para aprender a usar o sistema."}
+            suggestedPrompts={isTherapist ? ["Resumir os últimos registros autorizados", "Organizar os próximos pontos para a sessão", "Listar atividades para acompanhar a evolução"] : ["Ver minhas consultas", "Entrar na videochamada", "Atualizar meu perfil", "Encontrar minha psicóloga"]}
             onMessageFeedback={handleFeedback}
             feedbackByMessageId={feedbackByMessageId}
             height="620px"
