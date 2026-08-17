@@ -17,6 +17,7 @@ export type RagSource = {
   patientId: number;
   text: string;
   score?: number;
+  requiresReview: boolean;
 };
 
 class OpenAICompatibleEmbedding extends BaseEmbedding {
@@ -144,19 +145,19 @@ export async function retrieveScopedClinicalContext(
   const llamaDocuments = [
     ...patientRows.map(patient => {
       const text = patientText(patient);
-      const source = { sourceType: "patient" as const, sourceId: patient.id, patientId: patient.id, text };
+      const source = { sourceType: "patient" as const, sourceId: patient.id, patientId: patient.id, text, requiresReview: false };
       sourceById.set(`patient:${patient.id}`, source);
       return new Document({ text, metadata: { sourceType: source.sourceType, sourceId: patient.id, patientId: patient.id } });
     }),
     ...sessionRows.map(session => {
       const text = sessionText(session);
-      const source = { sourceType: "session" as const, sourceId: session.id, patientId: session.patientId, text };
+      const source = { sourceType: "session" as const, sourceId: session.id, patientId: session.patientId, text, requiresReview: false };
       sourceById.set(`session:${session.id}`, source);
       return new Document({ text, metadata: { sourceType: source.sourceType, sourceId: session.id, patientId: session.patientId } });
     }),
     ...documentRows.map(document => {
       const text = documentText(document);
-      const source = { sourceType: "document" as const, sourceId: document.id, patientId: document.patientId, text };
+      const source = { sourceType: "document" as const, sourceId: document.id, patientId: document.patientId, text, requiresReview: false };
       sourceById.set(`document:${document.id}`, source);
       return new Document({ text, metadata: { sourceType: source.sourceType, sourceId: document.id, patientId: document.patientId } });
     }),

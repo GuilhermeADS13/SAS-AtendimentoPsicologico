@@ -20,7 +20,12 @@ export default function E2EAgentChat() {
         conversationId,
       });
       if (typeof result.conversationId === "number") setConversationId(result.conversationId);
-      setMessages((current) => [...current, { id: result.messageId, role: "assistant", content: result.content }]);
+      setMessages((current) => [...current, {
+        id: result.messageId,
+        role: "assistant",
+        content: result.content,
+        sources: result.sources,
+      }]);
     } catch (error) {
       setMessages((current) => [...current, {
         role: "assistant",

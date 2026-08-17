@@ -9,9 +9,17 @@ export type AgentCacheScope = {
   temperature: number;
 };
 
+export type CachedAgentSource = {
+  sourceType: "patient" | "session" | "document";
+  sourceId: number;
+  patientId: number;
+  requiresReview: boolean;
+};
+
 export type CachedAgentResponse = {
   content: string;
   model: string;
+  sources: CachedAgentSource[];
 };
 
 type CacheEntry<T> = {

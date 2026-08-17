@@ -1,6 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { createAgent } from "langchain";
-import { createClinicalTools } from "./clinical-tools";
+import { createClinicalTools, type AiSourceReference } from "./clinical-tools";
 import type { AiAccessContext } from "./access";
 import { buildAgentCacheKey, getCachedAgentResponse, setCachedAgentResponse } from "./response-cache";
 import { recordAgentCacheMiss, recordAgentKillSwitch, recordAgentRequest, recordAgentSafetyIntercept } from "./runtime-metrics";
@@ -110,12 +110,12 @@ export async function runOpenSourceAgent(
   db: NonNullable<Awaited<ReturnType<typeof import("../db").getDb>>>,
   config = getOpenSourceLlmConfig(),
   requestedPatientId?: number,
-): Promise<{ content: string; model: string }> {
+): Promise<{ content: string; model: string; sources: AiSourceReference[] }> {
   const startedAt = Date.now();
   if (!isAiAgentEnabled()) {
     recordAgentKillSwitch();
     recordAgentRequest(0, "error");
-    return { content: aiMaintenanceMessage(), model: "operational-kill-switch" };
+    return { content: aiMaintenanceMessage(), model: "operational-kill-switch", sources: [] };
   }
   const preparedMessages = prepareMessagesForAgent(messages);
   const latestUserMessage = [...preparedMessages].reverse().find(message => message.role === "user");
@@ -126,7 +126,7 @@ export async function runOpenSourceAgent(
   if (safetyIntent === "crisis") {
     recordAgentSafetyIntercept();
     recordAgentRequest(Date.now() - startedAt, "success");
-    return { content: buildCrisisSafeResponse(), model: "clinical-safety-policy" };
+    return { content: buildCrisisSafeResponse(), model: "clinical-safety-policy", sources: [] };
   }
 
   const cacheKey = buildAgentCacheKey({
@@ -140,13 +140,19 @@ export async function runOpenSourceAgent(
   const cached = getCachedAgentResponse(cacheKey);
   if (cached) {
     recordAgentRequest(Date.now() - startedAt, "cache_hit");
-    return cached;
+    return { ...cached, sources: cached.sources ?? [] };
   }
   recordAgentCacheMiss();
 
+  const sourceMap = new Map<string, AiSourceReference>();
+  const collectSources = (sources: AiSourceReference[]) => {
+    for (const source of sources) {
+      sourceMap.set(`${source.sourceType}:${source.sourceId}:${source.patientId}`, source);
+    }
+  };
   const agent = createAgent({
     model: createOpenSourceChatModel(config),
-    tools: areClinicalToolsEnabled() && isAiRagEnabled() ? createClinicalTools(ctx, db) : [],
+    tools: areClinicalToolsEnabled() && isAiRagEnabled() ? createClinicalTools(ctx, db, collectSources) : [],
     systemPrompt: clinicalSystemPrompt(ctx, requestedPatientId),
   });
   let result;
@@ -161,7 +167,11 @@ export async function runOpenSourceAgent(
   const lastMessage = result.messages.at(-1);
   const content = contentToText(lastMessage?.content).trim();
   if (!content) throw new Error("O agente não retornou conteúdo");
-  const response = { content, model: config.model };
+  const response = {
+    content,
+    model: config.model,
+    sources: Array.from(sourceMap.values()),
+  };
   setCachedAgentResponse(cacheKey, response);
   recordAgentRequest(Date.now() - startedAt, "success");
   return response;
