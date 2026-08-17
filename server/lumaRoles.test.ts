@@ -39,7 +39,7 @@ describe("separação de papéis da Luma", () => {
 
     expect(source).toContain("siteHelpMutation.mutateAsync");
     expect(source).toContain("if (!isClinicalUser)");
-    expect(source).toContain("if (isAdmin)");
+    expect(source).toContain("if (isAdmin && !isTestSiteSupport)");
     expect(source).toContain("Acesso clínico restrito");
     expect(source).toContain("isTestSiteSupport");
     expect(source).toContain("siteHelpMutation.mutateAsync");
