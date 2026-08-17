@@ -83,6 +83,27 @@ async function pacienteDoUsuario(
   return { ...convite[0], userId: user.id };
 }
 
+/**
+ * Corre uma promessa contra um timeout e SEMPRE limpa o timer. O `Promise.race`
+ * cru deixava o setTimeout pendurado por 35s mesmo quando o agente respondia
+ * antes (vazamento de timer). O agente em si não é cancelável (LangChain/Ollama
+ * não recebem AbortSignal), então no timeout ele ainda termina em segundo plano;
+ * o que evitamos aqui é o acúmulo de timers.
+ */
+async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
@@ -121,14 +142,20 @@ export const appRouter = router({
           )).limit(1);
           if (existing.length) conversationId = existing[0].id;
           else {
+            // onConflictDoNothing + reselect: duas requisições simultâneas com o
+            // mesmo requestId não podem dar unique-violation (500) no índice
+            // (userId, clientRequestId) — a segunda reusa a conversa da primeira.
             const [created] = await db.insert(aiConversations).values({
               userId: ctx.user.id,
               title: "Suporte do site com Luma",
               model: "site-help-deterministic",
               clientRequestId: requestId,
               lastMessageAt: new Date(),
-            }).returning({ id: aiConversations.id });
-            conversationId = created.id;
+            }).onConflictDoNothing({ target: [aiConversations.userId, aiConversations.clientRequestId] }).returning({ id: aiConversations.id });
+            conversationId = created?.id ?? (await db.select({ id: aiConversations.id }).from(aiConversations).where(and(
+              eq(aiConversations.userId, ctx.user.id),
+              eq(aiConversations.clientRequestId, requestId),
+            )).limit(1))[0].id;
           }
         }
         const existingAssistant = await db.select({ id: aiMessages.id, content: aiMessages.content }).from(aiMessages).where(and(
@@ -184,21 +211,55 @@ export const appRouter = router({
         if (!latestUserMessage) throw new Error("A conversa precisa conter uma mensagem do usuário");
         const accessContext = await resolveAiAccessContext(db, { id: ctx.user.id, role: ctx.user.role });
         const scopedPatientId = input.patientId ?? accessContext.patientId ?? null;
-        let conversationId = input.conversationId;
-        if (conversationId) {
+        // Escopo comum da conversa (paciente/terapeuta), reusado abaixo.
+        const conversationScope = and(
+          scopedPatientId == null ? isNull(aiConversations.patientId) : eq(aiConversations.patientId, scopedPatientId),
+          accessContext.therapistId == null ? isNull(aiConversations.therapistId) : eq(aiConversations.therapistId, accessContext.therapistId),
+        );
+
+        // Conversa já existente: valida o escopo e faz REPLAY idempotente se esta
+        // mesma requisição já tem resposta persistida (retry após resposta perdida).
+        if (input.conversationId) {
           const existingConversation = await db.select({ id: aiConversations.id }).from(aiConversations).where(and(
-            eq(aiConversations.id, conversationId),
+            eq(aiConversations.id, input.conversationId),
             eq(aiConversations.userId, ctx.user.id),
-            scopedPatientId == null ? isNull(aiConversations.patientId) : eq(aiConversations.patientId, scopedPatientId),
-            accessContext.therapistId == null ? isNull(aiConversations.therapistId) : eq(aiConversations.therapistId, accessContext.therapistId),
+            conversationScope,
           )).limit(1);
           if (!existingConversation.length) throw new Error("Conversa fora do escopo autorizado");
-        } else {
+          const replay = await db.select({ id: aiMessages.id, content: aiMessages.content }).from(aiMessages).where(and(
+            eq(aiMessages.conversationId, input.conversationId),
+            eq(aiMessages.clientRequestId, assistantRequestId),
+            eq(aiMessages.role, "assistant"),
+          )).limit(1);
+          if (replay.length) return {
+            content: replay[0].content,
+            model: "persisted-response",
+            sources: [],
+            conversationId: input.conversationId,
+            messageId: replay[0].id,
+            persisted: true,
+          };
+        }
+
+        // Chama o agente ANTES de qualquer escrita. Se der timeout/erro, o mutation
+        // lança e NADA é persistido — sem conversa órfã nem mensagem de usuário
+        // pendurada (era o que acumulava lixo a cada retry quando a IA demorava).
+        // withTimeout limpa o próprio timer (ver helper).
+        const response = await withTimeout(
+          runOpenSourceAgent(input.messages, accessContext, db, undefined, input.patientId),
+          35_000,
+          "AI response timeout",
+        );
+
+        // Com a resposta em mãos, persiste tudo. Criação de conversa idempotente:
+        // onConflictDoNothing + reselect no índice (userId, clientRequestId) evita
+        // 500 por unique-violation em duplicata concorrente.
+        let conversationId = input.conversationId;
+        if (!conversationId) {
           const existingConversation = await db.select({ id: aiConversations.id }).from(aiConversations).where(and(
             eq(aiConversations.userId, ctx.user.id),
             eq(aiConversations.clientRequestId, requestId),
-            scopedPatientId == null ? isNull(aiConversations.patientId) : eq(aiConversations.patientId, scopedPatientId),
-            accessContext.therapistId == null ? isNull(aiConversations.therapistId) : eq(aiConversations.therapistId, accessContext.therapistId),
+            conversationScope,
           )).limit(1);
           if (existingConversation.length) conversationId = existingConversation[0].id;
           else {
@@ -209,33 +270,20 @@ export const appRouter = router({
               title: "Conversa com Luma",
               clientRequestId: requestId,
               lastMessageAt: new Date(),
-            }).returning({ id: aiConversations.id });
-            conversationId = createdConversation.id;
+            }).onConflictDoNothing({ target: [aiConversations.userId, aiConversations.clientRequestId] }).returning({ id: aiConversations.id });
+            conversationId = createdConversation?.id ?? (await db.select({ id: aiConversations.id }).from(aiConversations).where(and(
+              eq(aiConversations.userId, ctx.user.id),
+              eq(aiConversations.clientRequestId, requestId),
+            )).limit(1))[0].id;
           }
         }
-        const existingAssistant = await db.select({ id: aiMessages.id, content: aiMessages.content }).from(aiMessages).where(and(
-          eq(aiMessages.conversationId, conversationId),
-          eq(aiMessages.clientRequestId, assistantRequestId),
-          eq(aiMessages.role, "assistant"),
-        )).limit(1);
-        if (existingAssistant.length) return {
-          content: existingAssistant[0].content,
-          model: "persisted-response",
-          sources: [],
-          conversationId,
-          messageId: existingAssistant[0].id,
-          persisted: true,
-        };
+
         await db.insert(aiMessages).values({
           conversationId,
           role: "user",
           content: latestUserMessage.content,
           clientRequestId: requestId,
         }).onConflictDoNothing({ target: [aiMessages.conversationId, aiMessages.clientRequestId] });
-        const response = await Promise.race([
-          runOpenSourceAgent(input.messages, accessContext, db, undefined, input.patientId),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("AI response timeout")), 35_000)),
-        ]);
         const [assistantMessage] = await db.insert(aiMessages).values({
           conversationId,
           role: "assistant",

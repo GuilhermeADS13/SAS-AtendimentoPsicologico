@@ -99,10 +99,38 @@ export async function markDocumentJobFailed(job: ClaimedJob, workerId: string, e
   }).where(and(eq(aiDocumentJobs.id, job.id), eq(aiDocumentJobs.lockedBy, workerId)));
 }
 
+/**
+ * Marca como 'failed' os jobs presos em 'processing' com lock vencido que JÁ
+ * esgotaram as tentativas. Sem isto, um job cujo worker morre (crash/OOM/deploy)
+ * exatamente na última tentativa ficava órfão para sempre: a cláusula de reclaim
+ * exige `attempts < maxAttempts` e nunca o pegava de volta, e o dead-letter (que
+ * conta status='failed') nunca o via — o job ficava eternamente em 'processing',
+ * inflando a fila e nunca indexando o documento. Aqui ele é dead-lettered.
+ */
+export async function deadLetterStaleJobs(dbOverride?: Db): Promise<number> {
+  const db = dbOverride ?? await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.execute(sql`
+    UPDATE "aiDocumentJobs"
+    SET "status" = 'failed',
+        "lockedAt" = NULL,
+        "lockedBy" = NULL,
+        "lastError" = COALESCE("lastError", 'Worker interrompido apos esgotar as tentativas'),
+        "updatedAt" = now()
+    WHERE "status" = 'processing'
+      AND "lockedAt" < now() - interval '15 minutes'
+      AND "attempts" >= "maxAttempts"
+  `);
+  return (result as unknown as { rowCount?: number }).rowCount ?? 0;
+}
+
 export async function processNextDocumentJob(dbOverride?: Db): Promise<ClaimedJob | null> {
   const workerId = randomUUID();
   const db = dbOverride ?? await getDb();
   if (!db) throw new Error("Database not available");
+  // Recupera órfãos presos em 'processing' que já esgotaram as tentativas antes
+  // de reivindicar o próximo — senão nunca sairiam da fila.
+  await deadLetterStaleJobs(db);
   const job = await claimNextDocumentJob(workerId, db);
   if (!job) return null;
   try {

@@ -70,6 +70,12 @@ class TtlLruCache<T> {
   }
 
   set(key: string, value: T, ttlMs: number, maxEntries: number, now = Date.now()): void {
+    // Remove antes de reinserir: no Map, atualizar uma chave existente MANTÉM a
+    // posição original de inserção. Sem o delete, a evicção (que remove a chave
+    // mais "antiga") poderia descartar uma entrada recém-escrita/quente. Deletar
+    // e reinserir move a chave para o fim, deixando a ordem LRU correta (é o
+    // mesmo que o get() já faz ao promover uma entrada acessada).
+    this.entries.delete(key);
     this.entries.set(key, { value, expiresAt: now + ttlMs, touchedAt: now });
     while (this.entries.size > maxEntries) {
       const oldestKey = this.entries.keys().next().value as string | undefined;
