@@ -4,7 +4,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { appointments, documents, patients, sessions, therapists } from "../../drizzle/schema";
 import { getDb } from "../db";
 import type { AiAccessContext } from "./access";
-import { embeddingForCurrentEnvironment, formatRagContext, retrieveScopedClinicalContext } from "./rag";
+import { embeddingForCurrentEnvironment, formatRagContext, retrieveScopedClinicalContext, type RagSource } from "./rag";
 import { searchIndexedDocumentChunks } from "./document-ingestion";
 import { wrapUntrustedClinicalContext } from "./content-safety";
 
@@ -114,7 +114,13 @@ export async function readPatientDocuments(
     .orderBy(desc(documents.createdAt)).limit(50);
 }
 
-export function createClinicalTools(ctx: AiAccessContext, db: Db) {
+export type AiSourceReference = Pick<RagSource, "sourceType" | "sourceId" | "patientId" | "requiresReview">;
+
+export function createClinicalTools(
+  ctx: AiAccessContext,
+  db: Db,
+  onSources?: (sources: AiSourceReference[]) => void,
+) {
   const patientIdSchema = z.object({ patientId: z.number().int().positive().optional() });
 
   return [
@@ -144,6 +150,19 @@ export function createClinicalTools(ctx: AiAccessContext, db: Db) {
       );
       const maxContextChars = Math.max(2_000, Number(process.env.AI_RAG_CONTEXT_MAX_CHARS ?? 8_000));
       const seen = new Set<string>();
+      const structuredSources: AiSourceReference[] = [];
+      for (const chunk of indexedChunks) {
+        const key = `document:${chunk.documentId}`;
+        if (structuredSources.some(source => `${source.sourceType}:${source.sourceId}` === key)) continue;
+        const metadata = chunk.metadata as { requiresReview?: boolean } | null | undefined;
+        structuredSources.push({
+          sourceType: "document",
+          sourceId: chunk.documentId,
+          patientId: chunk.patientId,
+          requiresReview: metadata?.requiresReview === true,
+        });
+      }
+      if (structuredSources.length) onSources?.(structuredSources);
       const documentContext = indexedChunks.map((chunk, index) => {
         const key = `${chunk.documentId}:${chunk.pageNumber ?? "na"}:${chunk.content}`;
         if (seen.has(key)) return "";
@@ -158,6 +177,12 @@ export function createClinicalTools(ctx: AiAccessContext, db: Db) {
         patientId,
         topK: Number(process.env.AI_RAG_TOP_K ?? 6),
       }, db);
+      onSources?.(sources.map(source => ({
+        sourceType: source.sourceType,
+        sourceId: source.sourceId,
+        patientId: source.patientId,
+        requiresReview: source.requiresReview,
+      })));
       const formatted = formatRagContext(sources);
       return formatted ? wrapUntrustedClinicalContext(formatted) : "Nenhum registro autorizado foi encontrado.";
     }, {
