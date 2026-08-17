@@ -1,0 +1,58 @@
+{
+  "title": "SAS Atendimento - IA e fila de documentos",
+  "uid": "sas-atendimento-ai",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Backlog de documentos",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "targets": [{ "expr": "ai_document_queue_backlog", "legendFormat": "backlog" }],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 10 }, { "color": "red", "value": 50 }] } } }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Jobs por status",
+      "gridPos": { "h": 8, "w": 9, "x": 6, "y": 0 },
+      "targets": [{ "expr": "ai_document_jobs", "legendFormat": "{{status}}" }]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Idade do pendente mais antigo (s)",
+      "gridPos": { "h": 5, "w": 6, "x": 15, "y": 0 },
+      "targets": [{ "expr": "ai_document_queue_oldest_pending_age_seconds", "legendFormat": "idade" }],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 300 }, { "color": "red", "value": 900 }] } } }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Requests do agente",
+      "gridPos": { "h": 8, "w": 9, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "rate(ai_agent_requests_total[5m])", "legendFormat": "requests/s" },
+        { "expr": "rate(ai_agent_errors_total[5m])", "legendFormat": "errors/s" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Latência média do agente (ms)",
+      "gridPos": { "h": 8, "w": 9, "x": 9, "y": 8 },
+      "targets": [{ "expr": "ai_agent_request_duration_ms_avg", "legendFormat": "latência média" }]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Cache hit ratio",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 8 },
+      "targets": [{ "expr": "100 * ai_agent_cache_hits_total / clamp_min(ai_agent_cache_hits_total + ai_agent_cache_misses_total, 1)", "legendFormat": "hit %" }],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } }
+    }
+  ]
+}

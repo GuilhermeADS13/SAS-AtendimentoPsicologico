@@ -12,6 +12,7 @@ export type DocumentQueueMetrics = {
   oldestPendingAt: string | null;
   oldestProcessingAt: string | null;
   oldestPendingAgeSeconds: number | null;
+  oldestProcessingAgeSeconds: number | null;
   generatedAt: string;
 };
 
@@ -26,7 +27,8 @@ export async function getDocumentQueueMetrics(dbOverride?: Db): Promise<Document
       COUNT(*) FILTER (WHERE "status" = 'failed')::int AS failed,
       MIN("availableAt") FILTER (WHERE "status" = 'pending') AS "oldestPendingAt",
       MIN("lockedAt") FILTER (WHERE "status" = 'processing') AS "oldestProcessingAt",
-      EXTRACT(EPOCH FROM (now() - MIN("availableAt") FILTER (WHERE "status" = 'pending')))::int AS "oldestPendingAgeSeconds"
+      EXTRACT(EPOCH FROM (now() - MIN("availableAt") FILTER (WHERE "status" = 'pending')))::int AS "oldestPendingAgeSeconds",
+      EXTRACT(EPOCH FROM (now() - MIN("lockedAt") FILTER (WHERE "status" = 'processing')))::int AS "oldestProcessingAgeSeconds"
     FROM "aiDocumentJobs"
   `);
   const row = (result as unknown as { rows: Array<Record<string, unknown>> }).rows[0] ?? {};
@@ -43,6 +45,7 @@ export async function getDocumentQueueMetrics(dbOverride?: Db): Promise<Document
     oldestPendingAt: row.oldestPendingAt ? new Date(String(row.oldestPendingAt)).toISOString() : null,
     oldestProcessingAt: row.oldestProcessingAt ? new Date(String(row.oldestProcessingAt)).toISOString() : null,
     oldestPendingAgeSeconds: row.oldestPendingAgeSeconds == null ? null : Number(row.oldestPendingAgeSeconds),
+    oldestProcessingAgeSeconds: row.oldestProcessingAgeSeconds == null ? null : Number(row.oldestProcessingAgeSeconds),
     generatedAt: new Date().toISOString(),
   };
 }
@@ -55,6 +58,7 @@ export function queueMetricsToPrometheus(metrics: DocumentQueueMetrics): string 
     `ai_document_jobs{status="failed"} ${metrics.failed}`,
     `ai_document_queue_backlog ${metrics.backlog}`,
     `ai_document_queue_oldest_pending_age_seconds ${metrics.oldestPendingAgeSeconds ?? 0}`,
+    `ai_document_queue_oldest_processing_age_seconds ${metrics.oldestProcessingAgeSeconds ?? 0}`,
   ].join("\n") + "\n";
 }
 

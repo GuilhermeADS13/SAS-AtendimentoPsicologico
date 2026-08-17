@@ -6,6 +6,8 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerPresence } from "../presence";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+import { getDocumentQueueMetrics, queueMetricsToPrometheus } from "../ai/queue-metrics";
+import { agentRuntimeMetricsToPrometheus } from "../ai/runtime-metrics";
 import { serveStatic, setupVite } from "./vite";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -37,6 +39,23 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // Rotas do Manus removidas: /api/oauth/callback (login paralelo forjável) e
   // /manus-storage/* (proxy de storage nunca configurado). Ver context.ts.
+  app.get("/metrics", async (req, res) => {
+    const metricsToken = process.env.PROMETHEUS_METRICS_TOKEN;
+    if (metricsToken && req.get("authorization") !== `Bearer ${metricsToken}`) {
+      res.status(401).type("text/plain").send("unauthorized\n");
+      return;
+    }
+    try {
+      const queueMetrics = await getDocumentQueueMetrics();
+      res.type("text/plain; version=0.0.4").send(
+        `${queueMetricsToPrometheus(queueMetrics)}${agentRuntimeMetricsToPrometheus()}`,
+      );
+    } catch (error) {
+      console.error("[Metrics] falha ao coletar métricas", error instanceof Error ? error.message : "unknown_error");
+      res.status(503).type("text/plain").send("metrics_unavailable 1\n");
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",
