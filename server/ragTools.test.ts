@@ -11,6 +11,8 @@ const therapistContext = {
 describe("RAG e ferramentas clínicas", () => {
   it("mantém as restrições clínicas e o escopo do paciente no prompt", () => {
     const prompt = clinicalSystemPrompt(therapistContext, 42);
+    expect(prompt).toContain("Você é Luma, uma coruja virtual acolhedora");
+    expect(prompt).toContain("metáforas de coruja apenas de forma leve");
     expect(prompt).toContain("Não faça diagnóstico");
     expect(prompt).toContain("somente de leitura");
     expect(prompt).toContain("patientId 42");
