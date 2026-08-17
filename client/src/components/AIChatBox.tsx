@@ -9,10 +9,19 @@ import { Streamdown } from "streamdown";
 /**
  * Message type matching server-side LLM Message interface
  */
+export type MessageSource = {
+  sourceType: "patient" | "session" | "document";
+  sourceId: number;
+  patientId: number;
+  label?: string;
+  requiresReview?: boolean;
+};
+
 export type Message = {
   id?: number;
   role: "system" | "user" | "assistant";
   content: string;
+  sources?: MessageSource[];
 };
 
 export type LumaStatus = "attentive" | "sleeping";
@@ -222,6 +231,9 @@ export function AIChatBox({
   return (
     <div
       ref={containerRef}
+      role="region"
+      aria-label={`Conversa com ${agentName}`}
+      aria-busy={isLoading}
       className={cn(
         "flex flex-col bg-card text-card-foreground rounded-lg border shadow-sm",
         className
@@ -250,9 +262,10 @@ export function AIChatBox({
 
               {suggestedPrompts && suggestedPrompts.length > 0 && (
                 <div className="flex max-w-2xl flex-wrap justify-center gap-2">
-                  {suggestedPrompts.map((prompt, index) => (
+                  {suggestedPrompts.map((prompt) => (
                     <button
-                      key={index}
+                      key={prompt}
+                      type="button"
                       onClick={() => onSendMessage(prompt)}
                       disabled={isLoading}
                       className="rounded-lg border border-border bg-card px-4 py-2 text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
@@ -275,7 +288,9 @@ export function AIChatBox({
 
                 return (
                   <div
-                    key={index}
+                    key={message.id ?? `${message.role}-${index}-${message.content.slice(0, 24)}`}
+                    role="article"
+                    aria-label={message.role === "assistant" ? `Resposta de ${agentName}` : "Sua mensagem"}
                     className={cn(
                       "flex gap-3",
                       message.role === "user"
@@ -303,9 +318,24 @@ export function AIChatBox({
                       )}
                     >
                       {message.role === "assistant" ? (
-                        <div className="prose prose-sm dark:prose-invert max-w-none">
-                          <Streamdown>{message.content}</Streamdown>
-                        </div>
+                        <>
+                          <div className="prose prose-sm dark:prose-invert max-w-none">
+                            <Streamdown>{message.content}</Streamdown>
+                          </div>
+                          {message.sources && message.sources.length > 0 && (
+                            <details className="mt-3 border-t border-border/60 pt-2 text-xs">
+                              <summary className="cursor-pointer font-medium text-muted-foreground">Fontes autorizadas ({message.sources.length})</summary>
+                              <ul className="mt-2 space-y-1 text-muted-foreground" aria-label="Fontes autorizadas da resposta">
+                                {message.sources.map((source) => (
+                                  <li key={`${source.sourceType}-${source.sourceId}`}>
+                                    {source.label ?? `${source.sourceType} ${source.sourceId}`}
+                                    {source.requiresReview ? " — requer revisão profissional" : ""}
+                                  </li>
+                                ))}
+                              </ul>
+                            </details>
+                          )}
+                        </>
                       ) : (
                         <p className="whitespace-pre-wrap text-sm">
                           {message.content}
@@ -374,7 +404,9 @@ export function AIChatBox({
         data-testid="ai-chat-form"
         className="flex gap-2 p-4 border-t bg-background/50 items-end"
       >
+        <label htmlFor="luma-chat-input" className="sr-only">Mensagem para {agentName}</label>
         <Textarea
+          id="luma-chat-input"
           ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -391,10 +423,11 @@ export function AIChatBox({
           data-testid="ai-chat-submit"
           className="shrink-0 h-[38px] w-[38px]"
         >
+          <span className="sr-only">{isLoading ? "Processando mensagem" : "Enviar mensagem"}</span>
           {isLoading ? (
-            <Loader2 className="size-4 animate-spin" />
+            <Loader2 aria-hidden="true" className="size-4 animate-spin" />
           ) : (
-            <Send className="size-4" />
+            <Send aria-hidden="true" className="size-4" />
           )}
         </Button>
       </form>
