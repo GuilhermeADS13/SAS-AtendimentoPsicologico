@@ -41,8 +41,12 @@ async function startServer() {
   // /manus-storage/* (proxy de storage nunca configurado). Ver context.ts.
   app.get("/metrics", async (req, res) => {
     const metricsToken = process.env.PROMETHEUS_METRICS_TOKEN;
-    if (metricsToken && req.get("authorization") !== `Bearer ${metricsToken}`) {
-      res.status(401).type("text/plain").send("unauthorized\n");
+    // Fail-CLOSED: sem o token configurado (o caso padrão no Render), /metrics NÃO
+    // é público — antes o `if (metricsToken && ...)` pulava a checagem quando a
+    // variável estava vazia, expondo profundidade de fila, contadores de
+    // erro/segurança e latência a qualquer um. Agora exige o token sempre.
+    if (!metricsToken || req.get("authorization") !== `Bearer ${metricsToken}`) {
+      res.status(metricsToken ? 401 : 404).type("text/plain").send(metricsToken ? "unauthorized\n" : "not found\n");
       return;
     }
     try {

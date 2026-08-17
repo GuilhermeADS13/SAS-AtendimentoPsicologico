@@ -12,6 +12,17 @@ describe("DLP e minimização de telemetria", () => {
     expect(kinds).toHaveLength(3);
   });
 
+  it("detecta em chamadas repetidas (não vaza por lastIndex do regex /g)", () => {
+    // O bug: regex global compartilhado guarda lastIndex entre chamadas, então a
+    // 2ª/3ª detecção começava adiantada e dava falso negativo. Cada chamada tem
+    // que ser independente.
+    expect(detectSensitiveIdentifiers("cpf 123.456.789-09")).toContain("cpf");
+    expect(detectSensitiveIdentifiers("111.222.333-44")).toContain("cpf");
+    expect(detectSensitiveIdentifiers("222.333.444-55")).toContain("cpf");
+    expect(detectSensitiveIdentifiers("outro@dominio.com")).toContain("email");
+    expect(detectSensitiveIdentifiers("mais.um@teste.com")).toContain("email");
+  });
+
   it("mascara segredos conhecidos", () => {
     expect(redactForTelemetry("token sk_live_123456789abc")).toBe("token [REDACTED]");
   });
