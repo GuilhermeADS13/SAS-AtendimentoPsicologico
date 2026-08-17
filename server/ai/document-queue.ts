@@ -22,6 +22,7 @@ export async function enqueueDocumentIndexing(documentId: number, dbOverride?: D
       target: aiDocumentJobs.documentId,
       set: {
         status: sql`CASE WHEN ${aiDocumentJobs.status} = 'indexed' THEN ${aiDocumentJobs.status} ELSE 'pending' END`,
+        attempts: 0,
         availableAt: sql`now()`,
         lockedAt: null,
         lockedBy: null,
@@ -50,7 +51,7 @@ export async function claimNextDocumentJob(workerId = randomUUID(), dbOverride?:
       WHERE (
         "status" = 'pending' AND "availableAt" <= now()
       ) OR (
-        "status" = 'processing' AND "lockedAt" < now() - interval '15 minutes'
+        "status" = 'processing' AND "lockedAt" < now() - interval '15 minutes' AND "attempts" < "maxAttempts"
       )
       ORDER BY "availableAt" ASC, "id" ASC
       FOR UPDATE SKIP LOCKED

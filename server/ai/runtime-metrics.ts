@@ -3,6 +3,8 @@ type RuntimeMetrics = {
   cacheHits: number;
   cacheMisses: number;
   errors: number;
+  safetyIntercepts: number;
+  killSwitchHits: number;
   totalDurationMs: number;
 };
 
@@ -11,6 +13,8 @@ const metrics: RuntimeMetrics = {
   cacheHits: 0,
   cacheMisses: 0,
   errors: 0,
+  safetyIntercepts: 0,
+  killSwitchHits: 0,
   totalDurationMs: 0,
 };
 
@@ -25,6 +29,14 @@ export function recordAgentCacheMiss(): void {
   metrics.cacheMisses += 1;
 }
 
+export function recordAgentSafetyIntercept(): void {
+  metrics.safetyIntercepts += 1;
+}
+
+export function recordAgentKillSwitch(): void {
+  metrics.killSwitchHits += 1;
+}
+
 export function agentRuntimeMetricsToPrometheus(): string {
   const averageDuration = metrics.requests > 0 ? metrics.totalDurationMs / metrics.requests : 0;
   return [
@@ -32,6 +44,8 @@ export function agentRuntimeMetricsToPrometheus(): string {
     `ai_agent_cache_hits_total ${metrics.cacheHits}`,
     `ai_agent_cache_misses_total ${metrics.cacheMisses}`,
     `ai_agent_errors_total ${metrics.errors}`,
+    `ai_agent_safety_intercepts_total ${metrics.safetyIntercepts}`,
+    `ai_agent_kill_switch_hits_total ${metrics.killSwitchHits}`,
     `ai_agent_request_duration_ms_sum ${metrics.totalDurationMs}`,
     `ai_agent_request_duration_ms_avg ${averageDuration}`,
   ].join("\n") + "\n";
@@ -42,5 +56,7 @@ export function resetAgentRuntimeMetrics(): void {
   metrics.cacheHits = 0;
   metrics.cacheMisses = 0;
   metrics.errors = 0;
+  metrics.safetyIntercepts = 0;
+  metrics.killSwitchHits = 0;
   metrics.totalDurationMs = 0;
 }
