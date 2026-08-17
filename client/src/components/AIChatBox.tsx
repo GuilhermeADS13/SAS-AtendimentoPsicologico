@@ -57,6 +57,16 @@ export type AIChatBoxProps = {
    * Click to send directly
    */
   suggestedPrompts?: string[];
+
+  /**
+   * Display identity for the assistant persona
+   */
+  agentName?: string;
+
+  /**
+   * Short description shown beside the assistant name
+   */
+  agentSubtitle?: string;
 };
 
 /**
@@ -117,8 +127,10 @@ export function AIChatBox({
   placeholder = "Type your message...",
   className,
   height = "600px",
-  emptyStateMessage = "Start a conversation with AI",
+  emptyStateMessage = "Converse com a Luma, sua coruja de apoio.",
   suggestedPrompts,
+  agentName = "Luma",
+  agentSubtitle = "Sua coruja de apoio no atendimento psicológico",
 }: AIChatBoxProps) {
   const [input, setInput] = useState("");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -196,6 +208,16 @@ export function AIChatBox({
       )}
       style={{ height }}
     >
+      <div className="flex items-center gap-3 border-b px-4 py-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg" aria-label="Ícone de coruja">
+          🦉
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">{agentName}</p>
+          <p className="truncate text-xs text-muted-foreground">{agentSubtitle}</p>
+        </div>
+      </div>
+
       {/* Messages Area */}
       <div ref={scrollAreaRef} className="flex-1 overflow-hidden">
         {displayMessages.length === 0 ? (
