@@ -1,22 +1,26 @@
 import { useState } from "react";
-import { AIChatBox, type Message } from "@/components/AIChatBox";
+import { AIChatBox, type LumaFeedback, type Message } from "@/components/AIChatBox";
+import { trpc } from "@/lib/trpc";
 
 export default function E2EAgentChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [conversationId, setConversationId] = useState<number | undefined>();
+  const [feedbackByMessageId, setFeedbackByMessageId] = useState<Record<number, LumaFeedback>>({});
+  const chatMutation = trpc.ai.chat.useMutation();
+  const feedbackMutation = trpc.ai.feedback.useMutation();
 
   async function handleSend(content: string) {
     const nextMessages: Message[] = [...messages, { role: "user", content }];
     setMessages(nextMessages);
     setIsLoading(true);
     try {
-      const input = encodeURIComponent(JSON.stringify({ 0: { json: { messages: nextMessages } } }));
-      const response = await fetch(`/api/trpc/ai.chat?batch=1&input=${input}`);
-      if (!response.ok) throw new Error("Falha ao conversar com o agente");
-      const payload = await response.json();
-      const assistantContent = payload?.[0]?.result?.data?.json?.choices?.[0]?.message?.content;
-      if (typeof assistantContent !== "string") throw new Error("Resposta inválida do agente");
-      setMessages((current) => [...current, { role: "assistant", content: assistantContent }]);
+      const result = await chatMutation.mutateAsync({
+        messages: nextMessages.filter((message): message is Message & { role: "user" | "assistant" } => message.role !== "system"),
+        conversationId,
+      });
+      if (typeof result.conversationId === "number") setConversationId(result.conversationId);
+      setMessages((current) => [...current, { id: result.messageId, role: "assistant", content: result.content }]);
     } catch (error) {
       setMessages((current) => [...current, {
         role: "assistant",
@@ -25,6 +29,12 @@ export default function E2EAgentChat() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  function handleMessageFeedback(message: Message, rating: LumaFeedback) {
+    if (!message.id) return;
+    setFeedbackByMessageId((current) => ({ ...current, [message.id as number]: rating }));
+    feedbackMutation.mutate({ messageId: message.id, rating });
   }
 
   return (
@@ -41,6 +51,8 @@ export default function E2EAgentChat() {
           placeholder="Pergunte sobre seus registros autorizados..."
           emptyStateMessage="Faça uma pergunta sobre os registros autorizados."
           height="520px"
+          onMessageFeedback={handleMessageFeedback}
+          feedbackByMessageId={feedbackByMessageId}
         />
       </div>
     </main>
