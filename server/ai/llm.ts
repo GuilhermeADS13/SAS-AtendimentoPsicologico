@@ -104,6 +104,10 @@ export function clinicalSystemPrompt(ctx: AiAccessContext, requestedPatientId?: 
   ].filter(Boolean).join(" ");
 }
 
+export function buildGeneralActivityResponse(): string {
+  return "Posso sugerir atividades gerais de acompanhamento, sem atribuí-las a um diagnóstico ou prontuário específico:\n\n1. Registrar mudanças percebidas desde o último encontro.\n2. Anotar situações, emoções e estratégias que ajudaram durante a semana.\n3. Definir um pequeno objetivo para revisar na próxima sessão.\n\nEssas sugestões devem ser adaptadas e revisadas pela profissional responsável antes de serem usadas no atendimento.";
+}
+
 export function buildNoClinicalDataResponse(userMessage: string): string {
   const asksForActivities = /atividad|evoluç|próxim|acompanh/i.test(userMessage);
   if (asksForActivities) {
@@ -135,6 +139,13 @@ export async function runOpenSourceAgent(
     recordAgentSafetyIntercept();
     recordAgentRequest(Date.now() - startedAt, "success");
     return { content: buildCrisisSafeResponse(), model: "clinical-safety-policy", sources: [] };
+  }
+
+  // Sugestão genérica não precisa de prontuário, embeddings ou Ollama.
+  // Isso evita que a Luma fique aguardando uma busca clínica inexistente.
+  if (/^listar atividades para acompanhar a evolução[.!]?$/i.test(latestUserMessage?.content.trim() ?? "")) {
+    recordAgentRequest(Date.now() - startedAt, "success");
+    return { content: buildGeneralActivityResponse(), model: "clinical-general-guidance", sources: [] };
   }
 
   // Se o escopo não possui nenhum dado, não desperdice tempo com embeddings ou Ollama.

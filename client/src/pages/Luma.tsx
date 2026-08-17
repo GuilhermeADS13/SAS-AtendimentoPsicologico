@@ -154,7 +154,9 @@ export default function Luma() {
             agentName={isTherapist ? "Luma Clínica" : "Luma Site Support"}
             agentSubtitle={isTherapist ? "Coruja de apoio à leitura clínica autorizada" : "Ajuda para navegar no SAS"}
             processingLabel={isTherapist ? "Luma está consultando somente registros autorizados..." : "Luma está localizando essa área no site..."}
-            placeholder={isTherapist && !selectedPatientId ? "Selecione um paciente para começar..." : "Escreva uma pergunta sobre o uso do site..."}
+            placeholder={isTherapist
+              ? (selectedPatientId ? "Pergunte sobre os registros autorizados deste paciente..." : "Selecione um paciente para começar...")
+              : "Escreva uma pergunta sobre o uso do site..."}
             emptyStateMessage={isTherapist ? "Olá! Eu sou a Luma, sua coruja de apoio. Escolha um paciente e selecione uma atividade para começar." : "Olá! Eu sou a Luma, sua coruja de apoio no SAS. Escolha uma sugestão para aprender a usar o sistema."}
             suggestedPrompts={isTherapist ? ["Resumir os últimos registros autorizados", "Organizar os próximos pontos para a sessão", "Listar atividades para acompanhar a evolução"] : ["Ver minhas consultas", "Entrar na videochamada", "Atualizar meu perfil", "Encontrar minha psicóloga"]}
             onMessageFeedback={handleFeedback}
