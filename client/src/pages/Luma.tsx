@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { Brain, LockKeyhole, MessageCircle, ShieldCheck, UserRound } from "lucide-react";
+import { LockKeyhole, MessageCircle, ShieldCheck } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { AIChatBox, type LumaFeedback, type Message } from "@/components/AIChatBox";
 import { useRole } from "@/hooks/useRole";
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { LogoLockup } from "@/components/Logo";
+import { LogoLockup, LumaOwlIcon } from "@/components/Logo";
 
 export default function Luma() {
   const [, setLocation] = useLocation();
@@ -127,7 +127,7 @@ export default function Luma() {
         <section className="space-y-4" aria-labelledby="luma-title">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="mb-2 flex items-center gap-2 text-primary"><Brain className="h-5 w-5" /><span className="text-sm font-medium">{isTherapist ? "Assistente clínico de leitura" : "Assistente de navegação do site"}</span></div>
+              <div className="mb-2 flex items-center gap-2 text-primary"><LumaOwlIcon className="h-7 w-7" /><span className="text-sm font-medium">{isTherapist ? "Assistente clínico de leitura" : "Assistente de navegação do site"}</span></div>
               <h1 id="luma-title" className="text-3xl font-bold">{isTherapist ? "Luma Clínica" : "Luma Site Support"}</h1>
               <p className="mt-2 max-w-2xl text-muted-foreground">{isTherapist ? "Uma coruja de apoio para organizar informações autorizadas. A Luma não diagnostica, prescreve nem altera prontuários." : "Uma coruja de apoio para encontrar funções do SAS. Este modo não acessa prontuários e não oferece orientação clínica."}</p>
             </div>
@@ -173,7 +173,6 @@ export default function Luma() {
             <CardContent className="space-y-3 text-sm text-muted-foreground">
               <p className="flex gap-2"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />{isTherapist ? "A Luma só acessa dados autorizados pelo seu perfil." : "O apoio do site não acessa prontuários, sessões ou documentos clínicos."}</p>
               {isTherapist && <p className="flex gap-2"><MessageCircle className="mt-0.5 h-4 w-4 shrink-0" />As respostas podem ser avaliadas por profissionais para melhorar o sistema.</p>}
-              <p className="flex gap-2"><UserRound className="mt-0.5 h-4 w-4 shrink-0" />Em situações de crise, procure ajuda humana e serviços de emergência.</p>
             </CardContent>
           </Card>
         </aside>

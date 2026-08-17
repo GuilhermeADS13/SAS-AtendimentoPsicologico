@@ -16,6 +16,18 @@ export const APP_TAGLINE = "Atendimento Psicológico Online";
  */
 export const BRAND_TEAL = "#215756";
 
+/** Ícone da Luma: mascote de coruja usado no chat e no menu lateral. */
+export function LumaOwlIcon({ className = "w-8 h-8" }: { className?: string }) {
+  return (
+    <img
+      src="/luma-owl.png"
+      alt=""
+      aria-hidden="true"
+      className={`${className} object-contain shrink-0`}
+    />
+  );
+}
+
 /** Só o símbolo (rosto + ondas). Para sidebar, favicon e espaços apertados. */
 export function LogoMark({ className = "w-8 h-8" }: { className?: string }) {
   return (
