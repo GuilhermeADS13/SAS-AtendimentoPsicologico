@@ -199,9 +199,9 @@ export default function PatientDetail() {
       if (created.documentId) {
         try {
           const indexed = await indexDocument.mutateAsync({ documentId: created.documentId });
-          toast.success(`Documento enviado e indexado (${indexed.chunks} trechos).`);
+          toast.success(`Documento enviado para indexação (${indexed.status}).`);
         } catch {
-          toast.success("Documento enviado; a indexação ficará pendente para nova tentativa.");
+          toast.success("Documento enviado; a indexação foi colocada na fila para processamento.");
         }
       } else {
         toast.success("Documento enviado!");

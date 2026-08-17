@@ -3,6 +3,7 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { createClient } from "@supabase/supabase-js";
 import { extractRawText } from "mammoth";
 import { PDFParse } from "pdf-parse";
+import { createWorker } from "tesseract.js";
 import { aiDocumentChunks, documents, patients, type Document as ClinicalDocument } from "../../drizzle/schema";
 import { getDb } from "../db";
 import type { AiAccessContext } from "./access";
@@ -45,7 +46,21 @@ export async function extractPdfText(buffer: Buffer): Promise<ExtractedChunk[]> 
   const parser = new PDFParse({ data: buffer });
   try {
     const result = await parser.getText();
-    return result.pages.flatMap(page => chunkExtractedText(page.text, page.num));
+    const textChunks = result.pages.flatMap(page => chunkExtractedText(page.text, page.num));
+    if (textChunks.length > 0) return textChunks.map(chunk => ({ ...chunk }));
+
+    const screenshots = await parser.getScreenshot({ scale: 1.5, imageBuffer: true, imageDataUrl: false });
+    const worker = await createWorker("por");
+    try {
+      const ocrChunks: ExtractedChunk[] = [];
+      for (const page of screenshots.pages) {
+        const recognized = await worker.recognize(Buffer.from(page.data));
+        ocrChunks.push(...chunkExtractedText(recognized.data.text, page.pageNumber));
+      }
+      return ocrChunks;
+    } finally {
+      await worker.terminate();
+    }
   } finally {
     await parser.destroy();
   }
@@ -136,7 +151,7 @@ export async function ingestClinicalDocument(
     contentHash: createHash("sha256").update(chunk.content).digest("hex"),
     embedding: embeddings[index],
     pageNumber: chunk.pageNumber,
-    metadata: { extractor: "pdf-parse/mammoth", version: 1 },
+    metadata: { extractor: document.fileType.toLowerCase().includes("pdf") ? "pdf-parse+tesseract-ocr" : "mammoth", version: 2 },
   })));
 
   return {
@@ -144,6 +159,17 @@ export async function ingestClinicalDocument(
     chunks: extracted.length,
     extractedCharacters: texts.reduce((sum, text) => sum + text.length, 0),
   };
+}
+
+export function buildVectorSearchScope(ctx: AiAccessContext, patientId: number | undefined) {
+  if (ctx.role === "admin") throw new Error("Administrador não possui acesso a prontuários pelo agente");
+  if (ctx.role === "therapist" && (ctx.therapistId == null || patientId == null)) {
+    throw new Error("Busca clínica exige terapeuta e patientId válidos");
+  }
+  if (ctx.role !== "therapist" && patientId !== ctx.patientId) throw new Error("Paciente não autorizado");
+  return ctx.role === "therapist"
+    ? and(eq(aiDocumentChunks.therapistId, ctx.therapistId as number), eq(aiDocumentChunks.patientId, patientId as number))
+    : eq(aiDocumentChunks.patientId, ctx.patientId as number);
 }
 
 export async function searchIndexedDocumentChunks(
@@ -155,17 +181,9 @@ export async function searchIndexedDocumentChunks(
 ) {
   const db = dbOverride ?? await getDb();
   if (!db) throw new Error("Database not available");
-  if (ctx.role === "admin") throw new Error("Administrador não possui acesso a prontuários pelo agente");
-  if (ctx.role === "therapist" && (ctx.therapistId == null || patientId == null)) {
-    throw new Error("Busca clínica exige terapeuta e patientId válidos");
-  }
-  if (ctx.role !== "therapist" && patientId !== ctx.patientId) throw new Error("Paciente não autorizado");
-
+  const scope = buildVectorSearchScope(ctx, patientId);
   const vector = vectorLiteral(queryEmbedding);
   const distance = sql<number>`${aiDocumentChunks.embedding} <=> ${vector}::vector`;
-  const scope = ctx.role === "therapist"
-    ? and(eq(aiDocumentChunks.therapistId, ctx.therapistId as number), eq(aiDocumentChunks.patientId, patientId as number))
-    : eq(aiDocumentChunks.patientId, ctx.patientId as number);
 
   return db.select({
     id: aiDocumentChunks.id,
