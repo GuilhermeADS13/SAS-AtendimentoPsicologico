@@ -2,7 +2,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { Loader2, Send, User, Sparkles, ThumbsUp, ThumbsDown, Moon, Eye } from "lucide-react";
+import { LumaOwlIcon } from "@/components/Logo";
+import { Loader2, Send, User, Sparkles, ThumbsUp, ThumbsDown, Moon } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Streamdown } from "streamdown";
 
@@ -242,7 +243,7 @@ export function AIChatBox({
     >
       <div className="flex items-center gap-3 border-b px-4 py-3">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10" aria-label={lumaStatus === "sleeping" ? "Luma em modo economia" : "Luma atenta"}>
-          {lumaStatus === "sleeping" ? <Moon className="size-4 text-primary" /> : <Eye className="size-4 text-primary" />}
+          <LumaOwlIcon className={cn("size-7", lumaStatus === "sleeping" && "opacity-60 grayscale")} />
         </div>
         <div className="min-w-0">
           <p className="text-sm font-semibold">{agentName}</p>
@@ -305,7 +306,7 @@ export function AIChatBox({
                   >
                     {message.role === "assistant" && (
                       <div className="size-8 shrink-0 mt-1 rounded-full bg-primary/10 flex items-center justify-center">
-                        {lumaStatus === "sleeping" ? <Moon className="size-4 text-primary" /> : <Sparkles className="size-4 text-primary" />}
+                        <LumaOwlIcon className={cn("size-7", lumaStatus === "sleeping" && "opacity-60 grayscale")} />
                       </div>
                     )}
 
@@ -382,7 +383,7 @@ export function AIChatBox({
                   }
                 >
                   <div className="size-8 shrink-0 mt-1 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Sparkles className="size-4 text-primary" />
+                    <LumaOwlIcon className="size-7" />
                   </div>
                   <div className="rounded-lg bg-muted px-4 py-2.5">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">

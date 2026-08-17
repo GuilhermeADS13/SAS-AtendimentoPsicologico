@@ -25,7 +25,7 @@ import { supabase } from "@/lib/supabase";
 import { trpc } from "@/lib/trpc";
 import { NotificationsBell } from "./NotificationsBell";
 import { PatientNotificationsBell } from "./PatientNotificationsBell";
-import { LogoLockup } from "./Logo";
+import { LogoLockup, LumaOwlIcon } from "./Logo";
 import { BadgeCheck, Brain, Calendar, CircleHelp, LayoutDashboard, LogOut, PanelLeft, Stethoscope, UserRound, Users, Video, Wallet } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -39,7 +39,7 @@ import { Button } from "./ui/button";
 const therapistMenu = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Users, label: "Pacientes", path: "/records" },
-  { icon: Brain, label: "Luma — Assistente IA", path: "/luma" },
+  { icon: LumaOwlIcon, label: "Luma — Assistente IA", path: "/luma" },
   { icon: Calendar, label: "Agendamentos", path: "/appointments" },
   { icon: Wallet, label: "Financeiro", path: "/financeiro" },
   { icon: UserRound, label: "Perfil", path: "/profile" },
@@ -57,7 +57,7 @@ const adminMenu = [{ icon: BadgeCheck, label: "Solicitações", path: "/solicita
 // entra pela consulta ("Entrar na sala"), que garante a mesma sala da psicóloga.
 const patientMenu = [
   { icon: Calendar, label: "Minhas Consultas", path: "/consultas" },
-  { icon: Brain, label: "Luma — Meu apoio", path: "/luma" },
+  { icon: LumaOwlIcon, label: "Luma — Meu apoio", path: "/luma" },
   { icon: Stethoscope, label: "Minha Psicóloga", path: "/psicologa" },
   { icon: UserRound, label: "Meu Cadastro", path: "/profile" },
   { icon: CircleHelp, label: "Ajuda", path: "/ajuda" },
