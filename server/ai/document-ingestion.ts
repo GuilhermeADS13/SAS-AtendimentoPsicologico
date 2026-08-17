@@ -19,6 +19,7 @@ const EMBEDDING_DIMENSIONS = 768;
 export type ExtractedChunk = {
   content: string;
   pageNumber?: number;
+  ocrConfidence?: number;
 };
 
 function normalizeText(text: string): string {
@@ -55,7 +56,10 @@ export async function extractPdfText(buffer: Buffer): Promise<ExtractedChunk[]> 
       const ocrChunks: ExtractedChunk[] = [];
       for (const page of screenshots.pages) {
         const recognized = await worker.recognize(Buffer.from(page.data));
-        ocrChunks.push(...chunkExtractedText(recognized.data.text, page.pageNumber));
+        ocrChunks.push(...chunkExtractedText(recognized.data.text, page.pageNumber).map(chunk => ({
+          ...chunk,
+          ocrConfidence: Math.max(0, Math.min(100, Number(recognized.data.confidence ?? 0))),
+        })));
       }
       return ocrChunks;
     } finally {
@@ -151,7 +155,12 @@ export async function ingestClinicalDocument(
     contentHash: createHash("sha256").update(chunk.content).digest("hex"),
     embedding: embeddings[index],
     pageNumber: chunk.pageNumber,
-    metadata: { extractor: document.fileType.toLowerCase().includes("pdf") ? "pdf-parse+tesseract-ocr" : "mammoth", version: 2 },
+    metadata: {
+      extractor: document.fileType.toLowerCase().includes("pdf") ? "pdf-parse+tesseract-ocr" : "mammoth",
+      version: 3,
+      ocrConfidence: chunk.ocrConfidence ?? null,
+      requiresReview: chunk.ocrConfidence != null && chunk.ocrConfidence < Number(process.env.AI_OCR_MIN_CONFIDENCE ?? 75),
+    },
   })));
 
   return {
@@ -192,6 +201,7 @@ export async function searchIndexedDocumentChunks(
     patientId: aiDocumentChunks.patientId,
     content: aiDocumentChunks.content,
     pageNumber: aiDocumentChunks.pageNumber,
+    metadata: aiDocumentChunks.metadata,
     distance,
   }).from(aiDocumentChunks).where(scope).orderBy(asc(distance)).limit(boundedTopK);
 }

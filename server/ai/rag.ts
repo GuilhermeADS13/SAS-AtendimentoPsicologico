@@ -125,11 +125,18 @@ export async function retrieveScopedClinicalContext(
   if (!patientRows.length) return [];
 
   const patientIds = patientRows.map(patient => patient.id);
+  const authorizedPatient = patientRows[0];
   const sessionRows = await db.select().from(sessions).where(
-    eq(sessions.patientId, patientIds[0]),
+    and(
+      eq(sessions.patientId, patientIds[0]),
+      eq(sessions.therapistId, authorizedPatient.therapistId),
+    ),
   ).orderBy(desc(sessions.startedAt)).limit(100);
   const documentRows = await db.select().from(documents).where(
-    eq(documents.patientId, patientIds[0]),
+    and(
+      eq(documents.patientId, patientIds[0]),
+      eq(documents.therapistId, authorizedPatient.therapistId),
+    ),
   ).orderBy(desc(documents.createdAt)).limit(100);
 
   const sourceById = new Map<string, RagSource>();

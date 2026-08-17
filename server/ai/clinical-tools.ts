@@ -6,6 +6,7 @@ import { getDb } from "../db";
 import type { AiAccessContext } from "./access";
 import { embeddingForCurrentEnvironment, formatRagContext, retrieveScopedClinicalContext } from "./rag";
 import { searchIndexedDocumentChunks } from "./document-ingestion";
+import { wrapUntrustedClinicalContext } from "./content-safety";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
@@ -13,6 +14,9 @@ export async function resolveAiAccessContext(
   db: Db,
   user: { id: number; role: AiAccessContext["role"] },
 ): Promise<AiAccessContext> {
+  if (user.role === "admin") {
+    return { userId: user.id, role: user.role };
+  }
   if (user.role === "therapist") {
     const therapistRows = await db.select({ id: therapists.id }).from(therapists)
       .where(eq(therapists.userId, user.id)).limit(1);
@@ -144,15 +148,18 @@ export function createClinicalTools(ctx: AiAccessContext, db: Db) {
         const key = `${chunk.documentId}:${chunk.pageNumber ?? "na"}:${chunk.content}`;
         if (seen.has(key)) return "";
         seen.add(key);
-        return `[Fonte ${index + 1} | documento ${chunk.documentId} | página ${chunk.pageNumber ?? "não informada"} | paciente ${chunk.patientId}]\n${chunk.content}`;
+        const metadata = chunk.metadata as { requiresReview?: boolean; ocrConfidence?: number | null } | null | undefined;
+        const reviewLabel = metadata?.requiresReview ? ` | revisão OCR necessária${metadata.ocrConfidence != null ? ` (${metadata.ocrConfidence.toFixed(0)}%)` : ""}` : "";
+        return `[Fonte ${index + 1} | documento ${chunk.documentId} | página ${chunk.pageNumber ?? "não informada"} | paciente ${chunk.patientId}${reviewLabel}]\n${chunk.content}`;
       }).filter(Boolean).join("\n\n").slice(0, maxContextChars);
-      if (documentContext) return documentContext;
+      if (documentContext) return wrapUntrustedClinicalContext(documentContext);
       const sources = await retrieveScopedClinicalContext(ctx, {
         query,
         patientId,
         topK: Number(process.env.AI_RAG_TOP_K ?? 6),
       }, db);
-      return formatRagContext(sources) || "Nenhum registro autorizado foi encontrado.";
+      const formatted = formatRagContext(sources);
+      return formatted ? wrapUntrustedClinicalContext(formatted) : "Nenhum registro autorizado foi encontrado.";
     }, {
       name: ctx.role === "therapist" ? "search_patient_records" : "search_my_records",
       description: "Busca semântica somente leitura em registros autorizados do paciente. Não diagnostica nem altera prontuários.",

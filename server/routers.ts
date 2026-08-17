@@ -9,6 +9,7 @@ import { eq, and, desc, isNull, ne, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { runOpenSourceAgent } from "./ai/llm";
 import { resolveAiAccessContext } from "./ai/clinical-tools";
+import { recordAiAuditEvent } from "./ai/audit";
 import { enqueueDocumentIndexing, getDocumentIndexingStatus } from "./ai/document-queue";
 import { getDocumentQueueMetrics, queueMetricsToPrometheus } from "./ai/queue-metrics";
 import {
@@ -163,6 +164,19 @@ export const appRouter = router({
           .set({ model: response.model, lastMessageAt: new Date() })
           .where(eq(aiConversations.id, conversationId));
 
+        await recordAiAuditEvent(db, {
+          userId: ctx.user.id,
+          conversationId,
+          action: response.model === "clinical-safety-policy" ? "crisis_intercepted" : "agent_response_created",
+          resourceType: "ai_message",
+          resourceId: assistantMessage.id,
+          metadata: {
+            model: response.model,
+            safetyIntercepted: response.model === "clinical-safety-policy",
+            patientScope: scopedPatientId ?? null,
+          },
+        });
+
         return { ...response, conversationId, messageId: assistantMessage.id };
       }),
 
@@ -220,6 +234,17 @@ export const appRouter = router({
               updatedAt: new Date(),
             },
           });
+
+        await recordAiAuditEvent(db, {
+          userId: ctx.user.id,
+          action: "feedback_recorded",
+          resourceType: "ai_message",
+          resourceId: input.messageId,
+          metadata: {
+            rating: input.rating,
+            reason: input.reason || null,
+          },
+        });
 
         return { success: true as const };
       }),
