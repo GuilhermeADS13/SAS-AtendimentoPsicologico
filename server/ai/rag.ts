@@ -53,7 +53,7 @@ class OpenAICompatibleEmbedding extends BaseEmbedding {
   }
 }
 
-function embeddingForCurrentEnvironment(env: NodeJS.ProcessEnv = process.env) {
+export function embeddingForCurrentEnvironment(env: NodeJS.ProcessEnv = process.env) {
   return new OpenAICompatibleEmbedding({
     baseUrl: env.LLM_EMBEDDING_BASE_URL ?? env.LLM_BASE_URL ?? "http://localhost:11434/v1",
     apiKey: env.LLM_API_KEY ?? "ollama",

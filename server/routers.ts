@@ -4,11 +4,12 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, therapistProcedure, adminProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { getDb } from "./db";
-import { patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users } from "../drizzle/schema";
+import { aiDocumentChunks, patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users } from "../drizzle/schema";
 import { eq, and, desc, isNull, ne, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { runOpenSourceAgent } from "./ai/llm";
 import { resolveAiAccessContext } from "./ai/clinical-tools";
+import { ingestClinicalDocument } from "./ai/document-ingestion";
 import {
   sendAppointmentReminders,
   sendTherapistAlerts,
@@ -1389,7 +1390,7 @@ export const appRouter = router({
 
         if (!patient.length) throw new Error("Patient not found for this therapist");
 
-        await db.insert(documents).values({
+        const inserted = await db.insert(documents).values({
           patientId: input.patientId,
           therapistId: therapist[0].id,
           fileName: input.fileName,
@@ -1399,9 +1400,21 @@ export const appRouter = router({
           fileSize: input.fileSize,
           documentType: input.documentType,
           description: input.description,
-        });
+        }).returning({ id: documents.id });
 
-        return { success: true } as const;
+        return { success: true, documentId: inserted[0]?.id } as const;
+      }),
+
+    indexContent: therapistProcedure
+      .input(z.object({ documentId: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const accessContext = await resolveAiAccessContext(db, {
+          id: ctx.user.id,
+          role: ctx.user.role,
+        });
+        return ingestClinicalDocument(accessContext, input.documentId, db);
       }),
 
     // Remove o metadado (o caller apaga o arquivo do Storage usando o fileKey).
@@ -1427,6 +1440,7 @@ export const appRouter = router({
 
         if (!rows.length) throw new Error("Document not found");
 
+        await db.delete(aiDocumentChunks).where(eq(aiDocumentChunks.documentId, input.id));
         await db.delete(documents).where(eq(documents.id, input.id));
         return { success: true, fileKey: rows[0].fileKey } as const;
       }),
