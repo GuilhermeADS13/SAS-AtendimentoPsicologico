@@ -6,7 +6,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Calendar, Search, Video, UserRound, CheckCircle2 } from "lucide-react";
+import { Brain, Calendar, Search, Video, UserRound, CheckCircle2 } from "lucide-react";
 
 const STATUS_LABEL: Record<string, string> = {
   scheduled: "Agendada",
@@ -64,10 +64,16 @@ export default function MyAppointments() {
               Entre na sala no horário marcado. O link abre a videochamada com a psicóloga.
             </p>
           </div>
-          <Button variant="outline" onClick={() => setLocation("/psicologa")}>
-            <UserRound className="w-4 h-4 mr-2" />
-            Minha psicóloga
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setLocation("/luma")}>
+              <Brain className="w-4 h-4 mr-2" />
+              Conversar com a Luma
+            </Button>
+            <Button variant="outline" onClick={() => setLocation("/psicologa")}>
+              <UserRound className="w-4 h-4 mr-2" />
+              Minha psicóloga
+            </Button>
+          </div>
         </div>
 
         {/* Sem cadastro ainda, a psicóloga não consegue agendar. */}
