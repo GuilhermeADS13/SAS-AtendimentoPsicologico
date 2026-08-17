@@ -2,6 +2,8 @@ import { ChatOpenAI } from "@langchain/openai";
 import { createAgent } from "langchain";
 import { createClinicalTools } from "./clinical-tools";
 import type { AiAccessContext } from "./access";
+import { buildAgentCacheKey, getCachedAgentResponse, setCachedAgentResponse } from "./response-cache";
+import { recordAgentCacheMiss, recordAgentRequest } from "./runtime-metrics";
 
 export type OpenSourceChatMessage = {
   role: "system" | "user" | "assistant";
@@ -58,6 +60,30 @@ function contentToText(content: unknown): string {
     .join("");
 }
 
+export function prepareMessagesForAgent(
+  messages: OpenSourceChatMessage[],
+  env: NodeJS.ProcessEnv = process.env,
+): OpenSourceChatMessage[] {
+  const maxMessages = Math.max(2, Number(env.AI_AGENT_MAX_HISTORY_MESSAGES ?? 8));
+  const maxMessageChars = Math.max(500, Number(env.AI_AGENT_MAX_MESSAGE_CHARS ?? 4_000));
+  const maxContextChars = Math.max(2_000, Number(env.AI_AGENT_MAX_CONTEXT_CHARS ?? 12_000));
+  const normalized = messages
+    .filter(message => message.role === "user" || message.role === "assistant")
+    .map(message => ({ ...message, content: message.content.trim().slice(0, maxMessageChars) }))
+    .filter(message => message.content.length > 0);
+  const firstUser = normalized.find(message => message.role === "user");
+  const recent = normalized.slice(-maxMessages);
+  const selected = firstUser && !recent.includes(firstUser) ? [firstUser, ...recent] : recent;
+  const result: OpenSourceChatMessage[] = [];
+  let totalChars = 0;
+  for (const message of selected.reverse()) {
+    if (totalChars + message.content.length > maxContextChars && result.length > 0) continue;
+    result.unshift(message);
+    totalChars += message.content.length;
+  }
+  return result;
+}
+
 export function clinicalSystemPrompt(ctx: AiAccessContext, requestedPatientId?: number): string {
   return [
     "Você é um assistente de apoio do sistema de atendimento psicológico.",
@@ -79,18 +105,44 @@ export async function runOpenSourceAgent(
   config = getOpenSourceLlmConfig(),
   requestedPatientId?: number,
 ): Promise<{ content: string; model: string }> {
+  const startedAt = Date.now();
+  const preparedMessages = prepareMessagesForAgent(messages);
+  const cacheKey = buildAgentCacheKey({
+    userId: ctx.userId,
+    role: ctx.role,
+    therapistId: ctx.therapistId ?? undefined,
+    patientId: requestedPatientId ?? ctx.patientId ?? undefined,
+    model: config.model,
+    temperature: config.temperature,
+  }, preparedMessages);
+  const cached = getCachedAgentResponse(cacheKey);
+  if (cached) {
+    recordAgentRequest(Date.now() - startedAt, "cache_hit");
+    return cached;
+  }
+  recordAgentCacheMiss();
+
   const agent = createAgent({
     model: createOpenSourceChatModel(config),
     tools: createClinicalTools(ctx, db),
     systemPrompt: clinicalSystemPrompt(ctx, requestedPatientId),
   });
-  const result = await agent.invoke({
-    messages: messages.map(message => [message.role, message.content] as const),
-  });
+  let result;
+  try {
+    result = await agent.invoke({
+      messages: preparedMessages.map(message => [message.role, message.content] as const),
+    });
+  } catch (error) {
+    recordAgentRequest(Date.now() - startedAt, "error");
+    throw error;
+  }
   const lastMessage = result.messages.at(-1);
   const content = contentToText(lastMessage?.content).trim();
   if (!content) throw new Error("O agente não retornou conteúdo");
-  return { content, model: config.model };
+  const response = { content, model: config.model };
+  setCachedAgentResponse(cacheKey, response);
+  recordAgentRequest(Date.now() - startedAt, "success");
+  return response;
 }
 
 export async function generateOpenSourceReply(

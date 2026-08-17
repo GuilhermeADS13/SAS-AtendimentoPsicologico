@@ -131,12 +131,27 @@ export function createClinicalTools(ctx: AiAccessContext, db: Db) {
     }),
     tool(async ({ query, patientId }) => {
       const queryEmbedding = await embeddingForCurrentEnvironment().getTextEmbedding(query);
-      const indexedChunks = await searchIndexedDocumentChunks(ctx, queryEmbedding, patientId, 6, db);
-      const documentContext = indexedChunks.map((chunk, index) =>
-        `[Fonte ${index + 1} | documento ${chunk.documentId} | página ${chunk.pageNumber ?? "não informada"} | paciente ${chunk.patientId}]\n${chunk.content}`,
-      ).join("\n\n");
+      const indexedChunks = await searchIndexedDocumentChunks(
+        ctx,
+        queryEmbedding,
+        patientId,
+        Number(process.env.AI_RAG_TOP_K ?? 6),
+        db,
+      );
+      const maxContextChars = Math.max(2_000, Number(process.env.AI_RAG_CONTEXT_MAX_CHARS ?? 8_000));
+      const seen = new Set<string>();
+      const documentContext = indexedChunks.map((chunk, index) => {
+        const key = `${chunk.documentId}:${chunk.pageNumber ?? "na"}:${chunk.content}`;
+        if (seen.has(key)) return "";
+        seen.add(key);
+        return `[Fonte ${index + 1} | documento ${chunk.documentId} | página ${chunk.pageNumber ?? "não informada"} | paciente ${chunk.patientId}]\n${chunk.content}`;
+      }).filter(Boolean).join("\n\n").slice(0, maxContextChars);
       if (documentContext) return documentContext;
-      const sources = await retrieveScopedClinicalContext(ctx, { query, patientId, topK: 6 }, db);
+      const sources = await retrieveScopedClinicalContext(ctx, {
+        query,
+        patientId,
+        topK: Number(process.env.AI_RAG_TOP_K ?? 6),
+      }, db);
       return formatRagContext(sources) || "Nenhum registro autorizado foi encontrado.";
     }, {
       name: ctx.role === "therapist" ? "search_patient_records" : "search_my_records",

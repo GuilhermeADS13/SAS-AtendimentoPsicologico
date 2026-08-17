@@ -176,7 +176,7 @@ export async function searchIndexedDocumentChunks(
   ctx: AiAccessContext,
   queryEmbedding: number[],
   patientId: number | undefined,
-  topK = 8,
+  topK = Number(process.env.AI_RAG_TOP_K ?? 8),
   dbOverride?: Db,
 ) {
   const db = dbOverride ?? await getDb();
@@ -185,6 +185,7 @@ export async function searchIndexedDocumentChunks(
   const vector = vectorLiteral(queryEmbedding);
   const distance = sql<number>`${aiDocumentChunks.embedding} <=> ${vector}::vector`;
 
+  const boundedTopK = Math.min(Math.max(1, topK), Number(process.env.AI_RAG_MAX_TOP_K ?? 8));
   return db.select({
     id: aiDocumentChunks.id,
     documentId: aiDocumentChunks.documentId,
@@ -192,5 +193,5 @@ export async function searchIndexedDocumentChunks(
     content: aiDocumentChunks.content,
     pageNumber: aiDocumentChunks.pageNumber,
     distance,
-  }).from(aiDocumentChunks).where(scope).orderBy(asc(distance)).limit(Math.min(topK, 20));
+  }).from(aiDocumentChunks).where(scope).orderBy(asc(distance)).limit(boundedTopK);
 }
