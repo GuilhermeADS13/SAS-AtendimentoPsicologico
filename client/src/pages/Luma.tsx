@@ -4,6 +4,7 @@ import { LockKeyhole, MessageCircle, ShieldCheck } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { AIChatBox, type LumaFeedback, type Message } from "@/components/AIChatBox";
 import { useRole } from "@/hooks/useRole";
+import { isLumaTestAccount } from "@/lib/lumaAccess";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -14,14 +15,16 @@ import { LumaOwlIcon } from "@/components/Logo";
 
 export default function Luma() {
   const [, setLocation] = useLocation();
-  const { isTherapist, isAdmin, loading: roleLoading } = useRole();
+  const { user, isTherapist, isAdmin, loading: roleLoading } = useRole();
+  const isTestSiteSupport = isAdmin && isLumaTestAccount(user?.email);
+  const isClinicalUser = isTherapist && !isAdmin;
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversationId, setConversationId] = useState<number | undefined>();
   const [selectedPatientId, setSelectedPatientId] = useState<string>("");
   const [feedbackByMessageId, setFeedbackByMessageId] = useState<Record<number, LumaFeedback>>({});
 
   const patientsQuery = trpc.patients.list.useQuery(undefined, {
-    enabled: isTherapist && !isAdmin,
+    enabled: isClinicalUser,
     retry: false,
   });
   const chatMutation = trpc.ai.chat.useMutation();
@@ -48,11 +51,11 @@ export default function Luma() {
   }
 
   async function handleSend(content: string) {
-    if (isAdmin) {
+    if (isAdmin && !isTestSiteSupport) {
       toast.error("A Luma não está disponível para acesso clínico administrativo.");
       return;
     }
-    if (isTherapist && !selectedPatientId) {
+    if (isClinicalUser && !selectedPatientId) {
       toast.error("Selecione um paciente antes de consultar registros clínicos.");
       return;
     }
@@ -60,7 +63,7 @@ export default function Luma() {
     const nextMessages: Message[] = [...messages, { role: "user", content }];
     setMessages(nextMessages);
     try {
-      if (!isTherapist) {
+      if (!isClinicalUser) {
         const result = await siteHelpMutation.mutateAsync({ question: content });
         setMessages(current => [...current, {
           role: "assistant",
@@ -85,7 +88,7 @@ export default function Luma() {
       const message = error instanceof Error ? error.message : "Não foi possível responder agora.";
       setMessages(current => [...current, {
         role: "assistant",
-        content: isTherapist
+        content: isClinicalUser
           ? `A Luma clínica está temporariamente indisponível. Verifique a configuração do modelo no servidor e tente novamente.\n\nDetalhe técnico: ${message}`
           : "O apoio de navegação está temporariamente indisponível. Tente novamente em instantes.",
       }]);
@@ -123,13 +126,16 @@ export default function Luma() {
         <section className="space-y-4" aria-labelledby="luma-title">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="mb-2 flex items-center gap-2 text-primary"><LumaOwlIcon className="h-7 w-7" /><span className="text-sm font-medium">{isTherapist ? "Assistente clínico de leitura" : "Assistente de navegação do site"}</span></div>
-              <h1 id="luma-title" className="text-3xl font-bold">{isTherapist ? "Luma Clínica" : "Luma Site Support"}</h1>
-              <p className="mt-2 max-w-2xl text-muted-foreground">{isTherapist ? "Uma coruja de apoio para organizar informações autorizadas. A Luma não diagnostica, prescreve nem altera prontuários." : "Uma coruja de apoio para encontrar funções do SAS. Este modo não acessa prontuários e não oferece orientação clínica."}</p>
+              <div className="mb-2 flex items-center gap-2 text-primary"><LumaOwlIcon className="h-7 w-7" /><span className="text-sm font-medium">{isClinicalUser ? "Assistente clínico de leitura" : "Assistente de navegação do site"}
+</span></div>
+              <h1 id="luma-title" className="text-3xl font-bold">{isClinicalUser ? "Luma Clínica" : "Luma Site Support"}
+</h1>
+              <p className="mt-2 max-w-2xl text-muted-foreground">{isClinicalUser ? "Uma coruja de apoio para organizar informações autorizadas. A Luma não diagnostica, prescreve nem altera prontuários." : "Uma coruja de apoio para encontrar funções do SAS. Este modo não acessa prontuários e não oferece orientação clínica."}
+</p>
             </div>
           </div>
 
-          {isTherapist && (
+          {isClinicalUser && (
             <Card className="border-primary/30 bg-primary/5">
               <CardContent className="space-y-2 p-4">
                 <Label htmlFor="luma-patient">Paciente no escopo da conversa</Label>
@@ -149,16 +155,16 @@ export default function Luma() {
           <AIChatBox
             messages={messages}
             onSendMessage={handleSend}
-            isLoading={isTherapist ? chatMutation.isPending : siteHelpMutation.isPending}
-            lumaStatus={(isTherapist ? chatMutation.isPending : siteHelpMutation.isPending) ? "attentive" : "sleeping"}
-            agentName={isTherapist ? "Luma Clínica" : "Luma Site Support"}
-            agentSubtitle={isTherapist ? "Coruja de apoio à leitura clínica autorizada" : "Ajuda para navegar no SAS"}
-            processingLabel={isTherapist ? "Luma está consultando somente registros autorizados..." : "Luma está localizando essa área no site..."}
-            placeholder={isTherapist
+            isLoading={isClinicalUser ? chatMutation.isPending : siteHelpMutation.isPending}
+            lumaStatus={(isClinicalUser ? chatMutation.isPending : siteHelpMutation.isPending) ? "attentive" : "sleeping"}
+            agentName={isClinicalUser ? "Luma Clínica" : "Luma Site Support"}
+            agentSubtitle={isClinicalUser ? "Coruja de apoio à leitura clínica autorizada" : "Ajuda para navegar no SAS"}
+            processingLabel={isClinicalUser ? "Luma está consultando somente registros autorizados..." : "Luma está localizando essa área no site..."}
+            placeholder={isClinicalUser
               ? (selectedPatientId ? "Pergunte sobre os registros autorizados deste paciente..." : "Selecione um paciente para começar...")
               : "Escreva uma pergunta sobre o uso do site..."}
-            emptyStateMessage={isTherapist ? "Olá! Eu sou a Luma, sua coruja de apoio. Escolha um paciente e selecione uma atividade para começar." : "Olá! Eu sou a Luma, sua coruja de apoio no SAS. Escolha uma sugestão para aprender a usar o sistema."}
-            suggestedPrompts={isTherapist ? ["Resumir os últimos registros autorizados", "Organizar os próximos pontos para a sessão", "Listar atividades para acompanhar a evolução"] : ["Ver minhas consultas", "Entrar na videochamada", "Atualizar meu perfil", "Encontrar minha psicóloga"]}
+            emptyStateMessage={isClinicalUser ? "Olá! Eu sou a Luma, sua coruja de apoio. Escolha um paciente e selecione uma atividade para começar." : "Olá! Eu sou a Luma, sua coruja de apoio no SAS. Escolha uma sugestão para aprender a usar o sistema."}
+            suggestedPrompts={isClinicalUser ? ["Resumir os últimos registros autorizados", "Organizar os próximos pontos para a sessão", "Listar atividades para acompanhar a evolução"] : ["Ver minhas consultas", "Entrar na videochamada", "Atualizar meu perfil", "Encontrar minha psicóloga"]}
             onMessageFeedback={handleFeedback}
             feedbackByMessageId={feedbackByMessageId}
             height="620px"
@@ -169,8 +175,8 @@ export default function Luma() {
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="h-4 w-4 text-primary" />Escopo protegido</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm text-muted-foreground">
-              <p className="flex gap-2"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />{isTherapist ? "A Luma só acessa dados autorizados pelo seu perfil." : "O apoio do site não acessa prontuários, sessões ou documentos clínicos."}</p>
-              {isTherapist && <p className="flex gap-2"><MessageCircle className="mt-0.5 h-4 w-4 shrink-0" />As respostas podem ser avaliadas por profissionais para melhorar o sistema.</p>}
+              <p className="flex gap-2"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />{isClinicalUser ? "A Luma só acessa dados autorizados pelo seu perfil." : "O apoio do site não acessa prontuários, sessões ou documentos clínicos."}</p>
+              {isClinicalUser && <p className="flex gap-2"><MessageCircle className="mt-0.5 h-4 w-4 shrink-0" />As respostas podem ser avaliadas por profissionais para melhorar o sistema.</p>}
             </CardContent>
           </Card>
         </aside>

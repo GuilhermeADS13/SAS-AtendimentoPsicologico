@@ -3,7 +3,9 @@ import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Brain, Calendar, Users, FileText, Video } from "lucide-react";
+import { Calendar, Users, FileText, Video } from "lucide-react";
+import { LumaOwlIcon } from "@/components/Logo";
+import { isLumaTestAccount } from "@/lib/lumaAccess";
 import { useLocation } from "wouter";
 
 export default function Dashboard() {
@@ -14,6 +16,8 @@ export default function Dashboard() {
   const { data: patients = [] } = trpc.patients.list.useQuery();
   const { data: appointments = [] } = trpc.appointments.list.useQuery();
   const { data: sessions = [] } = trpc.sessions.list.useQuery();
+
+  const showLumaTestShortcut = isLumaTestAccount(user?.email);
 
   const isToday = (value: unknown) => {
     const d = new Date(value as string);
@@ -114,13 +118,15 @@ export default function Dashboard() {
         <div className="space-y-4">
           <h2 className="text-xl font-semibold text-foreground">Ações Rápidas</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button
-              onClick={() => setLocation("/luma")}
-              className="h-24 flex flex-col items-center justify-center gap-2 bg-primary/90 hover:bg-primary text-primary-foreground"
-            >
-              <Brain className="w-6 h-6" />
-              <span>Conversar com a Luma</span>
-            </Button>
+            {showLumaTestShortcut && (
+              <Button
+                onClick={() => setLocation("/luma")}
+                className="h-24 flex flex-col items-center justify-center gap-2 bg-primary/90 hover:bg-primary text-primary-foreground"
+              >
+                <LumaOwlIcon className="h-7 w-7" />
+                <span>Conversar com a Luma</span>
+              </Button>
+            )}
             <Button
               onClick={() => setLocation("/appointments")}
               className="h-24 flex flex-col items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
