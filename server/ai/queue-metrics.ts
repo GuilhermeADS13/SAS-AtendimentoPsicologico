@@ -8,6 +8,7 @@ export type DocumentQueueMetrics = {
   processing: number;
   indexed: number;
   failed: number;
+  deadLetter: number;
   backlog: number;
   oldestPendingAt: string | null;
   oldestProcessingAt: string | null;
@@ -25,6 +26,7 @@ export async function getDocumentQueueMetrics(dbOverride?: Db): Promise<Document
       COUNT(*) FILTER (WHERE "status" = 'processing')::int AS processing,
       COUNT(*) FILTER (WHERE "status" = 'indexed')::int AS indexed,
       COUNT(*) FILTER (WHERE "status" = 'failed')::int AS failed,
+      COUNT(*) FILTER (WHERE "status" = 'failed' AND "attempts" >= "maxAttempts")::int AS "deadLetter",
       MIN("availableAt") FILTER (WHERE "status" = 'pending') AS "oldestPendingAt",
       MIN("lockedAt") FILTER (WHERE "status" = 'processing') AS "oldestProcessingAt",
       EXTRACT(EPOCH FROM (now() - MIN("availableAt") FILTER (WHERE "status" = 'pending')))::int AS "oldestPendingAgeSeconds",
@@ -36,11 +38,13 @@ export async function getDocumentQueueMetrics(dbOverride?: Db): Promise<Document
   const processing = Number(row.processing ?? 0);
   const indexed = Number(row.indexed ?? 0);
   const failed = Number(row.failed ?? 0);
+  const deadLetter = Number(row.deadLetter ?? 0);
   return {
     pending,
     processing,
     indexed,
     failed,
+    deadLetter,
     backlog: pending + processing,
     oldestPendingAt: row.oldestPendingAt ? new Date(String(row.oldestPendingAt)).toISOString() : null,
     oldestProcessingAt: row.oldestProcessingAt ? new Date(String(row.oldestProcessingAt)).toISOString() : null,
@@ -56,6 +60,7 @@ export function queueMetricsToPrometheus(metrics: DocumentQueueMetrics): string 
     `ai_document_jobs{status="processing"} ${metrics.processing}`,
     `ai_document_jobs{status="indexed"} ${metrics.indexed}`,
     `ai_document_jobs{status="failed"} ${metrics.failed}`,
+    `ai_document_jobs_dead_letter ${metrics.deadLetter}`,
     `ai_document_queue_backlog ${metrics.backlog}`,
     `ai_document_queue_oldest_pending_age_seconds ${metrics.oldestPendingAgeSeconds ?? 0}`,
     `ai_document_queue_oldest_processing_age_seconds ${metrics.oldestProcessingAgeSeconds ?? 0}`,
@@ -67,6 +72,9 @@ export function logQueueAlerts(metrics: DocumentQueueMetrics): void {
   const maxFailed = Number(process.env.AI_QUEUE_ALERT_MAX_FAILED ?? 3);
   if ((metrics.oldestPendingAgeSeconds ?? 0) > maxAge) {
     console.error(JSON.stringify({ event: "ai_queue_backlog_alert", oldestPendingAgeSeconds: metrics.oldestPendingAgeSeconds, threshold: maxAge }));
+  }
+  if (metrics.deadLetter > 0) {
+    console.error(JSON.stringify({ event: "ai_queue_dead_letter_alert", deadLetter: metrics.deadLetter }));
   }
   if (metrics.failed > maxFailed) {
     console.error(JSON.stringify({ event: "ai_queue_failed_alert", failed: metrics.failed, threshold: maxFailed }));

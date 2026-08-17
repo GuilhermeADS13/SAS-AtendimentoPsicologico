@@ -1,5 +1,6 @@
 import { aiAuditEvents } from "../../drizzle/schema";
 import type { getDb } from "../db";
+import { minimizeTelemetryMetadata } from "./data-loss-prevention";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
@@ -25,12 +26,13 @@ const ALLOWED_METADATA_KEYS = new Set([
 
 function minimizeMetadata(metadata?: AuditEvent["metadata"]) {
   if (!metadata) return undefined;
-  return Object.fromEntries(
+  const allowed = Object.fromEntries(
     Object.entries(metadata).filter(([key, value]) =>
       ALLOWED_METADATA_KEYS.has(key) &&
       (value === null || ["string", "number", "boolean"].includes(typeof value)),
     ),
-  );
+  ) as Record<string, string | number | boolean | null>;
+  return minimizeTelemetryMetadata(allowed);
 }
 
 /** Persiste somente eventos operacionais; nunca recebe prompt, resposta ou prontuário integral. */

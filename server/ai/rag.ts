@@ -3,6 +3,7 @@ import { and, asc, desc, eq } from "drizzle-orm";
 import { documents, patients, sessions, type Patient, type Session, type Document as ClinicalDocument } from "../../drizzle/schema";
 import { getDb } from "../db";
 import type { AiAccessContext } from "./access";
+import { rerankClinicalSources } from "./rerank";
 
 export type ScopedClinicalQuery = {
   query: string;
@@ -174,7 +175,9 @@ export async function retrieveScopedClinicalContext(
     const source = sourceById.get(key);
     return source ? { ...source, score: node.score } : null;
   });
-  return retrieved.filter((source): source is RagSource => source !== null);
+  const authorizedSources = retrieved.filter((source): source is RagSource => source !== null);
+  if (process.env.AI_RAG_RERANK_ENABLED === "false") return authorizedSources.slice(0, input.topK ?? 5);
+  return rerankClinicalSources(authorizedSources, query, input.topK ?? 5);
 }
 
 export function formatRagContext(sources: RagSource[]): string {
