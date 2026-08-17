@@ -7,9 +7,11 @@ import { Calendar, Users, FileText, Video } from "lucide-react";
 import { LumaOwlIcon } from "@/components/Logo";
 import { isLumaTestAccount } from "@/lib/lumaAccess";
 import { useLocation } from "wouter";
+import { useRole } from "@/hooks/useRole";
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
+  const { isTherapist } = useRole();
   const [, setLocation] = useLocation();
 
   // Contadores reais para os cards de resumo.
@@ -17,7 +19,7 @@ export default function Dashboard() {
   const { data: appointments = [] } = trpc.appointments.list.useQuery();
   const { data: sessions = [] } = trpc.sessions.list.useQuery();
 
-  const showLumaTestShortcut = isLumaTestAccount(user?.email);
+  const showLumaShortcut = isTherapist || isLumaTestAccount(user?.email);
 
   const isToday = (value: unknown) => {
     const d = new Date(value as string);
@@ -118,7 +120,7 @@ export default function Dashboard() {
         <div className="space-y-4">
           <h2 className="text-xl font-semibold text-foreground">Ações Rápidas</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {showLumaTestShortcut && (
+            {showLumaShortcut && (
               <Button
                 onClick={() => setLocation("/luma")}
                 className="h-24 flex flex-col items-center justify-center gap-2 bg-primary/90 hover:bg-primary text-primary-foreground"
