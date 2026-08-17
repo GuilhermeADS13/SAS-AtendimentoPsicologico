@@ -34,6 +34,18 @@ describe("separação de papéis da Luma", () => {
     expect(response).toContain("não vou atribuir atividades específicas");
   });
 
+  it("declara idempotência para retries sem duplicar histórico", () => {
+    const migration = readFileSync(new URL("../drizzle/migrations/0019_ai_message_idempotency.sql", import.meta.url), "utf8");
+    const page = readFileSync(new URL("../client/src/pages/Luma.tsx", import.meta.url), "utf8");
+
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS "clientRequestId"');
+    expect(migration).toContain("ai_conversations_user_request_idx");
+    expect(migration).toContain("ai_messages_conversation_request_idx");
+    expect(page).toContain("crypto.randomUUID()");
+    expect(page).toContain("requestId");
+    expect(page).toContain("setConversationId(result.conversationId)");
+  });
+
   it("mantém o modo paciente fora do RAG clínico", () => {
     const source = readFileSync(new URL("../client/src/pages/Luma.tsx", import.meta.url), "utf8");
 

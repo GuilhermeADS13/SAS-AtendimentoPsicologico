@@ -93,8 +93,77 @@ export const appRouter = router({
    */
   ai: router({
     siteHelp: protectedProcedure
-      .input(z.object({ question: z.string().trim().min(1).max(800) }))
-      .mutation(async ({ input }) => answerSiteHelp(input.question)),
+      .input(z.object({
+        question: z.string().trim().min(1).max(800),
+        requestId: z.string().trim().min(16).max(80).optional(),
+        conversationId: z.number().int().positive().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const requestId = input.requestId ?? nanoid(24);
+        const assistantRequestId = `${requestId}:assistant`;
+        let conversationId = input.conversationId;
+        if (conversationId) {
+          const existing = await db.select({ id: aiConversations.id }).from(aiConversations).where(and(
+            eq(aiConversations.id, conversationId),
+            eq(aiConversations.userId, ctx.user.id),
+            isNull(aiConversations.therapistId),
+            isNull(aiConversations.patientId),
+          )).limit(1);
+          if (!existing.length) throw new Error("Conversa fora do escopo autorizado");
+        } else {
+          const existing = await db.select({ id: aiConversations.id }).from(aiConversations).where(and(
+            eq(aiConversations.userId, ctx.user.id),
+            eq(aiConversations.clientRequestId, requestId),
+            isNull(aiConversations.therapistId),
+            isNull(aiConversations.patientId),
+          )).limit(1);
+          if (existing.length) conversationId = existing[0].id;
+          else {
+            const [created] = await db.insert(aiConversations).values({
+              userId: ctx.user.id,
+              title: "Suporte do site com Luma",
+              model: "site-help-deterministic",
+              clientRequestId: requestId,
+              lastMessageAt: new Date(),
+            }).returning({ id: aiConversations.id });
+            conversationId = created.id;
+          }
+        }
+        const existingAssistant = await db.select({ id: aiMessages.id, content: aiMessages.content }).from(aiMessages).where(and(
+          eq(aiMessages.conversationId, conversationId),
+          eq(aiMessages.clientRequestId, assistantRequestId),
+          eq(aiMessages.role, "assistant"),
+        )).limit(1);
+        if (existingAssistant.length) return {
+          content: existingAssistant[0].content,
+          model: "site-help-deterministic",
+          conversationId,
+          messageId: existingAssistant[0].id,
+          persisted: true,
+        };
+        await db.insert(aiMessages).values({
+          conversationId,
+          role: "user",
+          content: input.question,
+          clientRequestId: requestId,
+        }).onConflictDoNothing({ target: [aiMessages.conversationId, aiMessages.clientRequestId] });
+        const siteResponse = answerSiteHelp(input.question);
+        const content = siteResponse.content;
+        const [assistantMessage] = await db.insert(aiMessages).values({
+          conversationId,
+          role: "assistant",
+          content,
+          clientRequestId: assistantRequestId,
+        }).onConflictDoNothing({ target: [aiMessages.conversationId, aiMessages.clientRequestId] }).returning({ id: aiMessages.id });
+        const persistedAssistant = assistantMessage ?? (await db.select({ id: aiMessages.id }).from(aiMessages).where(and(
+          eq(aiMessages.conversationId, conversationId),
+          eq(aiMessages.clientRequestId, assistantRequestId),
+        )).limit(1))[0];
+        await db.update(aiConversations).set({ lastMessageAt: new Date() }).where(eq(aiConversations.id, conversationId));
+        return { ...siteResponse, conversationId, messageId: persistedAssistant.id, persisted: true };
+      }),
 
     chat: protectedProcedure
       .input(z.object({
@@ -104,85 +173,89 @@ export const appRouter = router({
         })).min(1).max(20),
         patientId: z.number().int().positive().optional(),
         conversationId: z.number().int().positive().optional(),
+        requestId: z.string().trim().min(16).max(80).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new Error("Database not available");
-
-        const accessContext = await resolveAiAccessContext(db, {
-          id: ctx.user.id,
-          role: ctx.user.role,
-        });
-        const response = await runOpenSourceAgent(
-          input.messages,
-          accessContext,
-          db,
-          undefined,
-          input.patientId,
-        );
-
+        const requestId = input.requestId ?? nanoid(24);
+        const assistantRequestId = `${requestId}:assistant`;
+        const latestUserMessage = [...input.messages].reverse().find(message => message.role === "user");
+        if (!latestUserMessage) throw new Error("A conversa precisa conter uma mensagem do usuário");
+        const accessContext = await resolveAiAccessContext(db, { id: ctx.user.id, role: ctx.user.role });
         const scopedPatientId = input.patientId ?? accessContext.patientId ?? null;
         let conversationId = input.conversationId;
         if (conversationId) {
-          const existingConversation = await db
-            .select({ id: aiConversations.id })
-            .from(aiConversations)
-            .where(
-              and(
-                eq(aiConversations.id, conversationId),
-                eq(aiConversations.userId, ctx.user.id),
-                scopedPatientId == null ? isNull(aiConversations.patientId) : eq(aiConversations.patientId, scopedPatientId),
-                accessContext.therapistId == null ? isNull(aiConversations.therapistId) : eq(aiConversations.therapistId, accessContext.therapistId),
-              ),
-            )
-            .limit(1);
+          const existingConversation = await db.select({ id: aiConversations.id }).from(aiConversations).where(and(
+            eq(aiConversations.id, conversationId),
+            eq(aiConversations.userId, ctx.user.id),
+            scopedPatientId == null ? isNull(aiConversations.patientId) : eq(aiConversations.patientId, scopedPatientId),
+            accessContext.therapistId == null ? isNull(aiConversations.therapistId) : eq(aiConversations.therapistId, accessContext.therapistId),
+          )).limit(1);
           if (!existingConversation.length) throw new Error("Conversa fora do escopo autorizado");
         } else {
-          const [createdConversation] = await db
-            .insert(aiConversations)
-            .values({
+          const existingConversation = await db.select({ id: aiConversations.id }).from(aiConversations).where(and(
+            eq(aiConversations.userId, ctx.user.id),
+            eq(aiConversations.clientRequestId, requestId),
+            scopedPatientId == null ? isNull(aiConversations.patientId) : eq(aiConversations.patientId, scopedPatientId),
+            accessContext.therapistId == null ? isNull(aiConversations.therapistId) : eq(aiConversations.therapistId, accessContext.therapistId),
+          )).limit(1);
+          if (existingConversation.length) conversationId = existingConversation[0].id;
+          else {
+            const [createdConversation] = await db.insert(aiConversations).values({
               userId: ctx.user.id,
               therapistId: accessContext.therapistId ?? null,
               patientId: scopedPatientId,
               title: "Conversa com Luma",
-              model: response.model,
+              clientRequestId: requestId,
               lastMessageAt: new Date(),
-            })
-            .returning({ id: aiConversations.id });
-          conversationId = createdConversation.id;
+            }).returning({ id: aiConversations.id });
+            conversationId = createdConversation.id;
+          }
         }
-
-        const latestUserMessage = [...input.messages].reverse().find(message => message.role === "user");
-        if (!latestUserMessage) throw new Error("A conversa precisa conter uma mensagem do usuário");
+        const existingAssistant = await db.select({ id: aiMessages.id, content: aiMessages.content }).from(aiMessages).where(and(
+          eq(aiMessages.conversationId, conversationId),
+          eq(aiMessages.clientRequestId, assistantRequestId),
+          eq(aiMessages.role, "assistant"),
+        )).limit(1);
+        if (existingAssistant.length) return {
+          content: existingAssistant[0].content,
+          model: "persisted-response",
+          sources: [],
+          conversationId,
+          messageId: existingAssistant[0].id,
+          persisted: true,
+        };
         await db.insert(aiMessages).values({
           conversationId,
           role: "user",
           content: latestUserMessage.content,
-        });
+          clientRequestId: requestId,
+        }).onConflictDoNothing({ target: [aiMessages.conversationId, aiMessages.clientRequestId] });
+        const response = await Promise.race([
+          runOpenSourceAgent(input.messages, accessContext, db, undefined, input.patientId),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("AI response timeout")), 35_000)),
+        ]);
         const [assistantMessage] = await db.insert(aiMessages).values({
           conversationId,
           role: "assistant",
           content: response.content,
-        }).returning({ id: aiMessages.id });
-        await db
-          .update(aiConversations)
-          .set({ model: response.model, lastMessageAt: new Date() })
-          .where(eq(aiConversations.id, conversationId));
-
+          clientRequestId: assistantRequestId,
+        }).onConflictDoNothing({ target: [aiMessages.conversationId, aiMessages.clientRequestId] }).returning({ id: aiMessages.id });
+        const persistedAssistant = assistantMessage ?? (await db.select({ id: aiMessages.id }).from(aiMessages).where(and(
+          eq(aiMessages.conversationId, conversationId),
+          eq(aiMessages.clientRequestId, assistantRequestId),
+        )).limit(1))[0];
+        await db.update(aiConversations).set({ model: response.model, lastMessageAt: new Date() }).where(eq(aiConversations.id, conversationId));
         await recordAiAuditEvent(db, {
           userId: ctx.user.id,
           conversationId,
           action: response.model === "clinical-safety-policy" ? "crisis_intercepted" : "agent_response_created",
           resourceType: "ai_message",
-          resourceId: assistantMessage.id,
-          metadata: {
-            model: response.model,
-            safetyIntercepted: response.model === "clinical-safety-policy",
-            patientScope: scopedPatientId ?? null,
-          },
+          resourceId: persistedAssistant.id,
+          metadata: { model: response.model, safetyIntercepted: response.model === "clinical-safety-policy", patientScope: scopedPatientId ?? null },
         });
-
-        return { ...response, conversationId, messageId: assistantMessage.id };
+        return { ...response, conversationId, messageId: persistedAssistant.id, persisted: true };
       }),
 
     feedback: therapistProcedure

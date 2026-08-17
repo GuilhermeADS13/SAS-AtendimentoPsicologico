@@ -408,6 +408,8 @@ export const aiConversations = pgTable(
     status: aiConversationStatusEnum("status").default("active").notNull(),
     title: varchar("title", { length: 160 }),
     model: varchar("model", { length: 128 }),
+    /** Chave do primeiro envio; evita conversas duplicadas após timeout/retry. */
+    clientRequestId: varchar("clientRequestId", { length: 80 }),
     lastMessageAt: timestamp("lastMessageAt", { withTimezone: true, mode: "date" }),
     retentionExpiresAt: timestamp("retentionExpiresAt", { withTimezone: true, mode: "date" }),
     createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
@@ -422,6 +424,10 @@ export const aiConversations = pgTable(
       table.therapistId,
       table.patientId,
       table.updatedAt,
+    ),
+    clientRequestIdx: uniqueIndex("ai_conversations_user_request_idx").on(
+      table.userId,
+      table.clientRequestId,
     ),
   }),
 );
@@ -438,6 +444,8 @@ export const aiMessages = pgTable(
     content: text("content").notNull(),
     contentRedacted: boolean("contentRedacted").default(false).notNull(),
     providerMessageId: varchar("providerMessageId", { length: 256 }),
+    /** Chave do envio originada no cliente; evita duplicação em retries. */
+    clientRequestId: varchar("clientRequestId", { length: 80 }),
     tokenCount: integer("tokenCount"),
     createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   },
@@ -445,6 +453,10 @@ export const aiMessages = pgTable(
     conversationCreatedIdx: index("ai_messages_conversation_created_idx").on(
       table.conversationId,
       table.createdAt,
+    ),
+    clientRequestIdx: uniqueIndex("ai_messages_conversation_request_idx").on(
+      table.conversationId,
+      table.clientRequestId,
     ),
   }),
 );
