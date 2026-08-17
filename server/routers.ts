@@ -97,6 +97,7 @@ export const appRouter = router({
           content: z.string().trim().min(1).max(8000),
         })).min(1).max(20),
         patientId: z.number().int().positive().optional(),
+        conversationId: z.number().int().positive().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
@@ -114,7 +115,55 @@ export const appRouter = router({
           input.patientId,
         );
 
-        return response;
+        const scopedPatientId = input.patientId ?? accessContext.patientId ?? null;
+        let conversationId = input.conversationId;
+        if (conversationId) {
+          const existingConversation = await db
+            .select({ id: aiConversations.id })
+            .from(aiConversations)
+            .where(
+              and(
+                eq(aiConversations.id, conversationId),
+                eq(aiConversations.userId, ctx.user.id),
+                scopedPatientId == null ? isNull(aiConversations.patientId) : eq(aiConversations.patientId, scopedPatientId),
+                accessContext.therapistId == null ? isNull(aiConversations.therapistId) : eq(aiConversations.therapistId, accessContext.therapistId),
+              ),
+            )
+            .limit(1);
+          if (!existingConversation.length) throw new Error("Conversa fora do escopo autorizado");
+        } else {
+          const [createdConversation] = await db
+            .insert(aiConversations)
+            .values({
+              userId: ctx.user.id,
+              therapistId: accessContext.therapistId ?? null,
+              patientId: scopedPatientId,
+              title: "Conversa com Luma",
+              model: response.model,
+              lastMessageAt: new Date(),
+            })
+            .returning({ id: aiConversations.id });
+          conversationId = createdConversation.id;
+        }
+
+        const latestUserMessage = [...input.messages].reverse().find(message => message.role === "user");
+        if (!latestUserMessage) throw new Error("A conversa precisa conter uma mensagem do usuário");
+        await db.insert(aiMessages).values({
+          conversationId,
+          role: "user",
+          content: latestUserMessage.content,
+        });
+        const [assistantMessage] = await db.insert(aiMessages).values({
+          conversationId,
+          role: "assistant",
+          content: response.content,
+        }).returning({ id: aiMessages.id });
+        await db
+          .update(aiConversations)
+          .set({ model: response.model, lastMessageAt: new Date() })
+          .where(eq(aiConversations.id, conversationId));
+
+        return { ...response, conversationId, messageId: assistantMessage.id };
       }),
 
     feedback: therapistProcedure

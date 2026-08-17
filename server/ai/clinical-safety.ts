@@ -1,0 +1,61 @@
+export type ClinicalSafetyIntent =
+  | "crisis"
+  | "diagnosis_request"
+  | "prescription_request"
+  | "scope_bypass"
+  | "none";
+
+const CRISIS_PATTERNS = [
+  /(?:quero|vou|pretendo|penso em|pensei em|planejo|planejei)\s+(?:me\s+)?(?:matar|suicid|tirar a minha vida)/i,
+  /(?:não|nao)\s+(?:quero|aguento|pretendo)\s+(?:mais\s+)?viver/i,
+  /(?:me\s+)?(?:cortar|enforcar|afogar|atirar|matar)\s+(?:hoje|agora|esta noite|essa noite)/i,
+  /(?:vou|quero)\s+desaparecer/i,
+  /não vou acordar amanhã/i,
+  /nao vou acordar amanha/i,
+  /ideação suicida|ideacao suicida|autoagressão|autoagressao/i,
+];
+
+const DIAGNOSIS_PATTERNS = [
+  /(?:você|voce|luma).*(?:me|ele|ela).*(?:diagnostica|tem transtorno|é bipolar|e bipolar)/i,
+  /qual é o meu diagnóstico|qual e o meu diagnostico/i,
+];
+
+const PRESCRIPTION_PATTERNS = [
+  /(?:qual|que)\s+(?:remédio|remedio|medicação|medicacao)\s+(?:devo|deve|posso)\s+(?:tomar|usar)/i,
+  /(?:prescreva|receite|aumente|diminua)\s+(?:o\s+)?(?:remédio|remedio|medicação|medicacao)/i,
+];
+
+const SCOPE_BYPASS_PATTERNS = [
+  /mostre|revele|envie|dê|de o prontuário|do prontuario/i,
+  /outro paciente|paciente diferente|todos os prontuários|todos os prontuarios/i,
+  /ignore|ignore as regras|bypass|contorne.*(?:filtro|escopo|permiss)/i,
+];
+
+export function classifyClinicalSafetyIntent(text: string): ClinicalSafetyIntent {
+  const normalized = String(text || "").trim();
+  if (!normalized) return "none";
+  if (CRISIS_PATTERNS.some(pattern => pattern.test(normalized))) return "crisis";
+  if (SCOPE_BYPASS_PATTERNS.some(pattern => pattern.test(normalized))) return "scope_bypass";
+  if (DIAGNOSIS_PATTERNS.some(pattern => pattern.test(normalized))) return "diagnosis_request";
+  if (PRESCRIPTION_PATTERNS.some(pattern => pattern.test(normalized))) return "prescription_request";
+  return "none";
+}
+
+/** Resposta fixa para crise: nenhum método, instrução ou análise de risco é gerado pelo LLM. */
+export function buildCrisisSafeResponse(): string {
+  return [
+    "Sinto muito que você esteja passando por isso. Você não precisa enfrentar este momento sozinho(a).",
+    "Não posso fornecer métodos ou instruções de autoagressão.",
+    "Se houver risco imediato, procure agora o serviço de emergência local ou vá a um pronto atendimento.",
+    "No Brasil, você pode ligar para o SAMU (192) ou para o CVV (188). Se conseguir, avise uma pessoa de confiança e peça que fique com você.",
+    "A Luma não substitui atendimento de emergência nem a psicóloga responsável.",
+  ].join(" ");
+}
+
+export function buildClinicalSafetyMetadata(intent: ClinicalSafetyIntent) {
+  return {
+    safetyIntercepted: intent === "crisis",
+    intent,
+    model: intent === "crisis" ? "clinical-safety-policy" : undefined,
+  } as const;
+}

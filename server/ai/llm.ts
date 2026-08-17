@@ -4,6 +4,7 @@ import { createClinicalTools } from "./clinical-tools";
 import type { AiAccessContext } from "./access";
 import { buildAgentCacheKey, getCachedAgentResponse, setCachedAgentResponse } from "./response-cache";
 import { recordAgentCacheMiss, recordAgentRequest } from "./runtime-metrics";
+import { buildCrisisSafeResponse, classifyClinicalSafetyIntent } from "./clinical-safety";
 
 export type OpenSourceChatMessage = {
   role: "system" | "user" | "assistant";
@@ -110,6 +111,16 @@ export async function runOpenSourceAgent(
 ): Promise<{ content: string; model: string }> {
   const startedAt = Date.now();
   const preparedMessages = prepareMessagesForAgent(messages);
+  const latestUserMessage = [...preparedMessages].reverse().find(message => message.role === "user");
+  const safetyIntent = classifyClinicalSafetyIntent(latestUserMessage?.content ?? "");
+
+  // Crises não passam pelo cache, RAG ou LLM: a resposta segura é determinística,
+  // auditável e não contém métodos de autoagressão.
+  if (safetyIntent === "crisis") {
+    recordAgentRequest(Date.now() - startedAt, "success");
+    return { content: buildCrisisSafeResponse(), model: "clinical-safety-policy" };
+  }
+
   const cacheKey = buildAgentCacheKey({
     userId: ctx.userId,
     role: ctx.role,
