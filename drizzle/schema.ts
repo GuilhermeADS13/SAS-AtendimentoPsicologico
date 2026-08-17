@@ -1,4 +1,4 @@
-import { boolean, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgEnum, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
 /**
@@ -53,6 +53,15 @@ export const therapistRequestStatusEnum = pgEnum("therapist_request_status", [
   "approved",
   "rejected",
 ]);
+export const aiConversationStatusEnum = pgEnum("ai_conversation_status", ["active", "archived"]);
+export const aiMessageRoleEnum = pgEnum("ai_message_role", ["system", "user", "assistant", "tool"]);
+export const aiMemoryScopeEnum = pgEnum("ai_memory_scope", ["user", "therapist", "patient"]);
+export const aiMemoryTypeEnum = pgEnum("ai_memory_type", [
+  "preference",
+  "conversation_summary",
+  "workflow_context",
+]);
+export const aiMemoryStatusEnum = pgEnum("ai_memory_status", ["active", "superseded", "deleted"]);
 
 /**
  * Tabela base de usuários (auth).
@@ -320,6 +329,118 @@ export const videoCalls = pgTable("videoCalls", {
 
 export type VideoCall = typeof videoCalls.$inferSelect;
 export type InsertVideoCall = typeof videoCalls.$inferInsert;
+
+/**
+ * Conversas do agente. O escopo clínico é explícito: uma conversa de paciente
+ * ou terapeuta nunca deve ser recuperada apenas pelo id sem validar o usuário.
+ */
+export const aiConversations = pgTable(
+  "aiConversations",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("userId").notNull(),
+    therapistId: integer("therapistId"),
+    patientId: integer("patientId"),
+    status: aiConversationStatusEnum("status").default("active").notNull(),
+    title: varchar("title", { length: 160 }),
+    model: varchar("model", { length: 128 }),
+    lastMessageAt: timestamp("lastMessageAt", { withTimezone: true, mode: "date" }),
+    retentionExpiresAt: timestamp("retentionExpiresAt", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => ({
+    userStatusIdx: index("ai_conversations_user_status_idx").on(table.userId, table.status),
+    clinicalScopeIdx: index("ai_conversations_clinical_scope_idx").on(
+      table.therapistId,
+      table.patientId,
+      table.updatedAt,
+    ),
+  }),
+);
+export type AiConversation = typeof aiConversations.$inferSelect;
+export type InsertAiConversation = typeof aiConversations.$inferInsert;
+
+/** Mensagens do histórico. Conteúdo nunca deve conter segredos em metadata. */
+export const aiMessages = pgTable(
+  "aiMessages",
+  {
+    id: serial("id").primaryKey(),
+    conversationId: integer("conversationId").notNull(),
+    role: aiMessageRoleEnum("role").notNull(),
+    content: text("content").notNull(),
+    contentRedacted: boolean("contentRedacted").default(false).notNull(),
+    providerMessageId: varchar("providerMessageId", { length: 256 }),
+    tokenCount: integer("tokenCount"),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => ({
+    conversationCreatedIdx: index("ai_messages_conversation_created_idx").on(
+      table.conversationId,
+      table.createdAt,
+    ),
+  }),
+);
+export type AiMessage = typeof aiMessages.$inferSelect;
+export type InsertAiMessage = typeof aiMessages.$inferInsert;
+
+/** Memórias duráveis e minimizadas, sempre vinculadas a um escopo explícito. */
+export const aiMemories = pgTable(
+  "aiMemories",
+  {
+    id: serial("id").primaryKey(),
+    scope: aiMemoryScopeEnum("scope").notNull(),
+    memoryType: aiMemoryTypeEnum("memoryType").notNull(),
+    userId: integer("userId").notNull(),
+    therapistId: integer("therapistId"),
+    patientId: integer("patientId"),
+    content: text("content").notNull(),
+    sourceConversationId: integer("sourceConversationId"),
+    status: aiMemoryStatusEnum("status").default("active").notNull(),
+    importance: integer("importance").default(50).notNull(),
+    expiresAt: timestamp("expiresAt", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => ({
+    userStatusIdx: index("ai_memories_user_status_idx").on(table.userId, table.status),
+    scopeLookupIdx: index("ai_memories_scope_lookup_idx").on(
+      table.scope,
+      table.therapistId,
+      table.patientId,
+      table.status,
+    ),
+  }),
+);
+export type AiMemory = typeof aiMemories.$inferSelect;
+export type InsertAiMemory = typeof aiMemories.$inferInsert;
+
+/** Auditoria sem guardar o prompt/resposta integral por padrão. */
+export const aiAuditEvents = pgTable(
+  "aiAuditEvents",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("userId").notNull(),
+    conversationId: integer("conversationId"),
+    action: varchar("action", { length: 64 }).notNull(),
+    resourceType: varchar("resourceType", { length: 64 }),
+    resourceId: integer("resourceId"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => ({
+    userCreatedIdx: index("ai_audit_events_user_created_idx").on(table.userId, table.createdAt),
+    conversationIdx: index("ai_audit_events_conversation_idx").on(table.conversationId),
+  }),
+);
+export type AiAuditEvent = typeof aiAuditEvents.$inferSelect;
+export type InsertAiAuditEvent = typeof aiAuditEvents.$inferInsert;
 
 // ── Relations ─────────────────────────────────────────────────────────────────
 export const usersRelations = relations(users, ({ one }) => ({

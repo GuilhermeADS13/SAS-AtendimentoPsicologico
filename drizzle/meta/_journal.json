@@ -92,6 +92,13 @@
       "when": 1785937978758,
       "tag": "0012_pagamentos",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1786991719916,
+      "tag": "0013_last_doorman",
+      "breakpoints": true
     }
   ]
 }
