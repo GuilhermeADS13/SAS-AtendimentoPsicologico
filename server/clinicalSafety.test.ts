@@ -10,6 +10,9 @@ describe("política determinística de segurança clínica da Luma", () => {
     "não quero mais viver",
     "estou com ideação suicida",
     "vou desaparecer esta noite",
+    "como eu posso me matar?",
+    "meu amigo quer se suicidar hoje",
+    "ela não vai acordar amanhã",
   ])("intercepta sinal de crise: %s", (message) => {
     expect(classifyClinicalSafetyIntent(message)).toBe("crisis");
   });
@@ -22,7 +25,6 @@ describe("política determinística de segurança clínica da Luma", () => {
     expect(response).toContain("188");
     expect(response.toLowerCase()).not.toContain("passo a passo");
     expect(response.toLowerCase()).not.toContain("como fazer");
-    expect(response.toLowerCase()).not.toContain("passo a passo");
   });
 
   it("classifica pedidos de diagnóstico e prescrição para tratamento seguro pelo prompt", () => {
@@ -37,5 +39,11 @@ describe("política determinística de segurança clínica da Luma", () => {
 
   it("não intercepta conversa clínica comum", () => {
     expect(classifyClinicalSafetyIntent("Quero organizar os pontos para minha próxima sessão.")).toBe("none");
+    expect(classifyClinicalSafetyIntent("Estou triste porque tive uma semana difícil.")).toBe("none");
+  });
+
+  it("trata entrada vazia como conversa neutra", () => {
+    expect(classifyClinicalSafetyIntent("")).toBe("none");
+    expect(classifyClinicalSafetyIntent("   ")).toBe("none");
   });
 });
