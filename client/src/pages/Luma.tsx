@@ -84,12 +84,11 @@ export default function Luma() {
         content: result.content,
         sources: result.sources,
       }]);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Não foi possível responder agora.";
+    } catch {
       setMessages(current => [...current, {
         role: "assistant",
         content: isClinicalUser
-          ? `A Luma clínica está temporariamente indisponível. Verifique a configuração do modelo no servidor e tente novamente.\n\nDetalhe técnico: ${message}`
+          ? "A Luma clínica não conseguiu concluir esta conversa agora. O sistema registrou a falha com segurança. Tente novamente em instantes; se persistir, informe a equipe responsável pelo sistema."
           : "O apoio de navegação está temporariamente indisponível. Tente novamente em instantes.",
       }]);
     }

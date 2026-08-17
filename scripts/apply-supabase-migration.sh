@@ -13,6 +13,7 @@ fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MIGRATION_FILES=(
+  "${ROOT_DIR}/drizzle/migrations/0018_ai_conversation_compatibility.sql"
   "${ROOT_DIR}/drizzle/migrations/0016_ai_message_feedback.sql"
   "${ROOT_DIR}/drizzle/migrations/0017_ai_memory_audit.sql"
 )
@@ -33,9 +34,13 @@ done
 printf '%s\n' "Validando objetos criados..."
 psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -Atc '
   select case
-    when to_regclass('"'"'public."aiMessageFeedback"'"'"') is not null
+    when to_regclass('"'"'public."aiConversations"'"'"') is not null
+      and to_regclass('"'"'public."aiMessages"'"'"') is not null
+      and to_regclass('"'"'public."aiMessageFeedback"'"'"') is not null
       and to_regclass('"'"'public."aiMemories"'"'"') is not null
       and to_regclass('"'"'public."aiAuditEvents"'"'"') is not null
+      and exists (select 1 from pg_type where typname = '"'"'ai_conversation_status'"'"')
+      and exists (select 1 from pg_type where typname = '"'"'ai_message_role'"'"')
       and exists (select 1 from pg_type where typname = '"'"'ai_feedback_rating'"'"')
       and exists (select 1 from pg_type where typname = '"'"'ai_memory_scope'"'"')
     then '"'"'migration-ok'"'"'

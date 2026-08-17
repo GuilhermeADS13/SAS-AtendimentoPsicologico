@@ -1,6 +1,6 @@
 # Luma: configuração segura e migrações no Supabase
 
-Este procedimento aplica as migrações `0016_ai_message_feedback.sql` e `0017_ai_memory_audit.sql` no banco PostgreSQL do Supabase sem colocar credenciais no Git, no frontend ou nos logs de CI.
+Este procedimento aplica as migrações `0018_ai_conversation_compatibility.sql`, `0016_ai_message_feedback.sql` e `0017_ai_memory_audit.sql` no banco PostgreSQL do Supabase sem colocar credenciais no Git, no frontend ou nos logs de CI. A migração `0018` garante as tabelas e colunas usadas pelo histórico da Luma, inclusive em ambientes que não aplicaram a migração base `0013`.
 
 > Nunca use `VITE_` para segredos. Variáveis com esse prefixo podem ser incorporadas ao bundle público do frontend.
 
@@ -115,8 +115,11 @@ order by indexname;
 SQL
 ```
 
-O resultado esperado é a tabela `aiMessageFeedback`, as tabelas `aiMemories` e `aiAuditEvents`, os enums `ai_feedback_rating` e `ai_memory_scope`, além dos índices:
+O resultado esperado é a tabela `aiConversations`, a tabela `aiMessages`, a tabela `aiMessageFeedback`, as tabelas `aiMemories` e `aiAuditEvents`, os enums `ai_conversation_status`, `ai_message_role`, `ai_feedback_rating` e `ai_memory_scope`, além dos índices:
 
+- `ai_conversations_user_status_idx`
+- `ai_conversations_clinical_scope_idx`
+- `ai_messages_conversation_created_idx`
 - `ai_message_feedback_message_user_unique`
 - `ai_message_feedback_user_created_idx`
 - `ai_memories_user_status_idx`
