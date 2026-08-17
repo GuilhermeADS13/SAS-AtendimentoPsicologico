@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { Loader2, Send, User, Sparkles } from "lucide-react";
+import { Loader2, Send, User, Sparkles, ThumbsUp, ThumbsDown, Moon, Eye } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Streamdown } from "streamdown";
 
@@ -10,9 +10,13 @@ import { Streamdown } from "streamdown";
  * Message type matching server-side LLM Message interface
  */
 export type Message = {
+  id?: number;
   role: "system" | "user" | "assistant";
   content: string;
 };
+
+export type LumaStatus = "attentive" | "sleeping";
+export type LumaFeedback = "helpful" | "not_helpful";
 
 export type AIChatBoxProps = {
   /**
@@ -67,6 +71,18 @@ export type AIChatBoxProps = {
    * Short description shown beside the assistant name
    */
   agentSubtitle?: string;
+
+  /** Visual status while the agent processes a large history/document. */
+  lumaStatus?: LumaStatus;
+
+  /** Optional label shown while the agent is processing. */
+  processingLabel?: string;
+
+  /** Called when a professional rates an assistant response. */
+  onMessageFeedback?: (message: Message, rating: LumaFeedback) => void;
+
+  /** Existing rating by stable message id, when feedback is persisted. */
+  feedbackByMessageId?: Record<number, LumaFeedback>;
 };
 
 /**
@@ -131,6 +147,10 @@ export function AIChatBox({
   suggestedPrompts,
   agentName = "Luma",
   agentSubtitle = "Sua coruja de apoio no atendimento psicológico",
+  lumaStatus = "attentive",
+  processingLabel = "Luma está observando os registros com cuidado...",
+  onMessageFeedback,
+  feedbackByMessageId,
 }: AIChatBoxProps) {
   const [input, setInput] = useState("");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -209,12 +229,12 @@ export function AIChatBox({
       style={{ height }}
     >
       <div className="flex items-center gap-3 border-b px-4 py-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg" aria-label="Ícone de coruja">
-          🦉
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10" aria-label={lumaStatus === "sleeping" ? "Luma em modo economia" : "Luma atenta"}>
+          {lumaStatus === "sleeping" ? <Moon className="size-4 text-primary" /> : <Eye className="size-4 text-primary" />}
         </div>
         <div className="min-w-0">
           <p className="text-sm font-semibold">{agentName}</p>
-          <p className="truncate text-xs text-muted-foreground">{agentSubtitle}</p>
+          <p className="truncate text-xs text-muted-foreground">{lumaStatus === "sleeping" ? "Modo economia durante o processamento" : agentSubtitle}</p>
         </div>
       </div>
 
@@ -270,7 +290,7 @@ export function AIChatBox({
                   >
                     {message.role === "assistant" && (
                       <div className="size-8 shrink-0 mt-1 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Sparkles className="size-4 text-primary" />
+                        {lumaStatus === "sleeping" ? <Moon className="size-4 text-primary" /> : <Sparkles className="size-4 text-primary" />}
                       </div>
                     )}
 
@@ -290,6 +310,26 @@ export function AIChatBox({
                         <p className="whitespace-pre-wrap text-sm">
                           {message.content}
                         </p>
+                      )}
+                      {message.role === "assistant" && onMessageFeedback && (
+                        <div className="mt-2 flex items-center gap-1 border-t border-border/60 pt-2" aria-label="Avaliar resposta da Luma">
+                          <span className="mr-1 text-[11px] text-muted-foreground">Foi útil?</span>
+                          {(["helpful", "not_helpful"] as const).map((rating) => {
+                            const selected = message.id !== undefined && feedbackByMessageId?.[message.id] === rating;
+                            return (
+                              <button
+                                key={rating}
+                                type="button"
+                                aria-label={rating === "helpful" ? "Resposta útil" : "Resposta não útil"}
+                                aria-pressed={selected}
+                                onClick={() => onMessageFeedback(message, rating)}
+                                className={cn("rounded p-1 text-muted-foreground hover:bg-background hover:text-foreground", selected && "bg-background text-primary")}
+                              >
+                                {rating === "helpful" ? <ThumbsUp className="size-3.5" /> : <ThumbsDown className="size-3.5" />}
+                              </button>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
 
@@ -315,7 +355,10 @@ export function AIChatBox({
                     <Sparkles className="size-4 text-primary" />
                   </div>
                   <div className="rounded-lg bg-muted px-4 py-2.5">
-                    <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="size-4 animate-spin" />
+                      <span>{processingLabel}</span>
+                    </div>
                   </div>
                 </div>
               )}
