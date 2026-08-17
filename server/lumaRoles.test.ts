@@ -2,8 +2,15 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { answerSiteHelp } from "./ai/site-help";
 import { buildGeneralActivityResponse, buildNoClinicalDataResponse } from "./ai/llm";
+import { isLumaTestAccount } from "../client/src/lib/lumaAccess";
 
 describe("separação de papéis da Luma", () => {
+  it("restringe a conta de demonstração ao e-mail autorizado", () => {
+    expect(isLumaTestAccount("guilhermeads13@outlook.com")).toBe(true);
+    expect(isLumaTestAccount("outra-conta@example.com")).toBe(false);
+    expect(isLumaTestAccount(" GUILHERMEADS13@OUTLOOK.COM ")).toBe(true);
+  });
+
   it("responde dúvidas de navegação sem acessar prontuários", () => {
     const response = answerSiteHelp("Como vejo minhas consultas?");
 
@@ -31,9 +38,12 @@ describe("separação de papéis da Luma", () => {
     const source = readFileSync(new URL("../client/src/pages/Luma.tsx", import.meta.url), "utf8");
 
     expect(source).toContain("siteHelpMutation.mutateAsync");
-    expect(source).toContain("if (!isTherapist)");
+    expect(source).toContain("if (!isClinicalUser)");
     expect(source).toContain("if (isAdmin)");
     expect(source).toContain("Acesso clínico restrito");
+    expect(source).toContain("isTestSiteSupport");
+    expect(source).toContain("siteHelpMutation.mutateAsync");
+    expect(source).not.toContain("chatMutation.mutateAsync({ messages: nextMessages");
     expect(source).toContain("Pergunte sobre os registros autorizados deste paciente");
     expect(source).not.toContain('placeholder="Escreva uma pergunta sobre o uso do site..."');
   });

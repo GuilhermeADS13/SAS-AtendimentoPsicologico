@@ -6,8 +6,8 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Bot, Brain, Calendar, MessageCircle, Search, Video, UserRound, CheckCircle2 } from "lucide-react";
-import { LogoMark } from "@/components/Logo";
+import { Calendar, MessageCircle, Search, Video, UserRound, CheckCircle2 } from "lucide-react";
+import { LogoMark, LumaOwlIcon } from "@/components/Logo";
 
 const STATUS_LABEL: Record<string, string> = {
   scheduled: "Agendada",
@@ -67,7 +67,7 @@ export default function MyAppointments() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setLocation("/luma")}>
-              <Brain className="w-4 h-4 mr-2" />
+              <LumaOwlIcon className="h-5 w-5 mr-2" />
               Conversar com a Luma
             </Button>
             <Button variant="outline" onClick={() => setLocation("/psicologa")}>
@@ -85,7 +85,7 @@ export default function MyAppointments() {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <Bot className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <LumaOwlIcon className="h-5 w-5 text-primary" aria-hidden="true" />
                   <p className="font-semibold text-foreground">Converse com a Luma</p>
                 </div>
                 <p className="mt-1 max-w-xl text-sm text-muted-foreground">
@@ -95,7 +95,7 @@ export default function MyAppointments() {
               </div>
             </div>
             <Button onClick={() => setLocation("/luma")} className="shrink-0">
-              <MessageCircle className="mr-2 h-4 w-4" />
+              <LumaOwlIcon className="mr-2 h-5 w-5" />
               Abrir chatbot
             </Button>
           </CardContent>
