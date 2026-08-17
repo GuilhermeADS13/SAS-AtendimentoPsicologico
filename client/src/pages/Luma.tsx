@@ -25,6 +25,7 @@ export default function Luma() {
     retry: false,
   });
   const chatMutation = trpc.ai.chat.useMutation();
+  const siteHelpMutation = trpc.ai.siteHelp.useMutation();
   const feedbackMutation = trpc.ai.feedback.useMutation();
 
   const patients = patientsQuery.data ?? [];
@@ -59,6 +60,15 @@ export default function Luma() {
     const nextMessages: Message[] = [...messages, { role: "user", content }];
     setMessages(nextMessages);
     try {
+      if (!isTherapist) {
+        const result = await siteHelpMutation.mutateAsync({ question: content });
+        setMessages(current => [...current, {
+          role: "assistant",
+          content: result.content,
+        }]);
+        return;
+      }
+
       const result = await chatMutation.mutateAsync({
         messages: nextMessages.filter((message): message is Message & { role: "user" | "assistant" } => message.role !== "system"),
         patientId: selectedPatientId ? Number(selectedPatientId) : undefined,
@@ -72,9 +82,12 @@ export default function Luma() {
         sources: result.sources,
       }]);
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Não foi possível responder agora.";
       setMessages(current => [...current, {
         role: "assistant",
-        content: error instanceof Error ? error.message : "Não foi possível responder agora.",
+        content: isTherapist
+          ? `A Luma clínica está temporariamente indisponível. Verifique a configuração do modelo no servidor e tente novamente.\n\nDetalhe técnico: ${message}`
+          : "O apoio de navegação está temporariamente indisponível. Tente novamente em instantes.",
       }]);
     }
   }
@@ -114,9 +127,9 @@ export default function Luma() {
         <section className="space-y-4" aria-labelledby="luma-title">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="mb-2 flex items-center gap-2 text-primary"><Brain className="h-5 w-5" /><span className="text-sm font-medium">Assistente clínico de leitura</span></div>
-              <h1 id="luma-title" className="text-3xl font-bold">Luma</h1>
-              <p className="mt-2 max-w-2xl text-muted-foreground">Uma coruja de apoio para organizar informações autorizadas. A Luma não diagnostica, prescreve nem altera prontuários.</p>
+              <div className="mb-2 flex items-center gap-2 text-primary"><Brain className="h-5 w-5" /><span className="text-sm font-medium">{isTherapist ? "Assistente clínico de leitura" : "Assistente de navegação do site"}</span></div>
+              <h1 id="luma-title" className="text-3xl font-bold">{isTherapist ? "Luma Clínica" : "Luma Site Support"}</h1>
+              <p className="mt-2 max-w-2xl text-muted-foreground">{isTherapist ? "Uma coruja de apoio para organizar informações autorizadas. A Luma não diagnostica, prescreve nem altera prontuários." : "Uma coruja de apoio para encontrar funções do SAS. Este modo não acessa prontuários e não oferece orientação clínica."}</p>
             </div>
           </div>
 
@@ -140,12 +153,14 @@ export default function Luma() {
           <AIChatBox
             messages={messages}
             onSendMessage={handleSend}
-            isLoading={chatMutation.isPending}
-            lumaStatus={chatMutation.isPending ? "attentive" : "sleeping"}
-            processingLabel="Luma está consultando somente registros autorizados..."
-            placeholder={isTherapist && !selectedPatientId ? "Selecione um paciente para começar..." : "Escreva uma pergunta para a Luma..."}
-            emptyStateMessage={isTherapist ? "Selecione um paciente e pergunte sobre os registros autorizados." : "Pergunte à Luma sobre seus próprios registros e consultas."}
-            suggestedPrompts={isTherapist ? ["Resuma os últimos registros autorizados.", "Organize os próximos pontos para a sessão."] : ["Ajude-me a organizar minhas dúvidas para a próxima sessão.", "Quais informações minhas estão registradas? "]}
+            isLoading={isTherapist ? chatMutation.isPending : siteHelpMutation.isPending}
+            lumaStatus={(isTherapist ? chatMutation.isPending : siteHelpMutation.isPending) ? "attentive" : "sleeping"}
+            agentName={isTherapist ? "Luma Clínica" : "Luma Site Support"}
+            agentSubtitle={isTherapist ? "Coruja de apoio à leitura clínica autorizada" : "Ajuda para navegar no SAS"}
+            processingLabel={isTherapist ? "Luma está consultando somente registros autorizados..." : "Luma está localizando essa área no site..."}
+            placeholder={isTherapist && !selectedPatientId ? "Selecione um paciente para começar..." : "Escreva uma pergunta sobre o uso do site..."}
+            emptyStateMessage={isTherapist ? "Selecione um paciente e pergunte sobre os registros autorizados." : "Pergunte como usar as áreas e funções do SAS."}
+            suggestedPrompts={isTherapist ? ["Resuma os últimos registros autorizados.", "Organize os próximos pontos para a sessão."] : ["Como vejo minhas consultas?", "Como entro na videochamada?", "Como atualizo meu perfil?"]}
             onMessageFeedback={handleFeedback}
             feedbackByMessageId={feedbackByMessageId}
             height="620px"
@@ -156,8 +171,8 @@ export default function Luma() {
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="h-4 w-4 text-primary" />Escopo protegido</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm text-muted-foreground">
-              <p className="flex gap-2"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />A Luma só acessa dados autorizados pelo seu perfil.</p>
-              <p className="flex gap-2"><MessageCircle className="mt-0.5 h-4 w-4 shrink-0" />As respostas podem ser avaliadas por profissionais para melhorar o sistema.</p>
+              <p className="flex gap-2"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />{isTherapist ? "A Luma só acessa dados autorizados pelo seu perfil." : "O apoio do site não acessa prontuários, sessões ou documentos clínicos."}</p>
+              {isTherapist && <p className="flex gap-2"><MessageCircle className="mt-0.5 h-4 w-4 shrink-0" />As respostas podem ser avaliadas por profissionais para melhorar o sistema.</p>}
               <p className="flex gap-2"><UserRound className="mt-0.5 h-4 w-4 shrink-0" />Em situações de crise, procure ajuda humana e serviços de emergência.</p>
             </CardContent>
           </Card>

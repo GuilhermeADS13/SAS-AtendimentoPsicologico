@@ -8,6 +8,7 @@ import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessag
 import { eq, and, desc, isNull, ne, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { runOpenSourceAgent } from "./ai/llm";
+import { answerSiteHelp } from "./ai/site-help";
 import { resolveAiAccessContext } from "./ai/clinical-tools";
 import { recordAiAuditEvent } from "./ai/audit";
 import { enqueueDocumentIndexing, getDocumentIndexingStatus } from "./ai/document-queue";
@@ -91,6 +92,10 @@ export const appRouter = router({
    * O cliente não pode fornecer system messages nem escolher o modelo.
    */
   ai: router({
+    siteHelp: protectedProcedure
+      .input(z.object({ question: z.string().trim().min(1).max(800) }))
+      .mutation(async ({ input }) => answerSiteHelp(input.question)),
+
     chat: protectedProcedure
       .input(z.object({
         messages: z.array(z.object({
