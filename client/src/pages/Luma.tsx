@@ -60,11 +60,17 @@ export default function Luma() {
       return;
     }
 
+    const requestId = crypto.randomUUID();
     const nextMessages: Message[] = [...messages, { role: "user", content }];
     setMessages(nextMessages);
     try {
       if (!isClinicalUser) {
-        const result = await siteHelpMutation.mutateAsync({ question: content });
+        const result = await siteHelpMutation.mutateAsync({
+          question: content,
+          requestId,
+          conversationId,
+        });
+        setConversationId(result.conversationId);
         setMessages(current => [...current, {
           role: "assistant",
           content: result.content,
@@ -76,6 +82,7 @@ export default function Luma() {
         messages: nextMessages.filter((message): message is Message & { role: "user" | "assistant" } => message.role !== "system"),
         patientId: selectedPatientId ? Number(selectedPatientId) : undefined,
         conversationId,
+        requestId,
       });
       setConversationId(result.conversationId);
       setMessages(current => [...current, {

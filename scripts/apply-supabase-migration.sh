@@ -14,6 +14,7 @@ fi
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MIGRATION_FILES=(
   "${ROOT_DIR}/drizzle/migrations/0018_ai_conversation_compatibility.sql"
+  "${ROOT_DIR}/drizzle/migrations/0019_ai_message_idempotency.sql"
   "${ROOT_DIR}/drizzle/migrations/0016_ai_message_feedback.sql"
   "${ROOT_DIR}/drizzle/migrations/0017_ai_memory_audit.sql"
 )
@@ -32,19 +33,24 @@ for migration_file in "${MIGRATION_FILES[@]}"; do
   psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -f "${migration_file}"
 done
 printf '%s\n' "Validando objetos criados..."
-psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -Atc '
+validation_result="$(psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -Atc "
   select case
-    when to_regclass('"'"'public."aiConversations"'"'"') is not null
-      and to_regclass('"'"'public."aiMessages"'"'"') is not null
-      and to_regclass('"'"'public."aiMessageFeedback"'"'"') is not null
-      and to_regclass('"'"'public."aiMemories"'"'"') is not null
-      and to_regclass('"'"'public."aiAuditEvents"'"'"') is not null
-      and exists (select 1 from pg_type where typname = '"'"'ai_conversation_status'"'"')
-      and exists (select 1 from pg_type where typname = '"'"'ai_message_role'"'"')
-      and exists (select 1 from pg_type where typname = '"'"'ai_feedback_rating'"'"')
-      and exists (select 1 from pg_type where typname = '"'"'ai_memory_scope'"'"')
-    then '"'"'migration-ok'"'"'
-    else '"'"'migration-incomplete'"'"'
-  end;
-' | grep -qx '"'"'migration-ok'"'"'
+    when to_regclass('public.\"aiConversations\"') is not null
+      and to_regclass('public.\"aiMessages\"') is not null
+      and to_regclass('public.\"aiMessageFeedback\"') is not null
+      and to_regclass('public.\"aiMemories\"') is not null
+      and to_regclass('public.\"aiAuditEvents\"') is not null
+      and exists (select 1 from pg_type where typname = 'ai_conversation_status')
+      and exists (select 1 from pg_type where typname = 'ai_message_role')
+      and exists (select 1 from pg_type where typname = 'ai_feedback_rating')
+      and exists (select 1 from pg_type where typname = 'ai_memory_scope')
+      and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'aiMessages' and column_name = 'clientRequestId')
+      and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'aiConversations' and column_name = 'clientRequestId')
+    then 'migration-ok'
+    else 'migration-incomplete'
+  end;")"
+if [[ "${validation_result}" != "migration-ok" ]]; then
+  echo "Validação das migrações falhou: ${validation_result}" >&2
+  exit 1
+fi
 printf '%s\n' "Migrações aplicadas e verificadas."
