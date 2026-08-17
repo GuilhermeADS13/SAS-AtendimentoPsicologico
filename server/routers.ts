@@ -4,12 +4,12 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, therapistProcedure, adminProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { getDb } from "./db";
-import { aiDocumentChunks, patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users } from "../drizzle/schema";
+import { aiDocumentChunks, aiDocumentJobs, patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users } from "../drizzle/schema";
 import { eq, and, desc, isNull, ne, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { runOpenSourceAgent } from "./ai/llm";
 import { resolveAiAccessContext } from "./ai/clinical-tools";
-import { ingestClinicalDocument } from "./ai/document-ingestion";
+import { enqueueDocumentIndexing, getDocumentIndexingStatus } from "./ai/document-queue";
 import {
   sendAppointmentReminders,
   sendTherapistAlerts,
@@ -1414,7 +1414,24 @@ export const appRouter = router({
           id: ctx.user.id,
           role: ctx.user.role,
         });
-        return ingestClinicalDocument(accessContext, input.documentId, db);
+        const documentRows = await db.select({ id: documents.id }).from(documents)
+          .where(and(eq(documents.id, input.documentId), eq(documents.therapistId, accessContext.therapistId as number))).limit(1);
+        if (!documentRows.length) throw new Error("Documento não autorizado");
+        return enqueueDocumentIndexing(input.documentId, db);
+      }),
+
+    indexStatus: therapistProcedure
+      .input(z.object({ documentId: z.number().int().positive() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const therapist = await db.select({ id: therapists.id }).from(therapists)
+          .where(eq(therapists.userId, ctx.user.id)).limit(1);
+        if (!therapist.length) throw new Error("Therapist not found");
+        const documentRows = await db.select({ id: documents.id }).from(documents)
+          .where(and(eq(documents.id, input.documentId), eq(documents.therapistId, therapist[0].id))).limit(1);
+        if (!documentRows.length) throw new Error("Documento não autorizado");
+        return getDocumentIndexingStatus(input.documentId, db);
       }),
 
     // Remove o metadado (o caller apaga o arquivo do Storage usando o fileKey).
@@ -1440,6 +1457,7 @@ export const appRouter = router({
 
         if (!rows.length) throw new Error("Document not found");
 
+        await db.delete(aiDocumentJobs).where(eq(aiDocumentJobs.documentId, input.id));
         await db.delete(aiDocumentChunks).where(eq(aiDocumentChunks.documentId, input.id));
         await db.delete(documents).where(eq(documents.id, input.id));
         return { success: true, fileKey: rows[0].fileKey } as const;

@@ -1,4 +1,4 @@
-import { boolean, customType, index, integer, jsonb, pgEnum, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, customType, index, integer, jsonb, pgEnum, pgTable, serial, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
 /**
@@ -277,6 +277,32 @@ export type Document = typeof documents.$inferSelect;
 export type InsertDocument = typeof documents.$inferInsert;
 
 /** Chunks de texto extraído de arquivos, com embedding compatível com pgvector. */
+export const aiDocumentProcessingStatusEnum = pgEnum("aiDocumentProcessingStatus", ["pending", "processing", "indexed", "failed"]);
+
+export const aiDocumentJobs = pgTable(
+  "aiDocumentJobs",
+  {
+    id: serial("id").primaryKey(),
+    documentId: integer("documentId").notNull(),
+    status: aiDocumentProcessingStatusEnum("status").default("pending").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    maxAttempts: integer("maxAttempts").default(5).notNull(),
+    availableAt: timestamp("availableAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    lockedAt: timestamp("lockedAt", { withTimezone: true, mode: "date" }),
+    lockedBy: varchar("lockedBy", { length: 120 }),
+    lastError: text("lastError"),
+    processedAt: timestamp("processedAt", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => ({
+    documentUniqueIdx: uniqueIndex("ai_document_jobs_document_unique_idx").on(table.documentId),
+    statusAvailableIdx: index("ai_document_jobs_status_available_idx").on(table.status, table.availableAt),
+  }),
+);
+export type AiDocumentJob = typeof aiDocumentJobs.$inferSelect;
+export type InsertAiDocumentJob = typeof aiDocumentJobs.$inferInsert;
+
 export const aiDocumentChunks = pgTable(
   "aiDocumentChunks",
   {
