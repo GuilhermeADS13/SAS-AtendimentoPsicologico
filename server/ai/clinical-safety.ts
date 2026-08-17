@@ -9,9 +9,12 @@ const CRISIS_PATTERNS = [
   /(?:quero|vou|pretendo|penso em|pensei em|planejo|planejei)\s+(?:me\s+)?(?:matar|suicid|tirar a minha vida)/i,
   /(?:não|nao)\s+(?:quero|aguento|pretendo)\s+(?:mais\s+)?viver/i,
   /(?:me\s+)?(?:cortar|enforcar|afogar|atirar|matar)\s+(?:hoje|agora|esta noite|essa noite)/i,
+  /(?:como\s+.*\s+|qual a melhor forma de\s+)(?:me\s+)?(?:matar|suicidar|me cortar|me enforcar)/i,
+  /(?:meu|minha)\s+(?:amigo|amiga|companheiro|companheira|familiar|irmão|irmã|filho|filha).*(?:quer|vai|pensa em|planeja).*(?:matar|suicid|tirar a vida|não quer viver|nao quer viver)/i,
   /(?:vou|quero)\s+desaparecer/i,
   /não vou acordar amanhã/i,
   /nao vou acordar amanha/i,
+  /(?:ele|ela|essa pessoa).*(?:não vai|nao vai)\s+acordar amanhã/i,
   /ideação suicida|ideacao suicida|autoagressão|autoagressao/i,
 ];
 

@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:integration": "vitest run server/flow.integration.test.ts",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
+    "db:migrate:supabase": "bash scripts/apply-supabase-migration.sh",
     "ai:worker": "tsx server/ai/worker.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
