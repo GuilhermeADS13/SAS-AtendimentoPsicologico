@@ -55,6 +55,7 @@ export const therapistRequestStatusEnum = pgEnum("therapist_request_status", [
 ]);
 export const aiConversationStatusEnum = pgEnum("ai_conversation_status", ["active", "archived"]);
 export const aiMessageRoleEnum = pgEnum("ai_message_role", ["system", "user", "assistant", "tool"]);
+export const aiFeedbackRatingEnum = pgEnum("ai_feedback_rating", ["helpful", "not_helpful"]);
 export const aiMemoryScopeEnum = pgEnum("ai_memory_scope", ["user", "therapist", "patient"]);
 export const aiMemoryTypeEnum = pgEnum("ai_memory_type", [
   "preference",
@@ -449,6 +450,36 @@ export const aiMessages = pgTable(
 );
 export type AiMessage = typeof aiMessages.$inferSelect;
 export type InsertAiMessage = typeof aiMessages.$inferInsert;
+
+/** Avaliações profissionais das respostas, sem copiar prompt ou prontuário. */
+export const aiMessageFeedback = pgTable(
+  "aiMessageFeedback",
+  {
+    id: serial("id").primaryKey(),
+    messageId: integer("messageId").notNull(),
+    userId: integer("userId").notNull(),
+    rating: aiFeedbackRatingEnum("rating").notNull(),
+    reason: varchar("reason", { length: 80 }),
+    comment: varchar("comment", { length: 500 }),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => ({
+    messageUserUnique: uniqueIndex("ai_message_feedback_message_user_unique").on(
+      table.messageId,
+      table.userId,
+    ),
+    userCreatedIdx: index("ai_message_feedback_user_created_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
+  }),
+);
+export type AiMessageFeedback = typeof aiMessageFeedback.$inferSelect;
+export type InsertAiMessageFeedback = typeof aiMessageFeedback.$inferInsert;
 
 /** Memórias duráveis e minimizadas, sempre vinculadas a um escopo explícito. */
 export const aiMemories = pgTable(

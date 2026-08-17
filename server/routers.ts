@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, therapistProcedure, adminProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { getDb } from "./db";
-import { aiDocumentChunks, aiDocumentJobs, patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users } from "../drizzle/schema";
+import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessageFeedback, patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users } from "../drizzle/schema";
 import { eq, and, desc, isNull, ne, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { runOpenSourceAgent } from "./ai/llm";
@@ -115,6 +115,64 @@ export const appRouter = router({
         );
 
         return response;
+      }),
+
+    feedback: therapistProcedure
+      .input(z.object({
+        messageId: z.number().int().positive(),
+        rating: z.enum(["helpful", "not_helpful"]),
+        reason: z.string().trim().max(80).optional(),
+        comment: z.string().trim().max(500).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        const accessContext = await resolveAiAccessContext(db, {
+          id: ctx.user.id,
+          role: ctx.user.role,
+        });
+        if (!accessContext.therapistId) {
+          throw new Error("Apenas profissionais com escopo de terapeuta podem avaliar respostas");
+        }
+
+        const authorizedMessage = await db
+          .select({ messageId: aiMessages.id })
+          .from(aiMessages)
+          .innerJoin(aiConversations, eq(aiConversations.id, aiMessages.conversationId))
+          .where(
+            and(
+              eq(aiMessages.id, input.messageId),
+              eq(aiMessages.role, "assistant"),
+              eq(aiConversations.therapistId, accessContext.therapistId),
+            ),
+          )
+          .limit(1);
+
+        if (!authorizedMessage.length) {
+          throw new Error("Resposta não encontrada ou fora do escopo autorizado");
+        }
+
+        await db
+          .insert(aiMessageFeedback)
+          .values({
+            messageId: input.messageId,
+            userId: ctx.user.id,
+            rating: input.rating,
+            reason: input.reason || null,
+            comment: input.comment || null,
+          })
+          .onConflictDoUpdate({
+            target: [aiMessageFeedback.messageId, aiMessageFeedback.userId],
+            set: {
+              rating: input.rating,
+              reason: input.reason || null,
+              comment: input.comment || null,
+              updatedAt: new Date(),
+            },
+          });
+
+        return { success: true as const };
       }),
   }),
 
