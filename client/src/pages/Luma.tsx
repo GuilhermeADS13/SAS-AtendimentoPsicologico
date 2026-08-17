@@ -105,13 +105,13 @@ export default function Luma() {
     return <DashboardLayout><div className="flex min-h-[60vh] items-center justify-center">Carregando a Luma...</div></DashboardLayout>;
   }
 
-  if (isAdmin) {
+  if (isAdmin && !isTestSiteSupport) {
     return (
       <DashboardLayout>
         <Card className="mx-auto max-w-2xl border-amber-300 bg-amber-50">
           <CardHeader><CardTitle>Acesso clínico restrito</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">A Luma não consulta prontuários em contas administrativas. Use uma conta de terapeuta ou paciente autorizada.</p>
+            <p className="text-sm text-muted-foreground">A Luma clínica não consulta prontuários em contas administrativas. Use uma conta de terapeuta ou paciente autorizada.</p>
             <Button onClick={() => setLocation("/dashboard")}>Voltar ao dashboard</Button>
           </CardContent>
         </Card>
