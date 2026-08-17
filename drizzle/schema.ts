@@ -1,4 +1,4 @@
-import { boolean, index, integer, jsonb, pgEnum, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, customType, index, integer, jsonb, pgEnum, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
 /**
@@ -242,6 +242,18 @@ export type InsertSession = typeof sessions.$inferInsert;
 /**
  * Documentos/arquivos dos prontuários.
  */
+const vector768 = customType<{ data: number[]; driverData: string; columnType: "vector" }>({
+  dataType() {
+    return "vector(768)";
+  },
+  toDriver(value) {
+    return `[${value.join(",")}]`;
+  },
+  fromDriver(value) {
+    return String(value).slice(1, -1).split(",").filter(Boolean).map(Number);
+  },
+});
+
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
   patientId: integer("patientId").notNull(),
@@ -263,6 +275,31 @@ export const documents = pgTable("documents", {
 
 export type Document = typeof documents.$inferSelect;
 export type InsertDocument = typeof documents.$inferInsert;
+
+/** Chunks de texto extraído de arquivos, com embedding compatível com pgvector. */
+export const aiDocumentChunks = pgTable(
+  "aiDocumentChunks",
+  {
+    id: serial("id").primaryKey(),
+    documentId: integer("documentId").notNull(),
+    patientId: integer("patientId").notNull(),
+    therapistId: integer("therapistId").notNull(),
+    chunkIndex: integer("chunkIndex").notNull(),
+    content: text("content").notNull(),
+    contentHash: varchar("contentHash", { length: 64 }).notNull(),
+    embedding: vector768("embedding").notNull(),
+    pageNumber: integer("pageNumber"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => ({
+    documentChunkIdx: index("ai_document_chunks_document_chunk_idx").on(table.documentId, table.chunkIndex),
+    clinicalScopeIdx: index("ai_document_chunks_clinical_scope_idx").on(table.therapistId, table.patientId),
+    contentHashIdx: index("ai_document_chunks_content_hash_idx").on(table.contentHash),
+  }),
+);
+export type AiDocumentChunk = typeof aiDocumentChunks.$inferSelect;
+export type InsertAiDocumentChunk = typeof aiDocumentChunks.$inferInsert;
 
 /**
  * Notificações/lembretes.

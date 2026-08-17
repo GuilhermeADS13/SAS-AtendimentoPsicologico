@@ -99,6 +99,13 @@
       "when": 1786991719916,
       "tag": "0013_last_doorman",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1786992955661,
+      "tag": "0014_rare_kate_bishop",
+      "breakpoints": true
     }
   ]
 }

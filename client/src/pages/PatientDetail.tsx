@@ -157,6 +157,7 @@ export default function PatientDetail() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const createDocument = trpc.documents.create.useMutation();
+  const indexDocument = trpc.documents.indexContent.useMutation();
   const deleteDocument = trpc.documents.delete.useMutation();
 
   // Pagamentos DESTE paciente. appointments.list traz todas as consultas da
@@ -186,7 +187,7 @@ export default function PatientDetail() {
     setUploading(true);
     try {
       const fileKey = await uploadDocumentFile(patientId, file);
-      await createDocument.mutateAsync({
+      const created = await createDocument.mutateAsync({
         patientId,
         fileName: file.name,
         fileKey,
@@ -195,8 +196,17 @@ export default function PatientDetail() {
         fileSize: file.size,
         documentType: "other",
       });
+      if (created.documentId) {
+        try {
+          const indexed = await indexDocument.mutateAsync({ documentId: created.documentId });
+          toast.success(`Documento enviado e indexado (${indexed.chunks} trechos).`);
+        } catch {
+          toast.success("Documento enviado; a indexação ficará pendente para nova tentativa.");
+        }
+      } else {
+        toast.success("Documento enviado!");
+      }
       await documentsQuery.refetch();
-      toast.success("Documento enviado!");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha no upload");
     } finally {

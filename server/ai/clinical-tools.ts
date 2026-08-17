@@ -4,7 +4,8 @@ import { and, desc, eq } from "drizzle-orm";
 import { appointments, documents, patients, sessions, therapists } from "../../drizzle/schema";
 import { getDb } from "../db";
 import type { AiAccessContext } from "./access";
-import { formatRagContext, retrieveScopedClinicalContext } from "./rag";
+import { embeddingForCurrentEnvironment, formatRagContext, retrieveScopedClinicalContext } from "./rag";
+import { searchIndexedDocumentChunks } from "./document-ingestion";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
@@ -129,6 +130,12 @@ export function createClinicalTools(ctx: AiAccessContext, db: Db) {
       schema: patientIdSchema,
     }),
     tool(async ({ query, patientId }) => {
+      const queryEmbedding = await embeddingForCurrentEnvironment().getTextEmbedding(query);
+      const indexedChunks = await searchIndexedDocumentChunks(ctx, queryEmbedding, patientId, 6, db);
+      const documentContext = indexedChunks.map((chunk, index) =>
+        `[Fonte ${index + 1} | documento ${chunk.documentId} | página ${chunk.pageNumber ?? "não informada"} | paciente ${chunk.patientId}]\n${chunk.content}`,
+      ).join("\n\n");
+      if (documentContext) return documentContext;
       const sources = await retrieveScopedClinicalContext(ctx, { query, patientId, topK: 6 }, db);
       return formatRagContext(sources) || "Nenhum registro autorizado foi encontrado.";
     }, {
