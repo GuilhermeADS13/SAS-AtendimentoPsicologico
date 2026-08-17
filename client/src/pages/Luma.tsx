@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { LogoLockup } from "@/components/Logo";
 
 export default function Luma() {
   const [, setLocation] = useLocation();
@@ -104,7 +105,12 @@ export default function Luma() {
 
   return (
     <DashboardLayout>
-      <div className="mx-auto grid max-w-7xl gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="mx-auto max-w-7xl space-y-5">
+        <div className="flex items-center justify-between rounded-2xl border border-primary/15 bg-white/80 px-5 py-3 shadow-sm" aria-label="Identidade da plataforma">
+          <LogoLockup markClassName="h-9 w-9" />
+          <span className="text-sm text-muted-foreground">Assistência segura para o atendimento psicológico</span>
+        </div>
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
         <section className="space-y-4" aria-labelledby="luma-title">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -156,6 +162,7 @@ export default function Luma() {
             </CardContent>
           </Card>
         </aside>
+        </div>
       </div>
     </DashboardLayout>
   );
