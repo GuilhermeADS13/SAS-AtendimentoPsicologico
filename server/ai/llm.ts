@@ -40,6 +40,10 @@ export function createOpenSourceChatModel(config = getOpenSourceLlmConfig()) {
     apiKey: config.apiKey,
     temperature: config.temperature,
     maxTokens: config.maxTokens,
+    // O @langchain/openai v1 usa a "Responses API" (/responses) por padrão, que
+    // só a OpenAI tem. Groq/Ollama/vLLM e afins expõem apenas /chat/completions —
+    // por isso o Groq respondia 404. Forçamos o Chat Completions.
+    useResponsesApi: false,
     configuration: {
       baseURL: config.baseUrl,
     },
