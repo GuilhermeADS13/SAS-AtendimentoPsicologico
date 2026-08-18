@@ -342,7 +342,11 @@ export function AIChatBox({
                           {message.content}
                         </p>
                       )}
-                      {message.role === "assistant" && onMessageFeedback && (
+                      {/* Só oferece "Foi útil?" quando a resposta foi persistida
+                          (tem id). Mensagens de erro e as do site-help não têm id
+                          e não podem receber feedback — mostrar o botão nelas só
+                          fazia o clique não pegar. */}
+                      {message.role === "assistant" && message.id !== undefined && onMessageFeedback && (
                         <div className="mt-2 flex items-center gap-1 border-t border-border/60 pt-2" aria-label="Avaliar resposta da Luma">
                           <span className="mr-1 text-[11px] text-muted-foreground">Foi útil?</span>
                           {(["helpful", "not_helpful"] as const).map((rating) => {

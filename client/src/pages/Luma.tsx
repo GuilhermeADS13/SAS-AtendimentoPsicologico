@@ -29,7 +29,10 @@ export default function Luma() {
   });
   const chatMutation = trpc.ai.chat.useMutation();
   const siteHelpMutation = trpc.ai.siteHelp.useMutation();
-  const feedbackMutation = trpc.ai.feedback.useMutation();
+  const feedbackMutation = trpc.ai.feedback.useMutation({
+    onSuccess: () => toast.success("Obrigada pelo retorno!"),
+    onError: (e) => toast.error(e.message || "Não foi possível registrar a avaliação"),
+  });
 
   const patients = patientsQuery.data ?? [];
   const selectedPatient = useMemo(
