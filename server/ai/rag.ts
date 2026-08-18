@@ -58,7 +58,10 @@ class OpenAICompatibleEmbedding extends BaseEmbedding {
 export function embeddingForCurrentEnvironment(env: NodeJS.ProcessEnv = process.env) {
   return new OpenAICompatibleEmbedding({
     baseUrl: env.LLM_EMBEDDING_BASE_URL ?? env.LLM_BASE_URL ?? "http://localhost:11434/v1",
-    apiKey: env.LLM_API_KEY ?? "ollama",
+    // Chave PRÓPRIA para embeddings (cai em LLM_API_KEY se não houver): permite
+    // usar um provedor gratuito de embeddings (ex.: Cloudflare/Google, 768d)
+    // junto de outro provedor no chat (ex.: Groq grátis) — cada um com sua chave.
+    apiKey: env.LLM_EMBEDDING_API_KEY ?? env.LLM_API_KEY ?? "ollama",
     model: env.LLM_EMBEDDING_MODEL ?? "nomic-embed-text",
   });
 }
