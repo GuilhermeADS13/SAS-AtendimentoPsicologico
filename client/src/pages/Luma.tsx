@@ -197,7 +197,7 @@ export default function Luma() {
             suggestedPrompts={isClinicalUser ? ["Resumir os últimos registros autorizados", "Ver os próximos agendamentos", "Agendar uma consulta", "Organizar os próximos pontos para a sessão"] : ["Ver minhas consultas", "Entrar na videochamada", "Atualizar meu perfil", "Encontrar minha psicóloga"]}
             onMessageFeedback={handleFeedback}
             feedbackByMessageId={feedbackByMessageId}
-            height="620px"
+            height="min(620px, calc(100dvh - 220px))"
           />
         </section>
 
