@@ -5,7 +5,7 @@ import { publicProcedure, protectedProcedure, therapistProcedure, adminProcedure
 import { z } from "zod";
 import { getDb } from "./db";
 import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessageFeedback, patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users } from "../drizzle/schema";
-import { eq, and, desc, isNull, ne, inArray } from "drizzle-orm";
+import { eq, and, asc, desc, isNull, ne, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { runOpenSourceAgent } from "./ai/llm";
 import { answerSiteHelp } from "./ai/site-help";
@@ -113,6 +113,38 @@ export const appRouter = router({
    * O cliente não pode fornecer system messages nem escolher o modelo.
    */
   ai: router({
+    history: protectedProcedure
+      .input(z.object({ patientId: z.number().int().positive().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const accessContext = await resolveAiAccessContext(db, { id: ctx.user.id, role: ctx.user.role });
+        const isClinicalHistory = ctx.user.role === "therapist" && input?.patientId != null;
+        const scope = isClinicalHistory
+          ? and(
+              eq(aiConversations.userId, ctx.user.id),
+              eq(aiConversations.therapistId, accessContext.therapistId!),
+              eq(aiConversations.patientId, input!.patientId!),
+            )
+          : and(
+              eq(aiConversations.userId, ctx.user.id),
+              isNull(aiConversations.therapistId),
+              isNull(aiConversations.patientId),
+            );
+        const [conversation] = await db.select({
+          id: aiConversations.id,
+          patientId: aiConversations.patientId,
+          title: aiConversations.title,
+        }).from(aiConversations).where(scope).orderBy(desc(aiConversations.updatedAt)).limit(1);
+        if (!conversation) return { conversationId: undefined, messages: [] };
+        const messages = await db.select({
+          id: aiMessages.id,
+          role: aiMessages.role,
+          content: aiMessages.content,
+        }).from(aiMessages).where(eq(aiMessages.conversationId, conversation.id)).orderBy(asc(aiMessages.createdAt));
+        return { conversationId: conversation.id, messages };
+      }),
+
     siteHelp: protectedProcedure
       .input(z.object({
         question: z.string().trim().min(1).max(800),
