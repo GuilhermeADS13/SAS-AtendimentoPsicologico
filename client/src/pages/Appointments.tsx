@@ -584,17 +584,17 @@ export default function Appointments() {
               )}
             </div>
             <div className="hidden overflow-x-auto md:block">
-              <Table className="min-w-[900px]">
+              <Table className="min-w-[1120px] table-fixed">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Paciente</TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Hora</TableHead>
-                    <TableHead>Duração</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Pagamento</TableHead>
-                    <TableHead>Sala</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
+                    <TableHead className="w-[180px]">Paciente</TableHead>
+                    <TableHead className="w-[130px]">Data</TableHead>
+                    <TableHead className="w-[100px]">Hora</TableHead>
+                    <TableHead className="w-[100px]">Duração</TableHead>
+                    <TableHead className="w-[150px]">Status</TableHead>
+                    <TableHead className="w-[170px]">Pagamento</TableHead>
+                    <TableHead className="w-[300px]">Sala</TableHead>
+                    <TableHead className="w-[240px] text-left">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -751,15 +751,15 @@ export default function Appointments() {
                                 })()}
                             </div>
                           </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex flex-wrap justify-end gap-2">
+                          <TableCell className="align-top">
+                            <div className="grid w-[220px] grid-cols-1 gap-2">
                               {status === "scheduled" ? (
                                 <>
                                   <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => setLocation(roomUrl)}
-                                    className="h-8 gap-1.5 whitespace-nowrap text-primary hover:bg-primary/10"
+                                    className="h-auto min-h-8 w-full justify-start gap-1.5 whitespace-normal text-left text-primary hover:bg-primary/10"
                                     title="Entrar na videochamada"
                                     aria-label="Entrar na videochamada"
                                   >
@@ -770,7 +770,7 @@ export default function Appointments() {
                                     variant="outline"
                                     size="sm"
                                     onClick={() => updateStatus.mutate({ id: appointment.id, status: "completed" })}
-                                    className="h-8 gap-1.5 whitespace-nowrap text-green-700 hover:bg-green-100 hover:text-green-800"
+                                    className="h-auto min-h-8 w-full justify-start gap-1.5 whitespace-normal text-left text-green-700 hover:bg-green-100 hover:text-green-800"
                                     title="Marcar consulta como realizada"
                                     aria-label="Marcar consulta como realizada"
                                   >
@@ -781,7 +781,7 @@ export default function Appointments() {
                                     variant="outline"
                                     size="sm"
                                     onClick={() => updateStatus.mutate({ id: appointment.id, status: "cancelled" })}
-                                    className="h-8 gap-1.5 whitespace-nowrap text-red-700 hover:bg-red-100 hover:text-red-800"
+                                    className="h-auto min-h-8 w-full justify-start gap-1.5 whitespace-normal text-left text-red-700 hover:bg-red-100 hover:text-red-800"
                                     title="Cancelar consulta"
                                     aria-label="Cancelar consulta"
                                   >
