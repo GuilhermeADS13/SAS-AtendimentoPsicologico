@@ -539,7 +539,7 @@ export default function Appointments() {
                         <p className="text-xs text-green-600">✓ Presença confirmada</p>
                       ) : null}
                       <div className="flex flex-wrap items-center justify-between gap-2 border-y py-2">
-                        <span className="text-sm font-medium">{formatarBRL(appointment.price)}</span>
+                        <span className="text-sm font-medium">{formatarBRL(appointment.price, "Sem preço")}</span>
                         <button
                           onClick={() => togglePayment(appointment)}
                           disabled={paymentUpdatingId !== null}
@@ -668,7 +668,7 @@ export default function Appointments() {
                           <TableCell>
                             <div className="flex flex-col items-start gap-1">
                               <span className="text-sm text-foreground">
-                                {formatarBRL(appointment.price)}
+                                {formatarBRL(appointment.price, "Sem preço")}
                               </span>
                               {/* Clicável: alterna pago/pendente na hora. */}
                               <button

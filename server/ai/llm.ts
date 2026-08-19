@@ -130,6 +130,9 @@ export function clinicalSystemPrompt(ctx: AiAccessContext, requestedPatientId?: 
     toolsEnabled
       ? "Ações de escrita na agenda (agendar_consulta, remarcar_consulta, cancelar_consulta, registrar_pagamento): entenda os detalhes, RESUMA para a terapeuta e peça confirmação explícita ANTES. Nunca chame essas ferramentas com confirmadoPeloUsuario=true na mesma mensagem do pedido; use confirmadoPeloUsuario=true apenas após um 'sim' claro. Para remarcar, cancelar ou registrar pagamento, primeiro descubra o número da consulta com get_patient_appointments. Interprete horários no fuso de São Paulo (sem horário de verão)."
       : "",
+    toolsEnabled
+      ? "Depois de concluir uma ação (agendar, remarcar, cancelar ou registrar pagamento), confirme em uma frase o que foi feito e pergunte se a terapeuta quer fazer outra coisa ou voltar ao menu (o botão 'Voltar ao início')."
+      : "",
     requestedPatientId != null
       ? (toolsEnabled
           ? (patientName
