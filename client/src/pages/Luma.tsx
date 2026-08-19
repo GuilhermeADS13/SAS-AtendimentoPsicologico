@@ -33,6 +33,13 @@ export default function Luma() {
     onSuccess: () => toast.success("Obrigada pelo retorno!"),
     onError: (e) => toast.error(e.message || "Não foi possível registrar a avaliação"),
   });
+  const historyQuery = trpc.ai.history.useQuery(
+    isClinicalUser && selectedPatientId ? { patientId: Number(selectedPatientId) } : undefined,
+    {
+      enabled: !roleLoading && (!isClinicalUser || !!selectedPatientId) && (!isAdmin || isTestSiteSupport),
+      retry: false,
+    },
+  );
 
   const patients = patientsQuery.data ?? [];
   const selectedPatient = useMemo(
@@ -45,6 +52,20 @@ export default function Luma() {
       setSelectedPatientId(String(patients[0].id));
     }
   }, [patients, selectedPatientId]);
+
+  useEffect(() => {
+    if (!historyQuery.data) return;
+    setConversationId(historyQuery.data.conversationId);
+    const restoredMessages: Message[] = historyQuery.data.messages.flatMap(message => {
+      if (message.role !== "user" && message.role !== "assistant") return [];
+      return [{
+        id: message.id,
+        role: message.role as "user" | "assistant",
+        content: message.content,
+      }];
+    });
+    setMessages(restoredMessages);
+  }, [historyQuery.data]);
 
   function changePatient(value: string) {
     setSelectedPatientId(value);
