@@ -155,6 +155,8 @@ export default function Appointments() {
         toast.success("Consulta cancelada", {
           description:
             "Avise o paciente: ele não tem telefone no cadastro para o WhatsApp.",
+          className: "bg-card text-card-foreground border-border shadow-md",
+          descriptionClassName: "text-foreground opacity-100",
           duration: 10_000,
         });
         return;
@@ -162,6 +164,8 @@ export default function Appointments() {
 
       toast.success("Consulta cancelada", {
         description: "Avise o paciente — o e-mail pode cair no spam dele.",
+        className: "bg-card text-card-foreground border-border shadow-md",
+        descriptionClassName: "text-foreground opacity-100",
         duration: 15_000,
         action: {
           label: "Avisar no WhatsApp",
