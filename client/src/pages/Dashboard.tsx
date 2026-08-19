@@ -123,10 +123,16 @@ export default function Dashboard() {
             {showLumaShortcut && (
               <Button
                 onClick={() => setLocation("/luma")}
-                className="h-24 flex flex-col items-center justify-center gap-2 bg-primary/90 hover:bg-primary text-primary-foreground"
+                aria-label="Abrir a Luma"
+                className="group h-auto min-h-20 w-full items-center justify-start gap-3 rounded-2xl bg-gradient-to-r from-primary/95 to-primary px-4 py-3 text-left text-primary-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:from-primary hover:to-primary/90 hover:shadow-md sm:px-5"
               >
-                <LumaOwlIcon className="h-7 w-7" />
-                <span>Conversar com a Luma</span>
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/95 shadow-sm ring-1 ring-white/40 transition-transform group-hover:scale-105">
+                  <LumaOwlIcon className="h-8 w-8" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-base font-semibold leading-tight">Conversar com a Luma</span>
+                  <span className="mt-1 block text-xs font-normal text-primary-foreground/80">Apoio inteligente para usar o SAS</span>
+                </span>
               </Button>
             )}
             <Button
