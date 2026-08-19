@@ -54,6 +54,62 @@ async function authorizedPatient(
   return rows[0];
 }
 
+// Brasil não tem horário de verão desde 2019: um horário sem fuso é America/Sao_Paulo (-03:00).
+function parseHorarioSP(raw: string): Date | null {
+  const s = raw.trim();
+  const iso = /[zZ]|[+-]\d{2}:?\d{2}$/.test(s) ? s : `${s}-03:00`;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function fmtSP(d: Date, full = true): string {
+  return d.toLocaleString("pt-BR", full
+    ? { timeZone: "America/Sao_Paulo", dateStyle: "full", timeStyle: "short" }
+    : { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
+}
+
+/** Devolve o horário conflitante (não cancelado) da terapeuta, ou null. Ignora `ignorarId`. */
+async function horarioEmConflito(
+  db: Db, therapistId: number, inicio: Date, durationMin: number, ignorarId?: number,
+): Promise<Date | null> {
+  const janelaMs = 8 * 60 * 60 * 1000; // cobre a duração máxima (480 min)
+  const candidatas = await db.select({ id: appointments.id, scheduledAt: appointments.scheduledAt, duration: appointments.duration })
+    .from(appointments)
+    .where(and(
+      eq(appointments.therapistId, therapistId),
+      ne(appointments.status, "cancelled"),
+      gte(appointments.scheduledAt, new Date(inicio.getTime() - janelaMs)),
+      lte(appointments.scheduledAt, new Date(inicio.getTime() + durationMin * 60_000)),
+    ));
+  const ini = inicio.getTime();
+  const fim = ini + durationMin * 60_000;
+  for (const a of candidatas) {
+    if (ignorarId != null && a.id === ignorarId) continue;
+    const s = a.scheduledAt.getTime();
+    const e = s + (a.duration ?? 60) * 60_000;
+    if (ini < e && s < fim) return a.scheduledAt;
+  }
+  return null;
+}
+
+/** Consulta que pertence à terapeuta autenticada (e, se informado, ao paciente no escopo). */
+async function findOwnedAppointment(
+  db: Db, ctx: AiAccessContext, appointmentId: number, requestedPatientId?: number,
+): Promise<{ appt?: typeof appointments.$inferSelect; error?: string }> {
+  if (ctx.role !== "therapist" || ctx.therapistId == null) {
+    return { error: "Esta ação está disponível apenas para a terapeuta autenticada." };
+  }
+  const rows = await db.select().from(appointments)
+    .where(and(eq(appointments.id, appointmentId), eq(appointments.therapistId, ctx.therapistId))).limit(1);
+  if (!rows.length) {
+    return { error: `Não encontrei a consulta #${appointmentId} na sua agenda. Confira o número com get_patient_appointments.` };
+  }
+  if (requestedPatientId != null && rows[0].patientId !== requestedPatientId) {
+    return { error: "Essa consulta é de outro paciente. Selecione o paciente correto antes de alterar." };
+  }
+  return { appt: rows[0] };
+}
+
 export async function readPatientAppointments(
   ctx: AiAccessContext,
   requestedPatientId?: number,
@@ -143,71 +199,131 @@ export function createClinicalTools(
 ) {
   const patientIdSchema = z.object({ patientId: z.number().int().positive().optional() });
 
-  // Única ferramenta de ESCRITA, só para terapeuta: cria consulta com confirmação
-  // obrigatória (dupla trava: a flag confirmadoPeloUsuario + a regra no prompt) e
-  // checagem de conflito de horário. Não mexe em prontuário.
+  // Ferramentas de ESCRITA, só para terapeuta. TODAS com dupla trava de confirmação
+  // (flag confirmadoPeloUsuario + regra no prompt) e escopo no próprio paciente.
+  // Nenhuma toca em prontuário/sessão/documento (esses seguem somente leitura).
   const schedulingTools = ctx.role === "therapist" ? [
-    tool(async ({ patientId, scheduledAt, durationMinutes, notes, confirmadoPeloUsuario }) => {
+    // AGENDAR (com recorrência semanal opcional)
+    tool(async ({ patientId, scheduledAt, durationMinutes, notes, repetirSemanas, confirmadoPeloUsuario }) => {
       const patient = await authorizedPatient(db, ctx, patientId);
-      // Brasil não tem horário de verão desde 2019: naive (sem fuso) = America/Sao_Paulo (-03:00).
-      const raw = scheduledAt.trim();
-      const iso = /[zZ]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : `${raw}-03:00`;
-      const when = new Date(iso);
-      if (Number.isNaN(when.getTime())) {
-        return "Data/hora inválida. Peça à terapeuta a data e a hora exatas (ex.: 25/08/2026 às 14:00).";
-      }
-      if (when.getTime() < Date.now()) {
-        return "Esse horário já passou. Confirme uma data e hora futuras antes de agendar.";
-      }
+      const when = parseHorarioSP(scheduledAt);
+      if (!when) return "Data/hora inválida. Peça à terapeuta a data e a hora exatas (ex.: 25/08/2026 às 14:00).";
+      if (when.getTime() < Date.now()) return "Esse horário já passou. Confirme uma data e hora futuras antes de agendar.";
       const duration = durationMinutes && durationMinutes > 0 ? Math.min(durationMinutes, 480) : 60;
-      const quando = when.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "full", timeStyle: "short" });
+      const semanas = repetirSemanas && repetirSemanas > 0 ? Math.min(repetirSemanas, 12) : 1;
       const nome = `${patient.firstName} ${patient.lastName}`.trim();
+      const SEMANA_MS = 7 * 24 * 60 * 60 * 1000;
 
+      const slots = Array.from({ length: semanas }, (_, i) => new Date(when.getTime() + i * SEMANA_MS));
+      const livres: Date[] = [];
+      let emConflito = 0;
+      for (const slot of slots) {
+        if (await horarioEmConflito(db, patient.therapistId, slot, duration)) emConflito++;
+        else livres.push(slot);
+      }
+
+      const resumo = semanas > 1
+        ? `${semanas} consultas semanais com ${nome}, ${duration} min, a partir de ${fmtSP(when)}`
+        : `consulta com ${nome} em ${fmtSP(when)}, ${duration} minutos`;
       if (confirmadoPeloUsuario !== true) {
-        return `AINDA NÃO AGENDADO. Repita para a terapeuta e peça confirmação explícita: consulta com ${nome} em ${quando}, ${duration} minutos. Só chame agendar_consulta de novo, com confirmadoPeloUsuario=true, depois de um "sim" claro dela.`;
+        const aviso = emConflito ? ` Atenção: ${emConflito} data(s) já têm consulta e serão puladas.` : "";
+        return `AINDA NÃO AGENDADO. Repita para a terapeuta e peça confirmação explícita: ${resumo}.${aviso} Só chame agendar_consulta de novo, com confirmadoPeloUsuario=true, depois de um "sim" claro dela.`;
       }
+      if (!livres.length) return "Nenhuma consulta agendada: todos os horários já estão ocupados. Sugira outro horário à terapeuta.";
 
-      // Conflito: consultas não canceladas da terapeuta que se sobreponham a
-      // [when, when+duration). Janela de 8h cobre a duração máxima permitida.
-      const janelaMs = 8 * 60 * 60 * 1000;
-      const candidatas = await db.select({ id: appointments.id, scheduledAt: appointments.scheduledAt, duration: appointments.duration })
-        .from(appointments)
-        .where(and(
-          eq(appointments.therapistId, patient.therapistId),
-          ne(appointments.status, "cancelled"),
-          gte(appointments.scheduledAt, new Date(when.getTime() - janelaMs)),
-          lte(appointments.scheduledAt, new Date(when.getTime() + duration * 60_000)),
-        ));
-      const inicioNovo = when.getTime();
-      const fimNovo = inicioNovo + duration * 60_000;
-      const conflito = candidatas.find(a => {
-        const inicio = a.scheduledAt.getTime();
-        const fim = inicio + (a.duration ?? 60) * 60_000;
-        return inicioNovo < fim && inicio < fimNovo;
-      });
-      if (conflito) {
-        const q = conflito.scheduledAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
-        return `CONFLITO DE HORÁRIO: já existe uma consulta às ${q}. NÃO agendei nada. Sugira outro horário à terapeuta.`;
-      }
-
-      const [criada] = await db.insert(appointments).values({
+      const criadas = await db.insert(appointments).values(livres.map(slot => ({
         therapistId: patient.therapistId,
         patientId: patient.id,
-        scheduledAt: when,
+        scheduledAt: slot,
         duration,
         notes: notes?.trim() || null,
         roomToken: nanoid(16),
-      }).returning({ id: appointments.id });
-      return `AGENDADO com sucesso: ${nome} em ${quando}, ${duration} minutos (consulta #${criada.id}). A consulta já está na agenda.`;
+      }))).returning({ id: appointments.id });
+      const puladas = emConflito ? ` ${emConflito} pulada(s) por conflito.` : "";
+      return `AGENDADO: ${criadas.length} consulta(s) para ${nome} (${duration} min), começando ${fmtSP(when)}.${puladas} Os avisos serão enviados automaticamente.`;
     }, {
       name: "agendar_consulta",
-      description: "Cria UMA consulta para o paciente autorizado (ação de ESCRITA). Regra obrigatória: NUNCA agende na mesma mensagem do pedido. Primeiro chame SEM confirmadoPeloUsuario (ou com false) para obter o resumo, mostre-o e peça confirmação; só chame com confirmadoPeloUsuario=true depois de a terapeuta confirmar com um 'sim' explícito. Faz checagem de conflito de horário. Não define preço nem toca em prontuários.",
+      description: "Cria uma consulta (ou várias semanais, via repetirSemanas) para o paciente autorizado (ESCRITA). NUNCA agende na mesma mensagem do pedido: primeiro chame sem confirmadoPeloUsuario para o resumo, mostre e peça confirmação; só chame com confirmadoPeloUsuario=true após um 'sim' explícito. Checa conflito. Não define preço nem toca em prontuários.",
       schema: z.object({
         patientId: z.number().int().positive().optional(),
         scheduledAt: z.string().min(10).describe("Data e hora ISO 8601 no fuso America/Sao_Paulo, ex.: 2026-08-25T14:00:00"),
         durationMinutes: z.number().int().positive().max(480).optional().describe("Duração em minutos (padrão 60)"),
         notes: z.string().trim().max(500).optional().describe("Observação opcional da consulta"),
-        confirmadoPeloUsuario: z.boolean().optional().describe("true SOMENTE após a terapeuta confirmar explicitamente os detalhes na conversa"),
+        repetirSemanas: z.number().int().min(1).max(12).optional().describe("Recorrência: repetir semanalmente por N semanas (padrão 1)"),
+        confirmadoPeloUsuario: z.boolean().optional().describe("true SOMENTE após a terapeuta confirmar explicitamente"),
+      }),
+    }),
+
+    // REMARCAR
+    tool(async ({ appointmentId, patientId, novoHorario, novaDuracaoMinutos, confirmadoPeloUsuario }) => {
+      const { appt, error } = await findOwnedAppointment(db, ctx, appointmentId, patientId);
+      if (error || !appt) return error ?? "Consulta não encontrada.";
+      if (appt.status === "cancelled") return `A consulta #${appointmentId} está cancelada; agende uma nova em vez de remarcar.`;
+      const when = parseHorarioSP(novoHorario);
+      if (!when) return "Novo horário inválido. Peça a data e a hora exatas.";
+      if (when.getTime() < Date.now()) return "O novo horário já passou. Escolha uma data futura.";
+      const duration = novaDuracaoMinutos && novaDuracaoMinutos > 0 ? Math.min(novaDuracaoMinutos, 480) : (appt.duration ?? 60);
+      const conflito = await horarioEmConflito(db, appt.therapistId, when, duration, appt.id);
+      if (conflito) return `CONFLITO DE HORÁRIO: já existe uma consulta às ${fmtSP(conflito, false)}. Não remarquei. Sugira outro horário.`;
+      if (confirmadoPeloUsuario !== true) {
+        return `AINDA NÃO REMARCADO. Confirme com a terapeuta: mover a consulta #${appointmentId} de ${fmtSP(appt.scheduledAt, false)} para ${fmtSP(when)}, ${duration} min? Só chame de novo com confirmadoPeloUsuario=true após um "sim".`;
+      }
+      await db.update(appointments).set({ scheduledAt: when, duration })
+        .where(and(eq(appointments.id, appt.id), eq(appointments.therapistId, appt.therapistId)));
+      return `REMARCADA: consulta #${appointmentId} agora em ${fmtSP(when)}, ${duration} min.`;
+    }, {
+      name: "remarcar_consulta",
+      description: "Muda a data/hora (e opcionalmente a duração) de uma consulta existente (ESCRITA). Descubra o appointmentId com get_patient_appointments. Peça confirmação antes; confirmadoPeloUsuario=true só após 'sim'. Checa conflito.",
+      schema: z.object({
+        appointmentId: z.number().int().positive(),
+        patientId: z.number().int().positive().optional(),
+        novoHorario: z.string().min(10).describe("Nova data e hora ISO 8601 no fuso America/Sao_Paulo"),
+        novaDuracaoMinutos: z.number().int().positive().max(480).optional(),
+        confirmadoPeloUsuario: z.boolean().optional(),
+      }),
+    }),
+
+    // CANCELAR
+    tool(async ({ appointmentId, patientId, confirmadoPeloUsuario }) => {
+      const { appt, error } = await findOwnedAppointment(db, ctx, appointmentId, patientId);
+      if (error || !appt) return error ?? "Consulta não encontrada.";
+      if (appt.status === "cancelled") return `A consulta #${appointmentId} já está cancelada.`;
+      if (confirmadoPeloUsuario !== true) {
+        return `AINDA NÃO CANCELADO. Confirme com a terapeuta: cancelar a consulta #${appointmentId} de ${fmtSP(appt.scheduledAt, false)}? Só chame de novo com confirmadoPeloUsuario=true após um "sim".`;
+      }
+      await db.update(appointments).set({ status: "cancelled" })
+        .where(and(eq(appointments.id, appt.id), eq(appointments.therapistId, appt.therapistId)));
+      return `CANCELADA: consulta #${appointmentId} de ${fmtSP(appt.scheduledAt, false)}. O aviso de cancelamento será enviado automaticamente.`;
+    }, {
+      name: "cancelar_consulta",
+      description: "Cancela uma consulta existente (ESCRITA; marca status cancelada). Descubra o appointmentId com get_patient_appointments. Peça confirmação antes; confirmadoPeloUsuario=true só após 'sim'.",
+      schema: z.object({
+        appointmentId: z.number().int().positive(),
+        patientId: z.number().int().positive().optional(),
+        confirmadoPeloUsuario: z.boolean().optional(),
+      }),
+    }),
+
+    // REGISTRAR PAGAMENTO
+    tool(async ({ appointmentId, patientId, pago, confirmadoPeloUsuario }) => {
+      const { appt, error } = await findOwnedAppointment(db, ctx, appointmentId, patientId);
+      if (error || !appt) return error ?? "Consulta não encontrada.";
+      const marcarPago = pago !== false; // padrão: marcar como paga
+      const rotulo = marcarPago ? "paga" : "pendente";
+      if (confirmadoPeloUsuario !== true) {
+        return `AINDA NÃO REGISTRADO. Confirme com a terapeuta: marcar a consulta #${appointmentId} de ${fmtSP(appt.scheduledAt, false)} como ${rotulo}? Só chame de novo com confirmadoPeloUsuario=true após um "sim".`;
+      }
+      await db.update(appointments).set({ paid: marcarPago, paidAt: marcarPago ? new Date() : null })
+        .where(and(eq(appointments.id, appt.id), eq(appointments.therapistId, appt.therapistId)));
+      return `Consulta #${appointmentId} marcada como ${rotulo}.`;
+    }, {
+      name: "registrar_pagamento",
+      description: "Marca uma consulta como paga ou pendente (ESCRITA; controle financeiro simples). Descubra o appointmentId com get_patient_appointments. Peça confirmação antes; confirmadoPeloUsuario=true só após 'sim'. pago=false volta para pendente.",
+      schema: z.object({
+        appointmentId: z.number().int().positive(),
+        patientId: z.number().int().positive().optional(),
+        pago: z.boolean().optional().describe("true (padrão) marca paga; false volta para pendente"),
+        confirmadoPeloUsuario: z.boolean().optional(),
       }),
     }),
   ] : [];
