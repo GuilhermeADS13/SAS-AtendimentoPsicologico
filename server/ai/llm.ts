@@ -198,8 +198,27 @@ export async function runOpenSourceAgent(
   const systemPrompt = clinicalSystemPrompt(ctx, requestedPatientId, toolsEnabled);
 
   // DIAGNÓSTICO TEMPORÁRIO (remover depois): imprime a URL que o cliente
-  // realmente vai usar e flags de ambiente. Sem segredos.
+  // realmente vai usar e intercepta o fetch p/ ver a URL/model REAL de cada
+  // chamada ao groq/openai. Sem segredos.
   {
+    // Instala o interceptor ANTES de tocar no cliente OpenAI (que é criado
+    // preguiçosamente na 1ª chamada), para capturar todas as requisições.
+    const g = globalThis as unknown as { __lumaFetchPatched?: boolean; fetch: typeof fetch };
+    if (!g.__lumaFetchPatched) {
+      g.__lumaFetchPatched = true;
+      const orig = g.fetch.bind(g);
+      g.fetch = (async (input: unknown, init?: { method?: string; body?: unknown }) => {
+        try {
+          const url = typeof input === "string" ? input : (input as { url?: string })?.url ?? String(input);
+          if (/api\.(groq|openai)\.com/.test(url)) {
+            let model = "?";
+            try { if (typeof init?.body === "string") model = String((JSON.parse(init.body) as { model?: unknown }).model ?? "?"); } catch { /* ignore */ }
+            console.log(`[luma-fetch] ${init?.method ?? "GET"} ${url} model=${model}`);
+          }
+        } catch { /* ignore */ }
+        return orig(input as Parameters<typeof fetch>[0], init as Parameters<typeof fetch>[1]);
+      }) as typeof fetch;
+    }
     const probe = chatModel as unknown as {
       client?: { baseURL?: string };
       _getClientOptions?: (o: unknown) => { baseURL?: string };
