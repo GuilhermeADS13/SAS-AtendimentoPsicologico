@@ -197,6 +197,23 @@ export async function runOpenSourceAgent(
   const chatModel = createOpenSourceChatModel(config);
   const systemPrompt = clinicalSystemPrompt(ctx, requestedPatientId, toolsEnabled);
 
+  // DIAGNÓSTICO TEMPORÁRIO (remover depois): imprime a URL que o cliente
+  // realmente vai usar e flags de ambiente. Sem segredos.
+  {
+    const probe = chatModel as unknown as {
+      client?: { baseURL?: string };
+      _getClientOptions?: (o: unknown) => { baseURL?: string };
+    };
+    let clientBase: string | undefined;
+    try { clientBase = probe._getClientOptions?.({})?.baseURL ?? probe.client?.baseURL; } catch { /* ignore */ }
+    console.log(
+      `[luma-diag] cfgBase=${config.baseUrl} model=${config.model} clientBase=${clientBase ?? "?"} ` +
+      `tools=${toolsEnabled} OPENAI_API_KEY=${process.env.OPENAI_API_KEY ? "set" : "unset"} ` +
+      `OPENAI_BASE=${process.env.OPENAI_BASE_URL ?? process.env.OPENAI_API_BASE ?? "none"} ` +
+      `langsmith=${(process.env.LANGSMITH_API_KEY || process.env.LANGCHAIN_API_KEY || process.env.LANGSMITH_TRACING || process.env.LANGCHAIN_TRACING) ? "on" : "off"}`,
+    );
+  }
+
   let content: string;
   try {
     if (toolsEnabled) {
