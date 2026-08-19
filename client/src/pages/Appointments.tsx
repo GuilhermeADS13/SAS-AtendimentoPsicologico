@@ -29,7 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, Wallet, Table as TableIcon, CalendarDays, Filter, Loader2 } from "lucide-react";
+import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, Wallet, Table as TableIcon, CalendarDays, Filter, Loader2, Pencil } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { CalendarioAgenda } from "@/components/CalendarioAgenda";
@@ -75,6 +75,7 @@ export default function Appointments() {
   const [vista, setVista] = useState<"tabela" | "calendario">("tabela");
   const [filtroPagamento, setFiltroPagamento] = useState<"todos" | "pendentes" | "pagos">("todos");
   const [paymentUpdatingId, setPaymentUpdatingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const patientOf = (patientId: number) => patients.find((pt) => pt.id === patientId);
 
@@ -133,6 +134,17 @@ export default function Appointments() {
       );
     },
     onError: (e) => toast.error(e.message || "Erro ao agendar"),
+  });
+
+  const editarAppt = trpc.appointments.editar.useMutation({
+    onSuccess: () => {
+      utils.appointments.list.invalidate();
+      setFormData(emptyForm);
+      setEditingId(null);
+      setIsOpen(false);
+      toast.success("Consulta atualizada!");
+    },
+    onError: (e) => toast.error(e.message || "Erro ao editar"),
   });
 
   const updateStatus = trpc.appointments.updateStatus.useMutation({
@@ -217,6 +229,37 @@ export default function Appointments() {
     });
   };
 
+  // Abre o mesmo dialog em modo de edição, pré-preenchido com a consulta.
+  const startEdit = (appointment: (typeof appointments)[number]) => {
+    const d = new Date(appointment.scheduledAt);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    setFormData({
+      patientId: String(appointment.patientId),
+      date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+      time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+      duration: String(appointment.duration ?? 60),
+      repetir: "1",
+      valor: centavosParaInput(appointment.price),
+    });
+    setEditingId(appointment.id);
+    setIsOpen(true);
+  };
+
+  const handleEditAppointment = () => {
+    if (editingId == null) return;
+    if (!formData.date || !formData.time) {
+      toast.error("Informe a data e a hora.");
+      return;
+    }
+    const scheduledAt = new Date(`${formData.date}T${formData.time}`).toISOString();
+    editarAppt.mutate({
+      id: editingId,
+      scheduledAt,
+      duration: parseInt(formData.duration),
+      price: reaisParaCentavos(formData.valor),
+    });
+  };
+
   // Resumo financeiro do MÊS corrente (por data da consulta): recebido = pagas;
   // a receber = ainda não pagas que não foram canceladas/faltadas. Calculado no
   // cliente sobre a lista já carregada — sem query nova, escala do piloto.
@@ -281,12 +324,17 @@ export default function Appointments() {
           open={isOpen}
           onOpenChange={(aberto) => {
             setIsOpen(aberto);
-            // Ao abrir, preenche o valor com o preço padrão (se estiver vazio).
-            if (aberto) {
+            // Ao abrir para CRIAR, preenche o valor com o preço padrão (se vazio).
+            if (aberto && editingId == null) {
               setFormData((f) => ({
                 ...f,
                 valor: f.valor || centavosParaInput(therapist?.sessionPrice),
               }));
+            }
+            // Ao fechar, sai do modo de edição e limpa o formulário.
+            if (!aberto) {
+              setEditingId(null);
+              setFormData(emptyForm);
             }
           }}
         >
@@ -298,7 +346,7 @@ export default function Appointments() {
           </DialogTrigger>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Agendar Nova Consulta</DialogTitle>
+              <DialogTitle>{editingId ? "Editar Consulta" : "Agendar Nova Consulta"}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -311,6 +359,7 @@ export default function Appointments() {
                   <Select
                     value={formData.patientId}
                     onValueChange={(value) => setFormData({ ...formData, patientId: value })}
+                    disabled={editingId != null}
                   >
                     <SelectTrigger id="patient">
                       <SelectValue placeholder="Selecione o paciente" />
@@ -363,7 +412,9 @@ export default function Appointments() {
                 </Select>
               </div>
               {/* Terapia é semanal: repetir cria N consultas independentes, no
-                  mesmo dia/hora das semanas seguintes, cada uma com sua sala. */}
+                  mesmo dia/hora das semanas seguintes, cada uma com sua sala.
+                  Só ao CRIAR — ao editar uma consulta, a recorrência não aparece. */}
+              {editingId == null && (
               <div className="space-y-2">
                 <Label htmlFor="repetir">Repetir semanalmente</Label>
                 <Select
@@ -387,6 +438,7 @@ export default function Appointments() {
                   </p>
                 )}
               </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="valor">Valor da consulta</Label>
                 <div className="relative">
@@ -407,11 +459,13 @@ export default function Appointments() {
                 </p>
               </div>
               <Button
-                onClick={handleAddAppointment}
-                disabled={createAppt.isPending}
+                onClick={editingId ? handleEditAppointment : handleAddAppointment}
+                disabled={createAppt.isPending || editarAppt.isPending}
                 className="w-full bg-primary hover:bg-primary/90"
               >
-                {createAppt.isPending ? "Agendando..." : "Agendar"}
+                {editingId
+                  ? (editarAppt.isPending ? "Salvando..." : "Salvar alterações")
+                  : (createAppt.isPending ? "Agendando..." : "Agendar")}
               </Button>
             </div>
           </DialogContent>
@@ -566,6 +620,9 @@ export default function Appointments() {
                         ) : null}
                         {status === "scheduled" ? (
                           <>
+                            <Button variant="outline" size="sm" onClick={() => startEdit(appointment)} className="h-10 justify-center gap-1.5" title="Editar data, hora, duração ou valor">
+                              <Pencil className="h-4 w-4" /> Editar
+                            </Button>
                             <Button variant="outline" size="sm" onClick={() => setLocation(roomUrl)} className="h-10 justify-center gap-1.5 text-primary" title="Entrar na videochamada">
                               <ExternalLink className="h-4 w-4" /> Entrar na videochamada
                             </Button>
@@ -755,6 +812,17 @@ export default function Appointments() {
                             <div className="grid w-[220px] grid-cols-1 gap-2">
                               {status === "scheduled" ? (
                                 <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => startEdit(appointment)}
+                                    className="h-auto min-h-8 w-full justify-start gap-1.5 whitespace-normal text-left"
+                                    title="Editar data, hora, duração ou valor"
+                                    aria-label="Editar consulta"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                    <span>Editar</span>
+                                  </Button>
                                   <Button
                                     variant="outline"
                                     size="sm"
