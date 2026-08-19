@@ -1,6 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { createAgent } from "langchain";
-import { createClinicalTools, getScopedPatientName, hasAuthorizedClinicalData, type AiSourceReference } from "./clinical-tools";
+import { createClinicalTools, fetchConversationMemory, getScopedPatientName, hasAuthorizedClinicalData, type AiSourceReference } from "./clinical-tools";
 import type { AiAccessContext } from "./access";
 import { buildAgentCacheKey, getCachedAgentResponse, setCachedAgentResponse } from "./response-cache";
 import { recordAgentCacheMiss, recordAgentKillSwitch, recordAgentRequest, recordAgentSafetyIntercept } from "./runtime-metrics";
@@ -158,6 +158,7 @@ export async function runOpenSourceAgent(
   db: NonNullable<Awaited<ReturnType<typeof import("../db").getDb>>>,
   config = getOpenSourceLlmConfig(),
   requestedPatientId?: number,
+  currentConversationId?: number,
 ): Promise<{ content: string; model: string; sources: AiSourceReference[] }> {
   const startedAt = Date.now();
   if (!isAiAgentEnabled()) {
@@ -220,7 +221,15 @@ export async function runOpenSourceAgent(
   const toolsEnabled = areClinicalToolsEnabled() && isAiRagEnabled();
   const chatModel = createOpenSourceChatModel(config);
   const patientName = scopedPatientId != null ? await getScopedPatientName(db, ctx, scopedPatientId) : undefined;
-  const systemPrompt = clinicalSystemPrompt(ctx, requestedPatientId, toolsEnabled, patientName);
+  let systemPrompt = clinicalSystemPrompt(ctx, requestedPatientId, toolsEnabled, patientName);
+  // Memória: dá continuidade usando conversas anteriores da terapeuta com a Luma
+  // sobre este paciente (contexto para o RAG). Só no caminho com ferramentas.
+  if (toolsEnabled && scopedPatientId != null) {
+    const memoria = await fetchConversationMemory(ctx, scopedPatientId, db, currentConversationId);
+    if (memoria) {
+      systemPrompt += `\n\nMemória de conversas anteriores com a Luma sobre este paciente (use como contexto para dar continuidade; NÃO é registro clínico verificado, não repita literalmente nem invente dados a partir disso):\n${memoria}`;
+    }
+  }
 
   let content: string;
   try {
