@@ -241,12 +241,12 @@ export function AIChatBox({
       )}
       style={{ height }}
     >
-      <div className="flex items-center gap-3 border-b px-4 py-3">
+      <div className="flex min-w-0 items-center gap-3 border-b px-3 py-3 sm:px-4">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10" aria-label={lumaStatus === "sleeping" ? "Luma em modo economia" : "Luma atenta"}>
           <LumaOwlIcon className={cn("size-7", lumaStatus === "sleeping" && "opacity-60 grayscale")} />
         </div>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold">{agentName}</p>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">{agentName}</p>
           <p className="truncate text-xs text-muted-foreground">{lumaStatus === "sleeping" ? "Modo economia durante o processamento" : agentSubtitle}</p>
         </div>
       </div>
@@ -256,20 +256,20 @@ export function AIChatBox({
         {displayMessages.length === 0 ? (
           <div className="flex h-full flex-col p-4">
             <div className="flex flex-1 flex-col items-center justify-center gap-6 text-muted-foreground">
-              <div className="flex flex-col items-center gap-3">
+              <div className="flex max-w-full flex-col items-center gap-3 text-center">
                 <LumaOwlIcon className="size-16 opacity-85" />
-                <p className="text-sm">{emptyStateMessage}</p>
+                <p className="max-w-2xl break-words text-sm">{emptyStateMessage}</p>
               </div>
 
               {suggestedPrompts && suggestedPrompts.length > 0 && (
-                <div className="flex max-w-2xl flex-wrap justify-center gap-2">
+                <div className="flex w-full max-w-2xl flex-wrap justify-center gap-2">
                   {suggestedPrompts.map((prompt) => (
                     <button
                       key={prompt}
                       type="button"
                       onClick={() => onSendMessage(prompt)}
                       disabled={isLoading}
-                      className="rounded-lg border border-border bg-card px-4 py-2 text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                      className="max-w-full rounded-lg border border-border bg-card px-3 py-2 text-left text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:text-center"
                     >
                       {prompt}
                     </button>
@@ -312,7 +312,7 @@ export function AIChatBox({
 
                     <div
                       className={cn(
-                        "max-w-[80%] rounded-lg px-4 py-2.5",
+                        "min-w-0 max-w-[88%] overflow-hidden rounded-lg px-3 py-2.5 sm:max-w-[80%] sm:px-4",
                         message.role === "user"
                           ? "bg-primary text-primary-foreground"
                           : "bg-muted text-foreground"
@@ -389,10 +389,10 @@ export function AIChatBox({
                   <div className="size-8 shrink-0 mt-1 rounded-full bg-primary/10 flex items-center justify-center">
                     <LumaOwlIcon className="size-7" />
                   </div>
-                  <div className="rounded-lg bg-muted px-4 py-2.5">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="size-4 animate-spin" />
-                      <span>{processingLabel}</span>
+                  <div className="min-w-0 max-w-[88%] rounded-lg bg-muted px-3 py-2.5 sm:max-w-[80%] sm:px-4">
+                    <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />
+                      <span className="break-words">{processingLabel}</span>
                     </div>
                   </div>
                 </div>
@@ -407,7 +407,7 @@ export function AIChatBox({
         ref={inputAreaRef}
         onSubmit={handleSubmit}
         data-testid="ai-chat-form"
-        className="flex gap-2 p-4 border-t bg-background/50 items-end"
+        className="flex items-end gap-2 border-t bg-background/50 p-3 sm:p-4"
       >
         <label htmlFor="luma-chat-input" className="sr-only">Mensagem para {agentName}</label>
         <Textarea
@@ -418,7 +418,7 @@ export function AIChatBox({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           data-testid="ai-chat-input"
-          className="flex-1 max-h-32 resize-none min-h-9"
+          className="min-h-9 min-w-0 max-h-32 flex-1 resize-none"
           rows={1}
         />
         <Button
