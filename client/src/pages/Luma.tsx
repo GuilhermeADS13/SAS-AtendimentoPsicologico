@@ -172,7 +172,7 @@ export default function Luma() {
             placeholder={isClinicalUser
               ? (selectedPatientId ? "Pergunte sobre os registros autorizados deste paciente..." : "Selecione um paciente para começar...")
               : "Escreva uma pergunta sobre o uso do site..."}
-            emptyStateMessage={isClinicalUser ? "Olá! Eu sou a Luma. Posso resumir e buscar os registros autorizados, consultar a agenda e as sessões, e agendar consultas (sempre com a sua confirmação). Escolha um paciente e uma sugestão para começar." : "Olá! Eu sou a Luma, sua coruja de apoio no SAS. Escolha uma sugestão para aprender a usar o sistema."}
+            emptyStateMessage={isClinicalUser ? "Olá! Eu sou a Luma. Posso resumir e buscar os registros autorizados, consultar a agenda, e — sempre com a sua confirmação — agendar (inclusive recorrente), remarcar, cancelar consultas e registrar pagamento. Escolha um paciente e uma sugestão para começar." : "Olá! Eu sou a Luma, sua coruja de apoio no SAS. Escolha uma sugestão para aprender a usar o sistema."}
             suggestedPrompts={isClinicalUser ? ["Resumir os últimos registros autorizados", "Ver os próximos agendamentos", "Agendar uma consulta", "Organizar os próximos pontos para a sessão"] : ["Ver minhas consultas", "Entrar na videochamada", "Atualizar meu perfil", "Encontrar minha psicóloga"]}
             onMessageFeedback={handleFeedback}
             feedbackByMessageId={feedbackByMessageId}
