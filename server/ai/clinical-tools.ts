@@ -1,8 +1,8 @@
 import { tool } from "langchain";
 import { z } from "zod";
 import { nanoid } from "nanoid";
-import { and, desc, eq, gte, lte, ne } from "drizzle-orm";
-import { appointments, documents, patients, sessions, therapists } from "../../drizzle/schema";
+import { and, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
+import { aiConversations, aiMessages, appointments, documents, patients, sessions, therapists } from "../../drizzle/schema";
 import { getDb } from "../db";
 import type { AiAccessContext } from "./access";
 import { embeddingForCurrentEnvironment, formatRagContext, retrieveScopedClinicalContext, type RagSource } from "./rag";
@@ -119,6 +119,39 @@ export async function getScopedPatientName(db: Db, ctx: AiAccessContext, patient
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Memória curta: resume as últimas trocas de conversas ANTERIORES da terapeuta com
+ * a Luma sobre este paciente (exclui a conversa atual). Serve de contexto/RAG para
+ * dar continuidade. Limitado (~1200 chars) para não estourar o orçamento de tokens.
+ * Só terapeuta e só o próprio escopo (userId+therapistId+patientId) — LGPD.
+ */
+export async function fetchConversationMemory(
+  ctx: AiAccessContext, patientId: number | undefined, db: Db, excludeConversationId?: number,
+): Promise<string> {
+  if (ctx.role !== "therapist" || ctx.therapistId == null || patientId == null) return "";
+  const conds = [
+    eq(aiConversations.userId, ctx.userId),
+    eq(aiConversations.therapistId, ctx.therapistId),
+    eq(aiConversations.patientId, patientId),
+  ];
+  if (excludeConversationId != null) conds.push(ne(aiConversations.id, excludeConversationId));
+  const convs = await db.select({ id: aiConversations.id }).from(aiConversations)
+    .where(and(...conds)).orderBy(desc(aiConversations.updatedAt)).limit(3);
+  if (!convs.length) return "";
+  const rows = await db.select({ role: aiMessages.role, content: aiMessages.content })
+    .from(aiMessages).where(inArray(aiMessages.conversationId, convs.map(c => c.id)))
+    .orderBy(desc(aiMessages.createdAt)).limit(8);
+  if (!rows.length) return "";
+  let out = "";
+  for (const m of rows.reverse()) { // do mais antigo ao mais novo
+    const quem = m.role === "assistant" ? "Luma" : "Terapeuta";
+    const linha = `${quem}: ${m.content.replace(/\s+/g, " ").trim().slice(0, 240)}\n`;
+    if (out.length + linha.length > 1200) break;
+    out += linha;
+  }
+  return out.trim();
 }
 
 export async function readPatientAppointments(

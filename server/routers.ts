@@ -278,7 +278,7 @@ export const appRouter = router({
         // pendurada (era o que acumulava lixo a cada retry quando a IA demorava).
         // withTimeout limpa o próprio timer (ver helper).
         const response = await withTimeout(
-          runOpenSourceAgent(input.messages, accessContext, db, undefined, input.patientId),
+          runOpenSourceAgent(input.messages, accessContext, db, undefined, input.patientId, input.conversationId),
           35_000,
           "AI response timeout",
         );

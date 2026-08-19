@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { LockKeyhole, MessageCircle, ShieldCheck } from "lucide-react";
+import { LockKeyhole, MessageCircle, RotateCcw, ShieldCheck } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { AIChatBox, type LumaFeedback, type Message } from "@/components/AIChatBox";
 import { useRole } from "@/hooks/useRole";
@@ -69,6 +69,14 @@ export default function Luma() {
 
   function changePatient(value: string) {
     setSelectedPatientId(value);
+    setMessages([]);
+    setConversationId(undefined);
+    setFeedbackByMessageId({});
+  }
+
+  // Volta ao "menu" (estado inicial com as sugestões) e começa uma conversa nova.
+  // Não apaga nada: as conversas anteriores ficam salvas e viram memória da Luma.
+  function resetConversation() {
     setMessages([]);
     setConversationId(undefined);
     setFeedbackByMessageId({});
@@ -163,6 +171,11 @@ export default function Luma() {
               <p className="mt-2 max-w-2xl text-muted-foreground">{isClinicalUser ? "Uma coruja de apoio para organizar informações autorizadas. A Luma não diagnostica, prescreve nem altera prontuários." : "Uma coruja de apoio para encontrar funções do SAS. Este modo não acessa prontuários e não oferece orientação clínica."}
 </p>
             </div>
+            {messages.length > 0 && (
+              <Button variant="outline" size="sm" onClick={resetConversation} className="shrink-0 gap-1.5" title="Voltar ao início e começar uma conversa nova">
+                <RotateCcw className="h-4 w-4" /> Voltar ao início
+              </Button>
+            )}
           </div>
 
           {isClinicalUser && (
