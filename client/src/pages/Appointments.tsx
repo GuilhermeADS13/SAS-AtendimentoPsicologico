@@ -536,7 +536,7 @@ export default function Appointments() {
                   <Filter className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                   <div>
                     <p className="font-medium text-foreground">Pagamento</p>
-                    <p>Clique em <strong>Pendente · alterar</strong> ou <strong>Pago · alterar</strong> para atualizar o status.</p>
+                    <p>Clique em <strong>Pagamento pendente · alterar</strong> ou <strong>Pago · alterar</strong> para atualizar o status.</p>
                   </div>
                 </div>
                 <Select value={filtroPagamento} onValueChange={(value) => setFiltroPagamento(value as typeof filtroPagamento)}>
@@ -602,7 +602,7 @@ export default function Appointments() {
                           className={`inline-flex min-h-9 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${appointment.paid ? "bg-green-100 text-green-800 hover:bg-green-200" : "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"}`}
                         >
                           {paymentUpdatingId === appointment.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : appointment.paid ? <CheckCircle className="h-3 w-3" aria-hidden="true" /> : <Clock className="h-3 w-3" aria-hidden="true" />}
-                          {appointment.paid ? "Pago" : "Pendente"} · alterar
+                          {appointment.paid ? "Pago" : "Pagamento pendente"} · alterar
                         </button>
                       </div>
                       <div className="space-y-1 text-xs text-muted-foreground">
@@ -746,7 +746,7 @@ export default function Appointments() {
                                 ) : (
                                   <Clock className="h-3 w-3" aria-hidden="true" />
                                 )}
-                                <span>{appointment.paid ? "Pago" : "Pendente"}</span>
+                                <span>{appointment.paid ? "Pago" : "Pagamento pendente"}</span>
                                 <span className="text-[10px] font-medium underline underline-offset-2 opacity-80">alterar</span>
                                 </button>
                               {appointment.paidAt ? (
