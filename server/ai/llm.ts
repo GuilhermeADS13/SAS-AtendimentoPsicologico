@@ -25,12 +25,16 @@ export type OpenSourceLlmConfig = {
  * Ollama, vLLM, LM Studio, LiteLLM ou um gateway compatível.
  */
 export function getOpenSourceLlmConfig(env: NodeJS.ProcessEnv = process.env): OpenSourceLlmConfig {
+  // trim(): variáveis importadas de um .env feito no Windows (CRLF) chegam com
+  // \r/espaço no fim no Render. Um "\r" invisível no LLM_MODEL faz o provedor
+  // responder 404 "model does not exist". Limpar aqui protege todos os valores.
+  const clean = (value: string | undefined) => value?.trim();
   return {
-    baseUrl: env.LLM_BASE_URL ?? "http://localhost:11434/v1",
-    apiKey: env.LLM_API_KEY ?? "ollama",
-    model: env.LLM_MODEL ?? "qwen3:8b",
-    temperature: Number(env.LLM_TEMPERATURE ?? "0.2"),
-    maxTokens: Number(env.LLM_MAX_TOKENS ?? "800"),
+    baseUrl: clean(env.LLM_BASE_URL) || "http://localhost:11434/v1",
+    apiKey: clean(env.LLM_API_KEY) || "ollama",
+    model: clean(env.LLM_MODEL) || "qwen3:8b",
+    temperature: Number(clean(env.LLM_TEMPERATURE) ?? "0.2"),
+    maxTokens: Number(clean(env.LLM_MAX_TOKENS) ?? "800"),
   };
 }
 
@@ -227,9 +231,8 @@ export async function runOpenSourceAgent(
     try { clientBase = probe._getClientOptions?.({})?.baseURL ?? probe.client?.baseURL; } catch { /* ignore */ }
     console.log(
       `[luma-diag] cfgBase=${config.baseUrl} model=${config.model} clientBase=${clientBase ?? "?"} ` +
-      `tools=${toolsEnabled} OPENAI_API_KEY=${process.env.OPENAI_API_KEY ? "set" : "unset"} ` +
-      `OPENAI_BASE=${process.env.OPENAI_BASE_URL ?? process.env.OPENAI_API_BASE ?? "none"} ` +
-      `langsmith=${(process.env.LANGSMITH_API_KEY || process.env.LANGCHAIN_API_KEY || process.env.LANGSMITH_TRACING || process.env.LANGCHAIN_TRACING) ? "on" : "off"}`,
+      `tools=${toolsEnabled} rawModel=${JSON.stringify(process.env.LLM_MODEL)} ` +
+      `rawBaseLen=${(process.env.LLM_BASE_URL ?? "").length} keyLen=${(process.env.LLM_API_KEY ?? "").length}`,
     );
   }
 
