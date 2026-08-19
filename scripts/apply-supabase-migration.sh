@@ -17,6 +17,7 @@ MIGRATION_FILES=(
   "${ROOT_DIR}/drizzle/migrations/0019_ai_message_idempotency.sql"
   "${ROOT_DIR}/drizzle/migrations/0016_ai_message_feedback.sql"
   "${ROOT_DIR}/drizzle/migrations/0017_ai_memory_audit.sql"
+  "${ROOT_DIR}/drizzle/migrations/0020_appointment_payment_audit.sql"
 )
 
 for migration_file in "${MIGRATION_FILES[@]}"; do
@@ -46,6 +47,8 @@ validation_result="$(psql "${DATABASE_URL}" -X -v ON_ERROR_STOP=1 -Atc "
       and exists (select 1 from pg_type where typname = 'ai_memory_scope')
       and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'aiMessages' and column_name = 'clientRequestId')
       and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'aiConversations' and column_name = 'clientRequestId')
+      and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'appointments' and column_name = 'paymentUpdatedBy')
+      and exists (select 1 from pg_constraint where conname = 'appointments_payment_updated_by_users_id_fk')
     then 'migration-ok'
     else 'migration-incomplete'
   end;")"

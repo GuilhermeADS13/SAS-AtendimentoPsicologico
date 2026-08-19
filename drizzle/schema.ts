@@ -206,6 +206,8 @@ export const appointments = pgTable("appointments", {
   /** Se já foi paga. paidAt guarda quando foi marcada como paga (registro). */
   paid: boolean("paid").default(false).notNull(),
   paidAt: timestamp("paidAt", { withTimezone: true, mode: "date" }),
+  /** Usuário autenticado que registrou a última alteração do pagamento. */
+  paymentUpdatedBy: integer("paymentUpdatedBy").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
     .defaultNow()

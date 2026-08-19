@@ -506,7 +506,84 @@ export default function Appointments() {
                 }
               />
             ) : (
-            <div className="overflow-x-auto">
+            <>
+            <div className="grid gap-3 md:hidden">
+              {appointments.length === 0 ? (
+                <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  Nenhuma consulta agendada.
+                </div>
+              ) : filteredAppointments.length === 0 ? (
+                <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  Nenhuma consulta encontrada neste filtro.
+                </div>
+              ) : (
+                filteredAppointments.map((appointment) => {
+                  const scheduled = new Date(appointment.scheduledAt);
+                  const status = appointment.status as Status;
+                  const roomUrl = roomUrlFor(appointment.id, appointment.patientId, appointment.roomToken);
+                  const href = whatsappHref(appointment);
+                  return (
+                    <article key={appointment.id} className="space-y-3 rounded-xl border bg-card p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="truncate font-semibold">{patientName(appointment.patientId)}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {scheduled.toLocaleDateString("pt-BR")} às {scheduled.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} · {appointment.duration} min
+                          </p>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${getStatusColor(status)}`}>
+                          {getStatusLabel(status)}
+                        </span>
+                      </div>
+                      {appointment.confirmedAt ? (
+                        <p className="text-xs text-green-600">✓ Presença confirmada</p>
+                      ) : null}
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-y py-2">
+                        <span className="text-sm font-medium">{formatarBRL(appointment.price)}</span>
+                        <button
+                          onClick={() => togglePayment(appointment)}
+                          disabled={paymentUpdatingId !== null}
+                          title="Clique para alternar entre pago e pendente"
+                          aria-label={`Pagamento ${appointment.paid ? "pago" : "pendente"}. Clique para alternar.`}
+                          className={`inline-flex min-h-9 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${appointment.paid ? "bg-green-100 text-green-800 hover:bg-green-200" : "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"}`}
+                        >
+                          {paymentUpdatingId === appointment.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : appointment.paid ? <CheckCircle className="h-3 w-3" aria-hidden="true" /> : <Clock className="h-3 w-3" aria-hidden="true" />}
+                          {appointment.paid ? "Pago" : "Pendente"} · alterar
+                        </button>
+                      </div>
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        {appointment.paidAt ? <p>Pago em {new Date(appointment.paidAt).toLocaleDateString("pt-BR")}</p> : appointment.updatedAt ? <p>Atualizado em {new Date(appointment.updatedAt).toLocaleDateString("pt-BR")}</p> : null}
+                        {appointment.paymentUpdatedByName ? <p>Alterado por {appointment.paymentUpdatedByName}</p> : null}
+                      </div>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <Button variant="outline" size="sm" onClick={() => copyToClipboard(roomUrl)} className="h-10 justify-center gap-1.5" title="Copiar link da sala">
+                          <Copy className="h-4 w-4" /> Copiar sala
+                        </Button>
+                        {status === "scheduled" ? (
+                          <Button variant="outline" size="sm" disabled={!href} onClick={() => href && window.open(href, "_blank", "noopener")} className="h-10 justify-center gap-1.5 text-green-700" title={href ? "Abrir mensagem pronta no WhatsApp" : "Paciente sem telefone cadastrado"}>
+                            <WhatsAppIcon className="h-4 w-4" /> Avisar no WhatsApp
+                          </Button>
+                        ) : null}
+                        {status === "scheduled" ? (
+                          <>
+                            <Button variant="outline" size="sm" onClick={() => setLocation(roomUrl)} className="h-10 justify-center gap-1.5 text-primary" title="Entrar na videochamada">
+                              <ExternalLink className="h-4 w-4" /> Entrar na videochamada
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => updateStatus.mutate({ id: appointment.id, status: "completed" })} className="h-10 justify-center gap-1.5 text-green-700" title="Marcar consulta como realizada">
+                              <CheckCircle className="h-4 w-4" /> Realizada
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => updateStatus.mutate({ id: appointment.id, status: "cancelled" })} className="h-10 justify-center gap-1.5 text-red-700" title="Cancelar consulta">
+                              <XCircle className="h-4 w-4" /> Cancelar
+                            </Button>
+                          </>
+                        ) : <span className="text-xs text-muted-foreground">Sem ações</span>}
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <Table className="min-w-[900px]">
                 <TableHeader>
                   <TableRow>
@@ -624,6 +701,11 @@ export default function Appointments() {
                                   Atualizado em {new Date(appointment.updatedAt).toLocaleDateString("pt-BR")}
                                 </span>
                               ) : null}
+                              {appointment.paymentUpdatedByName ? (
+                                <span className="text-[10px] text-muted-foreground" title="Usuário que registrou a última alteração do pagamento">
+                                  Alterado por {appointment.paymentUpdatedByName}
+                                </span>
+                              ) : null}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -719,6 +801,7 @@ export default function Appointments() {
                 </TableBody>
               </Table>
             </div>
+            </>
             )}
           </CardContent>
         </Card>
