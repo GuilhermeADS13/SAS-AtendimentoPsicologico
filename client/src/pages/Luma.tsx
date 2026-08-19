@@ -166,8 +166,8 @@ export default function Luma() {
           </div>
 
           {isClinicalUser && (
-            <Card className="border-primary/30 bg-primary/5">
-              <CardContent className="space-y-2 p-4">
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="space-y-1.5 p-3">
                 <Label htmlFor="luma-patient">Paciente no escopo da conversa</Label>
                 <Select value={selectedPatientId} onValueChange={changePatient}>
                   <SelectTrigger id="luma-patient" aria-label="Selecionar paciente para a conversa com a Luma">

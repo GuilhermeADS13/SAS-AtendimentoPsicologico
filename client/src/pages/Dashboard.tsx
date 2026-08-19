@@ -131,7 +131,7 @@ export default function Dashboard() {
                 </span>
                 <span className="min-w-0">
                   <span className="block text-base font-semibold leading-tight">Conversar com a Luma</span>
-                  <span className="mt-1 block text-xs font-normal text-primary-foreground/80">Apoio inteligente para usar o SAS</span>
+                  <span className="mt-1 block text-xs font-normal text-primary-foreground/80">Assistente de IA: agenda, registros e dúvidas do sistema</span>
                 </span>
               </Button>
             )}
