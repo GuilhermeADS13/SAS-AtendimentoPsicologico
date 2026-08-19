@@ -550,14 +550,16 @@ export default function Appointments() {
                                   })
                                 }
                                 disabled={setPayment.isPending}
-                                title="Clique para alternar pago/pendente"
-                                className={`px-2 py-0.5 rounded-full text-xs font-semibold transition-colors ${
+                                title="Clique para alternar entre pago e pendente"
+                                aria-label={`Pagamento ${appointment.paid ? "pago" : "pendente"}. Clique para alternar.`}
+                                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors ${
                                   appointment.paid
                                     ? "bg-green-100 text-green-800 hover:bg-green-200"
                                     : "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
                                 }`}
                               >
-                                {appointment.paid ? "Pago" : "Pendente"}
+                                <span>{appointment.paid ? "Pago" : "Pendente"}</span>
+                                <span className="text-[10px] font-medium underline underline-offset-2 opacity-80">alterar</span>
                               </button>
                             </div>
                           </TableCell>
