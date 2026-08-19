@@ -29,7 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, Wallet, Table as TableIcon, CalendarDays } from "lucide-react";
+import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, Wallet, Table as TableIcon, CalendarDays, Filter, Loader2 } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { CalendarioAgenda } from "@/components/CalendarioAgenda";
@@ -73,6 +73,8 @@ export default function Appointments() {
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
   const [vista, setVista] = useState<"tabela" | "calendario">("tabela");
+  const [filtroPagamento, setFiltroPagamento] = useState<"todos" | "pendentes" | "pagos">("todos");
+  const [paymentUpdatingId, setPaymentUpdatingId] = useState<number | null>(null);
 
   const patientOf = (patientId: number) => patients.find((pt) => pt.id === patientId);
 
@@ -177,9 +179,23 @@ export default function Appointments() {
   });
 
   const setPayment = trpc.appointments.setPayment.useMutation({
-    onSuccess: () => utils.appointments.list.invalidate(),
-    onError: (e) => toast.error(e.message || "Erro ao atualizar o pagamento"),
+    onSuccess: (_data, vars) => {
+      setPaymentUpdatingId(null);
+      utils.appointments.list.invalidate();
+      toast.success(vars.paid ? "Pagamento marcado como pago" : "Pagamento voltou para pendente");
+    },
+    onError: (e) => {
+      setPaymentUpdatingId(null);
+      toast.error(e.message || "Erro ao atualizar o pagamento");
+    },
   });
+
+  const togglePayment = (appointment: (typeof appointments)[number]) => {
+    const nextPaid = !appointment.paid;
+    if (nextPaid && !window.confirm("Confirmar que esta consulta foi paga?")) return;
+    setPaymentUpdatingId(appointment.id);
+    setPayment.mutate({ id: appointment.id, paid: nextPaid });
+  };
 
   const copyToClipboard = (path: string) => {
     navigator.clipboard.writeText(`${window.location.origin}${path}`);
@@ -216,6 +232,9 @@ export default function Appointments() {
     .filter((a) => !a.paid && a.status !== "cancelled" && a.status !== "no_show")
     .reduce((soma, a) => soma + (a.price ?? 0), 0);
   const mesLabel = agora.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const filteredAppointments = appointments.filter((appointment) =>
+    filtroPagamento === "todos" || (filtroPagamento === "pagos" ? appointment.paid : !appointment.paid),
+  );
 
   const getStatusColor = (status: Status) => {
     switch (status) {
@@ -457,9 +476,30 @@ export default function Appointments() {
             </div>
           </CardHeader>
           <CardContent>
+            {vista === "tabela" && (
+              <div className="mb-4 flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                  <Filter className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  <div>
+                    <p className="font-medium text-foreground">Pagamento</p>
+                    <p>Clique em <strong>Pendente · alterar</strong> ou <strong>Pago · alterar</strong> para atualizar o status.</p>
+                  </div>
+                </div>
+                <Select value={filtroPagamento} onValueChange={(value) => setFiltroPagamento(value as typeof filtroPagamento)}>
+                  <SelectTrigger className="w-full sm:w-44" aria-label="Filtrar por pagamento">
+                    <SelectValue placeholder="Filtrar pagamentos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos os pagamentos</SelectItem>
+                    <SelectItem value="pendentes">Somente pendentes</SelectItem>
+                    <SelectItem value="pagos">Somente pagos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {vista === "calendario" ? (
               <CalendarioAgenda
-                appointments={appointments}
+                appointments={filteredAppointments}
                 patientName={patientName}
                 onSelect={(a) =>
                   setLocation(roomUrlFor(a.id, a.patientId, a.roomToken))
@@ -487,8 +527,14 @@ export default function Appointments() {
                         Nenhuma consulta agendada.
                       </TableCell>
                     </TableRow>
+                  ) : filteredAppointments.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        Nenhuma consulta encontrada neste filtro.
+                      </TableCell>
+                    </TableRow>
                   ) : (
-                    appointments.map((appointment) => {
+                    filteredAppointments.map((appointment) => {
                       const scheduled = new Date(appointment.scheduledAt);
                       const status = appointment.status as Status;
                       const roomUrl = roomUrlFor(
@@ -501,9 +547,15 @@ export default function Appointments() {
                         <TableRow
                           key={appointment.id}
                           data-appt={appointment.id}
-                          className={
+                          className={`${
                             destacada ? "bg-primary/10 ring-1 ring-primary/40" : ""
-                          }
+                          } ${
+                            status === "cancelled"
+                              ? "bg-red-50/60 dark:bg-red-950/20"
+                              : status === "no_show"
+                                ? "bg-yellow-50/50 dark:bg-yellow-950/20"
+                                : ""
+                          }`}
                         >
                           <TableCell className="font-medium">
                             {patientName(appointment.patientId)}
@@ -543,13 +595,8 @@ export default function Appointments() {
                               </span>
                               {/* Clicável: alterna pago/pendente na hora. */}
                               <button
-                                onClick={() =>
-                                  setPayment.mutate({
-                                    id: appointment.id,
-                                    paid: !appointment.paid,
-                                  })
-                                }
-                                disabled={setPayment.isPending}
+                                onClick={() => togglePayment(appointment)}
+                                disabled={paymentUpdatingId !== null}
                                 title="Clique para alternar entre pago e pendente"
                                 aria-label={`Pagamento ${appointment.paid ? "pago" : "pendente"}. Clique para alternar.`}
                                 className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors ${
@@ -558,9 +605,25 @@ export default function Appointments() {
                                     : "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
                                 }`}
                               >
+                                {paymentUpdatingId === appointment.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                                ) : appointment.paid ? (
+                                  <CheckCircle className="h-3 w-3" aria-hidden="true" />
+                                ) : (
+                                  <Clock className="h-3 w-3" aria-hidden="true" />
+                                )}
                                 <span>{appointment.paid ? "Pago" : "Pendente"}</span>
                                 <span className="text-[10px] font-medium underline underline-offset-2 opacity-80">alterar</span>
-                              </button>
+                                </button>
+                              {appointment.paidAt ? (
+                                <span className="text-[10px] text-muted-foreground" title="Data em que o pagamento foi registrado">
+                                  Pago em {new Date(appointment.paidAt).toLocaleDateString("pt-BR")}
+                                </span>
+                              ) : appointment.updatedAt ? (
+                                <span className="text-[10px] text-muted-foreground" title="Última atualização registrada para esta consulta">
+                                  Atualizado em {new Date(appointment.updatedAt).toLocaleDateString("pt-BR")}
+                                </span>
+                              ) : null}
                             </div>
                           </TableCell>
                           <TableCell>
