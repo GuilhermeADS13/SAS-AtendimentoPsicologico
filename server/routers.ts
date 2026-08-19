@@ -5,7 +5,7 @@ import { publicProcedure, protectedProcedure, therapistProcedure, adminProcedure
 import { z } from "zod";
 import { getDb } from "./db";
 import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessageFeedback, patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users } from "../drizzle/schema";
-import { eq, and, asc, desc, isNull, ne, inArray } from "drizzle-orm";
+import { eq, and, asc, desc, isNull, ne, inArray, getTableColumns } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { runOpenSourceAgent } from "./ai/llm";
 import { answerSiteHelp } from "./ai/site-help";
@@ -1273,8 +1273,12 @@ export const appRouter = router({
       if (!therapist.length) return [];
       
       return db
-        .select()
+        .select({
+          ...getTableColumns(appointments),
+          paymentUpdatedByName: users.name,
+        })
         .from(appointments)
+        .leftJoin(users, eq(users.id, appointments.paymentUpdatedBy))
         .where(eq(appointments.therapistId, therapist[0].id));
     }),
     
@@ -1366,6 +1370,7 @@ export const appRouter = router({
      * Marca pago/pendente e/ou ajusta o valor de uma consulta. Registro
      * financeiro simples (não é gateway): a psicóloga controla quem já acertou.
      * paidAt guarda quando foi marcada como paga; some ao voltar para pendente.
+     * paymentUpdatedBy guarda o usuário autenticado que fez a última alteração.
      */
     setPayment: therapistProcedure
       .input(z.object({
@@ -1390,14 +1395,24 @@ export const appRouter = router({
           set.paidAt = input.paid ? new Date() : null;
         }
         if (input.price !== undefined) set.price = input.price ?? null;
+        if (input.paid !== undefined || input.price !== undefined) {
+          set.paymentUpdatedBy = ctx.user.id;
+        }
         if (Object.keys(set).length === 0) return { success: true } as const;
 
-        await db
+        const updated = await db
           .update(appointments)
           .set(set)
-          .where(and(eq(appointments.id, input.id), eq(appointments.therapistId, therapist[0].id)));
+          .where(and(eq(appointments.id, input.id), eq(appointments.therapistId, therapist[0].id)))
+          .returning({
+            id: appointments.id,
+            paymentUpdatedBy: appointments.paymentUpdatedBy,
+            paidAt: appointments.paidAt,
+            updatedAt: appointments.updatedAt,
+          });
 
-        return { success: true } as const;
+        if (!updated.length) throw new Error("Appointment not found");
+        return { success: true, appointment: updated[0] } as const;
       }),
   }),
 
