@@ -629,70 +629,86 @@ export default function Appointments() {
                           <TableCell>
                             <div className="flex items-center gap-1">
                               <Button
-                                variant="ghost"
+                                variant="outline"
                                 size="sm"
                                 onClick={() => copyToClipboard(roomUrl)}
-                                className="p-1 h-auto"
+                                className="h-8 gap-1.5 whitespace-nowrap"
                                 title="Copiar link da sala"
+                                aria-label="Copiar link da sala"
                               >
-                                <Copy className="w-4 h-4" />
+                                <Copy className="h-4 w-4" />
+                                <span>Copiar sala</span>
                               </Button>
                               {status === "scheduled" &&
                                 (() => {
                                   const href = whatsappHref(appointment);
                                   return (
                                     <Button
-                                      variant="ghost"
+                                      variant="outline"
                                       size="sm"
                                       disabled={!href}
                                       onClick={() =>
                                         href && window.open(href, "_blank", "noopener")
                                       }
-                                      className="p-1 h-auto text-green-600 hover:bg-green-50 disabled:text-muted-foreground"
+                                      className="h-8 gap-1.5 whitespace-nowrap text-green-700 hover:bg-green-50 hover:text-green-800 disabled:text-muted-foreground"
                                       title={
                                         href
-                                          ? "Avisar por WhatsApp"
+                                          ? "Abrir mensagem pronta no WhatsApp"
+                                          : "Paciente sem telefone cadastrado"
+                                      }
+                                      aria-label={
+                                        href
+                                          ? "Avisar paciente pelo WhatsApp"
                                           : "Paciente sem telefone cadastrado"
                                       }
                                     >
-                                      <WhatsAppIcon className="w-4 h-4" />
+                                      <WhatsAppIcon className="h-4 w-4" />
+                                      <span>WhatsApp</span>
                                     </Button>
                                   );
                                 })()}
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              {status === "scheduled" && (
+                            <div className="flex flex-wrap justify-end gap-2">
+                              {status === "scheduled" ? (
                                 <>
                                   <Button
-                                    variant="ghost"
+                                    variant="outline"
                                     size="sm"
                                     onClick={() => setLocation(roomUrl)}
-                                    className="text-primary hover:bg-primary/10"
+                                    className="h-8 gap-1.5 whitespace-nowrap text-primary hover:bg-primary/10"
                                     title="Entrar na videochamada"
+                                    aria-label="Entrar na videochamada"
                                   >
-                                    <ExternalLink className="w-4 h-4" />
+                                    <ExternalLink className="h-4 w-4" />
+                                    <span>Entrar</span>
                                   </Button>
                                   <Button
-                                    variant="ghost"
+                                    variant="outline"
                                     size="sm"
                                     onClick={() => updateStatus.mutate({ id: appointment.id, status: "completed" })}
-                                    className="text-green-600 hover:bg-green-100"
-                                    title="Marcar como realizada"
+                                    className="h-8 gap-1.5 whitespace-nowrap text-green-700 hover:bg-green-100 hover:text-green-800"
+                                    title="Marcar consulta como realizada"
+                                    aria-label="Marcar consulta como realizada"
                                   >
-                                    <CheckCircle className="w-4 h-4" />
+                                    <CheckCircle className="h-4 w-4" />
+                                    <span>Realizada</span>
                                   </Button>
                                   <Button
-                                    variant="ghost"
+                                    variant="outline"
                                     size="sm"
                                     onClick={() => updateStatus.mutate({ id: appointment.id, status: "cancelled" })}
-                                    className="text-red-600 hover:bg-red-100"
-                                    title="Cancelar"
+                                    className="h-8 gap-1.5 whitespace-nowrap text-red-700 hover:bg-red-100 hover:text-red-800"
+                                    title="Cancelar consulta"
+                                    aria-label="Cancelar consulta"
                                   >
-                                    <XCircle className="w-4 h-4" />
+                                    <XCircle className="h-4 w-4" />
+                                    <span>Cancelar</span>
                                   </Button>
                                 </>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Sem ações</span>
                               )}
                             </div>
                           </TableCell>
