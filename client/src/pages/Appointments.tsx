@@ -291,7 +291,7 @@ export default function Appointments() {
           }}
         >
           <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+            <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground sm:w-auto">
               <Plus className="w-4 h-4 mr-2" />
               Nova Consulta
             </Button>
@@ -450,7 +450,7 @@ export default function Appointments() {
 
         {/* Consultas: tabela ou calendário — os mesmos dados, duas visões. */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
             <CardTitle>Consultas Agendadas</CardTitle>
             <div className="inline-flex rounded-lg border border-border p-0.5">
               <button
@@ -507,7 +507,7 @@ export default function Appointments() {
               />
             ) : (
             <div className="overflow-x-auto">
-              <Table>
+              <Table className="min-w-[900px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Paciente</TableHead>
