@@ -110,6 +110,17 @@ async function findOwnedAppointment(
   return { appt: rows[0] };
 }
 
+/** Nome de exibição do paciente no escopo. Não lança: retorna undefined se não autorizado. */
+export async function getScopedPatientName(db: Db, ctx: AiAccessContext, patientId?: number): Promise<string | undefined> {
+  try {
+    const p = await authorizedPatient(db, ctx, patientId);
+    const nome = `${p.firstName} ${p.lastName}`.trim();
+    return nome || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function readPatientAppointments(
   ctx: AiAccessContext,
   requestedPatientId?: number,
