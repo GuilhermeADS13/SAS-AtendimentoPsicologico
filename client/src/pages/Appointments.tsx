@@ -663,7 +663,7 @@ export default function Appointments() {
                                       }
                                     >
                                       <WhatsAppIcon className="h-4 w-4" />
-                                      <span>WhatsApp</span>
+                                      <span>Avisar no WhatsApp</span>
                                     </Button>
                                   );
                                 })()}
@@ -682,7 +682,7 @@ export default function Appointments() {
                                     aria-label="Entrar na videochamada"
                                   >
                                     <ExternalLink className="h-4 w-4" />
-                                    <span>Entrar</span>
+                                    <span>Entrar na videochamada</span>
                                   </Button>
                                   <Button
                                     variant="outline"
