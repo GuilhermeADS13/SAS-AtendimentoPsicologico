@@ -225,6 +225,11 @@ export async function runOpenSourceAgent(
     }
   } catch (error) {
     recordAgentRequest(Date.now() - startedAt, "error");
+    // Log sem segredos (modelo, flag de ferramentas, status e mensagem do
+    // provedor) para diagnosticar pelo Logs do Render sem expor a chave.
+    const status = (error as { status?: number })?.status;
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error(`[luma] agente falhou (model=${config.model}, tools=${toolsEnabled}, status=${status ?? "?"}): ${detail}`);
     throw error;
   }
   if (!content) throw new Error("O agente não retornou conteúdo");
