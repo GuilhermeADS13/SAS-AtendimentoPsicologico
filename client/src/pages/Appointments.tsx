@@ -507,7 +507,7 @@ export default function Appointments() {
               />
             ) : (
             <>
-            <div className="grid gap-3 md:hidden">
+            <div className="grid gap-3 2xl:hidden">
               {appointments.length === 0 ? (
                 <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
                   Nenhuma consulta agendada.
@@ -583,7 +583,7 @@ export default function Appointments() {
                 })
               )}
             </div>
-            <div className="hidden overflow-x-auto md:block">
+            <div className="hidden overflow-x-auto 2xl:block">
               <Table className="min-w-[1120px] table-fixed">
                 <TableHeader>
                   <TableRow>
