@@ -1366,6 +1366,37 @@ export const appRouter = router({
         return { success: true } as const;
       }),
 
+    // Edita data/hora, duração, valor e observação de uma consulta do terapeuta.
+    editar: therapistProcedure
+      .input(z.object({
+        id: z.number(),
+        scheduledAt: z.string().optional(),
+        duration: z.number().int().min(1).max(480).optional(),
+        price: z.number().int().min(0).nullish(),
+        notes: z.string().max(500).nullish(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const therapist = await db.select({ id: therapists.id }).from(therapists)
+          .where(eq(therapists.userId, ctx.user.id)).limit(1);
+        if (!therapist.length) throw new Error("Therapist not found");
+        const set: Partial<typeof appointments.$inferInsert> = {};
+        if (input.scheduledAt !== undefined) {
+          const quando = new Date(input.scheduledAt);
+          if (Number.isNaN(quando.getTime())) throw new Error("Data/hora inválida");
+          set.scheduledAt = quando;
+        }
+        if (input.duration !== undefined) set.duration = input.duration;
+        if (input.price !== undefined) set.price = input.price ?? null;
+        if (input.notes !== undefined) set.notes = input.notes ?? null;
+        if (Object.keys(set).length === 0) return { success: true } as const;
+        // Só edita se a consulta pertence a este terapeuta (escopo/segurança).
+        await db.update(appointments).set(set)
+          .where(and(eq(appointments.id, input.id), eq(appointments.therapistId, therapist[0].id)));
+        return { success: true } as const;
+      }),
+
     /**
      * Marca pago/pendente e/ou ajusta o valor de uma consulta. Registro
      * financeiro simples (não é gateway): a psicóloga controla quem já acertou.
