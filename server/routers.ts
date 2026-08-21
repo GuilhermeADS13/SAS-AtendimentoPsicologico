@@ -10,6 +10,7 @@ import { nanoid } from "nanoid";
 import { runOpenSourceAgent } from "./ai/llm";
 import { answerSiteHelp } from "./ai/site-help";
 import { resolveAiAccessContext } from "./ai/clinical-tools";
+import { dailyEnabled, ensureDailyRoom, createDailyToken } from "./video/daily";
 import { recordAiAuditEvent } from "./ai/audit";
 import { enqueueDocumentIndexing, getDocumentIndexingStatus } from "./ai/document-queue";
 import { getDocumentQueueMetrics, queueMetricsToPrometheus } from "./ai/queue-metrics";
@@ -1262,6 +1263,42 @@ export const appRouter = router({
         }
 
         return negar;
+      }),
+
+    // Videochamada via Daily.co: valida o acesso (mesmo critério do roomAccess) e
+    // devolve a URL da sala privada + um meeting token do usuário. Retorna null se
+    // o Daily não estiver configurado — aí o cliente usa o MiroTalk (fallback).
+    dailyJoin: protectedProcedure
+      .input(z.object({ roomId: z.string() }))
+      .query(async ({ ctx, input }) => {
+        if (!dailyEnabled()) return null;
+        const db = await getDb();
+        if (!db) return null;
+        const m = /^apt(\d+)-(.+)$/.exec(input.roomId);
+        if (!m) return null;
+        const appointmentId = Number(m[1]);
+        const token = m[2];
+        const appt = await db.select().from(appointments).where(eq(appointments.id, appointmentId)).limit(1);
+        if (!appt.length) return null;
+        const a = appt[0];
+        if (!a.roomToken || a.roomToken !== token) return null;
+
+        const therapist = await db.select({ id: therapists.id }).from(therapists)
+          .where(eq(therapists.userId, ctx.user.id)).limit(1);
+        let isOwner = false;
+        if (therapist.length && therapist[0].id === a.therapistId) {
+          isOwner = true;
+        } else {
+          const paciente = await pacienteDoUsuario(db, ctx.user);
+          if (!paciente || paciente.id !== a.patientId) return null;
+        }
+
+        const url = await ensureDailyRoom(input.roomId);
+        const meetingToken = await createDailyToken(input.roomId, {
+          isOwner,
+          userName: ctx.user.name || (isOwner ? "Psicóloga" : "Paciente"),
+        });
+        return { url, token: meetingToken };
       }),
 
     list: therapistProcedure.query(async ({ ctx }) => {
