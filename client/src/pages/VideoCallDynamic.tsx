@@ -5,7 +5,7 @@ import { usePresence } from "@/hooks/usePresence";
 import { playPresenceChime } from "@/lib/sound";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
-import MiroTalkMeeting from "@/components/MiroTalkMeeting";
+import JitsiMeeting from "@/components/JitsiMeeting";
 import VideoCallLobby from "@/components/VideoCallLobby";
 import DailyMeeting from "@/components/DailyMeeting";
 import { Button } from "@/components/ui/button";
@@ -16,11 +16,6 @@ import { formatarNascimento } from "@shared/datas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
-// Servidor MiroTalk SFU. Por padrão usa a instância pública do projeto (funciona
-// sem hospedar nada). Para self-host (ex.: docker compose local, com gravação),
-// aponte VITE_MIROTALK_URL para o seu servidor — ex.: https://localhost:3010.
-const mirotalkUrl = import.meta.env.VITE_MIROTALK_URL || "https://sfu.mirotalk.com";
-
 interface VideoCallDynamicProps {
   /** Nome da sala (apt<id>-<token>), sempre vindo da rota /videocall/:roomId. */
   roomId: string;
@@ -30,7 +25,6 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const room = roomId;
-  const [isCallReady, setIsCallReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const [patientPresent, setPatientPresent] = useState(false);
@@ -329,16 +323,12 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                   onError={(err) => setError(err)}
                 />
               ) : (
-                <MiroTalkMeeting
+                <JitsiMeeting
                   roomName={room}
                   displayName={displayName}
                   email={user?.email || undefined}
-                  apiUrl={mirotalkUrl}
-                  onReady={() => setIsCallReady(true)}
-                  onError={(err) => {
-                    console.error("Erro no MiroTalk:", err);
-                    setError("Erro ao conectar à videochamada. Verifique se o servidor MiroTalk está ativo.");
-                  }}
+                  onError={(err) => setError(err)}
+                  onLeft={() => setLocation(isTherapist ? "/dashboard" : "/consultas")}
                 />
               )
             )}
