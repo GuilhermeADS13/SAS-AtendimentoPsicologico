@@ -191,11 +191,11 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   return (
     <DashboardLayout>
       <div className="space-y-4 h-full flex flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-foreground">Videochamada</h1>
-            <p className="text-muted-foreground">
-              Consulta em tempo real — Sala: {room}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Videochamada</h1>
+            <p className="truncate text-muted-foreground">
+              {patient ? `Consulta com ${patient.firstName} ${patient.lastName}` : "Consulta em tempo real"}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -221,10 +221,10 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
           </Card>
         )}
 
-        {/* Main Content */}
-        <div className="flex-1 flex gap-4 min-h-0">
+        {/* Main Content — empilha no mobile, lado a lado no desktop */}
+        <div className="flex-1 flex flex-col gap-4 min-h-0 lg:flex-row">
           {/* MiroTalk Container */}
-          <div className="flex-1 bg-black rounded-lg overflow-hidden flex flex-col">
+          <div className="flex-1 min-h-[55vh] bg-black rounded-lg overflow-hidden flex flex-col lg:min-h-0">
             {!error && (
               <MiroTalkMeeting
                 roomName={room}
@@ -242,7 +242,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
 
           {/* Sidebar - Prontuário */}
           {showSidebar && patient && (
-            <div className="w-80 bg-card border border-border rounded-lg overflow-hidden flex flex-col">
+            <div className="flex w-full shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card lg:max-h-none lg:w-80">
               <div className="bg-primary/10 p-4 border-b border-border">
                 <div className="flex items-center justify-between">
                   <h2 className="font-semibold text-foreground">Prontuário</h2>
