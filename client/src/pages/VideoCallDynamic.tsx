@@ -6,6 +6,7 @@ import { playPresenceChime } from "@/lib/sound";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import MiroTalkMeeting from "@/components/MiroTalkMeeting";
+import VideoCallLobby from "@/components/VideoCallLobby";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Phone, AlertCircle, ChevronUp, CheckCircle2, Copy, ShieldAlert, Loader2 } from "lucide-react";
@@ -33,6 +34,10 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const [showSidebar, setShowSidebar] = useState(false);
   const [patientPresent, setPatientPresent] = useState(false);
   const [sessionNotes, setSessionNotes] = useState("");
+  // Só entra na chamada (MiroTalk) depois de passar pela tela de preparação.
+  const [joined, setJoined] = useState(false);
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  const joinedAtRef = useRef(0);
 
   // Controle de acesso da sala. O servidor confere, pelo token embutido no nome
   // da sala (apt<id>-<token>), que o usuário logado é participante DESTA consulta
@@ -86,6 +91,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   // Registro da videochamada + histórico de gravações no banco (videoCalls).
   const startCall = trpc.videoCalls.start.useMutation();
   const finishCall = trpc.videoCalls.finish.useMutation();
+  const markStatus = trpc.appointments.updateStatus.useMutation();
   const recordings = trpc.videoCalls.getByPatient.useQuery(
     { patientId },
     { enabled: notesEnabled },
@@ -93,15 +99,22 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const startedAtRef = useRef<number>(Date.now());
   const startedRef = useRef(false);
   useEffect(() => {
-    // Só registra a sessão quando o acesso já foi liberado (antes disso
-    // notesEnabled é falso). Dispara uma única vez por sala.
-    if (notesEnabled && !startedRef.current) {
+    // Só registra a sessão depois que a pessoa entrou de fato (passou pela tela
+    // de preparação) e o acesso está liberado. Dispara uma única vez por sala.
+    if (joined && notesEnabled && !startedRef.current) {
       startedRef.current = true;
       startedAtRef.current = Date.now();
       startCall.mutate({ appointmentId, patientId, roomId: room });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [notesEnabled, appointmentId, patientId, room]);
+  }, [joined, notesEnabled, appointmentId, patientId, room]);
+
+  // Cronômetro da sessão: atualiza a cada segundo enquanto a chamada estiver ativa.
+  useEffect(() => {
+    if (!joined) return;
+    const t = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [joined]);
 
   const displayName = user?.name || "Psicóloga";
 
@@ -110,7 +123,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const presenceRole: "therapist" | "patient" = isTherapist ? "therapist" : "patient";
   const presenceName = user?.name || "Paciente";
   // Só conecta a presença quando o acesso foi liberado (sala vazia = não conecta).
-  usePresence(allowed ? room : "", presenceRole, presenceName, (msg) => {
+  usePresence(joined && allowed ? room : "", presenceRole, presenceName, (msg) => {
     if (msg.type === "patient-joined") {
       setPatientPresent(true);
       // Só a psicóloga é avisada (som + toast) quando o paciente entra.
@@ -175,6 +188,22 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
     );
   }
 
+  // Tela de preparação (checar câmera/mic) antes de entrar na chamada.
+  if (user && allowed && !joined) {
+    return (
+      <DashboardLayout>
+        <VideoCallLobby
+          title="Pronto para entrar?"
+          subtitle={patient ? `Consulta com ${patient.firstName} ${patient.lastName}` : "Confira sua câmera e seu microfone"}
+          onJoin={() => {
+            joinedAtRef.current = Date.now();
+            setJoined(true);
+          }}
+        />
+      </DashboardLayout>
+    );
+  }
+
   const handleEndCall = async () => {
     if (!window.confirm("Encerrar a videochamada agora?")) return;
     if (notesEnabled) {
@@ -185,6 +214,14 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
       } catch (err) {
         console.error("Falha ao registrar fim da videochamada:", err);
       }
+      // Oferece fechar o fluxo marcando a consulta como realizada.
+      if (appointmentId > 0 && window.confirm("Marcar esta consulta como realizada?")) {
+        try {
+          await markStatus.mutateAsync({ id: appointmentId, status: "completed" });
+        } catch (err) {
+          console.error("Falha ao marcar consulta como realizada:", err);
+        }
+      }
     }
     setLocation(isTherapist ? "/dashboard" : "/consultas");
   };
@@ -194,6 +231,12 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
     navigator.clipboard.writeText(url);
     toast.success("Link da sala copiado! Envie para o paciente.");
   };
+
+  // Cronômetro: tempo decorrido desde que entrou (fica vermelho se passar da duração).
+  const elapsedSec = joined ? Math.max(0, Math.floor((nowTs - joinedAtRef.current) / 1000)) : 0;
+  const mm = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
+  const ss = String(elapsedSec % 60).padStart(2, "0");
+  const overtime = durationMin != null && durationMin > 0 && elapsedSec > durationMin * 60;
 
   return (
     <DashboardLayout>
@@ -249,6 +292,9 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                 Aguardando o paciente entrar…
               </div>
             )}
+            <div className={`pointer-events-none absolute right-3 top-3 z-10 rounded-full px-3 py-1 text-xs font-medium text-white shadow ${overtime ? "bg-red-600/85" : "bg-black/70"}`}>
+              {mm}:{ss}{durationMin ? ` · ${durationMin} min` : ""}
+            </div>
             {!error && (
               <MiroTalkMeeting
                 roomName={room}
