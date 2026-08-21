@@ -39,6 +39,8 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const [joined, setJoined] = useState(false);
   const [nowTs, setNowTs] = useState(() => Date.now());
   const joinedAtRef = useRef(0);
+  // O cronômetro da SESSÃO conta a partir de quando o paciente entra na sala.
+  const sessionStartRef = useRef(0);
 
   // Controle de acesso da sala. O servidor confere, pelo token embutido no nome
   // da sala (apt<id>-<token>), que o usuário logado é participante DESTA consulta
@@ -121,6 +123,16 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
     const t = setInterval(() => setNowTs(Date.now()), 1000);
     return () => clearInterval(t);
   }, [joined]);
+
+  // O cronômetro só COMEÇA quando o paciente entra na sala.
+  useEffect(() => {
+    if (patientPresent && sessionStartRef.current === 0) sessionStartRef.current = Date.now();
+  }, [patientPresent]);
+
+  // Para o paciente, "presente" é ele mesmo — marca ao entrar.
+  useEffect(() => {
+    if (joined && !isTherapist) setPatientPresent(true);
+  }, [joined, isTherapist]);
 
   const displayName = user?.name || "Psicóloga";
 
@@ -238,8 +250,10 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
     toast.success("Link da sala copiado! Envie para o paciente.");
   };
 
-  // Cronômetro: tempo decorrido desde que entrou (fica vermelho se passar da duração).
-  const elapsedSec = joined ? Math.max(0, Math.floor((nowTs - joinedAtRef.current) / 1000)) : 0;
+  // Cronômetro: conta a partir de quando o paciente entrou (fica vermelho se passar da duração).
+  const elapsedSec = patientPresent && sessionStartRef.current > 0
+    ? Math.max(0, Math.floor((nowTs - sessionStartRef.current) / 1000))
+    : 0;
   const mm = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
   const ss = String(elapsedSec % 60).padStart(2, "0");
   const overtime = durationMin != null && durationMin > 0 && elapsedSec > durationMin * 60;
@@ -298,9 +312,11 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                 Aguardando o paciente entrar…
               </div>
             )}
-            <div className={`pointer-events-none absolute right-3 top-3 z-10 rounded-full px-3 py-1 text-xs font-medium text-white shadow ${overtime ? "bg-red-600/85" : "bg-black/70"}`}>
-              {mm}:{ss}{durationMin ? ` · ${durationMin} min` : ""}
-            </div>
+            {patientPresent && (
+              <div className={`pointer-events-none absolute right-3 top-3 z-10 rounded-full px-3 py-1 text-xs font-medium text-white shadow ${overtime ? "bg-red-600/85" : "bg-black/70"}`}>
+                {mm}:{ss}{durationMin ? ` · ${durationMin} min` : ""}
+              </div>
+            )}
             {!error && (
               dailyJoin.isLoading ? (
                 <div className="flex flex-1 items-center justify-center text-white">
