@@ -1243,6 +1243,8 @@ export const appRouter = router({
             role: "therapist" as const,
             appointmentId,
             patientId: a.patientId,
+            scheduledAt: a.scheduledAt,
+            duration: a.duration,
           };
         }
 
@@ -1254,6 +1256,8 @@ export const appRouter = router({
             role: "patient" as const,
             appointmentId,
             patientId: a.patientId,
+            scheduledAt: a.scheduledAt,
+            duration: a.duration,
           };
         }
 

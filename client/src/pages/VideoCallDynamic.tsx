@@ -8,7 +8,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import MiroTalkMeeting from "@/components/MiroTalkMeeting";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Phone, AlertCircle, ChevronDown, ChevronUp, Edit2, Save, CheckCircle2, Copy, ShieldAlert, Loader2 } from "lucide-react";
+import { Phone, AlertCircle, ChevronUp, CheckCircle2, Copy, ShieldAlert, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { formatarNascimento } from "@shared/datas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -30,8 +30,8 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const room = roomId;
   const [isCallReady, setIsCallReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showSidebar, setShowSidebar] = useState(true);
-  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [patientPresent, setPatientPresent] = useState(false);
   const [sessionNotes, setSessionNotes] = useState("");
 
   // Controle de acesso da sala. O servidor confere, pelo token embutido no nome
@@ -48,6 +48,8 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   // não dá para entrar noutra consulta trocando ?apt= na URL.
   const appointmentId = access?.allowed ? access.appointmentId : 0;
   const patientId = access?.allowed ? access.patientId : 0;
+  const scheduledAt = access?.allowed ? access.scheduledAt : undefined;
+  const durationMin = access?.allowed ? access.duration : undefined;
   // Prontuário/anotações/gravação são exclusivos da psicóloga DESTA consulta.
   const isTherapist = access?.allowed ? access.role === "therapist" : false;
   const notesEnabled = isTherapist && appointmentId > 0 && patientId > 0;
@@ -109,11 +111,15 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const presenceName = user?.name || "Paciente";
   // Só conecta a presença quando o acesso foi liberado (sala vazia = não conecta).
   usePresence(allowed ? room : "", presenceRole, presenceName, (msg) => {
-    // Só a psicóloga é avisada (som + toast) quando o paciente entra.
-    if (msg.type === "patient-joined" && isTherapist) {
-      playPresenceChime();
-      toast.info(`${msg.name} entrou na sala`);
+    if (msg.type === "patient-joined") {
+      setPatientPresent(true);
+      // Só a psicóloga é avisada (som + toast) quando o paciente entra.
+      if (isTherapist) {
+        playPresenceChime();
+        toast.info(`${msg.name} entrou na sala`);
+      }
     }
+    if (msg.type === "patient-left") setPatientPresent(false);
   });
 
   // A confirmação de presença saiu da sala (era redundante — quem está na sala
@@ -170,6 +176,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   }
 
   const handleEndCall = async () => {
+    if (!window.confirm("Encerrar a videochamada agora?")) return;
     if (notesEnabled) {
       const durationSeconds = Math.round((Date.now() - startedAtRef.current) / 1000);
       // Persiste fim da sessão (e a URL da gravação, quando disponível do MiroTalk).
@@ -197,13 +204,25 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
             <p className="truncate text-muted-foreground">
               {patient ? `Consulta com ${patient.firstName} ${patient.lastName}` : "Consulta em tempo real"}
             </p>
+            {scheduledAt && (
+              <p className="text-sm text-muted-foreground">
+                {new Date(scheduledAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                {durationMin ? ` · ${durationMin} min` : ""}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
+            {/* No mobile o prontuário é uma gaveta; este botão abre/fecha. */}
+            {isTherapist && patient && (
+              <Button variant="outline" size="sm" className="lg:hidden" onClick={() => setShowSidebar((v) => !v)}>
+                Prontuário
+              </Button>
+            )}
             {/* Só a psicóloga compartilha a sala — o link não serve ao paciente. */}
             {isTherapist && (
               <Button variant="outline" size="sm" onClick={copyRoomLink}>
-                <Copy className="w-4 h-4 mr-2" />
-                Copiar link da sala
+                <Copy className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Copiar link da sala</span>
               </Button>
             )}
           </div>
@@ -224,7 +243,12 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
         {/* Main Content — empilha no mobile, lado a lado no desktop */}
         <div className="flex-1 flex flex-col gap-4 min-h-0 lg:flex-row">
           {/* MiroTalk Container */}
-          <div className="flex-1 min-h-[55vh] bg-black rounded-lg overflow-hidden flex flex-col lg:min-h-0">
+          <div className="relative flex-1 min-h-[55vh] bg-black rounded-lg overflow-hidden flex flex-col lg:min-h-0">
+            {isTherapist && !patientPresent && !error && (
+              <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-xs font-medium text-white shadow">
+                Aguardando o paciente entrar…
+              </div>
+            )}
             {!error && (
               <MiroTalkMeeting
                 roomName={room}
@@ -240,21 +264,23 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
             )}
           </div>
 
-          {/* Sidebar - Prontuário */}
-          {showSidebar && patient && (
-            <div className="flex w-full shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card lg:max-h-none lg:w-80">
-              <div className="bg-primary/10 p-4 border-b border-border">
-                <div className="flex items-center justify-between">
-                  <h2 className="font-semibold text-foreground">Prontuário</h2>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowSidebar(false)}
-                  >
-                    <ChevronUp className="w-4 h-4" />
-                  </Button>
+          {/* Prontuário — gaveta sobre o vídeo no mobile, painel fixo no desktop */}
+          {patient && (
+            <>
+              <div
+                className={`fixed inset-0 z-40 bg-black/40 transition-opacity lg:hidden ${showSidebar ? "opacity-100" : "pointer-events-none opacity-0"}`}
+                onClick={() => setShowSidebar(false)}
+                aria-hidden="true"
+              />
+              <div className={`fixed inset-y-0 right-0 z-50 flex w-80 max-w-[85vw] flex-col overflow-hidden border-l border-border bg-card shadow-xl transition-transform lg:static lg:z-auto lg:max-w-none lg:translate-x-0 lg:rounded-lg lg:border lg:shadow-none ${showSidebar ? "translate-x-0" : "translate-x-full"}`}>
+                <div className="bg-primary/10 p-4 border-b border-border">
+                  <div className="flex items-center justify-between">
+                    <h2 className="font-semibold text-foreground">Prontuário</h2>
+                    <Button variant="ghost" size="sm" className="lg:hidden" onClick={() => setShowSidebar(false)}>
+                      <ChevronUp className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
 
               <div className="flex-1 overflow-y-auto">
                 <Tabs defaultValue="info" className="w-full">
@@ -322,14 +348,12 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                     </div>
                   </TabsContent>
 
-                  {/* Notes Tab */}
+                  {/* Notes Tab — sempre editável, com auto-save */}
                   <TabsContent value="notes" className="p-4 space-y-3">
-                    {isEditingNotes ? (
-                      <>
                         <Textarea
                           value={sessionNotes}
                           onChange={(e) => setSessionNotes(e.target.value)}
-                          placeholder="Digite suas anotações da sessão..."
+                          placeholder="Digite suas anotações da sessão... (salva sozinho)"
                           rows={6}
                           className="resize-none"
                         />
@@ -339,33 +363,14 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                             {notesEnabled && autoSaveStatus === "saving" && "Salvando..."}
                             {notesEnabled && autoSaveStatus === "saved" && (
                               <span className="text-green-600 flex items-center gap-1">
-                                <CheckCircle2 className="w-3 h-3" /> Salvo
+                                <CheckCircle2 className="w-3 h-3" /> Salvo automaticamente
                               </span>
                             )}
                             {notesEnabled && autoSaveStatus === "error" && (
                               <span className="text-destructive">Erro ao salvar</span>
                             )}
+                            {notesEnabled && autoSaveStatus === "idle" && "As anotações salvam sozinhas."}
                           </span>
-                        </div>
-                        <Button
-                          onClick={() => setIsEditingNotes(false)}
-                          size="sm"
-                          className="w-full bg-primary hover:bg-primary/90"
-                        >
-                          <Save className="w-4 h-4 mr-2" />
-                          Concluir
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <div className="bg-muted/50 rounded-lg p-3 min-h-24">
-                          <p className="text-sm text-foreground">
-                            {sessionNotes || (
-                              <span className="text-muted-foreground">
-                                Nenhuma anotação ainda...
-                              </span>
-                            )}
-                          </p>
                         </div>
 
                         <div className="border-t border-border pt-3">
@@ -421,34 +426,11 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                             </div>
                           </div>
                         )}
-
-                        <Button
-                          onClick={() => setIsEditingNotes(true)}
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                        >
-                          <Edit2 className="w-4 h-4 mr-2" />
-                          Editar Anotações
-                        </Button>
-                      </>
-                    )}
                   </TabsContent>
                 </Tabs>
               </div>
             </div>
-          )}
-
-          {/* Sidebar Toggle (só faz sentido com um paciente vinculado) */}
-          {!showSidebar && patient && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowSidebar(true)}
-              className="absolute right-4 top-24"
-            >
-              <ChevronDown className="w-4 h-4" />
-            </Button>
+            </>
           )}
         </div>
 
