@@ -67,21 +67,29 @@ export default function JitsiMeeting({
           height: "100%",
           userInfo: { displayName, email },
           configOverwrite: {
-            // Já temos a nossa tela de preparação; pula a do Jitsi.
+            // Já temos a nossa tela de preparação; pula a do Jitsi (as duas chaves:
+            // a nova `prejoinConfig` e a antiga `prejoinPageEnabled`).
+            prejoinConfig: { enabled: false },
             prejoinPageEnabled: false,
             startWithAudioMuted: false,
             startWithVideoMuted: false,
             disableDeepLinking: true,
+            // Não expõe o nome técnico da sala (apt<id>-<token>) como "assunto".
+            subject: " ",
           },
           interfaceConfigOverwrite: {
             MOBILE_APP_PROMO: false,
             SHOW_JITSI_WATERMARK: false,
             SHOW_CHROME_EXTENSION_BANNER: false,
+            SHOW_POWERED_BY: false,
+            DEFAULT_REMOTE_DISPLAY_NAME: "Participante",
           },
         });
         apiRef.current = api;
         api.addEventListener("videoConferenceJoined", () => setLoading(false));
         api.addEventListener("readyToClose", () => onLeft?.());
+        // Segurança: se o evento de entrada não vier, tira o "carregando" mesmo assim.
+        setTimeout(() => setLoading(false), 6000);
       })
       .catch((e: unknown) => onError?.(e instanceof Error ? e.message : "Erro ao carregar a videochamada"));
 
@@ -100,7 +108,7 @@ export default function JitsiMeeting({
   return (
     <div className="relative h-full w-full overflow-hidden rounded-lg bg-black">
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
           <div className="text-center">
             <div className="mb-4 inline-block h-12 w-12 animate-spin rounded-full border-b-2 border-primary" />
             <p className="text-muted-foreground">Carregando videochamada...</p>
