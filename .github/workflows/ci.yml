@@ -13,7 +13,12 @@ jobs:
     # Postgres efêmero para os testes de integração (funcionais).
     services:
       postgres:
-        image: postgres:16
+        # pgvector/pgvector:pg16 e a imagem oficial do pgvector sobre o postgres:16.
+        # Com o `postgres:16` puro a extensao nao existe e a migration 0014
+        # (CREATE EXTENSION IF NOT EXISTS vector) falha com
+        # 'extension "vector" is not available', derrubando o CI inteiro antes
+        # mesmo de rodar os testes.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
