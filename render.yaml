@@ -68,8 +68,10 @@ services:
       # preencha no painel, nunca no repositório.
       - key: LLM_BASE_URL
         value: https://api.groq.com/openai/v1
+      # O Groq removeu os modelos Llama; o que existe é o gpt-oss. Um modelo morto
+      # aqui faz a Luma responder 404 "model does not exist".
       - key: LLM_MODEL
-        value: llama-3.3-70b-versatile
+        value: openai/gpt-oss-120b
       - key: LLM_API_KEY
         sync: false
       - key: LLM_TEMPERATURE

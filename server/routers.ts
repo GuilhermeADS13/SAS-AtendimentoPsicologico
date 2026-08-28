@@ -9,7 +9,7 @@ import { eq, and, asc, desc, isNull, ne, inArray, getTableColumns } from "drizzl
 import { nanoid } from "nanoid";
 import { runOpenSourceAgent } from "./ai/llm";
 import { answerSiteHelp } from "./ai/site-help";
-import { executarAcaoAgenda, resolveAiAccessContext } from "./ai/clinical-tools";
+import { executarAcaoAgenda, horarioEmConflito, resolveAiAccessContext } from "./ai/clinical-tools";
 import { confirmPendingActionByHuman } from "./ai/action-confirmation";
 import { dailyEnabled, ensureDailyRoom, createDailyToken } from "./video/daily";
 import { recordAiAuditEvent } from "./ai/audit";
@@ -1427,18 +1427,29 @@ export const appRouter = router({
 
         const base = new Date(input.scheduledAt);
         const SEMANA_MS = 7 * 24 * 60 * 60 * 1000;
-        const linhas = Array.from({ length: input.repetirSemanas }, (_, i) => ({
-          therapistId: therapist[0].id,
-          patientId: input.patientId,
-          scheduledAt: new Date(base.getTime() + i * SEMANA_MS),
-          duration: input.duration,
-          notes: input.notes,
-          price: input.price ?? null,
-          // Token aleatório POR CONSULTA: o nome da sala vira apt<id>-<token>,
-          // impossível de adivinhar — cada semana tem a sua sala.
-          roomToken: nanoid(16),
-        }));
-
+        // Pula horários que já têm consulta (não cancelada): evita marcar duas no
+        // mesmo horário. Cada semana da recorrência é checada individualmente.
+        const linhas: Array<typeof appointments.$inferInsert> = [];
+        for (let i = 0; i < input.repetirSemanas; i++) {
+          const slot = new Date(base.getTime() + i * SEMANA_MS);
+          if (await horarioEmConflito(db, therapist[0].id, slot, input.duration)) continue;
+          linhas.push({
+            therapistId: therapist[0].id,
+            patientId: input.patientId,
+            scheduledAt: slot,
+            duration: input.duration,
+            notes: input.notes,
+            price: input.price ?? null,
+            // Token aleatório POR CONSULTA: o nome da sala vira apt<id>-<token>,
+            // impossível de adivinhar — cada semana tem a sua sala.
+            roomToken: nanoid(16),
+          });
+        }
+        if (!linhas.length) {
+          throw new Error(input.repetirSemanas > 1
+            ? "Todos os horários já têm consulta na agenda. Escolha outro horário."
+            : "Já existe uma consulta nesse horário. Escolha outro.");
+        }
         await db.insert(appointments).values(linhas);
         return { criadas: linhas.length } as const;
       }),
@@ -1494,6 +1505,18 @@ export const appRouter = router({
         if (input.price !== undefined) set.price = input.price ?? null;
         if (input.notes !== undefined) set.notes = input.notes ?? null;
         if (Object.keys(set).length === 0) return { success: true } as const;
+        // Se a data/hora ou a duração mudou, recusa se colidir com outra consulta
+        // (ignora a própria). Mesma checagem que a Luma faz ao remarcar.
+        if (set.scheduledAt || set.duration != null) {
+          const [atual] = await db.select({ scheduledAt: appointments.scheduledAt, duration: appointments.duration })
+            .from(appointments).where(and(eq(appointments.id, input.id), eq(appointments.therapistId, therapist[0].id))).limit(1);
+          if (!atual) throw new Error("Consulta não encontrada.");
+          const quando = set.scheduledAt ?? atual.scheduledAt;
+          const dur = (set.duration ?? atual.duration) ?? 60;
+          if (await horarioEmConflito(db, therapist[0].id, quando, dur, input.id)) {
+            throw new Error("Já existe uma consulta nesse horário. Escolha outro.");
+          }
+        }
         // Só edita se a consulta pertence a este terapeuta (escopo/segurança).
         await db.update(appointments).set(set)
           .where(and(eq(appointments.id, input.id), eq(appointments.therapistId, therapist[0].id)));
