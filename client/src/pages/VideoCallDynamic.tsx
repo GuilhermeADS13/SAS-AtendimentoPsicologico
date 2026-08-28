@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import JitsiMeeting from "@/components/JitsiMeeting";
 import VideoCallLobby from "@/components/VideoCallLobby";
-import DailyMeeting from "@/components/DailyMeeting";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Phone, AlertCircle, ChevronUp, CheckCircle2, Copy, ShieldAlert, Loader2 } from "lucide-react";
@@ -92,11 +91,6 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const recordings = trpc.videoCalls.getByPatient.useQuery(
     { patientId },
     { enabled: notesEnabled },
-  );
-  // Sala do Daily.co (URL + meeting token). null = Daily não configurado → MiroTalk.
-  const dailyJoin = trpc.appointments.dailyJoin.useQuery(
-    { roomId: room },
-    { enabled: joined && allowed, staleTime: Infinity, refetchOnWindowFocus: false, retry: false },
   );
   const startedAtRef = useRef<number>(Date.now());
   const startedRef = useRef(false);
@@ -312,25 +306,13 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
               </div>
             )}
             {!error && (
-              dailyJoin.isLoading ? (
-                <div className="flex flex-1 items-center justify-center text-white">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                </div>
-              ) : dailyJoin.data ? (
-                <DailyMeeting
-                  url={dailyJoin.data.url}
-                  token={dailyJoin.data.token}
-                  onError={(err) => setError(err)}
-                />
-              ) : (
-                <JitsiMeeting
-                  roomName={room}
-                  displayName={displayName}
-                  email={user?.email || undefined}
-                  onError={(err) => setError(err)}
-                  onLeft={() => setLocation(isTherapist ? "/dashboard" : "/consultas")}
-                />
-              )
+              <JitsiMeeting
+                roomName={room}
+                displayName={displayName}
+                email={user?.email || undefined}
+                onError={(err) => setError(err)}
+                onLeft={() => setLocation(isTherapist ? "/dashboard" : "/consultas")}
+              />
             )}
           </div>
 
