@@ -23,7 +23,13 @@ export function rerankClinicalSources(sources: RagSource[], query: string, topK 
       const sourceTokens = tokenize(source.text);
       const overlap = Array.from(queryTokens).filter(token => sourceTokens.has(token)).length;
       const lexicalScore = queryTokens.size ? overlap / queryTokens.size : 0;
-      const similarityScore = source.score == null ? 0 : Math.max(0, Math.min(1, 1 - source.score));
+      // `source.score` vem do retriever do LlamaIndex, que usa getTopKEmbeddings:
+      // o valor é a SIMILARIDADE de cosseno (maior = mais relevante), já ordenada
+      // de forma decrescente. Aqui era `1 - source.score`, tratando o valor como
+      // se fosse distância — o trecho mais relevante (0.9) virava 0.1 e o mais
+      // irrelevante (0.3) virava 0.7. Como este termo pesa 0.65 de 1.0, o rerank
+      // devolvia o contexto clínico na ordem invertida.
+      const similarityScore = source.score == null ? 0 : Math.max(0, Math.min(1, source.score));
       const score = (similarityScore * 0.65) + (lexicalScore * 0.25) + (SOURCE_WEIGHT[source.sourceType] * 0.1);
       return { source: { ...source, score }, score, index };
     })
