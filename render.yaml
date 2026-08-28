@@ -81,20 +81,28 @@ services:
       - key: AI_AGENT_ENABLED # false = desliga a Luma na hora (kill switch)
         value: "true"
 
-      # RAG clínico desligado por padrão: exige um provedor de embeddings 768d
-      # (LLM_EMBEDDING_*) e a service_role do Supabase para baixar o documento
-      # privado. Para ligar, veja a "OPÇÃO B" no .env.example e mude os TRÊS
-      # juntos — AI_RAG_ENABLED, AI_CLINICAL_TOOLS_ENABLED e AI_WORKER_INLINE.
+      # RAG clínico LIGADO — é o que a produção usa. Sem ele, ligar só o
+      # AI_CLINICAL_TOOLS_ENABLED não basta: no código, toolsEnabled = tools && rag,
+      # então a Luma perde agendar/remarcar/cancelar/pagar. Os TRÊS andam juntos.
       - key: AI_RAG_ENABLED
-        value: "false"
+        value: "true"
       - key: AI_CLINICAL_TOOLS_ENABLED
-        value: "false"
+        value: "true"
       # Consome a fila de indexação dentro do processo web. O plano free do Render
       # não tem o tipo "background worker", então sem isto `ai.indexContent` só
-      # empilha jobs que ninguém processa. Ligue junto com o RAG.
+      # empilha jobs que ninguém processa. Ligado junto com o RAG.
       - key: AI_WORKER_INLINE
-        value: "false"
-      # SEGREDO. Necessário só com o RAG ligado: o worker usa a service_role para
+        value: "true"
+      # Embeddings 768d GRÁTIS: Cloudflare Workers AI (bge-base). O BASE_URL contém
+      # o seu ACCOUNT_ID (preencha no painel: .../accounts/<ACCOUNT_ID>/ai/v1) e a
+      # chave é SEGREDO. Ver "OPÇÃO B" no .env.example para outras opções (Google).
+      - key: LLM_EMBEDDING_BASE_URL
+        sync: false
+      - key: LLM_EMBEDDING_MODEL
+        value: "@cf/baai/bge-base-en-v1.5"
+      - key: LLM_EMBEDDING_API_KEY
+        sync: false
+      # SEGREDO. Necessário com o RAG ligado: o worker usa a service_role para
       # baixar o arquivo do bucket privado antes de extrair o texto.
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
