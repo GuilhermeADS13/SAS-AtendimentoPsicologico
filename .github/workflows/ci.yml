@@ -59,6 +59,17 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
 
+      # A 0016 reconcilia objetos que ja existem no banco de producao, entao ela
+      # PRECISA ser idempotente -- senao o proximo deploy quebra. Reaplicar o
+      # arquivo sobre o banco que a migration acabou de montar exercita
+      # exatamente esse caminho. ON_ERROR_STOP faz qualquer statement nao
+      # idempotente derrubar o job. Os marcadores "--> statement-breakpoint" sao
+      # comentarios SQL, entao o psql os ignora.
+      - name: Migration 0016 e idempotente (reaplicar sobre banco ja migrado)
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f drizzle/0016_simple_ultragirl.sql
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+
       # Fluxo funcional completo contra o Postgres real (perfil → paciente →
       # agendamento → confirmação → sessão → documento + checagem de IDOR).
       - name: Testes de integração (funcionais)
