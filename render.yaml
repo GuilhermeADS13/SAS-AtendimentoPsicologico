@@ -60,3 +60,39 @@ services:
       # Render não tem como adivinhar.
       - key: NOTIFICATIONS_ENABLED # liga o agendador de lembretes (15 em 15 min)
         value: "true"
+
+      # ── Luma (IA) ─────────────────────────────────────────────────
+      # Sem estas variáveis o servidor cai no default de getOpenSourceLlmConfig,
+      # que é http://localhost:11434/v1 (Ollama local). No Render isso não existe
+      # e toda resposta da Luma vira erro de conexão. LLM_API_KEY é SEGREDO:
+      # preencha no painel, nunca no repositório.
+      - key: LLM_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: LLM_MODEL
+        value: llama-3.3-70b-versatile
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_TEMPERATURE
+        value: "0.2"
+      - key: LLM_MAX_TOKENS
+        value: "800"
+      - key: AI_AGENT_ENABLED # false = desliga a Luma na hora (kill switch)
+        value: "true"
+
+      # RAG clínico desligado por padrão: exige um provedor de embeddings 768d
+      # (LLM_EMBEDDING_*) e a service_role do Supabase para baixar o documento
+      # privado. Para ligar, veja a "OPÇÃO B" no .env.example e mude os TRÊS
+      # juntos — AI_RAG_ENABLED, AI_CLINICAL_TOOLS_ENABLED e AI_WORKER_INLINE.
+      - key: AI_RAG_ENABLED
+        value: "false"
+      - key: AI_CLINICAL_TOOLS_ENABLED
+        value: "false"
+      # Consome a fila de indexação dentro do processo web. O plano free do Render
+      # não tem o tipo "background worker", então sem isto `ai.indexContent` só
+      # empilha jobs que ninguém processa. Ligue junto com o RAG.
+      - key: AI_WORKER_INLINE
+        value: "false"
+      # SEGREDO. Necessário só com o RAG ligado: o worker usa a service_role para
+      # baixar o arquivo do bucket privado antes de extrair o texto.
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
