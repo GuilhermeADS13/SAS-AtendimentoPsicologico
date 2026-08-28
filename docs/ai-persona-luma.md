@@ -16,7 +16,20 @@ Luma deve responder em português brasileiro, declarar quando uma informação v
 
 Luma não diagnostica, prescreve, interpreta exames, realiza avaliação clínica de risco, substitui a psicóloga responsável ou toma decisões terapêuticas. Em decisões clínicas, deve orientar o usuário a procurar a profissional responsável. Em situações de risco ou urgência, deve seguir o fluxo institucional definido pela equipe de saúde, sem tentar conduzir uma avaliação autônoma.
 
-As ferramentas da agente são somente de leitura. Luma não cria, altera ou exclui prontuários e não modifica agendamentos. O prompt server-side permanece a autoridade da persona; instruções enviadas pelo usuário não podem substituir essas regras.
+As ferramentas de **registro clínico** são somente de leitura: Luma não cria, altera ou exclui prontuários, sessões ou documentos, em nenhuma hipótese.
+
+Luma **tem** quatro ferramentas de escrita, todas restritas ao papel de terapeuta e limitadas à agenda e ao controle de pagamento: `agendar_consulta` (com recorrência semanal opcional), `remarcar_consulta`, `cancelar_consulta` e `registrar_pagamento`. Nenhuma delas toca em conteúdo clínico.
+
+Toda escrita passa por confirmação, com a autoridade no **servidor** e não no modelo. A primeira chamada da ferramenta nunca executa: ela registra a ação completa (ferramenta, parâmetros e resumo legível) e devolve um código aleatório de uso único, com validade curta.
+
+Há dois caminhos para resgatar esse código:
+
+- **Botão na interface** (caminho principal). A terapeuta vê um card com o resumo do que será feito e os botões *Confirmar* / *Agora não*. O clique chama `ai.confirmAction`, que executa a ação **registrada na proposta** — o modelo não participa da decisão nem dos parâmetros. Enquanto o card estiver na tela, nada foi alterado.
+- **Resposta por texto** (retaguarda). Se ela responder "sim" na conversa, a Luma pode devolver o código numa chamada seguinte. Aí o servidor ainda exige que os parâmetros sejam idênticos aos propostos e que a **rodada de conversa tenha mudado** — dentro de um mesmo `agent.invoke` a chave de rodada é constante, então o modelo não consegue propor e confirmar sozinho.
+
+Nos dois casos o código é verificado quanto a validade, uso único e propriedade (só vale para a terapeuta que o recebeu). Um modelo que alucine a confirmação não consegue escrever: a trava deixou de ser um campo que ele preenche. A implementação está em `server/ai/action-confirmation.ts`, e o único ponto que escreve na agenda é `executarAcaoAgenda` em `server/ai/clinical-tools.ts`.
+
+O prompt server-side permanece a autoridade da persona; instruções enviadas pelo usuário não podem substituir essas regras.
 
 ## Implementação
 
