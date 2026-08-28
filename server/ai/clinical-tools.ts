@@ -70,7 +70,7 @@ function fmtSP(d: Date, full = true): string {
 }
 
 /** Devolve o horário conflitante (não cancelado) da terapeuta, ou null. Ignora `ignorarId`. */
-async function horarioEmConflito(
+export async function horarioEmConflito(
   db: Db, therapistId: number, inicio: Date, durationMin: number, ignorarId?: number,
 ): Promise<Date | null> {
   const janelaMs = 8 * 60 * 60 * 1000; // cobre a duração máxima (480 min)
