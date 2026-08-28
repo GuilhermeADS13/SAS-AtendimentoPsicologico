@@ -112,6 +112,42 @@ async function startServer() {
     setInterval(runCycle, 15 * 60 * 1000);
     void runCycle();
   }
+
+  // Worker de indexação de documentos (opt-in via AI_WORKER_INLINE=true).
+  // `pnpm ai:worker` roda esse mesmo loop como processo separado, que é o
+  // arranjo preferível — mas o plano free do Render não tem o tipo "background
+  // worker", e sem ninguém consumindo a fila o `ai.indexContent` só empilha jobs
+  // que nunca viram embeddings. Aqui o loop roda dentro do processo web.
+  // Cuidado: a extração de PDF com OCR (tesseract) é pesada; em plano pago,
+  // prefira o processo dedicado a ligar esta flag.
+  if (process.env.AI_WORKER_INLINE === "true") {
+    // Intervalo mais folgado que o do worker dedicado (3s): aqui cada tick é uma
+    // consulta ao Postgres compartilhado com o tráfego web.
+    const pollMs = Math.max(5_000, Number(process.env.AI_WORKER_POLL_INTERVAL_MS ?? 15_000));
+    const maxPorCiclo = Math.max(1, Number(process.env.AI_WORKER_BATCH_PER_CYCLE ?? 3));
+    let emExecucao = false;
+    const drenarFila = async () => {
+      // Não sobrepõe ciclos: um documento grande com OCR pode levar minutos e o
+      // setInterval continuaria disparando por baixo.
+      if (emExecucao) return;
+      emExecucao = true;
+      try {
+        const { processNextDocumentJob } = await import("../ai/document-queue");
+        for (let processados = 0; processados < maxPorCiclo; processados++) {
+          const job = await processNextDocumentJob();
+          if (!job) break;
+          console.log(`[ai-worker] documento ${job.documentId} indexado (job ${job.id})`);
+        }
+      } catch (error) {
+        // A própria fila controla retry/backoff/dead-letter; aqui só registramos.
+        console.error("[ai-worker] falha no ciclo:", error instanceof Error ? error.message : error);
+      } finally {
+        emExecucao = false;
+      }
+    };
+    setInterval(drenarFila, pollMs);
+    void drenarFila();
+  }
 }
 
 startServer().catch(console.error);
