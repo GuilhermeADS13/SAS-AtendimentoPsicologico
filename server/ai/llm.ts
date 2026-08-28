@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { ChatOpenAI } from "@langchain/openai";
 import { createAgent } from "langchain";
 import { createClinicalTools, fetchConversationMemory, getScopedPatientName, hasAuthorizedClinicalData, type AiSourceReference } from "./clinical-tools";
@@ -6,6 +7,13 @@ import { buildAgentCacheKey, getCachedAgentResponse, setCachedAgentResponse } fr
 import { recordAgentCacheMiss, recordAgentKillSwitch, recordAgentRequest, recordAgentSafetyIntercept } from "./runtime-metrics";
 import { buildCrisisSafeResponse, classifyClinicalSafetyIntent } from "./clinical-safety";
 import { aiMaintenanceMessage, areClinicalToolsEnabled, isAiAgentEnabled, isAiRagEnabled } from "./runtime-config";
+
+/** Ação de escrita proposta pela Luma, aguardando o clique da terapeuta. */
+export type LumaPendingAction = {
+  code: string;
+  toolName: string;
+  resumo: string;
+};
 
 export type OpenSourceChatMessage = {
   role: "system" | "user" | "assistant";
@@ -128,7 +136,7 @@ export function clinicalSystemPrompt(ctx: AiAccessContext, requestedPatientId?: 
       ? "Nunca altere, exclua ou crie prontuários: as ferramentas de registro clínico são somente de leitura. As ferramentas de agenda (agendar, remarcar, cancelar e registrar pagamento) escrevem, mas somente com confirmação explícita."
       : "Nunca altere, exclua ou crie prontuários.",
     toolsEnabled
-      ? "Ações de escrita na agenda (agendar_consulta, remarcar_consulta, cancelar_consulta, registrar_pagamento): entenda os detalhes, RESUMA para a terapeuta e peça confirmação explícita ANTES. Nunca chame essas ferramentas com confirmadoPeloUsuario=true na mesma mensagem do pedido; use confirmadoPeloUsuario=true apenas após um 'sim' claro. Para remarcar, cancelar ou registrar pagamento, primeiro descubra o número da consulta com get_patient_appointments. Interprete horários no fuso de São Paulo (sem horário de verão)."
+      ? "Ações de escrita na agenda (agendar_consulta, remarcar_consulta, cancelar_consulta, registrar_pagamento) exigem DUAS chamadas. Na primeira, chame a ferramenta SEM codigoConfirmacao: ela não executa nada, devolve o resumo da ação e um código. Apresente esse resumo à terapeuta em linguagem natural e espere a resposta dela. Somente depois de um 'sim' claro, na mensagem seguinte, chame a mesma ferramenta com os MESMOS parâmetros e com codigoConfirmacao igual ao código recebido. Nunca invente, adivinhe ou reaproveite um código, e nunca use o código na mesma mensagem em que a ação foi proposta: o servidor recusa. Se a terapeuta mudar algum detalhe, recomece pela chamada sem código. Para remarcar, cancelar ou registrar pagamento, primeiro descubra o número da consulta com get_patient_appointments. Interprete horários no fuso de São Paulo (sem horário de verão)."
       : "",
     toolsEnabled
       ? "Depois de concluir uma ação (agendar, remarcar, cancelar ou registrar pagamento), confirme em uma frase o que foi feito e pergunte se a terapeuta quer fazer outra coisa ou voltar ao menu (o botão 'Voltar ao início')."
@@ -162,7 +170,7 @@ export async function runOpenSourceAgent(
   config = getOpenSourceLlmConfig(),
   requestedPatientId?: number,
   currentConversationId?: number,
-): Promise<{ content: string; model: string; sources: AiSourceReference[] }> {
+): Promise<{ content: string; model: string; sources: AiSourceReference[]; pendingAction?: LumaPendingAction }> {
   const startedAt = Date.now();
   if (!isAiAgentEnabled()) {
     recordAgentKillSwitch();
@@ -172,6 +180,14 @@ export async function runOpenSourceAgent(
   const preparedMessages = prepareMessagesForAgent(messages);
   const latestUserMessage = [...preparedMessages].reverse().find(message => message.role === "user");
   const safetyIntent = classifyClinicalSafetyIntent(latestUserMessage?.content ?? "");
+  // Identidade da rodada de conversa. Muda sempre que a terapeuta manda uma
+  // mensagem nova (o histórico cresce) e permanece igual dentro de um mesmo
+  // agent.invoke. É o que impede o modelo de propor E confirmar uma escrita
+  // sozinho, sem nenhum "sim" humano no meio (ver ./action-confirmation.ts).
+  const turnKey = createHash("sha256")
+    .update(`${ctx.userId}:${currentConversationId ?? 0}:${messages.length}:${latestUserMessage?.content ?? ""}`)
+    .digest("hex")
+    .slice(0, 32);
 
   // Crises não passam pelo cache, RAG ou LLM: a resposta segura é determinística,
   // auditável e não contém métodos de autoagressão.
@@ -215,6 +231,10 @@ export async function runOpenSourceAgent(
   }
   recordAgentCacheMiss();
 
+  // A ferramenta de escrita avisa aqui quando propõe uma ação; o router repassa
+  // para a interface montar o botão de confirmação. Guardamos a última: se o
+  // agente propuser mais de uma na mesma volta, vale a que ele acabou de descrever.
+  let pendingAction: LumaPendingAction | undefined;
   const sourceMap = new Map<string, AiSourceReference>();
   const collectSources = (sources: AiSourceReference[]) => {
     for (const source of sources) {
@@ -239,7 +259,7 @@ export async function runOpenSourceAgent(
     if (toolsEnabled) {
       const agent = createAgent({
         model: chatModel,
-        tools: createClinicalTools(ctx, db, collectSources),
+        tools: createClinicalTools(ctx, db, collectSources, turnKey, pending => { pendingAction = pending; }),
         systemPrompt,
       });
       const result = await agent.invoke({
@@ -274,8 +294,12 @@ export async function runOpenSourceAgent(
     content,
     model: config.model,
     sources: Array.from(sourceMap.values()),
+    ...(pendingAction ? { pendingAction } : {}),
   };
-  setCachedAgentResponse(cacheKey, response);
+  // Resposta com ação pendente NÃO entra no cache: o código é de uso único e
+  // com TTL próprio, então um cache hit devolveria um código já gasto ou
+  // vencido, e a terapeuta veria um botão que não funciona.
+  if (!pendingAction) setCachedAgentResponse(cacheKey, response);
   recordAgentRequest(Date.now() - startedAt, "success");
   return response;
 }

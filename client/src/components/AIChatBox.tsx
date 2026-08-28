@@ -3,7 +3,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { LumaOwlIcon } from "@/components/Logo";
-import { Loader2, Send, User, Sparkles, ThumbsUp, ThumbsDown, Moon } from "lucide-react";
+import { Loader2, Send, User, Sparkles, ThumbsUp, ThumbsDown, Moon, CalendarClock, Check, X } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Streamdown } from "streamdown";
 
@@ -23,6 +23,20 @@ export type Message = {
   role: "system" | "user" | "assistant";
   content: string;
   sources?: MessageSource[];
+};
+
+/** Ação de escrita na agenda proposta pela Luma, aguardando confirmação humana. */
+export type PendingAction = {
+  code: string;
+  toolName: string;
+  resumo: string;
+};
+
+const ROTULO_ACAO: Record<string, string> = {
+  agendar_consulta: "Agendar consulta",
+  remarcar_consulta: "Remarcar consulta",
+  cancelar_consulta: "Cancelar consulta",
+  registrar_pagamento: "Registrar pagamento",
 };
 
 export type LumaStatus = "attentive" | "sleeping";
@@ -93,6 +107,18 @@ export type AIChatBoxProps = {
 
   /** Existing rating by stable message id, when feedback is persisted. */
   feedbackByMessageId?: Record<number, LumaFeedback>;
+
+  /** Ação de escrita proposta pela Luma e ainda não executada. */
+  pendingAction?: PendingAction | null;
+
+  /** Confirma a ação pendente. A execução acontece no servidor, sem o modelo. */
+  onConfirmAction?: () => void;
+
+  /** Descarta a proposta sem executar nada. */
+  onDismissAction?: () => void;
+
+  /** Confirmação em andamento. */
+  isConfirmingAction?: boolean;
 };
 
 /**
@@ -161,6 +187,10 @@ export function AIChatBox({
   processingLabel = "Luma está observando os registros com cuidado...",
   onMessageFeedback,
   feedbackByMessageId,
+  pendingAction,
+  onConfirmAction,
+  onDismissAction,
+  isConfirmingAction = false,
 }: AIChatBoxProps) {
   const [input, setInput] = useState("");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -401,6 +431,40 @@ export function AIChatBox({
           </ScrollArea>
         )}
       </div>
+
+      {/* Confirmação de ação na agenda. A Luma propõe; quem executa é a terapeuta,
+          clicando aqui: o clique chama ai.confirmAction, que roda a ação no
+          servidor sem passar pelo modelo. Enquanto este card estiver na tela,
+          nada foi alterado. */}
+      {pendingAction && (
+        <div
+          role="group"
+          aria-label="Confirmação de alteração na agenda"
+          className="border-t border-amber-300/70 bg-amber-50 px-3 py-3 dark:border-amber-900/60 dark:bg-amber-950/30 sm:px-4"
+        >
+          <div className="flex items-start gap-2.5">
+            <CalendarClock aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">
+                {ROTULO_ACAO[pendingAction.toolName] ?? "Alteração na agenda"} — aguardando sua confirmação
+              </p>
+              <p className="mt-1 break-words text-sm text-foreground">{pendingAction.resumo}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Nada foi alterado ainda. A ação só acontece quando você confirmar.</p>
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                <Button type="button" size="sm" onClick={onConfirmAction} disabled={isConfirmingAction} className="gap-1.5">
+                  {isConfirmingAction
+                    ? <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
+                    : <Check aria-hidden="true" className="size-3.5" />}
+                  Confirmar
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={onDismissAction} disabled={isConfirmingAction} className="gap-1.5">
+                  <X aria-hidden="true" className="size-3.5" /> Agora não
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Input Area */}
       <form

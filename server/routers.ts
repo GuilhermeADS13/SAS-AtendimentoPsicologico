@@ -9,7 +9,8 @@ import { eq, and, asc, desc, isNull, ne, inArray, getTableColumns } from "drizzl
 import { nanoid } from "nanoid";
 import { runOpenSourceAgent } from "./ai/llm";
 import { answerSiteHelp } from "./ai/site-help";
-import { resolveAiAccessContext } from "./ai/clinical-tools";
+import { executarAcaoAgenda, resolveAiAccessContext } from "./ai/clinical-tools";
+import { confirmPendingActionByHuman } from "./ai/action-confirmation";
 import { dailyEnabled, ensureDailyRoom, createDailyToken } from "./video/daily";
 import { recordAiAuditEvent } from "./ai/audit";
 import { enqueueDocumentIndexing, getDocumentIndexingStatus } from "./ai/document-queue";
@@ -406,6 +407,67 @@ export const appRouter = router({
         });
 
         return { success: true as const };
+      }),
+
+    // Confirmação HUMANA de uma ação de escrita proposta pela Luma. Este é o
+    // caminho forte: a execução parte de um clique autenticado da terapeuta e o
+    // modelo não participa da decisão. O código é de uso único, tem TTL curto e
+    // só vale para quem o recebeu; a ação executada é exatamente a que foi
+    // registrada na proposta, não a que o modelo disser agora.
+    confirmAction: therapistProcedure
+      .input(z.object({
+        code: z.string().trim().min(8).max(64),
+        conversationId: z.number().int().positive().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const accessContext = await resolveAiAccessContext(db, { id: ctx.user.id, role: ctx.user.role });
+        if (!accessContext.therapistId) {
+          throw new Error("Apenas profissionais com escopo de terapeuta podem confirmar ações da agenda");
+        }
+
+        const confirmed = confirmPendingActionByHuman(input.code, accessContext.therapistId);
+        if (!confirmed.ok) throw new Error(confirmed.message);
+
+        const content = await executarAcaoAgenda(db, accessContext, confirmed.action.toolName, confirmed.action.params);
+
+        // Registra o resultado na conversa para o histórico ficar coerente com o
+        // que aconteceu. clientRequestId derivado do código (uso único) torna a
+        // escrita idempotente se o clique for repetido.
+        let messageId: number | undefined;
+        if (input.conversationId) {
+          const conversation = await db.select({ id: aiConversations.id }).from(aiConversations).where(and(
+            eq(aiConversations.id, input.conversationId),
+            eq(aiConversations.userId, ctx.user.id),
+            eq(aiConversations.therapistId, accessContext.therapistId),
+          )).limit(1);
+          if (conversation.length) {
+            const clientRequestId = `confirm:${input.code}`;
+            const [inserted] = await db.insert(aiMessages).values({
+              conversationId: input.conversationId,
+              role: "assistant",
+              content,
+              clientRequestId,
+            }).onConflictDoNothing({ target: [aiMessages.conversationId, aiMessages.clientRequestId] }).returning({ id: aiMessages.id });
+            messageId = inserted?.id ?? (await db.select({ id: aiMessages.id }).from(aiMessages).where(and(
+              eq(aiMessages.conversationId, input.conversationId),
+              eq(aiMessages.clientRequestId, clientRequestId),
+            )).limit(1))[0]?.id;
+            await db.update(aiConversations).set({ lastMessageAt: new Date() }).where(eq(aiConversations.id, input.conversationId));
+          }
+        }
+
+        await recordAiAuditEvent(db, {
+          userId: ctx.user.id,
+          conversationId: input.conversationId ?? null,
+          action: "scheduling_action_confirmed",
+          resourceType: "ai_pending_action",
+          resourceId: messageId ?? null,
+          metadata: { model: "human-confirmation", intent: confirmed.action.toolName },
+        });
+
+        return { content, messageId, toolName: confirmed.action.toolName };
       }),
   }),
 

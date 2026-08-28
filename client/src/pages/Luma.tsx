@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { LockKeyhole, MessageCircle, RotateCcw, ShieldCheck } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { AIChatBox, type LumaFeedback, type Message } from "@/components/AIChatBox";
+import { AIChatBox, type LumaFeedback, type Message, type PendingAction } from "@/components/AIChatBox";
 import { useRole } from "@/hooks/useRole";
 import { isLumaTestAccount } from "@/lib/lumaAccess";
 import { trpc } from "@/lib/trpc";
@@ -22,6 +22,7 @@ export default function Luma() {
   const [conversationId, setConversationId] = useState<number | undefined>();
   const [selectedPatientId, setSelectedPatientId] = useState<string>("");
   const [feedbackByMessageId, setFeedbackByMessageId] = useState<Record<number, LumaFeedback>>({});
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
 
   const patientsQuery = trpc.patients.list.useQuery(undefined, {
     enabled: isClinicalUser,
@@ -29,6 +30,7 @@ export default function Luma() {
   });
   const chatMutation = trpc.ai.chat.useMutation();
   const siteHelpMutation = trpc.ai.siteHelp.useMutation();
+  const confirmActionMutation = trpc.ai.confirmAction.useMutation();
   const feedbackMutation = trpc.ai.feedback.useMutation({
     onSuccess: () => toast.success("Obrigada pelo retorno!"),
     onError: (e) => toast.error(e.message || "Não foi possível registrar a avaliação"),
@@ -72,6 +74,7 @@ export default function Luma() {
     setMessages([]);
     setConversationId(undefined);
     setFeedbackByMessageId({});
+    setPendingAction(null);
   }
 
   // Volta ao "menu" (estado inicial com as sugestões) e começa uma conversa nova.
@@ -80,6 +83,7 @@ export default function Luma() {
     setMessages([]);
     setConversationId(undefined);
     setFeedbackByMessageId({});
+    setPendingAction(null);
   }
 
   async function handleSend(content: string) {
@@ -93,6 +97,9 @@ export default function Luma() {
     }
 
     const requestId = crypto.randomUUID();
+    // Uma mensagem nova invalida a proposta anterior: o resumo que a terapeuta
+    // leu pode não corresponder mais ao que ela acabou de pedir.
+    setPendingAction(null);
     const nextMessages: Message[] = [...messages, { role: "user", content }];
     setMessages(nextMessages);
     try {
@@ -123,6 +130,7 @@ export default function Luma() {
         content: result.content,
         sources: result.sources,
       }]);
+      setPendingAction(result.pendingAction ?? null);
     } catch {
       setMessages(current => [...current, {
         role: "assistant",
@@ -131,6 +139,26 @@ export default function Luma() {
           : "O apoio de navegação está temporariamente indisponível. Tente novamente em instantes.",
       }]);
     }
+  }
+
+  // O clique confirma no servidor: a ação executada é a que foi registrada na
+  // proposta, e o modelo não participa da decisão.
+  async function handleConfirmAction() {
+    if (!pendingAction) return;
+    try {
+      const result = await confirmActionMutation.mutateAsync({ code: pendingAction.code, conversationId });
+      setPendingAction(null);
+      setMessages(current => [...current, { id: result.messageId, role: "assistant", content: result.content }]);
+      toast.success("Alteração confirmada.");
+    } catch (error) {
+      setPendingAction(null);
+      toast.error(error instanceof Error ? error.message : "Não foi possível confirmar a ação.");
+    }
+  }
+
+  function handleDismissAction() {
+    setPendingAction(null);
+    toast.info("Proposta descartada. Nada foi alterado na agenda.");
   }
 
   function handleFeedback(message: Message, rating: LumaFeedback) {
@@ -206,10 +234,14 @@ export default function Luma() {
             placeholder={isClinicalUser
               ? (selectedPatientId ? "Pergunte sobre os registros autorizados deste paciente..." : "Selecione um paciente para começar...")
               : "Escreva uma pergunta sobre o uso do site..."}
-            emptyStateMessage={isClinicalUser ? "Olá! Eu sou a Luma, sua coruja de apoio clínico. Consulto os registros autorizados (sessões e documentos) e cuido da agenda do paciente: agendar, remarcar, cancelar e registrar pagamento. Toda alteração na agenda acontece só com a sua confirmação. Selecione um paciente e uma sugestão abaixo para começar." : "Olá! Eu sou a Luma, sua coruja de apoio no SAS. Escolha uma sugestão para aprender a usar o sistema."}
+            emptyStateMessage={isClinicalUser ? "Olá! Eu sou a Luma, sua coruja de apoio clínico. Consulto os registros autorizados (sessões e documentos) e cuido da agenda do paciente: agendar, remarcar, cancelar e registrar pagamento. Toda alteração na agenda aparece como uma proposta, e só acontece quando você clicar em Confirmar. Selecione um paciente e uma sugestão abaixo para começar." : "Olá! Eu sou a Luma, sua coruja de apoio no SAS. Escolha uma sugestão para aprender a usar o sistema."}
             suggestedPrompts={isClinicalUser ? ["Resumir os últimos registros autorizados", "Ver os próximos agendamentos", "Agendar uma consulta", "Organizar os próximos pontos para a sessão"] : ["Ver minhas consultas", "Entrar na videochamada", "Atualizar meu perfil", "Encontrar minha psicóloga"]}
             onMessageFeedback={handleFeedback}
             feedbackByMessageId={feedbackByMessageId}
+            pendingAction={isClinicalUser ? pendingAction : null}
+            onConfirmAction={handleConfirmAction}
+            onDismissAction={handleDismissAction}
+            isConfirmingAction={confirmActionMutation.isPending}
             height="min(620px, calc(100dvh - 220px))"
           />
         </section>
