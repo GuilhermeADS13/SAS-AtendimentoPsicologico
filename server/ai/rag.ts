@@ -1,5 +1,5 @@
 import { BaseEmbedding, Document, Settings, VectorStoreIndex } from "llamaindex";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { documents, patients, sessions, type Patient, type Session, type Document as ClinicalDocument } from "../../drizzle/schema";
 import { getDb } from "../db";
 import type { AiAccessContext } from "./access";
@@ -131,18 +131,24 @@ export async function retrieveScopedClinicalContext(
   }
   if (!patientRows.length) return [];
 
+  // Todos os prontuários já autorizados acima (para terapeuta é sempre 1; para
+  // paciente/usuário pode haver mais de um, quando atendido por psicólogas
+  // diferentes). Antes só `patientIds[0]` era consultado, então sessões e
+  // documentos do 2º prontuário em diante sumiam do RAG. `inArray` cobre todos,
+  // e o filtro por therapistId (também em conjunto) mantém a trava de escopo:
+  // uma sessão com patientId autorizado mas therapistId de fora fica excluída.
   const patientIds = patientRows.map(patient => patient.id);
-  const authorizedPatient = patientRows[0];
+  const therapistIds = Array.from(new Set(patientRows.map(patient => patient.therapistId)));
   const sessionRows = await db.select().from(sessions).where(
     and(
-      eq(sessions.patientId, patientIds[0]),
-      eq(sessions.therapistId, authorizedPatient.therapistId),
+      inArray(sessions.patientId, patientIds),
+      inArray(sessions.therapistId, therapistIds),
     ),
   ).orderBy(desc(sessions.startedAt)).limit(100);
   const documentRows = await db.select().from(documents).where(
     and(
-      eq(documents.patientId, patientIds[0]),
-      eq(documents.therapistId, authorizedPatient.therapistId),
+      inArray(documents.patientId, patientIds),
+      inArray(documents.therapistId, therapistIds),
     ),
   ).orderBy(desc(documents.createdAt)).limit(100);
 
