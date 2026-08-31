@@ -89,7 +89,16 @@ async function startServer() {
   // Agendador de lembretes/notificações (opt-in). Enfileira e envia os e-mails
   // pendentes a cada 15 min. Ative com NOTIFICATIONS_ENABLED=true + SMTP_*.
   if (process.env.NOTIFICATIONS_ENABLED === "true") {
+    // Trava de reentrância: se um ciclo demorar mais que o intervalo (Brevo lenta,
+    // fila grande), o setInterval dispararia um segundo ciclo em paralelo. Como as
+    // checagens "já existe notificação?" são SELECT-depois-INSERT (não atômicas) e
+    // processPendingNotifications lê os pendentes antes de marcá-los como enviados,
+    // dois ciclos concorrentes enviariam o MESMO e-mail duas vezes. Espelha o guard
+    // do worker de indexação logo abaixo.
+    let cicloEmExecucao = false;
     const runCycle = async () => {
+      if (cicloEmExecucao) return;
+      cicloEmExecucao = true;
       try {
         const {
           sendAppointmentReminders,
@@ -107,6 +116,8 @@ async function startServer() {
         console.log("[Notifications] ciclo:", { ...result, solicitacoes: pedidos });
       } catch (error) {
         console.error("[Notifications] erro no ciclo:", error);
+      } finally {
+        cicloEmExecucao = false;
       }
     };
     setInterval(runCycle, 15 * 60 * 1000);

@@ -428,10 +428,16 @@ export async function sendAppointmentReminders() {
   }
 
   try {
-    // Buscar agendamentos para os próximos dias que ainda não tiveram lembrete enviado
+    // Lembrete da véspera: qualquer consulta agendada que aconteça nas próximas
+    // ~26h e que ainda não tenha lembrete. Duas escolhas de propósito:
+    //  - Limite superior de 26h (e não 24h) cobre a folga do ciclo de 15 min:
+    //    uma consulta a 24h05 não escapa entre um tick e o seguinte.
+    //  - Limite inferior é `now`, não `now+24h`. Antes a janela começava em +24h,
+    //    então quem marcava em cima da hora (menos de um dia) NUNCA recebia
+    //    lembrete — caía abaixo do piso e sumia. Começando em `now`, esse caso é
+    //    coberto (o lembrete sai logo). O dedup mais abaixo garante um só e-mail.
     const now = new Date();
-    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-    const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const janelaLembrete = new Date(now.getTime() + 26 * 60 * 60 * 1000);
 
     const upcomingAppointments = await db
       .select({
@@ -445,8 +451,8 @@ export async function sendAppointmentReminders() {
       .where(
         and(
           eq(appointments.status, "scheduled"),
-          gte(appointments.scheduledAt, tomorrow),
-          lt(appointments.scheduledAt, threeDaysFromNow)
+          gte(appointments.scheduledAt, now),
+          lt(appointments.scheduledAt, janelaLembrete)
         )
       );
 
