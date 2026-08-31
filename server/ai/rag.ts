@@ -1,5 +1,5 @@
 import { BaseEmbedding, Document, Settings, VectorStoreIndex } from "llamaindex";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { documents, patients, sessions, type Patient, type Session, type Document as ClinicalDocument } from "../../drizzle/schema";
 import { getDb } from "../db";
 import type { AiAccessContext } from "./access";
@@ -131,24 +131,23 @@ export async function retrieveScopedClinicalContext(
   }
   if (!patientRows.length) return [];
 
-  // Todos os prontuários já autorizados acima (para terapeuta é sempre 1; para
-  // paciente/usuário pode haver mais de um, quando atendido por psicólogas
-  // diferentes). Antes só `patientIds[0]` era consultado, então sessões e
-  // documentos do 2º prontuário em diante sumiam do RAG. `inArray` cobre todos,
-  // e o filtro por therapistId (também em conjunto) mantém a trava de escopo:
-  // uma sessão com patientId autorizado mas therapistId de fora fica excluída.
+  // Sempre há no máximo UM prontuário aqui: `patients.userId` é UNIQUE (schema),
+  // então o ramo do paciente devolve ≤1 linha; e o ramo do terapeuta já filtra
+  // por `patients.id = input.patientId`. Por isso `patientIds[0]` é suficiente —
+  // não existe caso de "vários prontuários por usuário". O filtro por therapistId
+  // é a trava de escopo (só as sessões/documentos da psicóloga dona do prontuário).
   const patientIds = patientRows.map(patient => patient.id);
-  const therapistIds = Array.from(new Set(patientRows.map(patient => patient.therapistId)));
+  const authorizedPatient = patientRows[0];
   const sessionRows = await db.select().from(sessions).where(
     and(
-      inArray(sessions.patientId, patientIds),
-      inArray(sessions.therapistId, therapistIds),
+      eq(sessions.patientId, patientIds[0]),
+      eq(sessions.therapistId, authorizedPatient.therapistId),
     ),
   ).orderBy(desc(sessions.startedAt)).limit(100);
   const documentRows = await db.select().from(documents).where(
     and(
-      inArray(documents.patientId, patientIds),
-      inArray(documents.therapistId, therapistIds),
+      eq(documents.patientId, patientIds[0]),
+      eq(documents.therapistId, authorizedPatient.therapistId),
     ),
   ).orderBy(desc(documents.createdAt)).limit(100);
 
