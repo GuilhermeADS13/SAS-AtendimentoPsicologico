@@ -265,16 +265,20 @@ async function executarAgendamento(db: Db, ctx: AiAccessContext, params: Pending
   const nome = `${patient.firstName} ${patient.lastName}`.trim();
   const SEMANA_MS = 7 * 24 * 60 * 60 * 1000;
 
-  // Conflitos recalculados no momento da execução: a agenda pode ter mudado
-  // entre a proposta e a confirmação.
+  // Recalcula no momento da execução (a agenda pode ter mudado entre a proposta
+  // e a confirmação, que pode demorar até o TTL). Pula slots em conflito E os que
+  // já passaram — uma confirmação atrasada não pode inserir consulta no passado.
+  const agora = Date.now();
   const livres: Date[] = [];
   let emConflito = 0;
+  let passados = 0;
   for (let i = 0; i < semanas; i++) {
     const slot = new Date(inicio.getTime() + i * SEMANA_MS);
-    if (await horarioEmConflito(db, patient.therapistId, slot, duration)) emConflito++;
+    if (slot.getTime() < agora) passados++;
+    else if (await horarioEmConflito(db, patient.therapistId, slot, duration)) emConflito++;
     else livres.push(slot);
   }
-  if (!livres.length) return "Nenhuma consulta agendada: todos os horários já estão ocupados. Sugira outro horário à terapeuta.";
+  if (!livres.length) return "Nenhuma consulta agendada: os horários já estão ocupados ou no passado. Sugira outro horário à terapeuta.";
 
   const criadas = await db.insert(appointments).values(livres.map(slot => ({
     therapistId: patient.therapistId,
@@ -284,8 +288,13 @@ async function executarAgendamento(db: Db, ctx: AiAccessContext, params: Pending
     notes,
     roomToken: nanoid(16),
   }))).returning({ id: appointments.id });
-  const puladas = emConflito ? ` ${emConflito} pulada(s) por conflito.` : "";
-  return `AGENDADO: ${criadas.length} consulta(s) para ${nome} (${duration} min), começando ${fmtSP(inicio)}.${puladas} Os avisos serão enviados automaticamente.`;
+  const motivos: string[] = [];
+  if (emConflito) motivos.push(`${emConflito} por conflito`);
+  if (passados) motivos.push(`${passados} no passado`);
+  const puladas = motivos.length ? ` ${motivos.join(" e ")} pulada(s).` : "";
+  // "começando" pelo primeiro slot REALMENTE criado, não por `inicio` (que pode
+  // ter sido pulado por conflito ou por já ter passado).
+  return `AGENDADO: ${criadas.length} consulta(s) para ${nome} (${duration} min), começando ${fmtSP(livres[0])}.${puladas} Os avisos serão enviados automaticamente.`;
 }
 
 async function executarRemarcacao(db: Db, ctx: AiAccessContext, params: PendingActionParams): Promise<string> {
@@ -523,44 +532,62 @@ export function createClinicalTools(
       schema: patientIdSchema,
     }),
     tool(async ({ query, patientId }) => {
-      if (!(await hasAuthorizedClinicalData(ctx, patientId, db))) {
+      // Paciente: força o próprio prontuário. O modelo costuma omitir o patientId
+      // (a descrição não pede e ele não sabe o id interno), e buildVectorSearchScope
+      // exige patientId === ctx.patientId — sem isto a busca do paciente sobre o
+      // próprio registro quebrava com "Paciente não autorizado".
+      const alvo = ctx.role === "therapist" ? patientId : (ctx.patientId ?? patientId);
+      if (!(await hasAuthorizedClinicalData(ctx, alvo, db))) {
         return "Nenhum registro clínico autorizado foi encontrado para este paciente. Não invente informações; informe isso claramente e ofereça apenas ajuda geral que não dependa de prontuários.";
       }
       const queryEmbedding = await embeddingForCurrentEnvironment().getTextEmbedding(query);
       const indexedChunks = await searchIndexedDocumentChunks(
         ctx,
         queryEmbedding,
-        patientId,
+        alvo,
         Number(process.env.AI_RAG_TOP_K ?? 6),
         db,
       );
-      const maxContextChars = Math.max(2_000, Number(process.env.AI_RAG_CONTEXT_MAX_CHARS ?? 8_000));
+      // Number.isFinite protege contra AI_RAG_CONTEXT_MAX_CHARS não-numérico:
+      // sem isto, Number("abc") = NaN, Math.max(2000, NaN) = NaN e o slice final
+      // por NaN devolvia "" — descartando TODO o contexto de documentos em silêncio.
+      const configMax = Number(process.env.AI_RAG_CONTEXT_MAX_CHARS);
+      const maxContextChars = Number.isFinite(configMax) && configMax > 0 ? Math.max(2_000, configMax) : 8_000;
+      // Acumula os trechos DENTRO do orçamento e só cita como fonte o que coube.
+      // Antes as fontes eram reportadas antes da truncagem (.slice), então um
+      // documento cortado do contexto continuava citado — fonte que o modelo não viu.
       const seen = new Set<string>();
       const structuredSources: AiSourceReference[] = [];
+      const trechos: string[] = [];
+      let usados = 0;
       for (const chunk of indexedChunks) {
-        const key = `document:${chunk.documentId}`;
-        if (structuredSources.some(source => `${source.sourceType}:${source.sourceId}` === key)) continue;
-        const metadata = chunk.metadata as { requiresReview?: boolean } | null | undefined;
-        structuredSources.push({
-          sourceType: "document",
-          sourceId: chunk.documentId,
-          patientId: chunk.patientId,
-          requiresReview: metadata?.requiresReview === true,
-        });
-      }
-      if (structuredSources.length) onSources?.(structuredSources);
-      const documentContext = indexedChunks.map((chunk, index) => {
-        const key = `${chunk.documentId}:${chunk.pageNumber ?? "na"}:${chunk.content}`;
-        if (seen.has(key)) return "";
-        seen.add(key);
+        const dedupeKey = `${chunk.documentId}:${chunk.pageNumber ?? "na"}:${chunk.content}`;
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
         const metadata = chunk.metadata as { requiresReview?: boolean; ocrConfidence?: number | null } | null | undefined;
         const reviewLabel = metadata?.requiresReview ? ` | revisão OCR necessária${metadata.ocrConfidence != null ? ` (${metadata.ocrConfidence.toFixed(0)}%)` : ""}` : "";
-        return `[Fonte ${index + 1} | documento ${chunk.documentId} | página ${chunk.pageNumber ?? "não informada"} | paciente ${chunk.patientId}${reviewLabel}]\n${chunk.content}`;
-      }).filter(Boolean).join("\n\n").slice(0, maxContextChars);
+        const trecho = `[Fonte ${trechos.length + 1} | documento ${chunk.documentId} | página ${chunk.pageNumber ?? "não informada"} | paciente ${chunk.patientId}${reviewLabel}]\n${chunk.content}`;
+        // O primeiro trecho sempre entra (nunca devolve vazio havendo dado); os
+        // seguintes só se couberem no orçamento.
+        if (trechos.length > 0 && usados + trecho.length + 2 > maxContextChars) break;
+        trechos.push(trecho);
+        usados += trecho.length + 2; // +2 do separador "\n\n"
+        const sourceKey = `document:${chunk.documentId}`;
+        if (!structuredSources.some(source => `${source.sourceType}:${source.sourceId}` === sourceKey)) {
+          structuredSources.push({
+            sourceType: "document",
+            sourceId: chunk.documentId,
+            patientId: chunk.patientId,
+            requiresReview: metadata?.requiresReview === true,
+          });
+        }
+      }
+      if (structuredSources.length) onSources?.(structuredSources);
+      const documentContext = trechos.join("\n\n");
       if (documentContext) return wrapUntrustedClinicalContext(documentContext);
       const sources = await retrieveScopedClinicalContext(ctx, {
         query,
-        patientId,
+        patientId: alvo,
         topK: Number(process.env.AI_RAG_TOP_K ?? 6),
       }, db);
       onSources?.(sources.map(source => ({
