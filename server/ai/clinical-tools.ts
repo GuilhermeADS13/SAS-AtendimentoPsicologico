@@ -175,13 +175,13 @@ export async function readPatientAppointments(
   }).from(appointments)
     .where(and(eq(appointments.patientId, patient.id), eq(appointments.therapistId, patient.therapistId)))
     .orderBy(desc(appointments.scheduledAt)).limit(20);
-  // Expõe o valor JÁ formatado (centavos -> "R$ x") para a Luma responder "quanto
-  // é a consulta" com o dado REAL, e "sem valor definido" quando não há preço, em
-  // vez de inventar. O `price` cru (centavos) sai do retorno para o modelo não
-  // confundir centavos com reais.
+  // Valor: quando a consulta TEM preço, expõe o valor real formatado (dado, sem
+  // chute). Quando NÃO há preço definido, não diz número nenhum — o campo orienta
+  // a confirmar com a psicóloga (mais seguro e confiável do que a IA inventar). O
+  // `price` cru (centavos) sai do retorno para o modelo não confundir com reais.
   return rows.map(({ price, paid, ...rest }) => ({
     ...rest,
-    valor: formatarBRL(price, "sem valor definido"),
+    valor: price != null ? formatarBRL(price) : "não definido — confirmar com a psicóloga",
     pago: paid,
   }));
 }
@@ -530,7 +530,7 @@ export function createClinicalTools(
   return [
     tool(async ({ patientId }) => JSON.stringify(await readPatientAppointments(ctx, patientId, db)), {
       name: ctx.role === "therapist" ? "get_patient_appointments" : "get_my_appointments",
-      description: "Consulta somente leitura os próximos e últimos agendamentos autorizados, incluindo o valor (campo 'valor', em reais, ou 'sem valor definido') e se está pago ('pago'). É a ÚNICA fonte para dizer preço/pagamento de uma consulta — nunca estime um valor. Para terapeuta, informe patientId.",
+      description: "Consulta somente leitura os próximos e últimos agendamentos autorizados, incluindo o valor (campo 'valor': em reais quando definido, ou a orientação de confirmar com a psicóloga quando não houver valor) e se está pago ('pago'). É a ÚNICA fonte para preço/pagamento — nunca estime um valor; se o valor não estiver definido, oriente a confirmar com a psicóloga. Para terapeuta, informe patientId.",
       schema: patientIdSchema,
     }),
     tool(async ({ patientId }) => JSON.stringify(await readPatientSessions(ctx, patientId, db)), {

@@ -30,6 +30,13 @@ describe("RAG e ferramentas clínicas", () => {
     }
   });
 
+  it("regra de valor: informa se definido, senão redireciona à psicóloga (sem inventar)", () => {
+    const prompt = clinicalSystemPrompt(therapistContext, 42);
+    expect(prompt).toContain("VALOR de consulta");
+    expect(prompt).toMatch(/NUNCA invente/);
+    expect(prompt).toContain("confirmar o valor diretamente com a psicóloga");
+  });
+
   it("no modo sem ferramentas, corta capacidades de escrita e o acesso a prontuários", () => {
     const prompt = clinicalSystemPrompt(therapistContext, 42, false);
     // O modo read-only (kill-switch / RAG desligado) precisa dizer que NÃO há
