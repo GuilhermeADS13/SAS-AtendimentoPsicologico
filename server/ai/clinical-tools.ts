@@ -177,11 +177,11 @@ export async function readPatientAppointments(
     .orderBy(desc(appointments.scheduledAt)).limit(20);
   // Valor: quando a consulta TEM preço, expõe o valor real formatado (dado, sem
   // chute). Quando NÃO há preço definido, não diz número nenhum — o campo orienta
-  // a confirmar com a psicóloga (mais seguro e confiável do que a IA inventar). O
-  // `price` cru (centavos) sai do retorno para o modelo não confundir com reais.
+  // a confirmar com o(a) psicólogo(a) responsável pelo paciente (mais seguro do que
+  // a IA inventar). O `price` cru (centavos) sai do retorno para não confundir reais.
   return rows.map(({ price, paid, ...rest }) => ({
     ...rest,
-    valor: price != null ? formatarBRL(price) : "não definido — confirmar com a psicóloga",
+    valor: price != null ? formatarBRL(price) : "não definido — confirmar com o(a) psicólogo(a) responsável pelo paciente",
     pago: paid,
   }));
 }
@@ -530,7 +530,7 @@ export function createClinicalTools(
   return [
     tool(async ({ patientId }) => JSON.stringify(await readPatientAppointments(ctx, patientId, db)), {
       name: ctx.role === "therapist" ? "get_patient_appointments" : "get_my_appointments",
-      description: "Consulta somente leitura os próximos e últimos agendamentos autorizados, incluindo o valor (campo 'valor': em reais quando definido, ou a orientação de confirmar com a psicóloga quando não houver valor) e se está pago ('pago'). É a ÚNICA fonte para preço/pagamento — nunca estime um valor; se o valor não estiver definido, oriente a confirmar com a psicóloga. Para terapeuta, informe patientId.",
+      description: "Consulta somente leitura os próximos e últimos agendamentos autorizados, incluindo o valor (campo 'valor': em reais quando definido, ou a orientação de confirmar com o(a) psicólogo(a) responsável quando não houver valor) e se está pago ('pago'). É a ÚNICA fonte para preço/pagamento — nunca estime um valor; se o valor não estiver definido, oriente a confirmar com o(a) psicólogo(a) responsável pelo paciente. Para terapeuta, informe patientId.",
       schema: patientIdSchema,
     }),
     tool(async ({ patientId }) => JSON.stringify(await readPatientSessions(ctx, patientId, db)), {
