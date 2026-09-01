@@ -10,7 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import DashboardLayout from "@/components/DashboardLayout";
-import { LogoLockup } from "@/components/Logo";
+import { LogoLockup, LumaOwlIcon } from "@/components/Logo";
+import { OPEN_ONBOARDING_EVENT } from "@/components/LumaOnboarding";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useRole } from "@/hooks/useRole";
 import { ArrowLeft, CircleHelp, Mail } from "lucide-react";
@@ -411,6 +412,15 @@ export default function Ajuda() {
             Escolha o seu caso e veja se a dúvida já está respondida. Se não estiver, é só
             chamar a gente.
           </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-1"
+            onClick={() => window.dispatchEvent(new Event(OPEN_ONBOARDING_EVENT))}
+          >
+            <LumaOwlIcon className="w-4 h-4 mr-2" />
+            Rever o tour da Luma
+          </Button>
         </div>
 
         <Tabs value={aba} onValueChange={setAbaEscolhida} className="w-full space-y-4">

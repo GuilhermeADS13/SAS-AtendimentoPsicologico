@@ -26,6 +26,7 @@ import { trpc } from "@/lib/trpc";
 import { NotificationsBell } from "./NotificationsBell";
 import { PatientNotificationsBell } from "./PatientNotificationsBell";
 import { LogoLockup, LumaOwlIcon } from "./Logo";
+import LumaOnboarding from "./LumaOnboarding";
 import { BadgeCheck, Brain, Calendar, CircleHelp, LayoutDashboard, LogOut, PanelLeft, Stethoscope, UserRound, Users, Video, Wallet } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -311,6 +312,9 @@ function DashboardLayoutContent({
         </div>
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>
+
+      {/* Tour de boas-vindas na primeira entrada (paciente ou psicóloga). */}
+      <LumaOnboarding role={isTherapist ? "therapist" : "patient"} userId={user?.id} />
     </>
   );
 }
