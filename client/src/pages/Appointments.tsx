@@ -540,7 +540,7 @@ export default function Appointments() {
                   </div>
                 </div>
                 <Select value={filtroPagamento} onValueChange={(value) => setFiltroPagamento(value as typeof filtroPagamento)}>
-                  <SelectTrigger className="w-full sm:w-44" aria-label="Filtrar por pagamento">
+                  <SelectTrigger className="w-full sm:w-56" aria-label="Filtrar por pagamento">
                     <SelectValue placeholder="Filtrar pagamentos" />
                   </SelectTrigger>
                   <SelectContent>
