@@ -19,6 +19,15 @@ describe("RAG e ferramentas clínicas", () => {
     expect(prompt).toContain("Não revele");
   });
 
+  it("traz o backstop de crise no prompt (CVV 188 / SAMU 192), nos dois modos", () => {
+    for (const toolsEnabled of [true, false]) {
+      const prompt = clinicalSystemPrompt(therapistContext, 42, toolsEnabled);
+      expect(prompt).toMatch(/SEGURANÇA \(crise\)/);
+      expect(prompt).toContain("188");
+      expect(prompt).toContain("192");
+    }
+  });
+
   it("tranca o escopo: recusa assuntos fora do sistema, nos dois modos", () => {
     for (const toolsEnabled of [true, false]) {
       const prompt = clinicalSystemPrompt(therapistContext, 42, toolsEnabled);
