@@ -28,6 +28,14 @@ describe("RAG e ferramentas clínicas", () => {
     }
   });
 
+  it("uso do sistema é escopo: orienta e não recusa (com mapa do menu)", () => {
+    const prompt = clinicalSystemPrompt(therapistContext, 42);
+    expect(prompt).toContain("USO DO SISTEMA é escopo (3)");
+    expect(prompt).toMatch(/NUNCA recuse/);
+    expect(prompt).toContain("Novo Paciente");
+    expect(prompt).toContain("Ajuda");
+  });
+
   it("tranca o escopo: recusa assuntos fora do sistema, nos dois modos", () => {
     for (const toolsEnabled of [true, false]) {
       const prompt = clinicalSystemPrompt(therapistContext, 42, toolsEnabled);
