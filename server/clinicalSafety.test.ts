@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCrisisSafeResponse,
+  buildSafetyRedirect,
   classifyClinicalSafetyIntent,
 } from "./ai/clinical-safety";
 
@@ -40,6 +41,22 @@ describe("política determinística de segurança clínica da Luma", () => {
   it("não intercepta conversa clínica comum", () => {
     expect(classifyClinicalSafetyIntent("Quero organizar os pontos para minha próxima sessão.")).toBe("none");
     expect(classifyClinicalSafetyIntent("Estou triste porque tive uma semana difícil.")).toBe("none");
+  });
+
+  it("não confunde pedido legítimo do sistema com tentativa de bypass", () => {
+    // Antes, o regex de bypass casava com "mostre"/"dê" sozinhos — isto pegava
+    // pedidos comuns por engano.
+    expect(classifyClinicalSafetyIntent("mostre a agenda de hoje")).toBe("none");
+    expect(classifyClinicalSafetyIntent("me dê o resumo da última sessão")).toBe("none");
+    expect(classifyClinicalSafetyIntent("envie o lembrete da consulta")).toBe("none");
+  });
+
+  it("redireciona diagnóstico, prescrição e bypass com resposta fixa (crise/none = null)", () => {
+    expect(buildSafetyRedirect("diagnosis_request")).toMatch(/diagnóstico/i);
+    expect(buildSafetyRedirect("prescription_request")).toMatch(/medica/i);
+    expect(buildSafetyRedirect("scope_bypass")).toMatch(/escopo/i);
+    expect(buildSafetyRedirect("crisis")).toBeNull();
+    expect(buildSafetyRedirect("none")).toBeNull();
   });
 
   it("trata entrada vazia como conversa neutra", () => {

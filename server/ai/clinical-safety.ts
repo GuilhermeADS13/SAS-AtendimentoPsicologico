@@ -29,9 +29,11 @@ const PRESCRIPTION_PATTERNS = [
 ];
 
 const SCOPE_BYPASS_PATTERNS = [
-  /mostre|revele|envie|dê|de o prontuário|do prontuario/i,
-  /outro paciente|paciente diferente|todos os prontuários|todos os prontuarios/i,
-  /ignore|ignore as regras|bypass|contorne.*(?:filtro|escopo|permiss)/i,
+  // Nada de gatilhos genéricos como "mostre"/"dê" sozinhos (pegariam "mostre a
+  // agenda"): exige o contexto de OUTRO paciente / TODOS os prontuários, ou uma
+  // tentativa explícita de burlar as regras.
+  /outro paciente|outra paciente|paciente diferente|todos os prontu[áa]rios|todos os prontuarios|todas as sess[õo]es de/i,
+  /ignore\s+(?:as\s+)?(?:regras|instru[çc][õo]es|restri[çc][õo]es|permiss[õo]es)|bypass|contorne.*(?:filtro|escopo|permiss)/i,
 ];
 
 export function classifyClinicalSafetyIntent(text: string): ClinicalSafetyIntent {
@@ -53,6 +55,24 @@ export function buildCrisisSafeResponse(): string {
     "No Brasil, você pode ligar para o SAMU (192) ou para o CVV (188). Se conseguir, avise uma pessoa de confiança e peça que fique com você.",
     "A Luma não substitui atendimento de emergência nem a psicóloga responsável.",
   ].join(" ");
+}
+
+/**
+ * Respostas fixas (sem LLM) para pedidos que a Luma não deve atender: pedir
+ * diagnóstico, prescrição de medicação, ou tentar sair do escopo autorizado.
+ * `null` quando o intent não é um desses (crise tem tratamento próprio).
+ */
+export function buildSafetyRedirect(intent: ClinicalSafetyIntent): string | null {
+  switch (intent) {
+    case "diagnosis_request":
+      return "Eu não faço diagnóstico — isso é uma avaliação do(a) profissional responsável. Posso ajudar com a agenda, os registros autorizados e o uso do sistema.";
+    case "prescription_request":
+      return "Eu não indico nem ajusto medicação — isso é com um(a) profissional prescritor(a). Procure o(a) profissional responsável. Posso ajudar com a agenda, os registros e o uso do sistema.";
+    case "scope_bypass":
+      return "Só posso trabalhar dentro do escopo autorizado: não acesso prontuários de outros pacientes nem contorno as regras de segurança do sistema.";
+    default:
+      return null;
+  }
 }
 
 export function buildClinicalSafetyMetadata(intent: ClinicalSafetyIntent) {
