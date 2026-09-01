@@ -34,7 +34,7 @@ describe("RAG e ferramentas clínicas", () => {
     const prompt = clinicalSystemPrompt(therapistContext, 42);
     expect(prompt).toContain("VALOR de consulta");
     expect(prompt).toMatch(/NUNCA invente/);
-    expect(prompt).toContain("confirmar o valor diretamente com a psicóloga");
+    expect(prompt).toContain("confirmar o valor diretamente com o(a) psicólogo(a) responsável pelo paciente");
   });
 
   it("no modo sem ferramentas, corta capacidades de escrita e o acesso a prontuários", () => {
