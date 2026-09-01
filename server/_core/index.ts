@@ -3,8 +3,8 @@ import express from "express";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerPresence } from "../presence";
-import { registerSignaling } from "../signaling";
+import { createPresenceWss, PRESENCE_PATH } from "../presence";
+import { createSignalingWss, SIGNALING_PATH } from "../signaling";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { getDocumentQueueMetrics, queueMetricsToPrometheus } from "../ai/queue-metrics";
@@ -33,10 +33,26 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
-  // WebSocket de presença das salas (avisa a psicóloga quando o paciente entra).
-  registerPresence(server);
-  // WebSocket de sinalização WebRTC (handshake do vídeo peer-to-peer).
-  registerSignaling(server);
+  // Um ÚNICO roteador de upgrade para os dois WebSockets (presença + sinalização
+  // do vídeo). Com dois WebSocketServer({ server, path }) separados, o primeiro
+  // abortava (400) o upgrade do path do outro, quebrando a videochamada. Aqui os
+  // dois são `noServer` e este dispatcher escolhe pelo path; paths desconhecidos
+  // (ex.: HMR do Vite em dev) são ignorados de propósito, para outro handler tratar.
+  const presenceWss = createPresenceWss();
+  const signalingWss = createSignalingWss();
+  server.on("upgrade", (req, socket, head) => {
+    let pathname: string;
+    try {
+      pathname = new URL(req.url || "", "http://localhost").pathname;
+    } catch {
+      return;
+    }
+    if (pathname === PRESENCE_PATH) {
+      presenceWss.handleUpgrade(req, socket, head, ws => presenceWss.emit("connection", ws, req));
+    } else if (pathname === SIGNALING_PATH) {
+      signalingWss.handleUpgrade(req, socket, head, ws => signalingWss.emit("connection", ws, req));
+    }
+  });
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));

@@ -1,4 +1,3 @@
-import type { Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 
 /**
@@ -31,10 +30,13 @@ function broadcastToRole(room: string, role: Role, payload: unknown) {
   });
 }
 
-export function registerPresence(server: Server) {
-  // `path` garante que só tratamos os upgrades desta rota, deixando o HMR do
-  // Vite (que usa outro path) passar sem conflito no mesmo servidor HTTP.
-  const wss = new WebSocketServer({ server, path: "/api/ws/presence" });
+export const PRESENCE_PATH = "/api/ws/presence";
+
+// `noServer`: o upgrade é despachado por um roteador único em _core/index.ts.
+// Dois WebSocketServer com `{ server, path }` no mesmo HTTP faziam o primeiro
+// abortar (400) o upgrade do path do outro — quebrava a sinalização do vídeo.
+export function createPresenceWss(): WebSocketServer {
+  const wss = new WebSocketServer({ noServer: true });
 
   wss.on("connection", (ws, req) => {
     const url = new URL(req.url || "", "http://localhost");
