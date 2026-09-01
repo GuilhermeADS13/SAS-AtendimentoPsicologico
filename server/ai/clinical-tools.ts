@@ -9,6 +9,7 @@ import { embeddingForCurrentEnvironment, formatRagContext, retrieveScopedClinica
 import { searchIndexedDocumentChunks } from "./document-ingestion";
 import { wrapUntrustedClinicalContext } from "./content-safety";
 import { consumePendingAction, issuePendingAction, type PendingActionParams } from "./action-confirmation";
+import { formatarBRL } from "../../shared/dinheiro";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
@@ -163,15 +164,26 @@ export async function readPatientAppointments(
   const db = dbOverride ?? await getDb();
   if (!db) throw new Error("Database not available");
   const patient = await authorizedPatient(db, ctx, requestedPatientId);
-  return db.select({
+  const rows = await db.select({
     id: appointments.id,
     scheduledAt: appointments.scheduledAt,
     duration: appointments.duration,
     status: appointments.status,
     confirmedAt: appointments.confirmedAt,
+    price: appointments.price,
+    paid: appointments.paid,
   }).from(appointments)
     .where(and(eq(appointments.patientId, patient.id), eq(appointments.therapistId, patient.therapistId)))
     .orderBy(desc(appointments.scheduledAt)).limit(20);
+  // Expõe o valor JÁ formatado (centavos -> "R$ x") para a Luma responder "quanto
+  // é a consulta" com o dado REAL, e "sem valor definido" quando não há preço, em
+  // vez de inventar. O `price` cru (centavos) sai do retorno para o modelo não
+  // confundir centavos com reais.
+  return rows.map(({ price, paid, ...rest }) => ({
+    ...rest,
+    valor: formatarBRL(price, "sem valor definido"),
+    pago: paid,
+  }));
 }
 
 export async function readPatientSessions(
@@ -518,7 +530,7 @@ export function createClinicalTools(
   return [
     tool(async ({ patientId }) => JSON.stringify(await readPatientAppointments(ctx, patientId, db)), {
       name: ctx.role === "therapist" ? "get_patient_appointments" : "get_my_appointments",
-      description: "Consulta somente leitura os próximos e últimos agendamentos autorizados. Para terapeuta, informe patientId.",
+      description: "Consulta somente leitura os próximos e últimos agendamentos autorizados, incluindo o valor (campo 'valor', em reais, ou 'sem valor definido') e se está pago ('pago'). É a ÚNICA fonte para dizer preço/pagamento de uma consulta — nunca estime um valor. Para terapeuta, informe patientId.",
       schema: patientIdSchema,
     }),
     tool(async ({ patientId }) => JSON.stringify(await readPatientSessions(ctx, patientId, db)), {
