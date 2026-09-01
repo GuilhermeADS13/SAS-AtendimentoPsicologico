@@ -460,7 +460,7 @@ export function createClinicalTools(
       description: "Cria uma consulta (ou várias semanais, via repetirSemanas) para o paciente autorizado (ESCRITA). Chame PRIMEIRO sem codigoConfirmacao: a ferramenta devolve o resumo e um código, e a terapeuta passa a ver um botão de confirmação na tela. Só repita a chamada com o código se ela confirmar por texto. Checa conflito. Não define preço nem toca em prontuários.",
       schema: z.object({
         patientId: z.number().int().positive().optional(),
-        scheduledAt: z.string().min(10).describe("Data e hora ISO 8601 no fuso America/Sao_Paulo, ex.: 2026-08-25T14:00:00"),
+        scheduledAt: z.string().min(10).describe("Data e hora ISO 8601 no fuso America/Sao_Paulo (horário de Brasília, -03:00), ex.: 2026-08-25T14:00:00"),
         durationMinutes: z.number().int().positive().max(480).optional().describe("Duração em minutos (padrão 60)"),
         notes: z.string().trim().max(500).optional().describe("Observação opcional da consulta"),
         repetirSemanas: z.number().int().min(1).max(12).optional().describe("Recorrência: repetir semanalmente por N semanas (padrão 1)"),
@@ -491,7 +491,7 @@ export function createClinicalTools(
       schema: z.object({
         appointmentId: z.number().int().positive(),
         patientId: z.number().int().positive().optional(),
-        novoHorario: z.string().min(10).describe("Nova data e hora ISO 8601 no fuso America/Sao_Paulo"),
+        novoHorario: z.string().min(10).describe("Nova data e hora ISO 8601 no fuso America/Sao_Paulo (horário de Brasília, -03:00)"),
         novaDuracaoMinutos: z.number().int().positive().max(480).optional(),
         codigoConfirmacao: codigoConfirmacaoSchema,
       }),
