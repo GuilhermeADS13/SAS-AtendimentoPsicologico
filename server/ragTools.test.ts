@@ -19,6 +19,17 @@ describe("RAG e ferramentas clínicas", () => {
     expect(prompt).toContain("Não revele");
   });
 
+  it("tranca o escopo: recusa assuntos fora do sistema, nos dois modos", () => {
+    for (const toolsEnabled of [true, false]) {
+      const prompt = clinicalSystemPrompt(therapistContext, 42, toolsEnabled);
+      expect(prompt).toContain("ESCOPO TRANCADO");
+      expect(prompt).toContain("FORA do escopo");
+      // A instrução precisa mandar NÃO responder o off-topic (ex.: matemática).
+      expect(prompt).toContain("quanto é 1+1");
+      expect(prompt).toMatch(/NÃO responda/);
+    }
+  });
+
   it("no modo sem ferramentas, corta capacidades de escrita e o acesso a prontuários", () => {
     const prompt = clinicalSystemPrompt(therapistContext, 42, false);
     // O modo read-only (kill-switch / RAG desligado) precisa dizer que NÃO há
