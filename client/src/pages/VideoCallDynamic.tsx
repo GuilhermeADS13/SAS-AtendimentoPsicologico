@@ -5,7 +5,7 @@ import { usePresence } from "@/hooks/usePresence";
 import { playPresenceChime } from "@/lib/sound";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
-import JitsiMeeting from "@/components/JitsiMeeting";
+import WebRTCCall from "@/components/WebRTCCall";
 import VideoCallLobby from "@/components/VideoCallLobby";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -121,8 +121,6 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   useEffect(() => {
     if (joined && !isTherapist) setPatientPresent(true);
   }, [joined, isTherapist]);
-
-  const displayName = user?.name || "Psicóloga";
 
   // Presença em tempo real: o papel vem do usuário (paciente também loga).
   // A psicóloga recebe o aviso quando o paciente entra na sala.
@@ -306,12 +304,10 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
               </div>
             )}
             {!error && (
-              <JitsiMeeting
+              <WebRTCCall
                 roomName={room}
-                displayName={displayName}
-                email={user?.email || undefined}
+                role={presenceRole}
                 onError={(err) => setError(err)}
-                onLeft={() => setLocation(isTherapist ? "/dashboard" : "/consultas")}
               />
             )}
           </div>
