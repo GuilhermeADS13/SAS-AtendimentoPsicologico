@@ -1389,7 +1389,10 @@ export const appRouter = router({
       .input(z.object({
         patientId: z.number(),
         scheduledAt: z.string(),
-        duration: z.number().default(60),
+        // .max(480) casa com o editar e com a ferramenta da Luma, e mantém válida
+        // a janela de 8h do horarioEmConflito (uma consulta mais longa começaria
+        // fora da janela e um novo agendamento não veria o conflito).
+        duration: z.number().int().min(1).max(480).default(60),
         notes: z.string().optional(),
         // Valor da consulta em centavos (o cliente já preenche com o preço
         // padrão da psicóloga). Vale para todas as recorrentes criadas juntas.
