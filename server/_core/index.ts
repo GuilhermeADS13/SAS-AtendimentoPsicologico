@@ -4,6 +4,7 @@ import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerPresence } from "../presence";
+import { registerSignaling } from "../signaling";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { getDocumentQueueMetrics, queueMetricsToPrometheus } from "../ai/queue-metrics";
@@ -34,6 +35,8 @@ async function startServer() {
   const server = createServer(app);
   // WebSocket de presença das salas (avisa a psicóloga quando o paciente entra).
   registerPresence(server);
+  // WebSocket de sinalização WebRTC (handshake do vídeo peer-to-peer).
+  registerSignaling(server);
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
