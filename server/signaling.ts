@@ -1,4 +1,3 @@
-import type { Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 
 /**
@@ -30,10 +29,11 @@ function sendTo(client: Client, payload: unknown) {
   }
 }
 
-export function registerSignaling(server: Server) {
-  // `path` próprio: convive com /api/ws/presence e com o HMR do Vite no mesmo
-  // servidor HTTP (o ws ignora upgrades cujo path não bate).
-  const wss = new WebSocketServer({ server, path: "/api/ws/rtc" });
+export const SIGNALING_PATH = "/api/ws/rtc";
+
+// `noServer`: upgrade despachado pelo roteador único em _core/index.ts (ver presence.ts).
+export function createSignalingWss(): WebSocketServer {
+  const wss = new WebSocketServer({ noServer: true });
 
   wss.on("connection", (ws, req) => {
     const url = new URL(req.url || "", "http://localhost");
