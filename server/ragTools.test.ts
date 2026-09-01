@@ -30,6 +30,12 @@ describe("RAG e ferramentas clínicas", () => {
     }
   });
 
+  it("não expõe nomes técnicos de ferramentas ao listar capacidades", () => {
+    const prompt = clinicalSystemPrompt(therapistContext, 42);
+    expect(prompt).toContain("LINGUAGEM NATURAL");
+    expect(prompt).toMatch(/NUNCA cite nomes técnicos de ferramentas/);
+  });
+
   it("regra de valor: informa se definido, senão redireciona à psicóloga (sem inventar)", () => {
     const prompt = clinicalSystemPrompt(therapistContext, 42);
     expect(prompt).toContain("VALOR de consulta");
