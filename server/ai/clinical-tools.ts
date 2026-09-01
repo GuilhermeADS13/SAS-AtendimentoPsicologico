@@ -2,7 +2,7 @@ import { tool } from "langchain";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { and, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
-import { aiConversations, aiMessages, appointments, documents, patients, sessions, therapists } from "../../drizzle/schema";
+import { aiConversations, aiMessages, appointments, documents, patients, sessions, therapists, users } from "../../drizzle/schema";
 import { getDb } from "../db";
 import type { AiAccessContext } from "./access";
 import { embeddingForCurrentEnvironment, formatRagContext, retrieveScopedClinicalContext, type RagSource } from "./rag";
@@ -164,6 +164,17 @@ export async function readPatientAppointments(
   const db = dbOverride ?? await getDb();
   if (!db) throw new Error("Database not available");
   const patient = await authorizedPatient(db, ctx, requestedPatientId);
+  // Nome do psicólogo responsável POR ESTE paciente (patients.therapistId), para a
+  // Luma dizer com quem confirmar o valor — não é a "Beatriz" chumbada, é quem está
+  // vinculado ao paciente que perguntou.
+  const responsavel = await db.select({ name: users.name })
+    .from(therapists).innerJoin(users, eq(users.id, therapists.userId))
+    .where(eq(therapists.id, patient.therapistId)).limit(1);
+  const psicologoResponsavel = responsavel[0]?.name?.trim() || null;
+  const comQuemConfirmar = psicologoResponsavel
+    ? `confirmar o valor com ${psicologoResponsavel} (psicólogo(a) responsável)`
+    : "confirmar o valor com o(a) psicólogo(a) responsável pelo paciente";
+
   const rows = await db.select({
     id: appointments.id,
     scheduledAt: appointments.scheduledAt,
@@ -175,15 +186,18 @@ export async function readPatientAppointments(
   }).from(appointments)
     .where(and(eq(appointments.patientId, patient.id), eq(appointments.therapistId, patient.therapistId)))
     .orderBy(desc(appointments.scheduledAt)).limit(20);
-  // Valor: quando a consulta TEM preço, expõe o valor real formatado (dado, sem
-  // chute). Quando NÃO há preço definido, não diz número nenhum — o campo orienta
-  // a confirmar com o(a) psicólogo(a) responsável pelo paciente (mais seguro do que
-  // a IA inventar). O `price` cru (centavos) sai do retorno para não confundir reais.
-  return rows.map(({ price, paid, ...rest }) => ({
-    ...rest,
-    valor: price != null ? formatarBRL(price) : "não definido — confirmar com o(a) psicólogo(a) responsável pelo paciente",
-    pago: paid,
-  }));
+
+  // Valor: com preço definido, expõe o valor real formatado (dado, sem chute); sem
+  // preço, não diz número — orienta a confirmar com o responsável (nomeado). O
+  // `price` cru (centavos) sai do retorno para não confundir com reais.
+  return {
+    psicologoResponsavel,
+    consultas: rows.map(({ price, paid, ...rest }) => ({
+      ...rest,
+      valor: price != null ? formatarBRL(price) : `não definido — ${comQuemConfirmar}`,
+      pago: paid,
+    })),
+  };
 }
 
 export async function readPatientSessions(
@@ -530,7 +544,7 @@ export function createClinicalTools(
   return [
     tool(async ({ patientId }) => JSON.stringify(await readPatientAppointments(ctx, patientId, db)), {
       name: ctx.role === "therapist" ? "get_patient_appointments" : "get_my_appointments",
-      description: "Consulta somente leitura os próximos e últimos agendamentos autorizados, incluindo o valor (campo 'valor': em reais quando definido, ou a orientação de confirmar com o(a) psicólogo(a) responsável quando não houver valor) e se está pago ('pago'). É a ÚNICA fonte para preço/pagamento — nunca estime um valor; se o valor não estiver definido, oriente a confirmar com o(a) psicólogo(a) responsável pelo paciente. Para terapeuta, informe patientId.",
+      description: "Consulta somente leitura os agendamentos autorizados. Retorna 'psicologoResponsavel' (nome do profissional vinculado ao paciente) e 'consultas' — cada uma com 'valor' (em reais quando definido, ou a orientação de confirmar com o responsável, já nomeado, quando não houver) e 'pago'. É a ÚNICA fonte para preço/pagamento — nunca estime um valor. Para terapeuta, informe patientId.",
       schema: patientIdSchema,
     }),
     tool(async ({ patientId }) => JSON.stringify(await readPatientSessions(ctx, patientId, db)), {
