@@ -609,17 +609,18 @@ export default function Appointments() {
                         {appointment.paidAt ? <p>Pago em {new Date(appointment.paidAt).toLocaleDateString("pt-BR")}</p> : appointment.updatedAt ? <p>Atualizado em {new Date(appointment.updatedAt).toLocaleDateString("pt-BR")}</p> : null}
                         {appointment.paymentUpdatedByName ? <p>Alterado por {appointment.paymentUpdatedByName}</p> : null}
                       </div>
+                      {/* Consulta cancelada ou já realizada não tem sala para copiar nem
+                          para entrar: TODAS as ações (inclusive "Copiar sala") valem só
+                          enquanto ela está agendada. */}
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        <Button variant="outline" size="sm" onClick={() => copyToClipboard(roomUrl)} className="h-10 justify-center gap-1.5" title="Copiar link da sala">
-                          <Copy className="h-4 w-4" /> Copiar sala
-                        </Button>
-                        {status === "scheduled" ? (
-                          <Button variant="outline" size="sm" disabled={!href} onClick={() => href && window.open(href, "_blank", "noopener")} className="h-10 justify-center gap-1.5 text-green-700" title={href ? "Abrir mensagem pronta no WhatsApp" : "Paciente sem telefone cadastrado"}>
-                            <WhatsAppIcon className="h-4 w-4" /> Avisar no WhatsApp
-                          </Button>
-                        ) : null}
                         {status === "scheduled" ? (
                           <>
+                            <Button variant="outline" size="sm" onClick={() => copyToClipboard(roomUrl)} className="h-10 justify-center gap-1.5" title="Copiar link da sala">
+                              <Copy className="h-4 w-4" /> Copiar sala
+                            </Button>
+                            <Button variant="outline" size="sm" disabled={!href} onClick={() => href && window.open(href, "_blank", "noopener")} className="h-10 justify-center gap-1.5 text-green-700" title={href ? "Abrir mensagem pronta no WhatsApp" : "Paciente sem telefone cadastrado"}>
+                              <WhatsAppIcon className="h-4 w-4" /> Avisar no WhatsApp
+                            </Button>
                             <Button variant="outline" size="sm" onClick={() => startEdit(appointment)} className="h-10 justify-center gap-1.5" title="Editar data, hora, duração ou valor">
                               <Pencil className="h-4 w-4" /> Editar
                             </Button>
@@ -767,17 +768,21 @@ export default function Appointments() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => copyToClipboard(roomUrl)}
-                                className="h-8 gap-1.5 whitespace-nowrap"
-                                title="Copiar link da sala"
-                                aria-label="Copiar link da sala"
-                              >
-                                <Copy className="h-4 w-4" />
-                                <span>Copiar sala</span>
-                              </Button>
+                              {/* Só faz sentido copiar a sala de uma consulta ainda agendada:
+                                  cancelada ou já realizada, a sala não serve para nada. */}
+                              {status === "scheduled" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => copyToClipboard(roomUrl)}
+                                  className="h-8 gap-1.5 whitespace-nowrap"
+                                  title="Copiar link da sala"
+                                  aria-label="Copiar link da sala"
+                                >
+                                  <Copy className="h-4 w-4" />
+                                  <span>Copiar sala</span>
+                                </Button>
+                              )}
                               {status === "scheduled" &&
                                 (() => {
                                   const href = whatsappHref(appointment);
