@@ -213,7 +213,12 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-50 p-3 sm:p-4"
+      /* z acima do toaster (sonner usa 999999999): os toasts nascem no mesmo
+         canto de baixo e, com z-50, ficavam POR CIMA dos botões do tour —
+         "Próximo" virava inclicável logo após o cadastro, que é justamente
+         quando o tour abre. Um aviso transitório não pode bloquear um fluxo
+         interativo; enquanto o tour está aberto, ele fica na frente. */
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-[1000000000] p-3 sm:p-4"
       role="region"
       aria-live="polite"
       aria-label="Tour de boas-vindas da Luma"
@@ -235,7 +240,8 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
           <button
             onClick={encerrar}
             aria-label="Fechar tour"
-            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            /* Alvo de toque: com p-1 o botão media 24x24, pequeno para dedo. */
+            className="-mr-1 -mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <X className="h-4 w-4" />
           </button>
