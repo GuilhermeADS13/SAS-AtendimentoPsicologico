@@ -654,7 +654,13 @@ export default function Appointments() {
               )}
             </div>
             <div className="hidden overflow-x-auto 2xl:block">
-              <Table className="min-w-[1120px] table-fixed">
+              {/* min-w = SOMA das larguras das colunas abaixo (180+130+100+100+
+                  150+170+300+240 = 1370). Estava 1120: com table-fixed, quando a
+                  largura disponível caía entre 1120 e 1370 as colunas encolhiam
+                  abaixo do declarado e os botões (whitespace-nowrap) vazavam por
+                  cima das colunas vizinhas, cortando "Ações". Com a soma correta,
+                  o overflow-x-auto do container assume e vira rolagem lateral. */}
+              <Table className="min-w-[1370px] table-fixed">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[180px]">Paciente</TableHead>
