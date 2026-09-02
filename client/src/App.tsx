@@ -7,6 +7,7 @@ import Records from "@/pages/Records";
 import Appointments from "@/pages/Appointments";
 import PatientDetail from "@/pages/PatientDetail";
 import Profile from "@/pages/Profile";
+import Configuracoes from "@/pages/Configuracoes";
 import MyAppointments from "@/pages/MyAppointments";
 import MyTherapist from "@/pages/MyTherapist";
 import TherapistRequests from "@/pages/TherapistRequests";
@@ -90,6 +91,8 @@ function Router() {
       <Route path={"/consultas"} component={MyAppointments} />
       <Route path={"/psicologa"} component={MyTherapist} />
       <Route path={"/profile"} component={Profile} />
+      {/* Sem TherapistOnly: e-mail e senha são da conta, não do papel. */}
+      <Route path={"/configuracoes"} component={Configuracoes} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

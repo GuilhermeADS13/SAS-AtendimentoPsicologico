@@ -518,6 +518,69 @@ export const appRouter = router({
       return { ok: true };
     }),
 
+    /**
+     * Dados da aba Configurações: e-mail da conta e telefone de contato.
+     *
+     * O telefone mora em tabelas diferentes conforme o papel (`therapists` ou
+     * `patients`), então a tela não precisa saber disso — pergunta aqui e recebe
+     * um valor só. O e-mail vem de `ctx.user`, que o contexto já sincroniza a
+     * cada requisição a partir do token do Supabase.
+     */
+    contato: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      const email = ctx.user.email ?? "";
+      if (!db) return { email, phone: "" };
+
+      if (ctx.user.role === "therapist" || ctx.user.role === "admin") {
+        const linhas = await db
+          .select({ phone: therapists.phone })
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+        return { email, phone: linhas[0]?.phone ?? "" };
+      }
+
+      const paciente = await pacienteDoUsuario(db, ctx.user);
+      return { email, phone: paciente?.phone ?? "" };
+    }),
+
+    /**
+     * Grava só o telefone, no lugar certo para o papel de quem chamou.
+     *
+     * Separado do `saveProfile` de propósito: aquele exige nome e sobrenome e é
+     * do cadastro do paciente. Aqui a pessoa só quer trocar o contato — e a
+     * psicóloga nem tem cadastro de paciente para salvar.
+     */
+    updatePhone: protectedProcedure
+      .input(z.object({ phone: z.string().trim().max(20) }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        // Campo vazio limpa o telefone em vez de gravar string vazia.
+        const phone = input.phone || null;
+
+        if (ctx.user.role === "therapist" || ctx.user.role === "admin") {
+          const atualizadas = await db
+            .update(therapists)
+            .set({ phone })
+            .where(eq(therapists.userId, ctx.user.id))
+            .returning({ id: therapists.id });
+          if (!atualizadas.length) {
+            throw new Error("Complete seu perfil profissional antes de salvar o telefone.");
+          }
+          return { ok: true };
+        }
+
+        const paciente = await pacienteDoUsuario(db, ctx.user);
+        if (!paciente) {
+          throw new Error(
+            "Seu cadastro precisa ser feito pela sua psicóloga. Peça a ela para cadastrar este e-mail e tente de novo.",
+          );
+        }
+        await db.update(patients).set({ phone }).where(eq(patients.id, paciente.id));
+        return { ok: true };
+      }),
+
     saveProfile: protectedProcedure
       .input(z.object({
         firstName: z.string().min(1),
