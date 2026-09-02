@@ -65,6 +65,21 @@ describe("servidores ICE da videochamada", () => {
     expect(fetchFalso.mock.calls[0][0]).toContain("region=SouthAmerica");
   });
 
+  it("aceita o domínio colado como URL inteira (https:// e barra final)", async () => {
+    const fetchFalso = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ urls: "turn:teste.metered.live:80" }],
+    });
+    vi.stubGlobal("fetch", fetchFalso);
+    await iceServersParaChamada({
+      METERED_DOMAIN: "https://exemplo.metered.live/",
+      METERED_API_KEY: "chave",
+    } as NodeJS.ProcessEnv);
+    expect(fetchFalso.mock.calls[0][0]).toBe(
+      "https://exemplo.metered.live/api/v1/turn/credentials?apiKey=chave",
+    );
+  });
+
   it("ignora espaço/CRLF em volta do valor (env colado no painel)", async () => {
     const fetchFalso = vi.fn().mockResolvedValue({
       ok: true,

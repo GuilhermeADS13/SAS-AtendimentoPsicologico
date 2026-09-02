@@ -2046,9 +2046,9 @@ export const appRouter = router({
 
   videoCalls: router({
     /**
-     * Servidores ICE da chamada. Protegido de propósito: as credenciais TURN são
-     * temporárias, mas ainda assim só vão para quem está autenticado — não para
-     * qualquer visitante. A secret key fica no servidor (ver server/turn.ts).
+     * Servidores ICE da chamada. Protegido de propósito: as credenciais TURN
+     * valem enquanto a chave viver, então só vão para quem está autenticado —
+     * não para qualquer visitante. A chave fica no servidor (ver server/turn.ts).
      */
     iceServers: protectedProcedure.query(async () => {
       return { iceServers: await iceServersParaChamada() };

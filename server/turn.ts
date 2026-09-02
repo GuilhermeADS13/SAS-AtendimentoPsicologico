@@ -4,8 +4,8 @@
  * Por que passa pelo servidor, e não por uma variável VITE_: tudo que é VITE_ vai
  * embutido no bundle e fica visível para qualquer visitante — a própria Metered
  * avisa para nunca expor a secret key no front-end. Aqui a chave fica só no
- * servidor, e o cliente recebe credenciais TEMPORÁRIAS. De quebra, trocar a chave
- * não exige novo build.
+ * servidor, e o cliente recebe apenas as credenciais de relay — nunca a chave.
+ * De quebra, trocar a chave não exige novo build.
  *
  * O TURN só entra em ação quando a conexão direta (P2P) falha — redes com NAT
  * simétrico, firewall corporativo, algumas operadoras móveis. Nas demais chamadas
@@ -39,7 +39,10 @@ const CACHE_MS = 30 * 60_000;
 
 export async function iceServersParaChamada(env: NodeJS.ProcessEnv = process.env): Promise<IceServer[]> {
   // trim(): mesma proteção do resto do projeto contra \r de .env feito no Windows.
-  const dominio = env.METERED_DOMAIN?.trim();
+  // Tolera "https://dominio/" colado inteiro: o painel exibe só o domínio, mas é
+  // fácil copiar a URL junto — e aí o fetch iria para "https://https://..." e a
+  // chamada cairia calada no fallback de STUN.
+  const dominio = env.METERED_DOMAIN?.trim().replace(/^https?:\/\//, "").replace(/\/+$/, "");
   const chave = env.METERED_API_KEY?.trim();
   if (!dominio || !chave) return STUN_PADRAO;
 
