@@ -1,104 +1,132 @@
-# 🧠 Plataforma de Atendimento Psicológico Online
+# 🧠 VozInterior — Plataforma de Atendimento Psicológico Online
 
-Plataforma web completa para psicólogos gerenciarem consultas online, prontuários de pacientes e agendamentos. Desenvolvida com tecnologias modernas e identidade visual profissional.
+Plataforma web para psicólogas atenderem online: videochamada própria, prontuários,
+agenda, financeiro e uma assistente de IA (a **Luma**). Feita para uso clínico real —
+com os cuidados de privacidade que isso exige.
 
 ![CI](https://github.com/GuilhermeADS13/SAS-AtendimentoPsicologico/actions/workflows/ci.yml/badge.svg)
-![Status](https://img.shields.io/badge/status-ativo-brightgreen)
+![Status](https://img.shields.io/badge/status-em%20produção-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
 
 ---
 
-## 🎯 Funcionalidades Principais
+## 🎯 Funcionalidades
 
-### 🎥 Videochamadas em Tempo Real
-- **Jitsi Meet Integrado** — Videochamadas profissionais com qualidade HD
-- **Controles Completos** — Câmera, microfone, compartilhamento de tela
-- **Chat Integrado** — Comunicação textual durante a chamada
-- **Sem Custos** — Usa infraestrutura pública do Jitsi Meet
-- **Português (pt-BR)** — Interface totalmente localizada
+### 🎥 Videochamada própria (WebRTC P2P)
 
-### 📋 Gestão de Prontuários
-- **Cadastro de Pacientes** — Dados pessoais, contato, histórico clínico
-- **Listagem Completa** — Busca e filtros por nome, email, telefone
-- **Histórico de Sessões** — Registro de todas as consultas realizadas
-- **Anotações Clínicas** — Documentação detalhada de cada sessão
-- **Evolução do Paciente** — Visualização de progresso ao longo do tempo
+Sem provedor externo, sem conta e sem cartão. O vídeo vai **direto entre os dois
+navegadores**; o servidor só intermedeia o aperto de mão.
 
-### 📅 Agendamento de Consultas
-- **Calendário Interativo** — Seleção fácil de datas e horários
-- **Status de Consultas** — Agendado, realizado, cancelado
-- **Duração Flexível** — 30 min, 1h, 1h30, 2h
-- **Gerenciamento** — Criar, editar, cancelar consultas
-- **Lembretes Automáticos** — Sistema de notificações (em desenvolvimento)
+- **1:1 peer-to-peer** — mídia não passa pelo servidor (menos custo, menos exposição)
+- **Sinalização própria** — WebSocket em `/api/ws/rtc`, só repassa `offer`/`answer`/ICE
+- **STUN + TURN** — TURN da Metered cobre redes onde o P2P não fecha (NAT simétrico,
+  4G, firewall corporativo); inclui `turns:` em TLS/443, indistinguível de HTTPS
+- **Desfoque de fundo** — nativo do navegador, sem biblioteca extra (onde há suporte)
+- **Compartilhamento de tela**, seleção de câmera/microfone e aviso de presença
+  (`/api/ws/presence`) quando o paciente entra na sala
 
-### 👤 Autenticação e Segurança
-- **OAuth Manus** — Login seguro e integrado
-- **Controle de Acesso** — Apenas psicólogos autorizados
-- **Dados Protegidos** — Criptografia de informações sensíveis
-- **Sessões Seguras** — Cookies HTTP-only com CSRF protection
+### 🤖 Luma — assistente de IA
 
-### 🎨 Identidade Visual
-- **Paleta de Cores** — Bege (#EAD2A8) e Marrom (#8B6946)
-- **Design Acolhedor** — Interface profissional e confortável
-- **Responsivo** — Funciona em desktop, tablet e mobile
-- **Acessível** — Suporte a navegação por teclado e leitores de tela
+- **Escopo trancado** — responde sobre o **uso do sistema** e sobre os dados do
+  próprio usuário; nunca dá conselho clínico ou diagnóstico
+- **Protocolo de crise** — sinais de sofrimento acionam resposta fixa com **CVV 188**
+  e **SAMU 192**, sem passar pelo modelo
+- **RAG** — busca em documentos indexados (pgvector), com filtro de escopo no `WHERE`
+- **Ações com confirmação** — agendar/alterar só depois de o usuário confirmar
+- **Tour de boas-vindas** — na primeira entrada, a Luma apresenta cada aba do sistema
+
+### 📋 Prontuários e sessões
+Cadastro de pacientes, histórico clínico, anotações por sessão e evolução ao longo
+do tempo. Upload de documentos com indexação assíncrona (fila + OCR).
+
+### 📅 Agenda e financeiro
+Calendário, status (agendado / realizado / cancelado / a confirmar), filtros por
+data e por pagamento, duração flexível, exportação para **Google Calendar e `.ics`**,
+e **lembretes automáticos por e-mail**.
+
+### 👤 Autenticação e papéis
+Login por **Supabase Auth** (e-mail e senha, com recuperação). Dois papéis:
+psicóloga e paciente — ver [Papéis e cadastro](#-papéis-e-cadastro-de-psicólogas).
+
+### 🎨 Identidade visual
+Paleta bege (`#EAD2A8`) e marrom (`#8B6946`), responsiva em desktop, tablet e mobile,
+com navegação por teclado.
 
 ---
 
 ## 🚀 Começando
 
 ### Pré-requisitos
-- Node.js 18+
-- pnpm 10+
-- Conta no [Supabase](https://supabase.com) (Postgres gerenciado)
-- (Opcional) Docker + servidor MiroTalk SFU para a videochamada
+- **Node.js 22+** (a imagem de produção usa `node:22-slim`)
+- **pnpm 10+**
+- Conta no [Supabase](https://supabase.com) — Postgres + Auth + pgvector
 
 ### Instalação
 
-1. **Clone o repositório**
 ```bash
 gh repo clone GuilhermeADS13/SAS-AtendimentoPsicologico
 cd SAS-AtendimentoPsicologico
-```
-
-2. **Instale as dependências**
-```bash
 pnpm install
 ```
 
-3. **Configure as variáveis de ambiente**
+### Variáveis de ambiente
+
+Copie `.env.example` para `.env.local` e preencha. O mínimo para subir:
+
 ```bash
-# Copie .env.example para .env.local e preencha:
-# DATABASE_URL = pooler de transações do Supabase (porta 6543)
-DATABASE_URL=postgresql://postgres.<project>:<senha>@aws-0-<region>.pooler.supabase.com:6543/postgres
-JWT_SECRET=sua-chave-secreta-aqui
-VITE_APP_ID=seu-app-id-manus
-OAUTH_SERVER_URL=https://api.manus.im
-# URL do servidor MiroTalk SFU (videochamada). Default: https://localhost:3010
-VITE_MIROTALK_URL=https://localhost:3010
+# Banco — pooler de transações do Supabase (porta 6543). Senha com "@" vira "%40".
+DATABASE_URL=postgresql://postgres.<projeto>:<senha>@aws-0-<regiao>.pooler.supabase.com:6543/postgres
+JWT_SECRET=uma-chave-forte
+
+# Autenticação (Supabase)
+VITE_SUPABASE_URL=https://<projeto>.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=<chave publicável>
+SUPABASE_URL=https://<projeto>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<service role — só no servidor>
 ```
 
-> **Servidor de vídeo (MiroTalk SFU):** a videochamada usa o [MiroTalk SFU](https://github.com/miroslavpejic85/mirotalksfu),
-> que é self-hosted. Suba-o via Docker (`docker-compose up`, porta padrão `3010`)
-> e aponte `VITE_MIROTALK_URL` para ele. As notificações de presença (aviso quando
-> o paciente entra na sala) usam um WebSocket próprio do backend em `/api/ws/presence`
-> e funcionam independentemente do MiroTalk.
+> ⚠️ **Cuidado com o `.env.local`.** Se o `DATABASE_URL` apontar para o Supabase de
+> produção, `pnpm dev` escreve no banco real. Use um projeto separado para desenvolver.
 
-4. **Execute as migrations do banco de dados**
+<details>
+<summary><b>Variáveis opcionais</b> (vídeo, IA, e-mail)</summary>
+
 ```bash
-pnpm drizzle-kit generate
-pnpm drizzle-kit migrate
+# TURN (videochamada em redes restritivas) — sem isso, só STUN
+METERED_DOMAIN=<seu-subdominio>.metered.live
+METERED_API_KEY=<API Key da credencial — NUNCA a Secret Key>
+# METERED_REGION: deixe VAZIA. O painel em "Global (automático)" já roteia para o
+# servidor mais próximo, e essa variável sobrescreveria isso por uma região fixa.
+
+# Luma (IA)
+AI_AGENT_ENABLED=true
+LLM_BASE_URL=https://api.groq.com/openai/v1
+LLM_API_KEY=<chave>
+LLM_MODEL=openai/gpt-oss-120b
+# Embeddings do RAG: precisa de um endpoint com /embeddings próprio.
+LLM_EMBEDDING_BASE_URL=<url>
+LLM_EMBEDDING_MODEL=<modelo>
+AI_RAG_ENABLED=true
+
+# E-mail (lembretes e avisos) — ver a seção do Gmail abaixo
+NOTIFICATIONS_ENABLED=true
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=...
+SMTP_PASS=...
+SMTP_FROM=...
+ADMIN_EMAIL=...
 ```
 
-5. **Inicie o servidor de desenvolvimento**
+</details>
+
+### Banco e execução
+
 ```bash
-pnpm dev
-```
-
-6. **Acesse a aplicação**
-```
-http://localhost:3000
+pnpm db:push     # drizzle-kit generate && migrate
+pnpm dev         # http://localhost:3000
+pnpm ai:worker   # opcional: fila de indexação de documentos
 ```
 
 ---
@@ -106,345 +134,135 @@ http://localhost:3000
 ## 📁 Estrutura do Projeto
 
 ```
-psicologia-atendimento/
-├── client/                    # Frontend React
-│   ├── src/
-│   │   ├── pages/            # Páginas principais
-│   │   │   ├── Home.tsx      # Landing page
-│   │   │   ├── Dashboard.tsx # Dashboard principal
-│   │   │   ├── VideoCallJitsi.tsx  # Videochamada com Jitsi
-│   │   │   ├── Records.tsx   # Prontuários
-│   │   │   ├── Appointments.tsx    # Agendamentos
-│   │   │   └── PatientDetail.tsx   # Detalhes do paciente
-│   │   ├── components/       # Componentes reutilizáveis
-│   │   ├── App.tsx           # Router principal
-│   │   └── index.css         # Estilos globais
-│   └── public/               # Assets estáticos
-├── server/                    # Backend Express + tRPC
-│   ├── routers.ts            # Procedures tRPC
-│   ├── db.ts                 # Query helpers
-│   ├── notifications.ts      # Sistema de notificações
-│   └── _core/                # Framework interno
-├── drizzle/                   # Schema e migrations
-│   └── schema.ts             # Definição de tabelas
-├── shared/                    # Código compartilhado
-└── references/               # Documentação de integrações
+├── client/src/
+│   ├── pages/              # Dashboard, Appointments, Records, Financeiro,
+│   │                       # Luma, VideoCallDynamic, Login, Ajuda, Privacidade…
+│   └── components/         # WebRTCCall, AIChatBox, LumaOnboarding, AddToCalendar…
+├── server/
+│   ├── routers.ts          # Procedures tRPC
+│   ├── signaling.ts        # WebSocket WebRTC (/api/ws/rtc)
+│   ├── turn.ts             # Credenciais ICE (STUN + TURN)
+│   ├── notifications.ts    # Lembretes por e-mail
+│   ├── ai/                 # Luma: llm, rag, clinical-tools, clinical-safety, worker
+│   └── _core/              # Express, tRPC, auth, roteador de upgrade WS
+├── drizzle/                # schema.ts (17 tabelas) + migrations
+├── shared/                 # Código compartilhado (ex.: calendario.ts)
+├── e2e/                    # Playwright
+└── docs/                   # Notas de arquitetura e operação
 ```
 
 ---
 
-## 🔧 Tecnologias Utilizadas
+## 🔧 Tecnologias
 
-### Frontend
-- **React 19** — UI library
-- **TypeScript** — Type safety
-- **Tailwind CSS 4** — Styling
-- **tRPC** — Type-safe API calls
-- **Wouter** — Routing
-- **shadcn/ui** — UI components
-- **MiroTalk SFU** — Videochamadas
-
-### Backend
-- **Express 4** — Web server
-- **tRPC 11** — RPC framework
-- **Drizzle ORM** — Database ORM
-- **Supabase (Postgres)** — Banco de dados (driver `postgres-js`)
-- **ws** — WebSocket de presença das salas
-- **Jose** — JWT handling
-
-### DevOps
-- **Vite** — Build tool
-- **Vitest** — Testing framework
-- **Docker** — `docker compose up -d --build`
-- **TypeScript** — Type checking
-- **Prettier** — Code formatting
+| Camada | Stack |
+|---|---|
+| **Frontend** | React 19, TypeScript, Tailwind CSS 4, tRPC, Wouter, shadcn/ui, TanStack Query |
+| **Backend** | Express 4, tRPC 11, Drizzle ORM, `ws` (presença + sinalização), Jose |
+| **Banco** | Supabase — Postgres (driver `postgres-js`) + **pgvector** |
+| **IA** | LangChain, LlamaIndex, LLM via API compatível com OpenAI (Groq) |
+| **Vídeo** | WebRTC nativo + TURN (Metered) |
+| **DevOps** | Vite, Vitest, Playwright, Docker, GitHub Actions, Render |
 
 ---
 
-## 📊 Schema do Banco de Dados
+## 📊 Banco de Dados
 
-### Tabelas Principais
+17 tabelas, em três grupos:
 
-**users** — Usuários do sistema
-```sql
-- id (PK)
-- openId (OAuth)
-- name
-- email
-- role (user | admin)
-- createdAt, updatedAt
-```
+**Clínico** — `users`, `therapists`, `therapistRequests`, `patients`,
+`appointments`, `sessions`, `sessionNotes`, `documents`, `videoCalls`,
+`notifications`
 
-**therapists** — Perfil de psicólogos
-```sql
-- id (PK)
-- userId (FK)
-- crp (Conselho Regional de Psicologia)
-- specialties
-- bio
-```
+**IA (Luma)** — `aiConversations`, `aiMessages`, `aiMessageFeedback`,
+`aiMemories`, `aiAuditEvents`
 
-**patients** — Cadastro de pacientes
-```sql
-- id (PK)
-- therapistId (FK)
-- firstName, lastName
-- email, phone
-- dateOfBirth
-- medicalHistory
-- status (active | inactive | archived)
-```
+**Indexação/RAG** — `aiDocumentJobs`, `aiDocumentChunks` (com coluna `vector`)
 
-**appointments** — Agendamentos
-```sql
-- id (PK)
-- therapistId (FK)
-- patientId (FK)
-- scheduledAt
-- duration
-- status (scheduled | completed | cancelled)
-- notes
-```
-
-**sessions** — Registros de sessões
-```sql
-- id (PK)
-- appointmentId (FK)
-- patientId (FK)
-- therapistId (FK)
-- startedAt, endedAt
-- clinicalNotes
-- treatment
-- nextSteps
-- mood
-```
-
-**documents** — Armazenamento de documentos
-```sql
-- id (PK)
-- patientId (FK)
-- fileName
-- fileKey (S3)
-- fileType
-- uploadedAt
-```
-
-**notifications** — Sistema de lembretes
-```sql
-- id (PK)
-- appointmentId (FK)
-- recipientType (patient | therapist)
-- recipientEmail
-- notificationType
-- status (pending | sent | failed)
-```
+> O RLS está **ligado em todas as tabelas e sem políticas** — de propósito. O acesso
+> é feito pelo backend via Drizzle (não pelo PostgREST), então nenhuma política é
+> necessária. Isso vale **enquanto** o frontend usar `supabase-js` apenas para auth.
+> Definição completa em [`drizzle/schema.ts`](./drizzle/schema.ts).
 
 ---
 
-## 🔌 API tRPC
+## 🎥 Como funciona a videochamada
 
-### Pacientes
-```typescript
-// Listar pacientes
-trpc.patients.list.useQuery()
-
-// Criar paciente
-trpc.patients.create.useMutation({
-  firstName: string
-  lastName: string
-  email: string
-  phone?: string
-  medicalHistory?: string
-})
+```
+Terapeuta ──┐                             ┌── Paciente
+            ├─ /api/ws/rtc (sinalização) ─┤     offer/answer/ICE
+            └─────── mídia direta P2P ────┘     (não passa pelo servidor)
 ```
 
-### Agendamentos
-```typescript
-// Listar agendamentos
-trpc.appointments.list.useQuery()
+1. Os dois entram pela mesma consulta (sala `apt<id>-<token>`, validada no servidor)
+2. A **terapeuta inicia a oferta** (evita colisão de negociação)
+3. O cliente busca os servidores ICE em `videoCalls.iceServers` — a chave da Metered
+   **fica no servidor** e nunca vai para o bundle
+4. Se o caminho direto falhar, a mídia passa pelo **TURN**; caso contrário, vai direto
 
-// Criar agendamento
-trpc.appointments.create.useMutation({
-  patientId: number
-  scheduledAt: string
-  duration?: number
-  notes?: string
-})
-```
-
-### Sessões
-```typescript
-// Listar sessões
-trpc.sessions.list.useQuery()
-
-// Criar sessão
-trpc.sessions.create.useMutation({
-  appointmentId: number
-  patientId: number
-  clinicalNotes: string
-  treatment?: string
-  nextSteps?: string
-  mood?: string
-})
-```
-
----
-
-## 🎥 Como Usar a Videochamada
-
-### Iniciar uma Chamada
-
-1. **Acesse o Dashboard**
-   - Faça login com sua conta Manus
-
-2. **Clique em "Videochamada"**
-   - Navegue até `/videocall-jitsi`
-
-3. **Compartilhe o Link**
-   - Envie o link da sala para o paciente
-   - Ambos entram na mesma sala automaticamente
-
-4. **Controles Disponíveis**
-   - 🎤 Microfone — Ativar/desativar áudio
-   - 📹 Câmera — Ativar/desativar vídeo
-   - 🖥️ Compartilhamento — Compartilhar tela
-   - ⚙️ Configurações — Ajustar dispositivos
-   - 📞 Encerrar — Sair da chamada
-
-### Recursos do Jitsi
-- **Chat** — Comunicação textual
-- **Gravação** — Registrar a sessão (opcional)
-- **Participantes** — Ver lista de pessoas na sala
-- **Qualidade** — Ajustar resolução de vídeo
+**Sem `METERED_*` configurado, funciona só com STUN** — a chamada não quebra, mas
+redes restritivas podem não conectar. Se a chave for rotacionada e a variável não for
+atualizada junto, o sistema volta **silenciosamente** para STUN (proposital: o TURN
+nunca pode derrubar uma consulta) — então a falha não aparece sozinha.
 
 ---
 
 ## 🧪 Testes
 
-### Executar Testes
 ```bash
-pnpm test
+pnpm check                     # typecheck
+pnpm test                      # unitários (Vitest)
+pnpm test:e2e                  # Playwright
+E2E_BASE_URL=https://... pnpm test:e2e   # contra um ambiente já publicado
 ```
 
-### Testes Disponíveis
-- ✅ `auth.logout.test.ts` — Teste de logout
-- ✅ `patients.test.ts` — Teste de listagem de pacientes
+São ~30 arquivos de teste no `server/` — incluindo segurança clínica
+(`clinicalSafety`), prevenção de vazamento (`dataLossPrevention`, `vectorSecurity`),
+pagamentos, política de senha, TURN e o fluxo de ponta a ponta.
 
-### Adicionar Novos Testes
-```typescript
-// server/meu-recurso.test.ts
-import { describe, it, expect } from 'vitest';
-import { appRouter } from './routers';
-
-describe('meu-recurso', () => {
-  it('deve fazer algo', async () => {
-    const ctx = createAuthContext();
-    const caller = appRouter.createCaller(ctx);
-    const result = await caller.meuRecurso.acao();
-    expect(result).toBeDefined();
-  });
-});
-```
+> **`E2E_BASE_URL` importa:** sem ela, o Playwright sobe um servidor local que usa o
+> `.env.local` — e, se ele apontar para produção, o teste **escreve no banco real**.
 
 ---
 
 ## 📦 Build e Deploy
 
-### Build para Produção
 ```bash
-pnpm build
+pnpm build && pnpm start
 ```
 
-### Iniciar em Produção
-```bash
-pnpm start
-```
+### Render (produção atual)
 
-### Deploy no Render (grátis — recomendado)
+Roda o container completo (Express + WebSocket + agendador) no **plano free**.
+Ressalva: dorme após ~15 min sem uso (a próxima visita leva ~50s para acordar).
 
-Roda o **container completo** (Express + WebSocket + agendador) a partir do
-Dockerfile, no **plano free**. Mantém **todas** as funcionalidades (presença em
-tempo real e lembretes automáticos). Única ressalva: o serviço "dorme" após
-~15 min sem uso (a próxima visita leva ~50s pra acordar).
+1. **New → Blueprint** → conecte o repositório (o `render.yaml` faz o resto)
+2. Preencha as variáveis marcadas como `sync: false`
+3. Cada push na **`main` redeploya sozinho** (`autoDeploy`) — ou seja, **push na
+   `main` é deploy em produção**
 
-**Passos:**
-1. Em [render.com](https://render.com) → **New → Blueprint** → conecte este repositório.
-   O `render.yaml` configura o serviço automaticamente.
-2. Preencha as variáveis marcadas como *sync: false*:
-   - `DATABASE_URL` — pooler do Supabase (se a senha tiver `@`, escreva `%40`).
-   - `JWT_SECRET` — uma chave forte.
-   - (opcional) `NOTIFICATIONS_ENABLED=true` + `SMTP_*` para os lembretes.
-3. **Create** → o Render builda o Dockerfile e publica. Cada push na `main`
-   redeploya sozinho (`autoDeploy`).
+### Fly.io (CD opcional)
 
-### Deploy contínuo (CD) — Fly.io
-
-A pipeline (`.github/workflows/cd.yml`) faz **deploy automático no Fly.io** a cada
-push na `main`, **depois que o CI passa**. Enquanto o segredo `FLY_API_TOKEN` não
-estiver configurado, o passo de deploy é apenas pulado (sem falhar o build).
-
-**Configuração (uma vez):**
-1. Instale o [flyctl](https://fly.io/docs/flyctl/install/) e faça `fly auth login`.
-2. Crie o app (ajuste o nome em `fly.toml`): `fly apps create SEU-APP`.
-3. Defina os **secrets de runtime** (não vão para o repositório):
-   ```bash
-   fly secrets set \
-     DATABASE_URL="postgresql://postgres.<proj>:<senha>@...pooler.supabase.com:6543/postgres" \
-     JWT_SECRET="..." \
-     SUPABASE_URL="https://<proj>.supabase.co" \
-     OAUTH_SERVER_URL="https://api.manus.im" \
-     NOTIFICATIONS_ENABLED="true" \
-     SMTP_HOST="..." SMTP_USER="..." SMTP_PASS="..." SMTP_FROM="..."
-   ```
-   > Runtime usa o **pooler de transações** (porta 6543).
-4. Gere um token de deploy e adicione no GitHub:
-   ```bash
-   fly tokens create deploy
-   ```
-   → GitHub → Settings → Secrets and variables → Actions → **New secret**
-   `FLY_API_TOKEN` = (o token).
-5. Pronto: cada push na `main` roda o **CI** e, passando, dispara o **CD**.
-
-> As variáveis `VITE_*` (públicas) já vão como build args no `fly.toml`.
-> Ajuste `VITE_MIROTALK_URL` para o seu servidor MiroTalk de produção.
+`.github/workflows/cd.yml` faz deploy no Fly a cada push na `main`, **depois** do CI.
+Sem o segredo `FLY_API_TOKEN`, o passo é pulado sem falhar o build.
 
 ---
 
 ## 👥 Papéis e cadastro de psicólogas
 
-O sistema tem dois papéis:
-
 | Papel | Acesso |
 |-------|--------|
-| **Psicóloga** (`admin` / `therapist`) | Tudo: prontuários, sessões, agenda, documentos, notificações |
-| **Paciente** (qualquer outro papel) | Só o próprio cadastro (`/profile`) e a videochamada |
+| **Psicóloga** (`admin` / `therapist`) | Prontuários, sessões, agenda, financeiro, documentos, Luma com ferramentas clínicas |
+| **Paciente** | O próprio cadastro, suas consultas, videochamada e a Luma no escopo dele |
 
-Todo cadastro novo entra como **paciente**. Quem marca *"Sou psicólogo(a)"* no
-cadastro informa o **CRP** e gera uma **solicitação pendente** — que **não dá
-acesso**: o CRP é informação pública, então o número não prova identidade. A
-liberação é **manual**, feita pelo admin após conferir o CRP no
-[Cadastro Nacional de Psicólogos](https://cadastro.cfp.org.br).
+Todo cadastro novo entra como **paciente**. Quem marca *"Sou psicólogo(a)"* informa o
+**CRP** e gera uma **solicitação pendente** — que **não dá acesso**: o CRP é informação
+pública, então o número não prova identidade. A liberação é **manual**, após conferir o
+CRP no [Cadastro Nacional de Psicólogos](https://cadastro.cfp.org.br).
 
-Quando alguém solicita, o admin recebe um **e-mail** (destinatário: `ADMIN_EMAIL`
-ou o e-mail do usuário `admin`; requer SMTP configurado — sem ele o pedido fica
-registrado na tabela `therapistRequests`).
-
-### Aprovar uma solicitação (Supabase → SQL Editor)
-
-```sql
--- 1) Veja os pedidos pendentes
-SELECT id, "userId", "fullName", crp, email, "createdAt"
-FROM public."therapistRequests" WHERE status = 'pending';
-
--- 2) Confira o CRP em https://cadastro.cfp.org.br e então APROVE:
-UPDATE public.users SET role = 'therapist' WHERE id = <userId>;
-UPDATE public."therapistRequests"
-   SET status = 'approved', "reviewedAt" = now() WHERE "userId" = <userId>;
-
--- Para RECUSAR:
-UPDATE public."therapistRequests"
-   SET status = 'rejected', "reviewedAt" = now() WHERE "userId" = <userId>;
-```
+**Para aprovar:** entre como `admin` e use a página **Solicitações** (`/solicitacoes`,
+visível só para admin) — ela lista os pedidos pendentes, com aviso de quantos aguardam,
+e aprova ou recusa com um clique.
 
 > O usuário precisa **sair e entrar** de novo para o novo papel valer.
 
@@ -452,10 +270,9 @@ UPDATE public."therapistRequests"
 
 O Gmail **não aceita a senha da conta** no SMTP — é preciso uma **Senha de App**:
 
-1. Ligue a **verificação em 2 etapas**: [myaccount.google.com/security](https://myaccount.google.com/security)
-2. Gere a senha: [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
-   → escolha "Outro (nome personalizado)" → `SAS` → copie os **16 caracteres**.
-3. Configure no host (Render → Environment):
+1. Ligue a **verificação em 2 etapas** em [myaccount.google.com/security](https://myaccount.google.com/security)
+2. Gere em [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+   → "Outro (nome personalizado)" → `SAS` → copie os **16 caracteres**
 
 | Variável | Valor |
 |----------|-------|
@@ -463,119 +280,65 @@ O Gmail **não aceita a senha da conta** no SMTP — é preciso uma **Senha de A
 | `SMTP_PORT` | `587` |
 | `SMTP_USER` | seu e-mail do Gmail |
 | `SMTP_PASS` | a **senha de app** (16 caracteres, sem espaços) |
-| `SMTP_FROM` | o mesmo e-mail (o Gmail exige que o remetente seja a conta) |
+| `SMTP_FROM` | o mesmo e-mail (o Gmail exige remetente = conta) |
 | `ADMIN_EMAIL` | quem recebe os avisos de solicitação |
-| `NOTIFICATIONS_ENABLED` | `true` (liga também os lembretes automáticos) |
+| `NOTIFICATIONS_ENABLED` | `true` (liga também os lembretes) |
 
 > Limite do Gmail: ~500 e-mails/dia — de sobra para esse uso.
 
-## 🔐 Segurança
+---
 
-### Boas Práticas Implementadas
-- ✅ OAuth 2.0 para autenticação
-- ✅ JWT com assinatura segura
-- ✅ CORS configurado
-- ✅ CSRF protection via cookies
-- ✅ SQL injection prevention (Drizzle ORM)
-- ✅ XSS protection (React sanitization)
-- ✅ Rate limiting (recomendado em produção)
+## 🔐 Segurança e privacidade
 
-### Dados Sensíveis
-- Senhas — Nunca armazenadas (OAuth)
-- Prontuários — Acesso restrito ao psicólogo
-- Documentos — Armazenados em S3 com ACL privada
-- Sessões — Criptografadas em trânsito (HTTPS)
+Por ser um sistema **clínico**, alguns pontos são inegociáveis:
+
+- **Autenticação** — Supabase Auth; senhas nunca trafegam nem são guardadas pela aplicação
+- **Autorização por escopo** — o filtro do paciente entra no `WHERE`, **antes** de montar
+  o contexto do RAG; dados não cruzam entre pacientes
+- **A Luma não dá conselho clínico** — escopo trancado, protocolo de crise (CVV 188 /
+  SAMU 192) e recusa de assuntos fora do sistema
+- **Sem dados clínicos em log ou em mensagem de commit**
+- **SQL injection** — prevenido pelo Drizzle; **XSS** — sanitização do React
+- **Segredos** — só no host (Render/Fly). Se um vazar, **rotacione**: chave nova no
+  painel *e* variável atualizada no mesmo momento
+
+Política de privacidade e LGPD estão publicadas em `/privacidade`.
 
 ---
 
-## 🚀 Próximas Funcionalidades
+## 🚀 Próximos passos
 
-### Fase 2
-- [ ] Sala de espera virtual para pacientes
-- [ ] Gravação automática de sessões
-- [ ] Upload de documentos com S3
-- [ ] Lembretes automáticos por e-mail
-- [ ] Notificações in-app
-
-### Fase 3
-- [ ] Integração com calendário (Google Calendar, Outlook)
+- [ ] Videochamada em grupo (hoje é 1:1)
+- [ ] Gravação de sessões
 - [ ] Relatórios clínicos em PDF
-- [ ] Prescrição digital
-- [ ] Integração com WhatsApp
-- [ ] App mobile (React Native)
-
-### Fase 4
-- [ ] Telemedicina com receitas digitais
-- [ ] Integração com farmácias
-- [ ] Pagamento online
-- [ ] Faturamento automático
-- [ ] Dashboard de analytics
+- [ ] Pagamento online integrado
+- [ ] App mobile
 
 ---
 
-## 📞 Suporte
+## 🆘 Problemas comuns
 
-### Documentação
-- [Referências de Integração](./references/)
-- [Guia de Desenvolvimento](./README.md)
-- [Schema do Banco](./drizzle/schema.ts)
+**A videochamada não conecta em uma rede específica**
+Provavelmente NAT simétrico ou firewall. Confira se `METERED_DOMAIN` e
+`METERED_API_KEY` estão preenchidas — sem elas, só há STUN.
 
-### Problemas Comuns
+**O banco não conecta**
+Confira o `DATABASE_URL` (Postgres, porta **6543**, senha com `@` escrita como `%40`)
+e rode `pnpm db:push`.
 
-**Erro: "Jitsi não carrega"**
-- Verifique conexão com internet
-- Limpe cache do navegador
-- Tente em outro navegador (Chrome recomendado)
-
-**Erro: "Banco de dados não conecta"**
-- Verifique `DATABASE_URL`
-- Certifique-se que MySQL está rodando
-- Execute migrations: `pnpm drizzle-kit migrate`
-
-**Erro: "OAuth não funciona"**
-- Verifique `VITE_APP_ID`
-- Confirme URL de callback
-- Limpe cookies do navegador
+**A Luma responde, mas não acha nada nos documentos**
+O RAG precisa de `LLM_EMBEDDING_BASE_URL` apontando para um endpoint com `/embeddings`
+próprio. Sem isso a indexação falha e a busca volta vazia.
 
 ---
 
 ## 📄 Licença
 
-Este projeto está licenciado sob a MIT License - veja o arquivo [LICENSE](LICENSE) para detalhes.
+MIT — veja [LICENSE](LICENSE).
 
 ---
 
-## 👨‍💻 Desenvolvido por
+**Beatriz Chagas — Psicologia**
+Website: <https://beatrizchagas.vercel.app>
 
-**Beatriz Chagas - Psicologia**
-- Website: https://beatrizchagas.vercel.app
-- Especialista em Psicologia Clínica
-
-**Desenvolvido com ❤️ usando Manus**
-
----
-
-## 🤝 Contribuindo
-
-Contribuições são bem-vindas! Por favor:
-
-1. Faça um fork do projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. Push para a branch (`git push origin feature/AmazingFeature`)
-5. Abra um Pull Request
-
----
-
-## 📞 Contato
-
-Para dúvidas ou sugestões sobre a plataforma:
-- Email: contato@beatrizchagas.com
-- WhatsApp: (81) 99999-9999
-- Website: https://beatrizchagas.vercel.app
-
----
-
-**Versão:** 1.0.0  
-**Última atualização:** Julho 2026  
-**Status:** ✅ Produção
+**Versão:** 1.0.0 · **Última atualização:** Setembro de 2026 · **Status:** ✅ em produção
