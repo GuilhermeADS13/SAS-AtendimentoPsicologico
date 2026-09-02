@@ -75,6 +75,10 @@ export default function Appointments() {
   const [formData, setFormData] = useState(emptyForm);
   const [vista, setVista] = useState<"tabela" | "calendario">("tabela");
   const [filtroPagamento, setFiltroPagamento] = useState<"todos" | "pendentes" | "pagos">("todos");
+  // "aConfirmar" não é um status do banco: é uma consulta agendada cujo paciente
+  // ainda não confirmou presença — que é o que a profissional quer cobrar.
+  const [filtroSituacao, setFiltroSituacao] = useState<"todas" | "scheduled" | "aConfirmar" | "completed" | "cancelled">("todas");
+  const [filtroData, setFiltroData] = useState("");
   const [paymentUpdatingId, setPaymentUpdatingId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -276,9 +280,24 @@ export default function Appointments() {
     .filter((a) => !a.paid && a.status !== "cancelled" && a.status !== "no_show")
     .reduce((soma, a) => soma + (a.price ?? 0), 0);
   const mesLabel = agora.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-  const filteredAppointments = appointments.filter((appointment) =>
-    filtroPagamento === "todos" || (filtroPagamento === "pagos" ? appointment.paid : !appointment.paid),
-  );
+  /** "2026-07-15" da consulta no horário de Brasília — comparável ao <input type="date">. */
+  const diaDaConsulta = (quando: string | Date) =>
+    new Date(quando).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+
+  const filteredAppointments = appointments.filter((appointment) => {
+    const pagamentoOk =
+      filtroPagamento === "todos" || (filtroPagamento === "pagos" ? appointment.paid : !appointment.paid);
+
+    const situacaoOk =
+      filtroSituacao === "todas" ||
+      (filtroSituacao === "aConfirmar"
+        ? appointment.status === "scheduled" && !appointment.confirmedAt
+        : appointment.status === filtroSituacao);
+
+    const dataOk = !filtroData || diaDaConsulta(appointment.scheduledAt) === filtroData;
+
+    return pagamentoOk && situacaoOk && dataOk;
+  });
 
   const getStatusColor = (status: Status) => {
     switch (status) {
@@ -532,24 +551,65 @@ export default function Appointments() {
           </CardHeader>
           <CardContent>
             {vista === "tabela" && (
-              <div className="mb-4 flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                  <Filter className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                  <div>
-                    <p className="font-medium text-foreground">Pagamento</p>
-                    <p>Clique em <strong>Pagamento pendente · alterar</strong> ou <strong>Pago · alterar</strong> para atualizar o status.</p>
+              <div className="mb-4 space-y-3 rounded-lg border border-border bg-muted/20 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                    <Filter className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <div>
+                      <p className="font-medium text-foreground">Filtros</p>
+                      <p>Clique em <strong>Pagamento pendente · alterar</strong> ou <strong>Pago · alterar</strong> para atualizar o status.</p>
+                    </div>
                   </div>
+                  {/* Só aparece quando há algo filtrado: senão é um botão morto na tela. */}
+                  {(filtroPagamento !== "todos" || filtroSituacao !== "todas" || filtroData) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => { setFiltroPagamento("todos"); setFiltroSituacao("todas"); setFiltroData(""); }}
+                    >
+                      Limpar filtros
+                    </Button>
+                  )}
                 </div>
-                <Select value={filtroPagamento} onValueChange={(value) => setFiltroPagamento(value as typeof filtroPagamento)}>
-                  <SelectTrigger className="w-full sm:w-56" aria-label="Filtrar por pagamento">
-                    <SelectValue placeholder="Filtrar pagamentos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos os pagamentos</SelectItem>
-                    <SelectItem value="pendentes">Somente pendentes</SelectItem>
-                    <SelectItem value="pagos">Somente pagos</SelectItem>
-                  </SelectContent>
-                </Select>
+
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <Select value={filtroSituacao} onValueChange={(value) => setFiltroSituacao(value as typeof filtroSituacao)}>
+                    <SelectTrigger aria-label="Filtrar por situação da consulta">
+                      <SelectValue placeholder="Situação" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todas">Todas as situações</SelectItem>
+                      <SelectItem value="scheduled">Agendadas</SelectItem>
+                      <SelectItem value="aConfirmar">A confirmar</SelectItem>
+                      <SelectItem value="completed">Realizadas</SelectItem>
+                      <SelectItem value="cancelled">Canceladas</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={filtroPagamento} onValueChange={(value) => setFiltroPagamento(value as typeof filtroPagamento)}>
+                    <SelectTrigger aria-label="Filtrar por pagamento">
+                      <SelectValue placeholder="Pagamento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos os pagamentos</SelectItem>
+                      <SelectItem value="pendentes">Somente pendentes</SelectItem>
+                      <SelectItem value="pagos">Somente pagos</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Input
+                    type="date"
+                    value={filtroData}
+                    onChange={(e) => setFiltroData(e.target.value)}
+                    aria-label="Filtrar por data da consulta"
+                    title="Mostra apenas as consultas deste dia"
+                  />
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  {filteredAppointments.length} de {appointments.length} consulta(s)
+                </p>
               </div>
             )}
             {vista === "calendario" ? (
