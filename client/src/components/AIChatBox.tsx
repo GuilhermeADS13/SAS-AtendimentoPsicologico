@@ -212,6 +212,7 @@ export function AIChatBox({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputAreaRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const ultimaMensagemRef = useRef<HTMLDivElement>(null);
 
   // Filter out system messages
   const displayMessages = messages.filter((msg) => msg.role !== "system");
@@ -253,14 +254,28 @@ export function AIChatBox({
   };
 
   /**
-   * Rola para a última mensagem sempre que a conversa muda.
+   * Deixa a ÚLTIMA mensagem visível, alinhada pelo começo dela.
    *
-   * Antes só havia rolagem no ENVIO. Então, quando a resposta chegava (ou quando
-   * uma conversa anterior era restaurada pelo histórico), a visão continuava onde
-   * estava e o chat abria mostrando a PRIMEIRA mensagem — não a última.
+   * Dois problemas resolvidos aqui:
+   *  - Antes só havia rolagem no ENVIO, então uma conversa restaurada abria na
+   *    PRIMEIRA mensagem.
+   *  - Rolar até o fim do container não serve: a última mensagem recebe um
+   *    `minHeight` grande (para empurrar a pergunta ao topo), então o "fim" é o
+   *    fim desse espaço vazio — e o texto ficava cortado acima da tela.
+   *
+   * Na abertura o salto é instantâneo (`auto`): animar do topo até embaixo dava
+   * aquela descida rápida na cara de quem abre. Depois disso, mensagem nova rola
+   * suave, que é o esperado durante a conversa.
    */
+  const jaPosicionou = useRef(false);
   useEffect(() => {
-    if (displayMessages.length > 0) scrollToBottom();
+    const alvo = ultimaMensagemRef.current;
+    if (!alvo || displayMessages.length === 0) return;
+    const primeiraVez = !jaPosicionou.current;
+    jaPosicionou.current = true;
+    requestAnimationFrame(() => {
+      alvo.scrollIntoView({ block: "start", behavior: primeiraVez ? "auto" : "smooth" });
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayMessages.length, isLoading]);
 
@@ -350,6 +365,7 @@ export function AIChatBox({
                 return (
                   <div
                     key={message.id ?? `${message.role}-${index}-${message.content.slice(0, 24)}`}
+                    ref={isLastMessage ? ultimaMensagemRef : undefined}
                     role="article"
                     aria-label={message.role === "assistant" ? `Resposta de ${agentName}` : "Sua mensagem"}
                     className={cn(
