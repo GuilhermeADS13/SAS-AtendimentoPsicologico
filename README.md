@@ -338,7 +338,4 @@ MIT — veja [LICENSE](LICENSE).
 
 ---
 
-**Beatriz Chagas — Psicologia**
-Website: <https://beatrizchagas.vercel.app>
-
 **Versão:** 1.0.0 · **Última atualização:** Setembro de 2026 · **Status:** ✅ em produção
