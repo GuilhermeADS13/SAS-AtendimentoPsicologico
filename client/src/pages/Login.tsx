@@ -158,8 +158,16 @@ export default function Login() {
               <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> no ambiente.
             </p>
           ) : (
-            <Tabs defaultValue="login" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+            // Alvos de toque: campos e botões vinham com 36px de altura (abas com
+            // 29px) — abaixo dos ~44px confortáveis para dedo, logo na primeira
+            // tela que o paciente toca no celular. Em vez de repetir classe em
+            // cada controle, a altura é ajustada aqui de uma vez, e volta ao
+            // padrão do app no desktop (sm:).
+            <Tabs
+              defaultValue="login"
+              className="w-full [&_button[data-slot=tabs-trigger]]:h-10 [&_input]:h-11 sm:[&_button[data-slot=tabs-trigger]]:h-9 sm:[&_input]:h-9"
+            >
+              <TabsList className="grid h-auto w-full grid-cols-2">
                 <TabsTrigger value="login">Entrar</TabsTrigger>
                 <TabsTrigger value="signup">Criar conta</TabsTrigger>
               </TabsList>
@@ -173,7 +181,7 @@ export default function Login() {
                   <Label htmlFor="password">Senha</Label>
                   <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
                 </div>
-                <Button onClick={handleLogin} disabled={loading} className="w-full bg-primary hover:bg-primary/90">
+                <Button onClick={handleLogin} disabled={loading} className="h-11 w-full bg-primary hover:bg-primary/90 sm:h-9">
                   {loading ? "Entrando..." : "Entrar"}
                 </Button>
                 <button
@@ -305,7 +313,7 @@ export default function Login() {
                 <Button
                   onClick={handleSignup}
                   disabled={loading || !aceitouPolitica}
-                  className="w-full bg-primary hover:bg-primary/90"
+                  className="h-11 w-full bg-primary hover:bg-primary/90 sm:h-9"
                 >
                   {loading ? "Criando..." : "Criar conta"}
                 </Button>
