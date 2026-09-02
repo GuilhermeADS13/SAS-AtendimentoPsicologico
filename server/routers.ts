@@ -491,6 +491,32 @@ export const appRouter = router({
       return pacienteDoUsuario(db, ctx.user);
     }),
 
+    /**
+     * Tour de boas-vindas: a marca fica na CONTA, não no navegador. Com
+     * localStorage, a mesma pessoa via o tour de novo a cada dispositivo.
+     * Sem banco, devolve `visto: true` — melhor não mostrar do que insistir.
+     */
+    onboarding: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return { visto: true };
+      const linhas = await db
+        .select({ onboardingSeenAt: users.onboardingSeenAt })
+        .from(users)
+        .where(eq(users.id, ctx.user.id))
+        .limit(1);
+      return { visto: linhas[0]?.onboardingSeenAt != null };
+    }),
+
+    completeOnboarding: protectedProcedure.mutation(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return { ok: false };
+      await db
+        .update(users)
+        .set({ onboardingSeenAt: new Date() })
+        .where(eq(users.id, ctx.user.id));
+      return { ok: true };
+    }),
+
     saveProfile: protectedProcedure
       .input(z.object({
         firstName: z.string().min(1),

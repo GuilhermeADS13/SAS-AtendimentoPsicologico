@@ -81,6 +81,9 @@ export const users = pgTable("users", {
     .$onUpdate(() => new Date())
     .notNull(),
   lastSignedIn: timestamp("lastSignedIn", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  /** Quando a pessoa concluiu (ou pulou) o tour de boas-vindas. Nulo = ainda não viu.
+   *  Fica na CONTA, não no navegador: senão o tour reaparece a cada dispositivo. */
+  onboardingSeenAt: timestamp("onboardingSeenAt", { withTimezone: true, mode: "date" }),
 });
 
 export type User = typeof users.$inferSelect;

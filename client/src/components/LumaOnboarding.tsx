@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLocation } from "wouter";
+import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { LumaOwlIcon } from "./Logo";
 import { Calendar, CircleHelp, Stethoscope, UserRound, Users, Wallet, X, type LucideIcon } from "lucide-react";
@@ -13,12 +14,16 @@ import { Calendar, CircleHelp, Stethoscope, UserRound, Users, Wallet, X, type Lu
  * passo, o tour continua de onde parou em vez de reiniciar a cada tela.
  *
  * O card é flutuante e NÃO bloqueia a tela: a pessoa vê (e usa) a página enquanto
- * lê a explicação. "Já viu" fica no localStorage por conta+dispositivo; para rever,
- * qualquer tela dispara `window.dispatchEvent(new Event(OPEN_ONBOARDING_EVENT))`.
+ * lê a explicação.
+ *
+ * "Já viu" fica no BANCO, por conta (users.onboardingSeenAt). A primeira versão
+ * usava localStorage e o tour reaparecia a cada navegador/dispositivo, mesmo com
+ * o mesmo login. Só o passo em andamento fica no sessionStorage — é transitório.
+ *
+ * Para rever, qualquer tela dispara `window.dispatchEvent(new Event(OPEN_ONBOARDING_EVENT))`.
  */
 
 export const OPEN_ONBOARDING_EVENT = "luma:onboarding";
-const SEEN_PREFIX = "luma-onboarding-v1:";
 const STEP_PREFIX = "luma-onboarding-step:";
 
 type Role = "therapist" | "patient";
@@ -103,12 +108,17 @@ const patientSteps: Step[] = [
 ];
 
 export default function LumaOnboarding({ role, userId }: { role: Role; userId?: number | string }) {
-  const seenKey = userId != null ? `${SEEN_PREFIX}${userId}` : null;
   const stepKey = userId != null ? `${STEP_PREFIX}${userId}` : null;
   const steps = role === "therapist" ? therapistSteps : patientSteps;
   const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
+
+  const utils = trpc.useUtils();
+  // `retry: false` + tratar erro como "já viu": se o servidor falhar, o certo é
+  // não mostrar o tour, e não insistir com quem talvez já o tenha concluído.
+  const onboarding = trpc.me.onboarding.useQuery(undefined, { retry: false });
+  const concluir = trpc.me.completeOnboarding.useMutation();
 
   const lerPasso = useCallback((): number | null => {
     if (!stepKey) return null;
@@ -138,23 +148,13 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
     }
   }, [stepKey]);
 
-  const jaViu = useCallback(() => {
-    if (!seenKey) return true;
-    try {
-      return localStorage.getItem(seenKey) === "1";
-    } catch {
-      return true; // sem localStorage: não insiste
-    }
-  }, [seenKey]);
-
   const marcarVisto = useCallback(() => {
-    if (!seenKey) return;
-    try {
-      localStorage.setItem(seenKey, "1");
-    } catch {
-      /* modo privado */
-    }
-  }, [seenKey]);
+    concluir.mutate();
+    // Atualiza o cache na hora: sem isto, a próxima montagem (a cada navegação)
+    // ainda leria "não viu" e o tour recomeçaria antes do refetch.
+    utils.me.onboarding.setData(undefined, { visto: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Único ponto que navega — sempre a partir de um clique (ou do início do tour),
   // nunca de um efeito de montagem, para não entrar em laço de navegação.
@@ -172,15 +172,18 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
   // Retoma o tour depois da navegação (o layout remonta a cada tela) ou inicia na
   // primeira entrada.
   useEffect(() => {
-    if (!stepKey || !seenKey) return;
+    if (!stepKey) return;
     const salvo = lerPasso();
     if (salvo !== null && Number.isFinite(salvo)) {
       setIndex(Math.min(Math.max(0, salvo), steps.length - 1));
       setOpen(true);
       return;
     }
-    if (!jaViu()) irPara(0);
-  }, [stepKey, seenKey, lerPasso, jaViu, irPara, steps.length]);
+    // Espera a resposta do servidor antes de decidir: começar durante o load
+    // faria o tour "piscar" para quem já viu.
+    if (onboarding.isPending || onboarding.isError) return;
+    if (onboarding.data && !onboarding.data.visto) irPara(0);
+  }, [stepKey, lerPasso, irPara, steps.length, onboarding.isPending, onboarding.isError, onboarding.data]);
 
   // Rever depois (botão na página de Ajuda).
   useEffect(() => {
