@@ -176,7 +176,7 @@ export function AIChatBox({
   messages,
   onSendMessage,
   isLoading = false,
-  placeholder = "Type your message...",
+  placeholder = "Escreva sua mensagem...",
   className,
   height = "600px",
   emptyStateMessage = "Converse com a Luma, sua coruja de apoio.",
@@ -272,12 +272,15 @@ export function AIChatBox({
       style={{ height }}
     >
       <div className="flex min-w-0 items-center gap-3 border-b px-3 py-3 sm:px-4">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10" aria-label={lumaStatus === "sleeping" ? "Luma em modo economia" : "Luma atenta"}>
-          <LumaOwlIcon className={cn("size-7", lumaStatus === "sleeping" && "opacity-60 grayscale")} />
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10" aria-label={lumaStatus === "attentive" ? "Luma pensando" : "Luma pronta"}>
+          <LumaOwlIcon className={"size-7"} />
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{agentName}</p>
-          <p className="truncate text-xs text-muted-foreground">{lumaStatus === "sleeping" ? "Modo economia durante o processamento" : agentSubtitle}</p>
+          {/* "attentive" = processando (ver Luma.tsx). O texto estava trocado:
+              mostrava "Modo economia durante o processamento" justamente quando
+              NÃO havia processamento — afirmava o oposto do que acontecia. */}
+          <p className="truncate text-xs text-muted-foreground">{lumaStatus === "attentive" ? "Pensando…" : agentSubtitle}</p>
         </div>
       </div>
 
@@ -336,7 +339,7 @@ export function AIChatBox({
                   >
                     {message.role === "assistant" && (
                       <div className="size-8 shrink-0 mt-1 rounded-full bg-primary/10 flex items-center justify-center">
-                        <LumaOwlIcon className={cn("size-7", lumaStatus === "sleeping" && "opacity-60 grayscale")} />
+                        <LumaOwlIcon className={"size-7"} />
                       </div>
                     )}
 
