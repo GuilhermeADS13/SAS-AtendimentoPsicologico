@@ -47,7 +47,8 @@ export default function AddToCalendar({
       </DropdownMenuTrigger>
       {/* Sem jargão: ".ics" não diz nada para quem usa o sistema. Cada opção
           descreve PARA ONDE a consulta vai e o que acontece ao clicar. */}
-      <DropdownMenuContent align="end" className="w-72">
+      {/* max-w: 288px (w-72) passa da tela num celular estreito. */}
+      <DropdownMenuContent align="end" className="w-72 max-w-[calc(100vw-2rem)]">
         <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
           Onde você quer salvar esta consulta?
         </DropdownMenuLabel>
