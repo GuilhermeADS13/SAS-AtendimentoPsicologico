@@ -194,9 +194,9 @@ export default function Luma() {
             <div>
               <div className="mb-2 flex items-center gap-2 text-primary"><LumaOwlIcon className="h-7 w-7" /><span className="text-sm font-medium">{isClinicalUser ? "Assistente clínico de leitura" : "Assistente de navegação do site"}
 </span></div>
-              <h1 id="luma-title" className="text-3xl font-bold">{isClinicalUser ? "Luma Clínica" : "Luma Site Support"}
+              <h1 id="luma-title" className="text-3xl font-bold">{isClinicalUser ? "Luma Clínica" : "Luma Apoio"}
 </h1>
-              <p className="mt-2 max-w-2xl text-muted-foreground">{isClinicalUser ? "Uma coruja de apoio para organizar informações autorizadas. A Luma não diagnostica, prescreve nem altera prontuários." : "Uma coruja de apoio para encontrar funções do SAS. Este modo não acessa prontuários e não oferece orientação clínica."}
+              <p className="mt-2 max-w-2xl text-muted-foreground">{isClinicalUser ? "Uma coruja de apoio para organizar informações autorizadas. A Luma não diagnostica, prescreve nem altera prontuários." : "Uma coruja de apoio para encontrar as funções do VozInterior. Este modo não acessa prontuários e não oferece orientação clínica."}
 </p>
             </div>
             {messages.length > 0 && (
@@ -228,13 +228,13 @@ export default function Luma() {
             onSendMessage={handleSend}
             isLoading={isClinicalUser ? chatMutation.isPending : siteHelpMutation.isPending}
             lumaStatus={(isClinicalUser ? chatMutation.isPending : siteHelpMutation.isPending) ? "attentive" : "sleeping"}
-            agentName={isClinicalUser ? "Luma Clínica" : "Luma Site Support"}
-            agentSubtitle={isClinicalUser ? "Coruja de apoio à leitura clínica autorizada" : "Ajuda para navegar no SAS"}
+            agentName={isClinicalUser ? "Luma Clínica" : "Luma Apoio"}
+            agentSubtitle={isClinicalUser ? "Coruja de apoio à leitura clínica autorizada" : "Ajuda para navegar no VozInterior"}
             processingLabel={isClinicalUser ? "Luma está consultando somente registros autorizados..." : "Luma está localizando essa área no site..."}
             placeholder={isClinicalUser
-              ? (selectedPatientId ? "Pergunte sobre os registros autorizados deste paciente..." : "Selecione um paciente para começar...")
-              : "Escreva uma pergunta sobre o uso do site..."}
-            emptyStateMessage={isClinicalUser ? "Olá! Eu sou a Luma, sua coruja de apoio clínico. Consulto os registros autorizados (sessões e documentos) e cuido da agenda do paciente: agendar, remarcar, cancelar e registrar pagamento. Toda alteração na agenda aparece como uma proposta, e só acontece quando você clicar em Confirmar. Selecione um paciente e uma sugestão abaixo para começar." : "Olá! Eu sou a Luma, sua coruja de apoio no SAS. Escolha uma sugestão para aprender a usar o sistema."}
+              ? (selectedPatientId ? "Pergunte sobre os registros deste paciente" : "Selecione um paciente acima")
+              : "Pergunte sobre o uso do site"}
+            emptyStateMessage={isClinicalUser ? "Olá! Eu sou a Luma, sua coruja de apoio clínico. Consulto os registros autorizados (sessões e documentos) e cuido da agenda do paciente: agendar, remarcar, cancelar e registrar pagamento. Toda alteração na agenda aparece como uma proposta, e só acontece quando você clicar em Confirmar. Selecione um paciente e uma sugestão abaixo para começar." : "Olá! Eu sou a Luma, sua coruja de apoio no VozInterior. Escolha uma sugestão para aprender a usar o sistema."}
             suggestedPrompts={isClinicalUser ? ["Resumir os últimos registros autorizados", "Ver os próximos agendamentos", "Agendar uma consulta", "Organizar os próximos pontos para a sessão"] : ["Ver minhas consultas", "Entrar na videochamada", "Atualizar meu perfil", "Encontrar minha psicóloga"]}
             onMessageFeedback={handleFeedback}
             feedbackByMessageId={feedbackByMessageId}
