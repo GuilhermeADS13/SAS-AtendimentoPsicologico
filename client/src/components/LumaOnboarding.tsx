@@ -1,112 +1,245 @@
 import { useCallback, useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { LumaOwlIcon } from "./Logo";
-import { Calendar, Video, Wallet, Users, Stethoscope, CircleHelp, type LucideIcon } from "lucide-react";
+import { Calendar, CircleHelp, Stethoscope, UserRound, Users, Wallet, X, type LucideIcon } from "lucide-react";
 
 /**
- * Tour de boas-vindas da Luma na PRIMEIRA vez que a pessoa entra (paciente ou
- * psicóloga). Passo a passo curto apresentando cada área do sistema. Depois disso
- * não reaparece — "já viu" fica no localStorage por conta/dispositivo. Dúvidas
- * seguintes vão para a Luma normalmente.
+ * Tour de boas-vindas da Luma na PRIMEIRA entrada (paciente ou psicóloga).
+ * Ele NAVEGA por cada aba e explica, ali mesmo, como fazer a ação daquela tela.
  *
- * Para rever depois, qualquer tela pode disparar `window.dispatchEvent(new
- * Event(OPEN_ONBOARDING_EVENT))` (ex.: um botão na Ajuda).
+ * Por que o passo vai para o sessionStorage: cada página monta o seu próprio
+ * DashboardLayout, então navegar DESMONTA e REMONTA este componente. Guardando o
+ * passo, o tour continua de onde parou em vez de reiniciar a cada tela.
+ *
+ * O card é flutuante e NÃO bloqueia a tela: a pessoa vê (e usa) a página enquanto
+ * lê a explicação. "Já viu" fica no localStorage por conta+dispositivo; para rever,
+ * qualquer tela dispara `window.dispatchEvent(new Event(OPEN_ONBOARDING_EVENT))`.
  */
 
 export const OPEN_ONBOARDING_EVENT = "luma:onboarding";
-const LS_PREFIX = "luma-onboarding-v1:";
+const SEEN_PREFIX = "luma-onboarding-v1:";
+const STEP_PREFIX = "luma-onboarding-step:";
 
 type Role = "therapist" | "patient";
-type Step = { icon: LucideIcon | null; title: string; body: string };
+type Step = { path: string; icon: LucideIcon | null; title: string; body: string };
 
 const therapistSteps: Step[] = [
-  { icon: null, title: "Oi, eu sou a Luma 🦉", body: "Vou te apresentar o VozInterior em alguns passos rápidos. Pode pular quando quiser." },
-  { icon: Users, title: "Pacientes", body: "Aqui você cadastra e vê seus pacientes. Use o botão “Novo Paciente” para adicionar alguém." },
-  { icon: Calendar, title: "Agendamentos", body: "Sua agenda: marque, remarque e cancele consultas, e acompanhe o status e o valor de cada uma." },
-  { icon: Video, title: "Videochamada", body: "A sala de vídeo abre a partir de um agendamento — no horário, é só entrar. O prontuário fica ao lado durante a sessão." },
-  { icon: Wallet, title: "Financeiro", body: "Um resumo dos pagamentos: quem está pago e quem está pendente." },
-  { icon: null, title: "Conte comigo", body: "Fale comigo em linguagem natural (ex.: “marque a Ana quinta às 14h”) ou tire dúvidas de como usar o sistema. A página “Ajuda” também traz o passo a passo." },
+  {
+    path: "/dashboard",
+    icon: null,
+    title: "Oi, eu sou a Luma 🦉",
+    body: "Vou te levar por cada área e mostrar como fazer as coisas. Leva menos de um minuto — e você pode pular quando quiser.",
+  },
+  {
+    path: "/records",
+    icon: Users,
+    title: "Pacientes",
+    body: "Para cadastrar alguém: clique em “Novo Paciente”, preencha os dados e confirme em “Cadastrar”. Depois, use a busca para encontrar um paciente e o ícone de olho para abrir o prontuário.",
+  },
+  {
+    path: "/appointments",
+    icon: Calendar,
+    title: "Agendamentos",
+    body: "Para marcar: clique em “Nova Consulta”, escolha o paciente, a data, a duração e o valor. Na lista, clique em “Pago / Pagamento pendente” para trocar o pagamento, e use os ícones para editar, entrar na sala ou cancelar.",
+  },
+  {
+    path: "/financeiro",
+    icon: Wallet,
+    title: "Financeiro",
+    body: "O resumo do dinheiro: o que já foi recebido e o que está pendente, com o total. Serve para acompanhar sem abrir consulta por consulta.",
+  },
+  {
+    path: "/luma",
+    icon: null,
+    title: "Falar comigo",
+    body: "Escolha o paciente no topo e me peça em português mesmo: “marque a Ana quinta às 14h”. Eu preparo a ação e você confirma no botão — nada acontece sem o seu “sim”.",
+  },
+  {
+    path: "/ajuda",
+    icon: CircleHelp,
+    title: "Ajuda quando precisar",
+    body: "As dúvidas mais comuns estão aqui, junto do contato do suporte. E é por aqui que você pode rever este tour depois. Pronto — bom trabalho! 💜",
+  },
 ];
 
 const patientSteps: Step[] = [
-  { icon: null, title: "Oi, eu sou a Luma 🦉", body: "Vou te mostrar o VozInterior rapidinho. Pode pular quando quiser." },
-  { icon: Calendar, title: "Minhas Consultas", body: "Veja suas consultas agendadas e entre na sala pelo botão da consulta, no horário combinado." },
-  { icon: Video, title: "Videochamada", body: "No horário, você entra pela sua lista de consultas. Dá para testar câmera e microfone antes de entrar." },
-  { icon: Stethoscope, title: "Minha Psicóloga", body: "Aqui ficam os dados da sua psicóloga, para você ter à mão quando precisar." },
-  { icon: null, title: "Conte comigo", body: "Ficou com dúvida de como usar o sistema? É só me perguntar. A página “Ajuda” também tem o passo a passo. Boas-vindas! 💜" },
+  {
+    path: "/consultas",
+    icon: null,
+    title: "Oi, eu sou a Luma 🦉",
+    body: "Vou te mostrar o sistema rapidinho, passando por cada tela. Pode pular quando quiser.",
+  },
+  {
+    path: "/consultas",
+    icon: Calendar,
+    title: "Minhas Consultas",
+    body: "Aqui ficam as suas consultas. Use “Confirmar presença” para avisar que vai comparecer e, no horário marcado, clique em “Entrar na sala” para abrir a videochamada.",
+  },
+  {
+    path: "/psicologa",
+    icon: Stethoscope,
+    title: "Minha Psicóloga",
+    body: "Os dados da profissional que te atende ficam aqui — útil quando precisar falar com ela fora do sistema.",
+  },
+  {
+    path: "/profile",
+    icon: UserRound,
+    title: "Meu Cadastro",
+    body: "Mantenha telefone e e-mail atualizados aqui: é por eles que chegam os lembretes das suas consultas.",
+  },
+  {
+    path: "/luma",
+    icon: null,
+    title: "Falar comigo",
+    body: "Ficou com dúvida de como usar o sistema? É só me perguntar aqui, a qualquer hora.",
+  },
+  {
+    path: "/ajuda",
+    icon: CircleHelp,
+    title: "Ajuda quando precisar",
+    body: "As dúvidas mais comuns estão aqui, junto do contato do suporte — e dá para rever este tour por aqui. Boas-vindas! 💜",
+  },
 ];
 
 export default function LumaOnboarding({ role, userId }: { role: Role; userId?: number | string }) {
-  const key = userId != null ? `${LS_PREFIX}${userId}` : null;
+  const seenKey = userId != null ? `${SEEN_PREFIX}${userId}` : null;
+  const stepKey = userId != null ? `${STEP_PREFIX}${userId}` : null;
   const steps = role === "therapist" ? therapistSteps : patientSteps;
+  const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
 
-  const jaViu = useCallback(() => {
-    if (!key) return true;
+  const lerPasso = useCallback((): number | null => {
+    if (!stepKey) return null;
     try {
-      return localStorage.getItem(key) === "1";
+      const valor = sessionStorage.getItem(stepKey);
+      return valor === null ? null : Number(valor);
     } catch {
-      return true; // sem localStorage (modo privado): não insiste
+      return null;
     }
-  }, [key]);
+  }, [stepKey]);
+
+  const salvarPasso = useCallback((i: number) => {
+    if (!stepKey) return;
+    try {
+      sessionStorage.setItem(stepKey, String(i));
+    } catch {
+      /* modo privado — o tour só não sobrevive à navegação */
+    }
+  }, [stepKey]);
+
+  const limparPasso = useCallback(() => {
+    if (!stepKey) return;
+    try {
+      sessionStorage.removeItem(stepKey);
+    } catch {
+      /* modo privado */
+    }
+  }, [stepKey]);
+
+  const jaViu = useCallback(() => {
+    if (!seenKey) return true;
+    try {
+      return localStorage.getItem(seenKey) === "1";
+    } catch {
+      return true; // sem localStorage: não insiste
+    }
+  }, [seenKey]);
 
   const marcarVisto = useCallback(() => {
-    if (!key) return;
+    if (!seenKey) return;
     try {
-      localStorage.setItem(key, "1");
+      localStorage.setItem(seenKey, "1");
     } catch {
-      /* modo privado — só não persiste */
+      /* modo privado */
     }
-  }, [key]);
+  }, [seenKey]);
 
-  // Primeira vez: abre sozinho.
-  useEffect(() => {
-    if (key && !jaViu()) {
-      setIndex(0);
+  // Único ponto que navega — sempre a partir de um clique (ou do início do tour),
+  // nunca de um efeito de montagem, para não entrar em laço de navegação.
+  const irPara = useCallback(
+    (i: number) => {
+      const alvo = steps[i];
+      salvarPasso(i);
+      setIndex(i);
       setOpen(true);
+      if (alvo && window.location.pathname !== alvo.path) setLocation(alvo.path);
+    },
+    [steps, salvarPasso, setLocation],
+  );
+
+  // Retoma o tour depois da navegação (o layout remonta a cada tela) ou inicia na
+  // primeira entrada.
+  useEffect(() => {
+    if (!stepKey || !seenKey) return;
+    const salvo = lerPasso();
+    if (salvo !== null && Number.isFinite(salvo)) {
+      setIndex(Math.min(Math.max(0, salvo), steps.length - 1));
+      setOpen(true);
+      return;
     }
-  }, [key, jaViu]);
+    if (!jaViu()) irPara(0);
+  }, [stepKey, seenKey, lerPasso, jaViu, irPara, steps.length]);
 
-  // Rever depois: qualquer tela dispara o evento (ex.: botão na Ajuda).
+  // Rever depois (botão na página de Ajuda).
   useEffect(() => {
-    const abrir = () => {
-      setIndex(0);
-      setOpen(true);
-    };
+    const abrir = () => irPara(0);
     window.addEventListener(OPEN_ONBOARDING_EVENT, abrir);
     return () => window.removeEventListener(OPEN_ONBOARDING_EVENT, abrir);
-  }, []);
+  }, [irPara]);
 
-  const fechar = () => {
+  const encerrar = () => {
     marcarVisto();
+    limparPasso();
     setOpen(false);
   };
   const proximo = () => {
-    if (index < steps.length - 1) setIndex(i => i + 1);
-    else fechar();
+    if (index < steps.length - 1) irPara(index + 1);
+    else encerrar();
   };
-  const anterior = () => setIndex(i => Math.max(0, i - 1));
+  const anterior = () => {
+    if (index > 0) irPara(index - 1);
+  };
 
+  if (!open) return null;
   const step = steps[index];
+  if (!step) return null;
   const Icone = step.icon;
   const ultimo = index === steps.length - 1;
 
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) fechar(); }}>
-      <DialogContent className="max-w-md">
-        <div className="flex flex-col items-center gap-4 py-2 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-            {Icone ? <Icone className="h-7 w-7" /> : <LumaOwlIcon className="h-8 w-8" />}
+    <div
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-50 p-3 sm:p-4"
+      role="region"
+      aria-live="polite"
+      aria-label="Tour de boas-vindas da Luma"
+    >
+      <div className="pointer-events-auto mx-auto w-full max-w-md rounded-2xl border border-border bg-card p-4 shadow-2xl">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            {Icone ? <Icone className="h-5 w-5" /> : <LumaOwlIcon className="h-6 w-6" />}
           </div>
-          <div className="space-y-2">
-            <DialogTitle className="text-xl font-semibold text-foreground">{step.title}</DialogTitle>
-            <DialogDescription className="text-sm leading-relaxed text-muted-foreground">
-              {step.body}
-            </DialogDescription>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-semibold text-foreground">{step.title}</h2>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {index + 1} de {steps.length}
+              </span>
+            </div>
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
           </div>
-          <div className="flex items-center gap-1.5 pt-1" aria-hidden="true">
+          <button
+            onClick={encerrar}
+            aria-label="Fechar tour"
+            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5" aria-hidden="true">
             {steps.map((_, i) => (
               <span
                 key={i}
@@ -114,12 +247,12 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
               />
             ))}
           </div>
-        </div>
-        <div className="mt-4 flex items-center justify-between gap-2">
-          <Button variant="ghost" size="sm" onClick={fechar}>
-            {ultimo ? "Fechar" : "Pular"}
-          </Button>
           <div className="flex items-center gap-2">
+            {!ultimo && (
+              <Button variant="ghost" size="sm" onClick={encerrar}>
+                Pular
+              </Button>
+            )}
             {index > 0 && (
               <Button variant="outline" size="sm" onClick={anterior}>
                 Anterior
@@ -130,7 +263,7 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
             </Button>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }
