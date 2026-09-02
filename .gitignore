@@ -34,3 +34,8 @@ dist
 
 # Sondas temporárias de diagnóstico (não versionar)
 .poll*.mjs
+
+# Artefatos do Playwright
+test-results/
+playwright-report/
+.playwright-mcp/
