@@ -12,13 +12,15 @@ import {
   VideoOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { trpc } from "@/lib/trpc";
 
 /**
  * Videochamada 1:1 peer-to-peer (WebRTC), sem provedor externo nem cartão.
  *
  * O vídeo/áudio trafega direto entre terapeuta e paciente; o servidor só repassa
  * o handshake (/api/ws/rtc — ver server/signaling.ts). NAT é atravessado por STUN
- * grátis do Google; um TURN opcional (VITE_TURN_*) cobre as redes mais fechadas.
+ * grátis do Google; o TURN (opcional) cobre as redes mais fechadas e vem do
+ * SERVIDOR com credenciais temporárias — ver server/turn.ts.
  *
  * A interface é nossa: todos os controles (microfone, câmera, compartilhar tela,
  * tela cheia e ENCERRAR) ficam numa barra única sobre o vídeo, como nos apps de vídeo.
@@ -46,20 +48,14 @@ const readLS = (k: string) => {
   }
 };
 
-function iceServers(): RTCIceServer[] {
-  const servers: RTCIceServer[] = [
-    { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
-  ];
-  const turnUrl = import.meta.env.VITE_TURN_URL as string | undefined;
-  if (turnUrl) {
-    servers.push({
-      urls: turnUrl,
-      username: (import.meta.env.VITE_TURN_USERNAME as string | undefined) || undefined,
-      credential: (import.meta.env.VITE_TURN_CREDENTIAL as string | undefined) || undefined,
-    });
-  }
-  return servers;
-}
+/**
+ * STUN de reserva. A configuração real (com TURN) vem do SERVIDOR — as credenciais
+ * TURN são temporárias e não podem morar no bundle, que é público. Isto aqui só
+ * entra se a busca no servidor falhar: melhor conectar sem TURN do que não conectar.
+ */
+const STUN_RESERVA: RTCIceServer[] = [
+  { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+];
 
 /**
  * Qualidade da chamada, ajustada no PRÓPRIO cliente (setParameters do WebRTC) —
@@ -105,6 +101,7 @@ export default function WebRTCCall({
   /** Encerrar fica na MESMA barra dos outros controles, como nos apps de vídeo. */
   onEndCall?: () => void;
 }) {
+  const utils = trpc.useUtils();
   const containerRef = useRef<HTMLDivElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -171,8 +168,20 @@ export default function WebRTCCall({
       const capacidades = stream.getVideoTracks()[0]?.getCapabilities?.() as CapacidadesComDesfoque | undefined;
       setDesfoqueSuportado(Array.isArray(capacidades?.backgroundBlur) && capacidades.backgroundBlur.includes(true));
 
-      // 2) Conexão peer-to-peer.
-      const pc = new RTCPeerConnection({ iceServers: iceServers() });
+      // 2) Conexão peer-to-peer. Os servidores ICE vêm do servidor (credenciais
+      //    TURN temporárias); se a busca falhar, segue com STUN em vez de abortar.
+      let servidoresIce: RTCIceServer[] = STUN_RESERVA;
+      try {
+        const config = await utils.videoCalls.iceServers.fetch();
+        if (config?.iceServers?.length) servidoresIce = config.iceServers as RTCIceServer[];
+      } catch {
+        /* sem TURN: a maioria das redes conecta só com STUN */
+      }
+      if (disposed) {
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
+      const pc = new RTCPeerConnection({ iceServers: servidoresIce });
       pcRef.current = pc;
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 

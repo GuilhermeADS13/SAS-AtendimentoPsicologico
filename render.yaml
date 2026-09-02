@@ -57,6 +57,17 @@ services:
       - key: NOTIFICATIONS_ENABLED # liga o agendador de lembretes (15 em 15 min)
         value: "true"
 
+      # ── Videochamada: TURN (opcional, recomendado) ──────────────────────
+      # Cobre as redes onde o P2P nao conecta (NAT simetrico, firewall
+      # corporativo, algumas operadoras). Sem TURN, essas pessoas ficam presas
+      # em "Conectando...". Metered tem 500MB/mes gratis, sem cartao.
+      # SEGREDO e SEM prefixo VITE_: o bundle e publico, entao a chave fica no
+      # servidor, que entrega credenciais temporarias ao cliente.
+      - key: METERED_DOMAIN
+        sync: false
+      - key: METERED_API_KEY
+        sync: false
+
       # ── Luma (IA) ─────────────────────────────────────────────────
       # Sem estas variáveis o servidor cai no default de getOpenSourceLlmConfig,
       # que é http://localhost:11434/v1 (Ollama local). No Render isso não existe
