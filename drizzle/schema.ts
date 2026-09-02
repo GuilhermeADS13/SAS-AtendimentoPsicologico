@@ -143,6 +143,9 @@ export const therapists = pgTable("therapists", {
   /** Path da foto no bucket `avatars` — NÃO é URL: o bucket é privado e a
    *  exibição passa por URL assinada. */
   photoKey: text("photoKey"),
+  /** Telefone de contato, editável em Configurações. Mesmo tamanho de
+   *  `patients.phone` para os dois lados aceitarem o mesmo formato. */
+  phone: varchar("phone", { length: 20 }),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
     .defaultNow()

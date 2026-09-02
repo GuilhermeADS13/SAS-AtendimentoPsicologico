@@ -27,7 +27,7 @@ import { NotificationsBell } from "./NotificationsBell";
 import { PatientNotificationsBell } from "./PatientNotificationsBell";
 import { LogoLockup, LumaOwlIcon } from "./Logo";
 import LumaOnboarding from "./LumaOnboarding";
-import { BadgeCheck, Brain, Calendar, CircleHelp, LayoutDashboard, LogOut, PanelLeft, Stethoscope, UserRound, Users, Video, Wallet } from "lucide-react";
+import { BadgeCheck, Brain, Calendar, CircleHelp, LayoutDashboard, LogOut, PanelLeft, Settings, Stethoscope, UserRound, Users, Video, Wallet } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -44,6 +44,9 @@ const therapistMenu = [
   { icon: Calendar, label: "Agendamentos", path: "/appointments" },
   { icon: Wallet, label: "Financeiro", path: "/financeiro" },
   { icon: UserRound, label: "Perfil", path: "/profile" },
+  // Configurações é separada do Perfil de propósito: lá ficam os dados que os
+  // pacientes veem (bio, especialidades); aqui, os dados de ACESSO à conta.
+  { icon: Settings, label: "Configurações", path: "/configuracoes" },
   // Ajuda no menu, não escondida no menu da conta: ninguém abre "Sair" para
   // procurar ajuda — quem precisa dela está com um problema, não indo embora.
   { icon: CircleHelp, label: "Ajuda", path: "/ajuda" },
@@ -61,6 +64,7 @@ const patientMenu = [
   { icon: LumaOwlIcon, label: "Luma — Meu apoio", path: "/luma" },
   { icon: Stethoscope, label: "Minha Psicóloga", path: "/psicologa" },
   { icon: UserRound, label: "Meu Cadastro", path: "/profile" },
+  { icon: Settings, label: "Configurações", path: "/configuracoes" },
   { icon: CircleHelp, label: "Ajuda", path: "/ajuda" },
 ];
 

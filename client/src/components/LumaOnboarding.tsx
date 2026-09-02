@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { LumaOwlIcon } from "./Logo";
-import { Calendar, CircleHelp, Stethoscope, UserRound, Users, Wallet, X, type LucideIcon } from "lucide-react";
+import { Calendar, CircleHelp, Settings, Stethoscope, UserRound, Users, Wallet, X, type LucideIcon } from "lucide-react";
 
 /**
  * Tour de boas-vindas da Luma na PRIMEIRA entrada (paciente ou psicóloga).
@@ -61,6 +61,12 @@ const therapistSteps: Step[] = [
     body: "Escolha o paciente no topo e me peça em português mesmo: “marque a Ana quinta às 14h”. Eu preparo a ação e você confirma no botão — nada acontece sem o seu “sim”.",
   },
   {
+    path: "/configuracoes",
+    icon: Settings,
+    title: "Configuração da conta",
+    body: "Aqui você troca o e-mail de acesso, a senha e o telefone de contato. Para trocar e-mail ou senha, peço a sua senha atual — é o que impede alguém de tomar sua conta num computador destravado.",
+  },
+  {
     path: "/ajuda",
     icon: CircleHelp,
     title: "Ajuda quando precisar",
@@ -91,13 +97,19 @@ const patientSteps: Step[] = [
     path: "/profile",
     icon: UserRound,
     title: "Meu Cadastro",
-    body: "Mantenha telefone e e-mail atualizados aqui: é por eles que chegam os lembretes das suas consultas.",
+    body: "Seus dados para o atendimento: nome, telefone, data de nascimento e endereço. Mantenha o telefone atualizado — é por ele que a sua psicóloga te encontra.",
   },
   {
     path: "/luma",
     icon: null,
     title: "Falar comigo",
     body: "Ficou com dúvida de como usar o sistema? É só me perguntar aqui, a qualquer hora.",
+  },
+  {
+    path: "/configuracoes",
+    icon: Settings,
+    title: "Configuração da conta",
+    body: "Aqui você troca o e-mail de acesso, a senha e o telefone de contato. Para trocar e-mail ou senha, peço a sua senha atual — assim ninguém muda seus dados de acesso sem ser você.",
   },
   {
     path: "/ajuda",
