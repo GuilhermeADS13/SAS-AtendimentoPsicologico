@@ -24,15 +24,19 @@ class OpenAICompatibleEmbedding extends BaseEmbedding {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly model: string;
+  /** Erro de configuração já detectado: falha na hora, com instrução, em vez de bater num endpoint que não existe. */
+  private readonly problemaDeConfig: string | null;
 
-  constructor(options: { baseUrl: string; apiKey: string; model: string }) {
+  constructor(options: { baseUrl: string; apiKey: string; model: string; problemaDeConfig?: string | null }) {
     super();
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
     this.apiKey = options.apiKey;
     this.model = options.model;
+    this.problemaDeConfig = options.problemaDeConfig ?? null;
   }
 
   async getTextEmbedding(text: string): Promise<number[]> {
+    if (this.problemaDeConfig) throw new Error(this.problemaDeConfig);
     const response = await fetch(`${this.baseUrl}/embeddings`, {
       method: "POST",
       headers: {
@@ -43,7 +47,11 @@ class OpenAICompatibleEmbedding extends BaseEmbedding {
     });
 
     if (!response.ok) {
-      throw new Error(`Embedding provider respondeu ${response.status}`);
+      // Inclui a URL e as variáveis a conferir: sem isso, um 404 aqui virava só
+      // "a Luma não conseguiu concluir", sem pista nenhuma de onde era o problema.
+      throw new Error(
+        `Embedding provider (${this.baseUrl}) respondeu ${response.status}. Confira LLM_EMBEDDING_BASE_URL, LLM_EMBEDDING_API_KEY e LLM_EMBEDDING_MODEL.`,
+      );
     }
 
     const payload = await response.json() as {
@@ -55,16 +63,34 @@ class OpenAICompatibleEmbedding extends BaseEmbedding {
   }
 }
 
+/** trim(): protege contra \r/espaço de .env importado no Windows (CRLF). */
+const limpar = (value: string | undefined) => value?.trim();
+
+/**
+ * Detecta a armadilha do fallback: sem LLM_EMBEDDING_BASE_URL, os embeddings caem
+ * no LLM_BASE_URL — que em produção é o Groq, e o Groq NÃO tem /embeddings. O
+ * resultado era um 404 no meio da conversa e a Luma "morrendo" sem explicação.
+ * Melhor falhar já com a instrução do que bater num endpoint que não existe.
+ * Devolve a mensagem do problema, ou null quando a configuração é plausível.
+ */
+export function problemaDeConfiguracaoDeEmbedding(env: NodeJS.ProcessEnv = process.env): string | null {
+  if (limpar(env.LLM_EMBEDDING_BASE_URL)) return null; // configurado explicitamente
+  const chat = limpar(env.LLM_BASE_URL) || "";
+  if (/groq\.com/i.test(chat)) {
+    return "RAG sem provedor de embeddings: LLM_EMBEDDING_BASE_URL não está configurada e o LLM_BASE_URL aponta para o Groq, que não serve embeddings. Configure LLM_EMBEDDING_BASE_URL e LLM_EMBEDDING_API_KEY (ex.: Cloudflare bge-base, 768d).";
+  }
+  return null;
+}
+
 export function embeddingForCurrentEnvironment(env: NodeJS.ProcessEnv = process.env) {
-  // trim(): protege contra \r/espaço de .env importado no Windows (CRLF).
-  const clean = (value: string | undefined) => value?.trim();
   return new OpenAICompatibleEmbedding({
-    baseUrl: clean(env.LLM_EMBEDDING_BASE_URL) || clean(env.LLM_BASE_URL) || "http://localhost:11434/v1",
+    baseUrl: limpar(env.LLM_EMBEDDING_BASE_URL) || limpar(env.LLM_BASE_URL) || "http://localhost:11434/v1",
     // Chave PRÓPRIA para embeddings (cai em LLM_API_KEY se não houver): permite
     // usar um provedor gratuito de embeddings (ex.: Cloudflare/Google, 768d)
     // junto de outro provedor no chat (ex.: Groq grátis) — cada um com sua chave.
-    apiKey: clean(env.LLM_EMBEDDING_API_KEY) || clean(env.LLM_API_KEY) || "ollama",
-    model: clean(env.LLM_EMBEDDING_MODEL) || "nomic-embed-text",
+    apiKey: limpar(env.LLM_EMBEDDING_API_KEY) || limpar(env.LLM_API_KEY) || "ollama",
+    model: limpar(env.LLM_EMBEDDING_MODEL) || "nomic-embed-text",
+    problemaDeConfig: problemaDeConfiguracaoDeEmbedding(env),
   });
 }
 
