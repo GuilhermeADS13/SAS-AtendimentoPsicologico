@@ -3,6 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, therapistProcedure, adminProcedure, router } from "./_core/trpc";
 import { z } from "zod";
+import { iceServersParaChamada } from "./turn";
 import { getDb } from "./db";
 import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessageFeedback, patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users } from "../drizzle/schema";
 import { eq, and, asc, desc, isNull, ne, inArray, getTableColumns } from "drizzle-orm";
@@ -2044,6 +2045,15 @@ export const appRouter = router({
   }),
 
   videoCalls: router({
+    /**
+     * Servidores ICE da chamada. Protegido de propósito: as credenciais TURN são
+     * temporárias, mas ainda assim só vão para quem está autenticado — não para
+     * qualquer visitante. A secret key fica no servidor (ver server/turn.ts).
+     */
+    iceServers: protectedProcedure.query(async () => {
+      return { iceServers: await iceServersParaChamada() };
+    }),
+
     // Histórico de videochamadas de um paciente, com URLs de gravação.
     getByPatient: therapistProcedure
       .input(z.object({ patientId: z.number() }))
