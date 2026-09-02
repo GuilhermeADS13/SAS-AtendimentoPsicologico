@@ -1,5 +1,15 @@
-import { useEffect, useRef, useState } from "react";
-import { Mic, MicOff, Video as VideoIcon, VideoOff, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Loader2,
+  Maximize,
+  Mic,
+  MicOff,
+  Minimize,
+  MonitorUp,
+  PhoneOff,
+  Video as VideoIcon,
+  VideoOff,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -9,8 +19,8 @@ import { Button } from "@/components/ui/button";
  * o handshake (/api/ws/rtc — ver server/signaling.ts). NAT é atravessado por STUN
  * grátis do Google; um TURN opcional (VITE_TURN_*) cobre as redes mais fechadas.
  *
- * A interface é nossa: câmera/microfone aqui, e o botão de ENCERRAR fica na página
- * (VideoCallDynamic) — por isso não há "desligar" duplicado.
+ * A interface é nossa: todos os controles (microfone, câmera, compartilhar tela,
+ * tela cheia e ENCERRAR) ficam numa barra única sobre o vídeo, como nos apps de vídeo.
  */
 
 type Role = "therapist" | "patient";
@@ -43,23 +53,30 @@ export default function WebRTCCall({
   roomName,
   role,
   onError,
+  onEndCall,
 }: {
   roomName: string;
   role: Role;
   onError?: (error: string) => void;
+  /** Encerrar fica na MESMA barra dos outros controles, como nos apps de vídeo. */
+  onEndCall?: () => void;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
+  const telaStreamRef = useRef<MediaStream | null>(null);
   // Candidatos ICE que chegam antes de termos a descrição remota ficam na fila.
   const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
 
   const [connected, setConnected] = useState(false);
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
+  const [compartilhando, setCompartilhando] = useState(false);
+  const [telaCheia, setTelaCheia] = useState(false);
 
   useEffect(() => {
     let disposed = false;
@@ -231,8 +248,57 @@ export default function WebRTCCall({
     }
   };
 
+  /**
+   * Compartilhar tela: troca a trilha de vídeo que já está sendo enviada
+   * (replaceTrack) em vez de renegociar a conexão — o outro lado nem percebe
+   * corte. Ao parar, a câmera volta na mesma trilha.
+   */
+  const pararCompartilhamento = useCallback(async () => {
+    telaStreamRef.current?.getTracks().forEach(t => t.stop());
+    telaStreamRef.current = null;
+    const camera = localStreamRef.current?.getVideoTracks()[0];
+    const sender = pcRef.current?.getSenders().find(s => s.track?.kind === "video");
+    if (camera && sender) await sender.replaceTrack(camera);
+    setCompartilhando(false);
+  }, []);
+
+  const compartilharTela = async () => {
+    if (compartilhando) {
+      await pararCompartilhamento();
+      return;
+    }
+    try {
+      const tela = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const trilha = tela.getVideoTracks()[0];
+      const sender = pcRef.current?.getSenders().find(s => s.track?.kind === "video");
+      if (!trilha || !sender) {
+        tela.getTracks().forEach(t => t.stop());
+        return;
+      }
+      telaStreamRef.current = tela;
+      await sender.replaceTrack(trilha);
+      setCompartilhando(true);
+      // O navegador tem o próprio botão "parar de compartilhar": sem isto, a
+      // pessoa pararia por lá e o outro lado ficaria vendo a tela congelada.
+      trilha.onended = () => void pararCompartilhamento();
+    } catch {
+      /* a pessoa cancelou a escolha da tela */
+    }
+  };
+
+  const alternarTelaCheia = () => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void containerRef.current?.requestFullscreen?.();
+  };
+
+  useEffect(() => {
+    const aoMudar = () => setTelaCheia(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", aoMudar);
+    return () => document.removeEventListener("fullscreenchange", aoMudar);
+  }, []);
+
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-lg bg-black">
+    <div ref={containerRef} className="relative h-full w-full overflow-hidden rounded-lg bg-black">
       {/* Vídeo do outro lado ocupa a tela toda. */}
       <video
         ref={remoteVideoRef}
@@ -260,8 +326,9 @@ export default function WebRTCCall({
         className="absolute bottom-3 right-3 h-28 w-40 rounded-md border border-white/20 object-cover shadow-lg sm:h-32 sm:w-48"
       />
 
-      {/* Controles nossos (mic/câmera). Encerrar fica na página. */}
-      <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2">
+      {/* Barra única de controles, como nos apps de vídeo: encerrar fica AQUI,
+          junto do resto — antes ele ficava fora do vídeo e desalinhado. */}
+      <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/50 p-1.5 backdrop-blur">
         <Button
           variant={micOn ? "secondary" : "destructive"}
           size="icon"
@@ -282,6 +349,38 @@ export default function WebRTCCall({
         >
           {camOn ? <VideoIcon className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
         </Button>
+        <Button
+          variant={compartilhando ? "default" : "secondary"}
+          size="icon"
+          onClick={compartilharTela}
+          className="rounded-full"
+          aria-label={compartilhando ? "Parar de compartilhar a tela" : "Compartilhar a tela"}
+          title={compartilhando ? "Parar de compartilhar a tela" : "Compartilhar a tela"}
+        >
+          <MonitorUp className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="secondary"
+          size="icon"
+          onClick={alternarTelaCheia}
+          className="rounded-full"
+          aria-label={telaCheia ? "Sair da tela cheia" : "Tela cheia"}
+          title={telaCheia ? "Sair da tela cheia" : "Tela cheia"}
+        >
+          {telaCheia ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+        </Button>
+        {onEndCall && (
+          <Button
+            variant="destructive"
+            size="icon"
+            onClick={onEndCall}
+            className="ml-1 rounded-full"
+            aria-label="Encerrar a chamada"
+            title="Encerrar a chamada"
+          >
+            <PhoneOff className="h-4 w-4" />
+          </Button>
+        )}
       </div>
     </div>
   );
