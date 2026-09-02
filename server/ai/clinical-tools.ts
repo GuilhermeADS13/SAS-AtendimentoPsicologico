@@ -558,6 +558,11 @@ export function createClinicalTools(
       schema: patientIdSchema,
     }),
     tool(async ({ query, patientId }) => {
+      // A busca clínica é a única ferramenta que depende de um serviço EXTERNO (o
+      // provedor de embeddings). Sem este try/catch, um embedding mal configurado
+      // ou fora do ar derrubava a conversa inteira ("a Luma não conseguiu
+      // concluir"). Aqui ela degrada: o modelo recebe o aviso e segue atendendo.
+      try {
       // Paciente: força o próprio prontuário. O modelo costuma omitir o patientId
       // (a descrição não pede e ele não sabe o id interno), e buildVectorSearchScope
       // exige patientId === ctx.patientId — sem isto a busca do paciente sobre o
@@ -624,6 +629,12 @@ export function createClinicalTools(
       })));
       const formatted = formatRagContext(sources);
       return formatted ? wrapUntrustedClinicalContext(formatted) : "Nenhum registro autorizado foi encontrado.";
+      } catch (error) {
+        // O motivo real (ex.: LLM_EMBEDDING_BASE_URL ausente) fica no log do
+        // servidor; para o modelo vai só a instrução do que fazer agora.
+        console.error("[luma] busca clínica indisponível:", error instanceof Error ? error.message : error);
+        return "A busca nos registros está indisponível no momento (falha técnica, já registrada). NÃO invente nem deduza conteúdo de prontuário: diga à pessoa, em uma frase, que não conseguiu consultar os registros agora, e siga ajudando com a agenda e com o uso do sistema.";
+      }
     }, {
       name: ctx.role === "therapist" ? "search_patient_records" : "search_my_records",
       description: "Busca semântica somente leitura em registros autorizados do paciente. Não diagnostica nem altera prontuários.",
