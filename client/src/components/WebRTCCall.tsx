@@ -61,6 +61,38 @@ function iceServers(): RTCIceServer[] {
   return servers;
 }
 
+/**
+ * Qualidade da chamada, ajustada no PRÓPRIO cliente (setParameters do WebRTC) —
+ * não exige servidor de mídia. Um SFU daria controle mais fino, mas faria a mídia
+ * passar pelo servidor, com custo por minuto de consulta; num 1:1 não compensa.
+ *
+ * Numa consulta, o que não pode falhar é o ÁUDIO e a fluidez do rosto:
+ *  - áudio com prioridade alta de rede;
+ *  - teto de bitrate no vídeo (não adianta banda alta para um rosto falando, e
+ *    isso ainda economiza o TURN, que é cobrado pelo tráfego relayado);
+ *  - ao compartilhar a TELA a preferência inverte: aí o que importa é enxergar o
+ *    texto, então preserva-se resolução em vez de fluidez.
+ */
+async function ajustarQualidade(pc: RTCPeerConnection, modo: "camera" | "tela") {
+  for (const sender of pc.getSenders()) {
+    const tipo = sender.track?.kind;
+    if (!tipo) continue;
+    try {
+      const params = sender.getParameters();
+      if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+      if (tipo === "video") {
+        params.degradationPreference = modo === "tela" ? "maintain-resolution" : "maintain-framerate";
+        params.encodings[0].maxBitrate = modo === "tela" ? 1_500_000 : 1_000_000;
+      } else {
+        params.encodings[0].networkPriority = "high";
+      }
+      await sender.setParameters(params);
+    } catch {
+      /* navegador que não aceita o ajuste simplesmente segue no padrão dele */
+    }
+  }
+}
+
 export default function WebRTCCall({
   roomName,
   role,
@@ -163,6 +195,8 @@ export default function WebRTCCall({
       };
 
       pc.onconnectionstatechange = () => {
+        // Só depois de conectar os parâmetros do remetente existem de fato.
+        if (pc.connectionState === "connected") void ajustarQualidade(pc, "camera");
         if (pc.connectionState === "failed") {
           onErr?.("A conexão de vídeo caiu. Tente sair e entrar de novo.");
         }
@@ -278,6 +312,8 @@ export default function WebRTCCall({
     const camera = localStreamRef.current?.getVideoTracks()[0];
     const sender = pcRef.current?.getSenders().find(s => s.track?.kind === "video");
     if (camera && sender) await sender.replaceTrack(camera);
+    // Voltou a camera: prioridade e a fluidez do rosto de novo.
+    if (pcRef.current) await ajustarQualidade(pcRef.current, "camera");
     setCompartilhando(false);
   }, []);
 
@@ -296,6 +332,8 @@ export default function WebRTCCall({
       }
       telaStreamRef.current = tela;
       await sender.replaceTrack(trilha);
+      // Tela: preservar resolucao (ler texto) em vez de fluidez.
+      if (pcRef.current) await ajustarQualidade(pcRef.current, "tela");
       setCompartilhando(true);
       // O navegador tem o próprio botão "parar de compartilhar": sem isto, a
       // pessoa pararia por lá e o outro lado ficaria vendo a tela congelada.
