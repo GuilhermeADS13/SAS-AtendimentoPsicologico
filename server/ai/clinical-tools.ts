@@ -104,7 +104,7 @@ async function findOwnedAppointment(
   const rows = await db.select().from(appointments)
     .where(and(eq(appointments.id, appointmentId), eq(appointments.therapistId, ctx.therapistId))).limit(1);
   if (!rows.length) {
-    return { error: `Não encontrei a consulta #${appointmentId} na sua agenda. Confira o número com get_patient_appointments.` };
+    return { error: `Não encontrei a consulta #${appointmentId} na sua agenda. Confira o número consultando os agendamentos.` };
   }
   if (requestedPatientId != null && rows[0].patientId !== requestedPatientId) {
     return { error: "Essa consulta é de outro paciente. Selecione o paciente correto antes de alterar." };
@@ -460,7 +460,7 @@ export function createClinicalTools(
       description: "Cria uma consulta (ou várias semanais, via repetirSemanas) para o paciente autorizado (ESCRITA). Chame PRIMEIRO sem codigoConfirmacao: a ferramenta devolve o resumo e um código, e a terapeuta passa a ver um botão de confirmação na tela. Só repita a chamada com o código se ela confirmar por texto. Checa conflito. Não define preço nem toca em prontuários.",
       schema: z.object({
         patientId: z.number().int().positive().optional(),
-        scheduledAt: z.string().min(10).describe("Data e hora ISO 8601 no fuso America/Sao_Paulo (horário de Brasília, -03:00), ex.: 2026-08-25T14:00:00"),
+        scheduledAt: z.string().min(10).describe("USO INTERNO — nunca mostre este formato nem o peça à pessoa. Preencha você a data e a hora que ela disser em linguagem natural, como 2026-08-25T14:00:00 (horário de Brasília)."),
         durationMinutes: z.number().int().positive().max(480).optional().describe("Duração em minutos (padrão 60)"),
         notes: z.string().trim().max(500).optional().describe("Observação opcional da consulta"),
         repetirSemanas: z.number().int().min(1).max(12).optional().describe("Recorrência: repetir semanalmente por N semanas (padrão 1)"),
@@ -487,11 +487,11 @@ export function createClinicalTools(
       return executarAcaoAgenda(db, ctx, "remarcar_consulta", params);
     }, {
       name: "remarcar_consulta",
-      description: "Muda a data/hora (e opcionalmente a duração) de uma consulta existente (ESCRITA). Descubra o appointmentId com get_patient_appointments. Chame primeiro sem codigoConfirmacao: a terapeuta recebe o resumo e um botão de confirmação. Checa conflito.",
+      description: "Muda a data/hora (e opcionalmente a duração) de uma consulta existente (ESCRITA). Descubra o número da consulta consultando os agendamentos. Chame primeiro sem codigoConfirmacao: a terapeuta recebe o resumo e um botão de confirmação. Checa conflito.",
       schema: z.object({
         appointmentId: z.number().int().positive(),
         patientId: z.number().int().positive().optional(),
-        novoHorario: z.string().min(10).describe("Nova data e hora ISO 8601 no fuso America/Sao_Paulo (horário de Brasília, -03:00)"),
+        novoHorario: z.string().min(10).describe("USO INTERNO — nunca mostre este formato nem o peça à pessoa. Preencha você o novo horário que ela disser, como 2026-08-25T14:00:00 (horário de Brasília)."),
         novaDuracaoMinutos: z.number().int().positive().max(480).optional(),
         codigoConfirmacao: codigoConfirmacaoSchema,
       }),
@@ -510,7 +510,7 @@ export function createClinicalTools(
       return executarAcaoAgenda(db, ctx, "cancelar_consulta", params);
     }, {
       name: "cancelar_consulta",
-      description: "Cancela uma consulta existente (ESCRITA; marca status cancelada). Descubra o appointmentId com get_patient_appointments. Chame primeiro sem codigoConfirmacao: a terapeuta recebe o resumo e um botão de confirmação.",
+      description: "Cancela uma consulta existente (ESCRITA; marca status cancelada). Descubra o número da consulta consultando os agendamentos. Chame primeiro sem codigoConfirmacao: a terapeuta recebe o resumo e um botão de confirmação.",
       schema: z.object({
         appointmentId: z.number().int().positive(),
         patientId: z.number().int().positive().optional(),
@@ -531,7 +531,7 @@ export function createClinicalTools(
       return executarAcaoAgenda(db, ctx, "registrar_pagamento", params);
     }, {
       name: "registrar_pagamento",
-      description: "Marca uma consulta como paga ou pendente (ESCRITA; controle financeiro simples). Descubra o appointmentId com get_patient_appointments. Chame primeiro sem codigoConfirmacao: a terapeuta recebe o resumo e um botão de confirmação. pago=false volta para pendente.",
+      description: "Marca uma consulta como paga ou pendente (ESCRITA; controle financeiro simples). Descubra o número da consulta consultando os agendamentos. Chame primeiro sem codigoConfirmacao: a terapeuta recebe o resumo e um botão de confirmação. pago=false volta para pendente.",
       schema: z.object({
         appointmentId: z.number().int().positive(),
         patientId: z.number().int().positive().optional(),

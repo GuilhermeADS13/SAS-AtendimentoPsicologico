@@ -56,7 +56,9 @@ describe("separação de papéis da Luma", () => {
     expect(source).toContain("isTestSiteSupport");
     expect(source).toContain("siteHelpMutation.mutateAsync");
     expect(source).not.toContain("chatMutation.mutateAsync({ messages: nextMessages");
-    expect(source).toContain("Pergunte sobre os registros autorizados deste paciente");
+    // Texto encurtado para caber no campo de uma linha no celular; o que importa
+    // aqui é o placeholder CLÍNICO existir, provando o modo separado.
+    expect(source).toContain("Pergunte sobre os registros deste paciente");
     expect(source).not.toContain('placeholder="Escreva uma pergunta sobre o uso do site..."');
   });
 });
