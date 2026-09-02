@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { LockKeyhole, MessageCircle, RotateCcw, ShieldCheck } from "lucide-react";
+import { LockKeyhole, MessageCircle, ShieldCheck } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { AIChatBox, type LumaFeedback, type Message, type PendingAction } from "@/components/AIChatBox";
 import { useRole } from "@/hooks/useRole";
@@ -23,6 +23,8 @@ export default function Luma() {
   const [selectedPatientId, setSelectedPatientId] = useState<string>("");
   const [feedbackByMessageId, setFeedbackByMessageId] = useState<Record<number, LumaFeedback>>({});
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  // Sugestões de "e agora?" mostradas só depois de concluir uma ação.
+  const [sugestoesPosAcao, setSugestoesPosAcao] = useState<string[]>([]);
 
   const patientsQuery = trpc.patients.list.useQuery(undefined, {
     enabled: isClinicalUser,
@@ -75,6 +77,7 @@ export default function Luma() {
     setConversationId(undefined);
     setFeedbackByMessageId({});
     setPendingAction(null);
+    setSugestoesPosAcao([]);
   }
 
   // Volta ao "menu" (estado inicial com as sugestões) e começa uma conversa nova.
@@ -84,9 +87,13 @@ export default function Luma() {
     setConversationId(undefined);
     setFeedbackByMessageId({});
     setPendingAction(null);
+    setSugestoesPosAcao([]);
   }
 
   async function handleSend(content: string) {
+    // As sugestões de "e agora?" valem para o momento logo após a ação; assim que
+    // a conversa segue, elas saem de cena.
+    setSugestoesPosAcao([]);
     if (isAdmin && !isTestSiteSupport) {
       toast.error("A Luma não está disponível para acesso clínico administrativo.");
       return;
@@ -141,14 +148,34 @@ export default function Luma() {
     }
   }
 
+  /** O que costuma vir depois de cada ação — o "e agora?" da terapeuta. */
+  function proximosPassos(acao: string): string[] {
+    switch (acao) {
+      case "agendar_consulta":
+        return ["Ver os próximos agendamentos", "Agendar outra consulta", "Registrar pagamento"];
+      case "remarcar_consulta":
+        return ["Ver os próximos agendamentos", "Remarcar outra consulta"];
+      case "cancelar_consulta":
+        return ["Ver os próximos agendamentos", "Agendar uma nova consulta"];
+      case "registrar_pagamento":
+        return ["Ver os próximos agendamentos", "Registrar outro pagamento"];
+      default:
+        return ["Ver os próximos agendamentos"];
+    }
+  }
+
   // O clique confirma no servidor: a ação executada é a que foi registrada na
   // proposta, e o modelo não participa da decisão.
   async function handleConfirmAction() {
     if (!pendingAction) return;
     try {
+      const acao = pendingAction.toolName;
       const result = await confirmActionMutation.mutateAsync({ code: pendingAction.code, conversationId });
       setPendingAction(null);
       setMessages(current => [...current, { id: result.messageId, role: "assistant", content: result.content }]);
+      // Depois de concluir, oferece o próximo passo em vez de deixar a conversa
+      // parada num "pronto, agendei".
+      setSugestoesPosAcao(proximosPassos(acao));
       toast.success("Alteração confirmada.");
     } catch (error) {
       setPendingAction(null);
@@ -199,11 +226,6 @@ export default function Luma() {
               <p className="mt-2 max-w-2xl text-muted-foreground">{isClinicalUser ? "Uma coruja de apoio para organizar informações autorizadas. A Luma não diagnostica, prescreve nem altera prontuários." : "Uma coruja de apoio para encontrar as funções do VozInterior. Este modo não acessa prontuários e não oferece orientação clínica."}
 </p>
             </div>
-            {messages.length > 0 && (
-              <Button variant="outline" size="sm" onClick={resetConversation} className="shrink-0 gap-1.5" title="Voltar ao início e começar uma conversa nova">
-                <RotateCcw className="h-4 w-4" /> Voltar ao início
-              </Button>
-            )}
           </div>
 
           {isClinicalUser && (
@@ -235,6 +257,8 @@ export default function Luma() {
               ? (selectedPatientId ? "Pergunte sobre os registros deste paciente" : "Selecione um paciente acima")
               : "Pergunte sobre o uso do site"}
             emptyStateMessage={isClinicalUser ? "Olá! Eu sou a Luma, sua coruja de apoio clínico. Consulto os registros autorizados (sessões e documentos) e cuido da agenda do paciente: agendar, remarcar, cancelar e registrar pagamento. Toda alteração na agenda aparece como uma proposta, e só acontece quando você clicar em Confirmar. Selecione um paciente e uma sugestão abaixo para começar." : "Olá! Eu sou a Luma, sua coruja de apoio no VozInterior. Escolha uma sugestão para aprender a usar o sistema."}
+            followUpPrompts={sugestoesPosAcao}
+            onRestart={resetConversation}
             suggestedPrompts={isClinicalUser ? ["Resumir os últimos registros autorizados", "Ver os próximos agendamentos", "Agendar uma consulta", "Organizar os próximos pontos para a sessão"] : ["Ver minhas consultas", "Entrar na videochamada", "Atualizar meu perfil", "Encontrar minha psicóloga"]}
             onMessageFeedback={handleFeedback}
             feedbackByMessageId={feedbackByMessageId}

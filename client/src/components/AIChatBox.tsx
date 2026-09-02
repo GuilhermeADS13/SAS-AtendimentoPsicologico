@@ -3,7 +3,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { LumaOwlIcon } from "@/components/Logo";
-import { Loader2, Send, User, Sparkles, ThumbsUp, ThumbsDown, Moon, CalendarClock, Check, X } from "lucide-react";
+import { Loader2, Send, User, Sparkles, ThumbsUp, ThumbsDown, RotateCcw, CalendarClock, Check, X } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Streamdown } from "streamdown";
 
@@ -108,6 +108,19 @@ export type AIChatBoxProps = {
   /** Existing rating by stable message id, when feedback is persisted. */
   feedbackByMessageId?: Record<number, LumaFeedback>;
 
+  /**
+   * Sugestões do que fazer AGORA, mostradas depois que uma ação é concluída.
+   * Sem isso, a conversa terminava em "pronto, agendei" e a pessoa ficava sem
+   * saber o próximo passo.
+   */
+  followUpPrompts?: string[];
+
+  /**
+   * Recomeçar a conversa. Fica no menu DENTRO do chat, junto das sugestões —
+   * solto no topo da página ficava longe de onde a pessoa está olhando.
+   */
+  onRestart?: () => void;
+
   /** Ação de escrita proposta pela Luma e ainda não executada. */
   pendingAction?: PendingAction | null;
 
@@ -181,6 +194,8 @@ export function AIChatBox({
   height = "600px",
   emptyStateMessage = "Converse com a Luma, sua coruja de apoio.",
   suggestedPrompts,
+  followUpPrompts,
+  onRestart,
   agentName = "Luma",
   agentSubtitle = "Sua coruja de apoio no atendimento psicológico",
   lumaStatus = "attentive",
@@ -236,6 +251,18 @@ export function AIChatBox({
       });
     }
   };
+
+  /**
+   * Rola para a última mensagem sempre que a conversa muda.
+   *
+   * Antes só havia rolagem no ENVIO. Então, quando a resposta chegava (ou quando
+   * uma conversa anterior era restaurada pelo histórico), a visão continuava onde
+   * estava e o chat abria mostrando a PRIMEIRA mensagem — não a última.
+   */
+  useEffect(() => {
+    if (displayMessages.length > 0) scrollToBottom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayMessages.length, isLoading]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -427,6 +454,39 @@ export function AIChatBox({
                       <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />
                       <span className="break-words">{processingLabel}</span>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Menu do chat. Depois de concluir uma ação, a conversa terminava
+                  em "pronto, agendei" e a pessoa ficava sem saber o próximo passo;
+                  e "Voltar ao início" ficava solto no topo da página, longe daqui. */}
+              {((followUpPrompts && followUpPrompts.length > 0) || (onRestart && displayMessages.length > 0)) && !isLoading && (
+                <div className="ml-11 space-y-2">
+                  {followUpPrompts && followUpPrompts.length > 0 && (
+                    <p className="text-xs font-medium text-muted-foreground">E agora?</p>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {followUpPrompts?.map(prompt => (
+                      <button
+                        key={prompt}
+                        type="button"
+                        onClick={() => onSendMessage(prompt)}
+                        className="rounded-full border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-accent"
+                      >
+                        {prompt}
+                      </button>
+                    ))}
+                    {onRestart && displayMessages.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={onRestart}
+                        title="Limpa a tela e começa uma conversa nova (nada é apagado)"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      >
+                        <RotateCcw className="size-3.5" /> Voltar ao início
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
