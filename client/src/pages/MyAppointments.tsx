@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Calendar, MessageCircle, Search, Video, UserRound, CheckCircle2 } from "lucide-react";
 import { LogoMark, LumaOwlIcon } from "@/components/Logo";
+import AddToCalendar from "@/components/AddToCalendar";
 
 const STATUS_LABEL: Record<string, string> = {
   scheduled: "Agendada",
@@ -198,6 +199,20 @@ export default function MyAppointments() {
                           <Video className="w-4 h-4 mr-2" />
                           Entrar na sala
                         </Button>
+                        {/* Manda a consulta para o calendário da pessoa, que passa a
+                            lembrá-la sozinho — além do nosso e-mail. */}
+                        <AddToCalendar
+                          evento={{
+                            titulo: "Consulta — VozInterior",
+                            inicio: new Date(a.scheduledAt),
+                            duracaoMin: a.duration ?? 60,
+                            descricao: "Sessão online pelo VozInterior. Entre pela sua lista de consultas no horário marcado.",
+                            url: `${window.location.origin}/videocall/${
+                              a.roomToken ? `apt${a.id}-${a.roomToken}` : `sala-apt${a.id}`
+                            }?apt=${a.id}&pat=${a.patientId}`,
+                            uid: `apt${a.id}@vozinterior`,
+                          }}
+                        />
                       </div>
                     </CardContent>
                   </Card>

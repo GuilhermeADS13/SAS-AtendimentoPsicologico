@@ -33,6 +33,7 @@ import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, Wallet
 import { useAuth } from "@/_core/hooks/useAuth";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { CalendarioAgenda } from "@/components/CalendarioAgenda";
+import AddToCalendar from "@/components/AddToCalendar";
 import { reaisParaCentavos, centavosParaInput, formatarBRL } from "@shared/dinheiro";
 
 type Status = "scheduled" | "completed" | "cancelled" | "no_show";
@@ -627,6 +628,17 @@ export default function Appointments() {
                             <Button variant="outline" size="sm" onClick={() => setLocation(roomUrl)} className="h-10 justify-center gap-1.5 text-primary" title="Entrar na videochamada">
                               <ExternalLink className="h-4 w-4" /> Entrar na videochamada
                             </Button>
+                            <AddToCalendar
+                              className="h-10 w-full justify-center gap-1.5"
+                              evento={{
+                                titulo: `Consulta com ${patientName(appointment.patientId)}`,
+                                inicio: new Date(appointment.scheduledAt),
+                                duracaoMin: appointment.duration ?? 60,
+                                descricao: "Consulta pelo VozInterior.",
+                                url: `${window.location.origin}${roomUrl}`,
+                                uid: `apt${appointment.id}@vozinterior`,
+                              }}
+                            />
                             <Button variant="outline" size="sm" onClick={() => updateStatus.mutate({ id: appointment.id, status: "completed" })} className="h-10 justify-center gap-1.5 text-green-700" title="Marcar consulta como realizada">
                               <CheckCircle className="h-4 w-4" /> Realizada
                             </Button>
