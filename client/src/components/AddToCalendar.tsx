@@ -4,6 +4,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { googleCalendarUrl, icsEvento, nomeArquivoIcs, type EventoAgenda } from "@shared/calendario";
@@ -44,13 +45,22 @@ export default function AddToCalendar({
           <CalendarPlus className="h-4 w-4" /> Adicionar à agenda
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      {/* Sem jargão: ".ics" não diz nada para quem usa o sistema. Cada opção
+          descreve PARA ONDE a consulta vai e o que acontece ao clicar. */}
+      <DropdownMenuContent align="end" className="w-72">
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+          Onde você quer salvar esta consulta?
+        </DropdownMenuLabel>
         <DropdownMenuItem asChild>
-          <a href={googleCalendarUrl(evento)} target="_blank" rel="noreferrer">
-            Google Agenda
+          <a href={googleCalendarUrl(evento)} target="_blank" rel="noreferrer" className="flex-col items-start gap-0.5">
+            <span>Google Agenda</span>
+            <span className="text-xs text-muted-foreground">Abre já preenchida — é só salvar</span>
           </a>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={baixarIcs}>Outro calendário (.ics)</DropdownMenuItem>
+        <DropdownMenuItem onClick={baixarIcs} className="flex-col items-start gap-0.5">
+          <span>Apple, Outlook ou outro</span>
+          <span className="text-xs text-muted-foreground">Baixa um arquivo; abra-o e a consulta entra no seu calendário</span>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
