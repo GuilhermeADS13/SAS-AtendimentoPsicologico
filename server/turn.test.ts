@@ -51,6 +51,20 @@ describe("servidores ICE da videochamada", () => {
     expect(soStun(servers)).toBe(true);
   });
 
+  it("envia a região quando configurada (relay perto = menos latência)", async () => {
+    const fetchFalso = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ urls: "turn:teste.metered.live:443?transport=tcp" }],
+    });
+    vi.stubGlobal("fetch", fetchFalso);
+    await iceServersParaChamada({
+      METERED_DOMAIN: "exemplo.metered.live",
+      METERED_API_KEY: "chave",
+      METERED_REGION: "SouthAmerica",
+    } as NodeJS.ProcessEnv);
+    expect(fetchFalso.mock.calls[0][0]).toContain("region=SouthAmerica");
+  });
+
   it("ignora espaço/CRLF em volta do valor (env colado no painel)", async () => {
     const fetchFalso = vi.fn().mockResolvedValue({
       ok: true,
