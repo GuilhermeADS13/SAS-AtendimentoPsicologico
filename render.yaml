@@ -67,7 +67,8 @@ services:
         sync: false
       - key: METERED_API_KEY
         sync: false
-      # Regiao do relay (opcional): relay perto do Brasil = menos latencia.
+      # Regiao do relay: DEIXE VAZIA. A Metered ja devolve a regiao do painel
+      # ("Global (automatico)"), que roteia para o servidor mais proximo.
       - key: METERED_REGION
         sync: false
 

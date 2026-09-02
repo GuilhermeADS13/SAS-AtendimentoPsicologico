@@ -45,9 +45,12 @@ export async function iceServersParaChamada(env: NodeJS.ProcessEnv = process.env
 
   if (cache && cache.expiraEm > Date.now()) return cache.servers;
 
-  // `region` é opcional na API. Vale definir: numa chamada relayada em tempo real,
-  // um relay longe do Brasil adiciona latência que se sente na conversa. Sem a
-  // variável, a Metered usa a "Default Region".
+  // `region` normalmente NÃO deve ser preenchida. Ao usar a API com a chave da
+  // credencial, a Metered já inclui na resposta a região configurada no painel —
+  // e o padrão de lá é "Global (automático)", que roteia para o servidor mais
+  // próximo do usuário (não existe região sul-americana, então automático é o
+  // melhor caso para o Brasil). Definir esta variável SOBRESCREVE esse automático
+  // por uma região fixa; só use se souber exatamente por quê.
   const regiao = env.METERED_REGION?.trim();
   const params = new URLSearchParams({ apiKey: chave });
   if (regiao) params.set("region", regiao);
