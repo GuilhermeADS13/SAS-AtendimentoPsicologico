@@ -9,6 +9,7 @@ import {
 } from "../drizzle/schema";
 import { eq, and, lt, gte, isNull } from "drizzle-orm";
 import { sendEmail } from "./mailer";
+import { googleCalendarUrl } from "../shared/calendario";
 
 /**
  * Base dos links enviados por e-mail.
@@ -313,6 +314,22 @@ export function composeEmail(row: NotificacaoComContexto): { subject: string; ht
     <p><a href="${link}">Ver no VozInterior</a></p>
   `;
 
+  // "Adicionar ao Google Agenda": um clique põe a consulta no calendário da
+  // pessoa, que passa a lembrá-la sozinho. NÃO entra no aviso de cancelamento —
+  // mandar agendar o que acabou de ser cancelado seria o oposto do esperado.
+  const agenda =
+    row.scheduledAt && n.notificationType !== "appointment_cancelled"
+      ? `<p><a href="${googleCalendarUrl({
+          titulo: aOutraPessoa ? `Consulta com ${aOutraPessoa}` : "Consulta — VozInterior",
+          inicio: row.scheduledAt,
+          duracaoMin: row.duration ?? 60,
+          descricao: "Consulta pelo VozInterior.",
+          url: link,
+          uid: `apt${n.appointmentId ?? ""}@vozinterior`,
+        })}">Adicionar ao Google Agenda</a></p>`
+      : "";
+  const detalhesComAgenda = `${detalhes}${agenda}`;
+
   // Sem prefixo "[VozInterior]" de propósito: o remetente já se identifica, e o
   // prefixo empurraria nome e horário para fora da tela no celular.
   const sufixo = [aOutraPessoa, curto].filter(Boolean).join(" — ");
@@ -326,31 +343,31 @@ export function composeEmail(row: NotificacaoComContexto): { subject: string; ht
         // e-mail dizendo o mesmo nome duas vezes, com duas linhas de distância.
         html: `<p>Olá!</p>
           <p>Passando para lembrar da sua consulta.</p>
-          ${detalhes}`,
+          ${detalhesComAgenda}`,
       };
     case "appointment_confirmation":
       return {
         subject: assunto("Presença confirmada"),
         html: `<p>O paciente <strong>confirmou presença</strong> na consulta.</p>
-          ${detalhes}`,
+          ${detalhesComAgenda}`,
       };
     case "appointment_cancelled":
       return {
         subject: assunto("Consulta cancelada"),
         html: `<p>A consulta abaixo foi <strong>cancelada</strong>.</p>
-          ${detalhes}
+          ${detalhesComAgenda}
           <p>Se foi engano, é só agendar de novo pelo sistema.</p>`,
       };
     case "new_appointment":
       return {
         subject: assunto("Nova consulta agendada"),
         html: `<p>Uma nova consulta foi agendada.</p>
-          ${detalhes}`,
+          ${detalhesComAgenda}`,
       };
     default:
       return {
         subject: assunto("Notificação"),
-        html: `<p>Você tem uma notificação sobre uma consulta.</p>${detalhes}`,
+        html: `<p>Você tem uma notificação sobre uma consulta.</p>${detalhesComAgenda}`,
       };
   }
 }
