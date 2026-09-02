@@ -241,7 +241,9 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
           </button>
         </div>
 
-        <div className="mt-3 flex items-center justify-between gap-2">
+        {/* flex-wrap: em telas estreitas as bolinhas + "Pular/Anterior/Próximo"
+            passam da largura do card; sem isso, os botões saíam para fora. */}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-1.5" aria-hidden="true">
             {steps.map((_, i) => (
               <span

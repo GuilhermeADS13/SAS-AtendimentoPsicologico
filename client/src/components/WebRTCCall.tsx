@@ -356,7 +356,12 @@ export default function WebRTCCall({
         autoPlay
         playsInline
         muted
-        className="absolute bottom-3 right-3 h-28 w-40 rounded-md border border-white/20 object-cover shadow-lg sm:h-32 sm:w-48"
+        /* bottom-16 (não bottom-3): a barra de controles é centralizada e tem
+           ~272px; com a miniatura à direita na MESMA altura, as duas se cruzavam
+           e os botões da direita (inclusive encerrar) caíam por cima do vídeo.
+           Só deixaria de colidir acima de ~680px de largura útil — então ela sobe
+           em qualquer tamanho, e encolhe no celular. */
+        className="absolute bottom-16 right-3 h-20 w-28 rounded-md border border-white/20 object-cover shadow-lg sm:h-28 sm:w-40 lg:h-32 lg:w-48"
       />
 
       {/* Barra única de controles, como nos apps de vídeo: encerrar fica AQUI,
