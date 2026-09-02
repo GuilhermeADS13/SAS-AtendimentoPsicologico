@@ -9,7 +9,7 @@ import WebRTCCall from "@/components/WebRTCCall";
 import VideoCallLobby from "@/components/VideoCallLobby";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Phone, AlertCircle, ChevronUp, CheckCircle2, Copy, ShieldAlert, Loader2 } from "lucide-react";
+import { AlertCircle, ChevronUp, CheckCircle2, Copy, ShieldAlert, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { formatarNascimento } from "@shared/datas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -308,6 +308,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                 roomName={room}
                 role={presenceRole}
                 onError={(err) => setError(err)}
+                onEndCall={handleEndCall}
               />
             )}
           </div>
@@ -482,17 +483,9 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
           )}
         </div>
 
-        {/* End Call Button */}
-        <div className="flex justify-center gap-4 pb-4">
-          <Button
-            onClick={handleEndCall}
-            variant="destructive"
-            size="lg"
-            className="rounded-full w-14 h-14 p-0"
-          >
-            <Phone className="w-6 h-6" />
-          </Button>
-        </div>
+        {/* O botão de encerrar mudou para DENTRO da barra de controles do vídeo
+            (ver WebRTCCall): aqui embaixo ele centralizava na largura da página,
+            não na do vídeo, e ficava desalinhado dos outros controles. */}
       </div>
     </DashboardLayout>
   );
