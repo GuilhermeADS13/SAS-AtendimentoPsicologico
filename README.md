@@ -37,19 +37,23 @@ navegadores**; o servidor só intermedeia o aperto de mão.
 - **Tour de boas-vindas** — na primeira entrada, a Luma apresenta cada aba do sistema
 
 ### 📋 Prontuários e sessões
+
 Cadastro de pacientes, histórico clínico, anotações por sessão e evolução ao longo
 do tempo. Upload de documentos com indexação assíncrona (fila + OCR).
 
 ### 📅 Agenda e financeiro
+
 Calendário, status (agendado / realizado / cancelado / a confirmar), filtros por
 data e por pagamento, duração flexível, exportação para **Google Calendar e `.ics`**,
 e **lembretes automáticos por e-mail**.
 
 ### 👤 Autenticação e papéis
+
 Login por **Supabase Auth** (e-mail e senha, com recuperação). Dois papéis:
 psicóloga e paciente — ver [Papéis e cadastro](#-papéis-e-cadastro-de-psicólogas).
 
 ### 🎨 Identidade visual
+
 Paleta bege (`#EAD2A8`) e marrom (`#8B6946`), responsiva em desktop, tablet e mobile,
 com navegação por teclado.
 
@@ -58,6 +62,7 @@ com navegação por teclado.
 ## 🚀 Começando
 
 ### Pré-requisitos
+
 - **Node.js 22+** (a imagem de produção usa `node:22-slim`)
 - **pnpm 10+**
 - Conta no [Supabase](https://supabase.com) — Postgres + Auth + pgvector
@@ -89,8 +94,7 @@ SUPABASE_SERVICE_ROLE_KEY=<service role — só no servidor>
 > ⚠️ **Cuidado com o `.env.local`.** Se o `DATABASE_URL` apontar para o Supabase de
 > produção, `pnpm dev` escreve no banco real. Use um projeto separado para desenvolver.
 
-<details>
-<summary><b>Variáveis opcionais</b> (vídeo, IA, e-mail)</summary>
+### Variáveis opcionais (vídeo, IA, e-mail)
 
 ```bash
 # TURN (videochamada em redes restritivas) — sem isso, só STUN
@@ -98,7 +102,6 @@ METERED_DOMAIN=<seu-subdominio>.metered.live
 METERED_API_KEY=<API Key da credencial — NUNCA a Secret Key>
 # METERED_REGION: deixe VAZIA. O painel em "Global (automático)" já roteia para o
 # servidor mais próximo, e essa variável sobrescreveria isso por uma região fixa.
-
 # Luma (IA)
 AI_AGENT_ENABLED=true
 LLM_BASE_URL=https://api.groq.com/openai/v1
@@ -119,8 +122,6 @@ SMTP_FROM=...
 ADMIN_EMAIL=...
 ```
 
-</details>
-
 ### Banco e execução
 
 ```bash
@@ -133,7 +134,7 @@ pnpm ai:worker   # opcional: fila de indexação de documentos
 
 ## 📁 Estrutura do Projeto
 
-```
+```text
 ├── client/src/
 │   ├── pages/              # Dashboard, Appointments, Records, Financeiro,
 │   │                       # Luma, VideoCallDynamic, Login, Ajuda, Privacidade…
@@ -155,14 +156,14 @@ pnpm ai:worker   # opcional: fila de indexação de documentos
 
 ## 🔧 Tecnologias
 
-| Camada | Stack |
-|---|---|
+| Camada       | Stack                                                                         |
+| ------------ | ----------------------------------------------------------------------------  |
 | **Frontend** | React 19, TypeScript, Tailwind CSS 4, tRPC, Wouter, shadcn/ui, TanStack Query |
-| **Backend** | Express 4, tRPC 11, Drizzle ORM, `ws` (presença + sinalização), Jose |
-| **Banco** | Supabase — Postgres (driver `postgres-js`) + **pgvector** |
-| **IA** | LangChain, LlamaIndex, LLM via API compatível com OpenAI (Groq) |
-| **Vídeo** | WebRTC nativo + TURN (Metered) |
-| **DevOps** | Vite, Vitest, Playwright, Docker, GitHub Actions, Render |
+| **Backend**  | Express 4, tRPC 11, Drizzle ORM, `ws` (presença + sinalização), Jose          |
+| **Banco**    | Supabase — Postgres (driver `postgres-js`) + **pgvector**                     |
+| **IA**       | LangChain, LlamaIndex, LLM via API compatível com OpenAI (Groq)               |
+| **Vídeo**    | WebRTC nativo + TURN (Metered)                                                |
+| **DevOps**   | Vite, Vitest, Playwright, Docker, GitHub Actions, Render                      |
 
 ---
 
@@ -188,7 +189,7 @@ pnpm ai:worker   # opcional: fila de indexação de documentos
 
 ## 🎥 Como funciona a videochamada
 
-```
+```text
 Terapeuta ──┐                             ┌── Paciente
             ├─ /api/ws/rtc (sinalização) ─┤     offer/answer/ICE
             └─────── mídia direta P2P ────┘     (não passa pelo servidor)
@@ -250,10 +251,10 @@ Sem o segredo `FLY_API_TOKEN`, o passo é pulado sem falhar o build.
 
 ## 👥 Papéis e cadastro de psicólogas
 
-| Papel | Acesso |
-|-------|--------|
+| Papel                                 | Acesso                                                                              |
+| ------------------------------------- | ----------------------------------------------------------------------------------- |
 | **Psicóloga** (`admin` / `therapist`) | Prontuários, sessões, agenda, financeiro, documentos, Luma com ferramentas clínicas |
-| **Paciente** | O próprio cadastro, suas consultas, videochamada e a Luma no escopo dele |
+| **Paciente**                          | O próprio cadastro, suas consultas, videochamada e a Luma no escopo dele            |
 
 Todo cadastro novo entra como **paciente**. Quem marca *"Sou psicólogo(a)"* informa o
 **CRP** e gera uma **solicitação pendente** — que **não dá acesso**: o CRP é informação
@@ -274,15 +275,15 @@ O Gmail **não aceita a senha da conta** no SMTP — é preciso uma **Senha de A
 2. Gere em [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
    → "Outro (nome personalizado)" → `SAS` → copie os **16 caracteres**
 
-| Variável | Valor |
-|----------|-------|
-| `SMTP_HOST` | `smtp.gmail.com` |
-| `SMTP_PORT` | `587` |
-| `SMTP_USER` | seu e-mail do Gmail |
-| `SMTP_PASS` | a **senha de app** (16 caracteres, sem espaços) |
-| `SMTP_FROM` | o mesmo e-mail (o Gmail exige remetente = conta) |
-| `ADMIN_EMAIL` | quem recebe os avisos de solicitação |
-| `NOTIFICATIONS_ENABLED` | `true` (liga também os lembretes) |
+| Variável                | Valor                                            |
+| ----------              | -------                                          |
+| `SMTP_HOST`             | `smtp.gmail.com`                                 |
+| `SMTP_PORT`             | `587`                                            |
+| `SMTP_USER`             | seu e-mail do Gmail                              |
+| `SMTP_PASS`             | a **senha de app** (16 caracteres, sem espaços)  |
+| `SMTP_FROM`             | o mesmo e-mail (o Gmail exige remetente = conta) |
+| `ADMIN_EMAIL`           | quem recebe os avisos de solicitação             |
+| `NOTIFICATIONS_ENABLED` | `true` (liga também os lembretes)                |
 
 > Limite do Gmail: ~500 e-mails/dia — de sobra para esse uso.
 
