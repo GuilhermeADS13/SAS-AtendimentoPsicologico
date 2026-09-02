@@ -27,8 +27,12 @@ const STUN_PADRAO: IceServer[] = [
 ];
 
 /**
- * As credenciais da Metered são temporárias. Guardamos por um tempo curto para
- * não bater na API a cada entrada em sala — e bem abaixo da validade delas.
+ * Cache curto só para não bater na API a cada entrada em sala.
+ *
+ * A documentação da Metera NÃO informa validade (TTL) das credenciais, então o
+ * prazo aqui é conservador de propósito: se elas expirarem antes do que supomos,
+ * o pior caso é uma janela curta com credencial vencida — e, mesmo aí, a chamada
+ * cai para STUN em vez de falhar.
  */
 let cache: { servers: IceServer[]; expiraEm: number } | null = null;
 const CACHE_MS = 30 * 60_000;
@@ -41,10 +45,15 @@ export async function iceServersParaChamada(env: NodeJS.ProcessEnv = process.env
 
   if (cache && cache.expiraEm > Date.now()) return cache.servers;
 
+  // `region` é opcional na API. Vale definir: numa chamada relayada em tempo real,
+  // um relay longe do Brasil adiciona latência que se sente na conversa. Sem a
+  // variável, a Metered usa a "Default Region".
+  const regiao = env.METERED_REGION?.trim();
+  const params = new URLSearchParams({ apiKey: chave });
+  if (regiao) params.set("region", regiao);
+
   try {
-    const resposta = await fetch(
-      `https://${dominio}/api/v1/turn/credentials?apiKey=${encodeURIComponent(chave)}`,
-    );
+    const resposta = await fetch(`https://${dominio}/api/v1/turn/credentials?${params.toString()}`);
     if (!resposta.ok) throw new Error(`Metered respondeu ${resposta.status}`);
     const lista = (await resposta.json()) as IceServer[];
     if (!Array.isArray(lista) || lista.length === 0) {

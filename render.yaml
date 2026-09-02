@@ -67,6 +67,9 @@ services:
         sync: false
       - key: METERED_API_KEY
         sync: false
+      # Regiao do relay (opcional): relay perto do Brasil = menos latencia.
+      - key: METERED_REGION
+        sync: false
 
       # ── Luma (IA) ─────────────────────────────────────────────────
       # Sem estas variáveis o servidor cai no default de getOpenSourceLlmConfig,
