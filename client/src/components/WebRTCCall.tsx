@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Focus,
   Loader2,
   Maximize,
   Mic,
@@ -24,6 +25,17 @@ import { Button } from "@/components/ui/button";
  */
 
 type Role = "therapist" | "patient";
+
+/**
+ * `backgroundBlur` é o desfoque de fundo que o próprio navegador/sistema aplica
+ * na trilha da câmera. Ainda não está nos tipos padrão do DOM, daí estes tipos.
+ * Escolhido de propósito no lugar de segmentação por modelo (MediaPipe): não
+ * baixa modelo nem processa quadro a quadro, então não rouba CPU/bateria durante
+ * a consulta. Em troca, só existe em alguns navegadores — onde não houver, o
+ * botão aparece desabilitado, explicando o motivo.
+ */
+type CapacidadesComDesfoque = MediaTrackCapabilities & { backgroundBlur?: boolean[] };
+type RestricaoComDesfoque = MediaTrackConstraintSet & { backgroundBlur?: boolean };
 
 const LS = { mic: "sas-video-mic", cam: "sas-video-cam", spk: "sas-video-spk" };
 const readLS = (k: string) => {
@@ -77,6 +89,8 @@ export default function WebRTCCall({
   const [camOn, setCamOn] = useState(true);
   const [compartilhando, setCompartilhando] = useState(false);
   const [telaCheia, setTelaCheia] = useState(false);
+  const [desfoqueSuportado, setDesfoqueSuportado] = useState(false);
+  const [desfoqueLigado, setDesfoqueLigado] = useState(false);
 
   useEffect(() => {
     let disposed = false;
@@ -119,6 +133,11 @@ export default function WebRTCCall({
       }
       localStreamRef.current = stream;
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+
+      // O desfoque de fundo só existe em alguns navegadores/sistemas: pergunta à
+      // trilha se ela sabe fazer, em vez de supor e falhar na hora do clique.
+      const capacidades = stream.getVideoTracks()[0]?.getCapabilities?.() as CapacidadesComDesfoque | undefined;
+      setDesfoqueSuportado(Array.isArray(capacidades?.backgroundBlur) && capacidades.backgroundBlur.includes(true));
 
       // 2) Conexão peer-to-peer.
       const pc = new RTCPeerConnection({ iceServers: iceServers() });
@@ -286,6 +305,20 @@ export default function WebRTCCall({
     }
   };
 
+  const alternarDesfoque = async () => {
+    const trilha = localStreamRef.current?.getVideoTracks()[0];
+    if (!trilha) return;
+    const novo = !desfoqueLigado;
+    try {
+      await trilha.applyConstraints({ advanced: [{ backgroundBlur: novo } as RestricaoComDesfoque] });
+      setDesfoqueLigado(novo);
+    } catch {
+      // Declarou a capacidade mas recusou aplicar: some com o botão em vez de
+      // deixar a pessoa clicando em algo que não funciona.
+      setDesfoqueSuportado(false);
+    }
+  };
+
   const alternarTelaCheia = () => {
     if (document.fullscreenElement) void document.exitFullscreen();
     else void containerRef.current?.requestFullscreen?.();
@@ -358,6 +391,23 @@ export default function WebRTCCall({
           title={compartilhando ? "Parar de compartilhar a tela" : "Compartilhar a tela"}
         >
           <MonitorUp className="h-4 w-4" />
+        </Button>
+        <Button
+          variant={desfoqueLigado ? "default" : "secondary"}
+          size="icon"
+          onClick={alternarDesfoque}
+          disabled={!desfoqueSuportado}
+          className="rounded-full"
+          aria-label={desfoqueLigado ? "Desligar desfoque do fundo" : "Desfocar o fundo"}
+          title={
+            desfoqueSuportado
+              ? desfoqueLigado
+                ? "Desligar desfoque do fundo"
+                : "Desfocar o fundo"
+              : "Seu navegador não oferece desfoque de fundo"
+          }
+        >
+          <Focus className="h-4 w-4" />
         </Button>
         <Button
           variant="secondary"
