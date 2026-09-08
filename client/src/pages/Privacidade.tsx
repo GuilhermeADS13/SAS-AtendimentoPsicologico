@@ -4,9 +4,14 @@ import { LogoLockup } from "@/components/Logo";
 import { ArrowLeft } from "lucide-react";
 
 /**
- * Política de privacidade — pública, exigência mínima de LGPD para um app que
- * trata DADO DE SAÚDE (categoria sensível, art. 5º, II). Linkada no cadastro:
- * o consentimento de lá aponta para cá.
+ * Política de privacidade — pública, exigência de LGPD para um app que trata DADO
+ * DE SAÚDE (categoria sensível, art. 5º, II). Linkada no cadastro: o consentimento
+ * de lá aponta para cá.
+ *
+ * Precisa refletir a arquitetura REAL: a videochamada é WebRTC próprio (com TURN
+ * da Metered como relay quando a conexão direta falha), e a assistente Luma envia
+ * dados a um provedor de IA (Groq, EUA). Declarar esses operadores e a
+ * transferência internacional é o que a lei exige — não é opcional.
  */
 export default function Privacidade() {
   return (
@@ -30,7 +35,7 @@ export default function Privacidade() {
               Política de Privacidade
             </h1>
             <p className="text-muted-foreground">
-              VozInterior — Atendimento Psicológico Online · atualizada em julho de 2026
+              VozInterior — Atendimento Psicológico Online · atualizada em setembro de 2026
             </p>
           </div>
 
@@ -65,6 +70,10 @@ export default function Privacidade() {
                 avisos enviados), necessários ao funcionamento.
               </li>
             </ul>
+            <p>
+              Coletamos apenas o mínimo necessário para o atendimento (princípio da
+              necessidade, art. 6º da LGPD).
+            </p>
           </section>
 
           <section className="space-y-2">
@@ -82,22 +91,35 @@ export default function Privacidade() {
 
           <section className="space-y-2">
             <h2 className="text-lg font-semibold text-foreground">4. Onde os dados ficam</h2>
-            <p>Usamos serviços contratados (operadores) para funcionar:</p>
+            <p>
+              Usamos serviços contratados (operadores) para funcionar. Alguns ficam{" "}
+              <strong>fora do Brasil</strong>; nesses casos há transferência internacional
+              de dados (art. 33 da LGPD), feita apenas para viabilizar o atendimento e
+              limitada ao necessário:
+            </p>
             <ul className="list-disc pl-5 space-y-1">
               <li>
                 <strong>Supabase</strong> — banco de dados e arquivos (servidores nos
-                EUA), com acesso restrito.
+                <strong> EUA</strong>), com acesso restrito.
               </li>
               <li>
-                <strong>Render</strong> — hospedagem da aplicação.
+                <strong>Render</strong> — hospedagem da aplicação (<strong>EUA</strong>).
               </li>
               <li>
                 <strong>Brevo</strong> — envio dos e-mails de aviso (recebe apenas seu
                 e-mail e o conteúdo do aviso).
               </li>
               <li>
-                <strong>MiroTalk</strong> — a videochamada, transmitida com criptografia
-                e <strong>sem gravação</strong>. O conteúdo da sessão não é armazenado.
+                <strong>Metered</strong> — servidor de retransmissão (TURN) que a
+                videochamada usa quando a conexão direta entre os dois computadores não é
+                possível. Ele apenas encaminha o tráfego, que segue{" "}
+                <strong>criptografado de ponta a ponta</strong> — a Metered não consegue
+                ver nem ouvir a sessão.
+              </li>
+              <li>
+                <strong>Groq</strong> — provedor de inteligência artificial (
+                <strong>EUA</strong>) que processa as mensagens da assistente Luma. Ver a
+                seção 5.
               </li>
             </ul>
             <p>
@@ -107,7 +129,48 @@ export default function Privacidade() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-lg font-semibold text-foreground">5. Seus direitos</h2>
+            <h2 className="text-lg font-semibold text-foreground">5. Assistente de IA (Luma)</h2>
+            <p>
+              A Luma é uma assistente que ajuda a usar o sistema (agendar, tirar dúvidas)
+              e a consultar informações do seu próprio atendimento. Para responder, ela
+              envia o texto da conversa e os dados estritamente necessários a um provedor
+              de IA (<strong>Groq</strong>, nos EUA), que processa e devolve a resposta.
+            </p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>
+                A Luma acessa <strong>apenas os dados do paciente vinculado à conversa</strong> —
+                nunca de outros pacientes.
+              </li>
+              <li>
+                Ela <strong>não substitui a sua psicóloga</strong> e não faz diagnóstico
+                nem conduz terapia. Em situações de crise, orienta procurar ajuda
+                (CVV 188, emergência 192) e a profissional.
+              </li>
+              <li>
+                O provedor de IA processa os dados para gerar a resposta daquela conversa;
+                não os usa para outra finalidade.
+              </li>
+              <li>
+                Se preferir não usar a assistente, basta não interagir com ela — o
+                atendimento e o restante do sistema funcionam normalmente.
+              </li>
+            </ul>
+          </section>
+
+          <section className="space-y-2">
+            <h2 className="text-lg font-semibold text-foreground">6. Pacientes menores de idade</h2>
+            <p>
+              Quando o paciente é <strong>menor de 18 anos</strong>, o tratamento dos
+              dados depende do <strong>consentimento de pelo menos um dos pais ou do
+              responsável legal</strong> (art. 14 da LGPD), e é feito sempre no melhor
+              interesse do menor. O cadastro é realizado pela psicóloga, que confirma ter
+              obtido esse consentimento do responsável. Coletamos apenas os dados
+              indispensáveis ao atendimento.
+            </p>
+          </section>
+
+          <section className="space-y-2">
+            <h2 className="text-lg font-semibold text-foreground">7. Seus direitos</h2>
             <p>
               Nos termos do art. 18 da LGPD, você pode a qualquer momento pedir{" "}
               <strong>acesso</strong> aos seus dados, <strong>correção</strong> (boa parte
@@ -125,16 +188,37 @@ export default function Privacidade() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-lg font-semibold text-foreground">6. Segurança</h2>
+            <h2 className="text-lg font-semibold text-foreground">8. Segurança</h2>
             <p>
-              O acesso ao prontuário é exclusivo da sua psicóloga. As salas de vídeo têm
-              acesso restrito aos participantes da consulta. Todo o tráfego é
-              criptografado (HTTPS), e as senhas seguem política de complexidade mínima.
+              O acesso ao prontuário é exclusivo da sua psicóloga. As salas de vídeo são
+              1:1 e exigem que cada participante esteja <strong>autenticado</strong> e seja
+              parte daquela consulta; a videochamada é <strong>criptografada de ponta a
+              ponta</strong> e <strong>não é gravada</strong> — o conteúdo da sessão não é
+              armazenado. Todo o tráfego é criptografado (HTTPS) e as senhas seguem
+              política de complexidade mínima.
             </p>
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-lg font-semibold text-foreground">7. Alterações e contato</h2>
+            <h2 className="text-lg font-semibold text-foreground">9. Controlador e encarregado</h2>
+            <p>
+              A <strong>controladora</strong> dos dados é a psicóloga responsável pelo seu
+              atendimento, que decide sobre o tratamento e responde por ele. Para exercer
+              seus direitos, tirar dúvidas sobre privacidade ou falar com o{" "}
+              <strong>encarregado pelo tratamento de dados</strong> (art. 41 da LGPD), use
+              o canal{" "}
+              <a
+                href="mailto:suportevozinterior@gmail.com"
+                className="text-primary underline underline-offset-4"
+              >
+                suportevozinterior@gmail.com
+              </a>
+              .
+            </p>
+          </section>
+
+          <section className="space-y-2">
+            <h2 className="text-lg font-semibold text-foreground">10. Alterações e contato</h2>
             <p>
               Esta política pode ser atualizada; a data no topo indica a versão vigente.
               Dúvidas sobre privacidade:{" "}

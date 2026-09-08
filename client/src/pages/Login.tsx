@@ -306,7 +306,8 @@ export default function Login() {
                       Política de Privacidade
                     </a>
                     , incluindo o tratamento dos meus dados de saúde para o
-                    atendimento.
+                    atendimento, o uso da assistente de IA e a transferência dos
+                    dados a operadores no exterior, conforme a política.
                   </span>
                 </label>
 
