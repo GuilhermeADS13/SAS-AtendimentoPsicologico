@@ -70,6 +70,26 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
 
+      # Migracoes que ALTERAM tabelas existentes (ADD COLUMN) vivem em
+      # drizzle/migrations/ e NAO sao aplicadas pelo `drizzle-kit migrate`, que
+      # olha so ./drizzle (ver drizzle.config.ts: out). Sem aplica-las, o SELECT
+      # do Drizzle -- que expande TODAS as colunas do schema.ts -- quebra no teste
+      # de integracao com "column does not exist" (foi o que derrubou o CI quando
+      # therapists.phone entrou). Todas sao ADD COLUMN IF NOT EXISTS, seguras de
+      # reaplicar. Ao criar uma migracao de coluna nova em drizzle/migrations/,
+      # adicione o arquivo a esta lista.
+      - name: Aplicar migracoes de coluna (drizzle/migrations) no Postgres de teste
+        run: |
+          for f in \
+            drizzle/migrations/0022_onboarding_seen.sql \
+            drizzle/migrations/0023_therapist_phone.sql \
+            drizzle/migrations/0025_patient_guardian.sql; do
+            echo "aplicando $f"
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+
       # Fluxo funcional completo contra o Postgres real (perfil → paciente →
       # agendamento → confirmação → sessão → documento + checagem de IDOR).
       - name: Testes de integração (funcionais)

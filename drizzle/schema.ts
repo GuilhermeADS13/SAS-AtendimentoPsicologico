@@ -175,6 +175,12 @@ export const patients = pgTable("patients", {
   medicalHistory: text("medicalHistory"),
   emergencyContact: varchar("emergencyContact", { length: 128 }),
   emergencyPhone: varchar("emergencyPhone", { length: 20 }),
+  /** Responsável legal, para pacientes menores de 18 (LGPD art. 14). Preenchido
+   *  pela psicóloga quando a data de nascimento indica menor. */
+  guardianName: varchar("guardianName", { length: 128 }),
+  /** Quando a psicóloga registrou ter obtido o consentimento do responsável.
+   *  Nulo = não registrado (a UI cobra para menores). */
+  guardianConsentAt: timestamp("guardianConsentAt", { withTimezone: true, mode: "date" }),
   status: patientStatusEnum("status").default("active").notNull(),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })

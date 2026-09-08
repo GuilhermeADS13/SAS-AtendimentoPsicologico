@@ -1167,6 +1167,10 @@ export const appRouter = router({
         emergencyContact: z.string().optional(),
         emergencyPhone: z.string().optional(),
         status: z.enum(["active", "inactive", "archived"]).optional(),
+        // Responsável legal do paciente menor (LGPD art. 14). `guardianConsent`
+        // vem como booleano da UI: marcado grava a data do consentimento.
+        guardianName: z.string().optional(),
+        guardianConsent: z.boolean().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
@@ -1224,6 +1228,11 @@ export const appRouter = router({
         if (input.status !== undefined) set.status = input.status;
         if (input.dateOfBirth !== undefined) {
           set.dateOfBirth = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
+        }
+        if (input.guardianName !== undefined) set.guardianName = input.guardianName || null;
+        if (input.guardianConsent !== undefined) {
+          // Só grava a data quando marca; desmarcar limpa o registro do consentimento.
+          set.guardianConsentAt = input.guardianConsent ? new Date() : null;
         }
 
         if (Object.keys(set).length > 0) {
