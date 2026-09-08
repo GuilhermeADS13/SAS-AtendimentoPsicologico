@@ -24,66 +24,10 @@ import {
   notifyTherapistRequestReviewed,
 } from "./notifications";
 
-/**
- * E-mail normalizado para comparação: sem espaços e em minúsculas.
- *
- * O vínculo paciente↔psicóloga é feito por e-mail, e o Supabase Auth guarda o
- * dele em minúsculas. Se a psicóloga digitar "Fulano@Gmail.com" no cadastro, uma
- * comparação literal nunca casaria — o paciente entraria e veria "peça à sua
- * psicóloga para cadastrar", com o cadastro já feito bem na frente dela.
- */
-function normalizarEmail(email: string | null | undefined): string {
-  return (email ?? "").trim().toLowerCase();
-}
-
-/**
- * A linha de `patients` do usuário logado, vinculando o convite se preciso.
- *
- * Quando a psicóloga cadastra alguém, a linha nasce com `userId` nulo — ela não
- * tem como saber o id de uma conta que talvez nem exista. O vínculo se fecha
- * aqui, na primeira vez que o paciente abre a área dele.
- *
- * Por que não deixar isso só no `saveProfile`: a psicóloga cadastra e agenda a
- * consulta; se o vínculo dependesse de o paciente clicar em "Salvar cadastro",
- * ele entraria e veria "Minhas Consultas" VAZIA — com a consulta marcada e ele
- * sem saber. O efeito colateral numa leitura é feio, mas é idempotente: roda uma
- * vez só, porque na próxima o `userId` já está lá.
- */
-async function pacienteDoUsuario(
-  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
-  user: { id: number; email?: string | null },
-) {
-  const porUserId = await db
-    .select()
-    .from(patients)
-    .where(eq(patients.userId, user.id))
-    .limit(1);
-
-  if (porUserId.length) return porUserId[0];
-
-  const email = normalizarEmail(user.email);
-  if (!email) return null;
-
-  // ORDER BY id: se por acaso houver mais de um convite com este e-mail (ex.:
-  // duas psicólogas cadastrando a mesma pessoa, no futuro multi-clínica), o
-  // vínculo precisa ser estável — sem ordenar, o "escolhido" pelo LIMIT 1 seria
-  // arbitrário e poderia mudar de uma chamada para outra.
-  const convite = await db
-    .select()
-    .from(patients)
-    .where(and(eq(patients.email, email), isNull(patients.userId)))
-    .orderBy(patients.id)
-    .limit(1);
-
-  if (!convite.length) return null;
-
-  await db
-    .update(patients)
-    .set({ userId: user.id })
-    .where(eq(patients.id, convite[0].id));
-
-  return { ...convite[0], userId: user.id };
-}
+// A regra de acesso à sala e o vínculo paciente↔usuário moram em ./roomAccess,
+// compartilhados com a sinalização e a presença do vídeo (mesma barreira nos dois
+// lugares). `normalizarEmail`/`pacienteDoUsuario` seguem usados aqui como antes.
+import { normalizarEmail, pacienteDoUsuario, resolverAcessoSala } from "./roomAccess";
 
 /**
  * Corre uma promessa contra um timeout e SEMPRE limpa o timer. O `Promise.race`
@@ -1369,51 +1313,10 @@ export const appRouter = router({
         const db = await getDb();
         if (!db) return negar;
 
-        const m = /^apt(\d+)-(.+)$/.exec(input.roomId);
-        if (!m) return negar;
-        const appointmentId = Number(m[1]);
-        const token = m[2];
-
-        const appt = await db
-          .select()
-          .from(appointments)
-          .where(eq(appointments.id, appointmentId))
-          .limit(1);
-        if (!appt.length) return negar;
-        const a = appt[0];
-        if (!a.roomToken || a.roomToken !== token) return negar;
-
-        // A psicóloga dona da consulta.
-        const therapist = await db
-          .select({ id: therapists.id })
-          .from(therapists)
-          .where(eq(therapists.userId, ctx.user.id))
-          .limit(1);
-        if (therapist.length && therapist[0].id === a.therapistId) {
-          return {
-            allowed: true as const,
-            role: "therapist" as const,
-            appointmentId,
-            patientId: a.patientId,
-            scheduledAt: a.scheduledAt,
-            duration: a.duration,
-          };
-        }
-
-        // O paciente daquela consulta (vincula o convite se ainda faltar).
-        const paciente = await pacienteDoUsuario(db, ctx.user);
-        if (paciente && paciente.id === a.patientId) {
-          return {
-            allowed: true as const,
-            role: "patient" as const,
-            appointmentId,
-            patientId: a.patientId,
-            scheduledAt: a.scheduledAt,
-            duration: a.duration,
-          };
-        }
-
-        return negar;
+        // Mesma regra usada pela sinalização/presença do vídeo (ver ./roomAccess).
+        const acesso = await resolverAcessoSala(db, ctx.user, input.roomId);
+        if (!acesso) return negar;
+        return { allowed: true as const, ...acesso };
       }),
 
     list: therapistProcedure.query(async ({ ctx }) => {

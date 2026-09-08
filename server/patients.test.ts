@@ -136,10 +136,12 @@ describe("vínculo paciente ↔ psicóloga", () => {
     );
     expect(create).toContain("normalizarEmail(input.email)");
     expect(fonte).toContain("set.email = normalizarEmail(input.email)");
-    // E compara normalizado ao procurar o convite.
-    const helper = fonte.slice(
-      fonte.indexOf("async function pacienteDoUsuario"),
-      fonte.indexOf("export const appRouter"),
+    // E compara normalizado ao procurar o convite. O helper mora em roomAccess.ts
+    // (compartilhado com a sinalização/presença do vídeo), não mais aqui.
+    const roomAccess = readFileSync(new URL("./roomAccess.ts", import.meta.url), "utf8");
+    const helper = roomAccess.slice(
+      roomAccess.indexOf("export async function pacienteDoUsuario"),
+      roomAccess.indexOf("export type AcessoSala"),
     );
     expect(helper).toContain("normalizarEmail(user.email)");
   });
@@ -155,10 +157,11 @@ describe("vínculo paciente ↔ psicóloga", () => {
     // As três entradas da área do paciente passam pelo helper que vincula.
     const usos = me.match(/pacienteDoUsuario\(db, ctx\.user\)/g) ?? [];
     expect(usos.length).toBeGreaterThanOrEqual(4); // profile, saveProfile, therapist, appointments
-    // E o helper de fato grava o vínculo.
-    const helper = fonte.slice(
-      fonte.indexOf("async function pacienteDoUsuario"),
-      fonte.indexOf("export const appRouter"),
+    // E o helper (agora em roomAccess.ts) de fato grava o vínculo.
+    const roomAccess = readFileSync(new URL("./roomAccess.ts", import.meta.url), "utf8");
+    const helper = roomAccess.slice(
+      roomAccess.indexOf("export async function pacienteDoUsuario"),
+      roomAccess.indexOf("export type AcessoSala"),
     );
     expect(helper).toContain("set({ userId: user.id })");
   });
