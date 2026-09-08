@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
+import { getAccessToken } from "@/lib/supabase";
 
 /**
  * Videochamada 1:1 peer-to-peer (WebRTC), sem provedor externo nem cartão.
@@ -215,9 +216,21 @@ export default function WebRTCCall({
       // 3) Sinalização. Abre DEPOIS da mídia/pc prontos: quando o "start" ou a
       //    oferta chegar, já está tudo montado para responder.
       const proto = window.location.protocol === "https:" ? "wss" : "ws";
-      const params = new URLSearchParams({ room: roomName, role });
+      // Sem `role` na URL: o servidor deriva o papel de quem é o usuário. O token
+      // também não vai na query (evita vazar em log de acesso) — segue na 1ª
+      // mensagem, abaixo.
+      const token = await getAccessToken();
+      const params = new URLSearchParams({ room: roomName });
       const ws = new WebSocket(`${proto}://${window.location.host}/api/ws/rtc?${params.toString()}`);
       wsRef.current = ws;
+
+      // Autentica antes de qualquer negociação: o servidor confere no banco que
+      // esta pessoa é a psicóloga ou o paciente DESTA consulta e só então repassa
+      // offer/answer/ICE. Sem sessão válida, não há como iniciar a chamada.
+      ws.onopen = () => {
+        if (token) ws.send(JSON.stringify({ type: "auth", token }));
+        else onErr?.("Sua sessão expirou. Entre novamente para iniciar a chamada.");
+      };
 
       ws.onmessage = async (event) => {
         let msg: { type?: string; sdp?: string; candidate?: RTCIceCandidateInit };
