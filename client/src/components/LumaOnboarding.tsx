@@ -63,7 +63,7 @@ const therapistSteps: Step[] = [
   {
     path: "/configuracoes",
     icon: Settings,
-    title: "Configuração da conta",
+    title: "Configurações da conta",
     body: "Aqui você troca o e-mail de acesso, a senha e o telefone de contato. Para trocar e-mail ou senha, peço a sua senha atual — é o que impede alguém de tomar sua conta num computador destravado.",
   },
   {
@@ -108,7 +108,7 @@ const patientSteps: Step[] = [
   {
     path: "/configuracoes",
     icon: Settings,
-    title: "Configuração da conta",
+    title: "Configurações da conta",
     body: "Aqui você troca o e-mail de acesso, a senha e o telefone de contato. Para trocar e-mail ou senha, peço a sua senha atual — assim ninguém muda seus dados de acesso sem ser você.",
   },
   {
