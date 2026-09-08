@@ -39,6 +39,18 @@ function toDateInput(value: unknown): string {
   return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
 }
 
+/** true se a data de nascimento ("YYYY-MM-DD") indica menor de 18 anos. */
+function ehMenorDeIdade(dataNascimento: string): boolean {
+  if (!dataNascimento) return false;
+  const nasc = new Date(dataNascimento);
+  if (Number.isNaN(nasc.getTime())) return false;
+  const hoje = new Date();
+  let idade = hoje.getFullYear() - nasc.getFullYear();
+  const m = hoje.getMonth() - nasc.getMonth();
+  if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) idade--;
+  return idade < 18;
+}
+
 export default function PatientDetail() {
   const [, setLocation] = useLocation();
   const params = useParams();
@@ -63,6 +75,8 @@ export default function PatientDetail() {
     medicalHistory: "",
     emergencyContact: "",
     emergencyPhone: "",
+    guardianName: "",
+    guardianConsent: false,
   });
 
   // Preenche o formulário quando o paciente carrega.
@@ -78,6 +92,8 @@ export default function PatientDetail() {
       medicalHistory: patient.medicalHistory ?? "",
       emergencyContact: patient.emergencyContact ?? "",
       emergencyPhone: patient.emergencyPhone ?? "",
+      guardianName: patient.guardianName ?? "",
+      guardianConsent: Boolean(patient.guardianConsentAt),
     });
   }, [patient]);
 
@@ -111,6 +127,10 @@ export default function PatientDetail() {
       medicalHistory: form.medicalHistory,
       emergencyContact: form.emergencyContact,
       emergencyPhone: form.emergencyPhone,
+      // Responsável legal é dado administrativo gerido pela psicóloga (como o
+      // contato de emergência): vai sempre, mesmo quando o paciente tem conta.
+      guardianName: form.guardianName,
+      guardianConsent: form.guardianConsent,
     });
   };
 
@@ -725,6 +745,35 @@ export default function PatientDetail() {
                 />
               </div>
             </div>
+            {ehMenorDeIdade(form.dateOfBirth) && (
+              <div className="space-y-3 rounded-md border border-amber-300/70 bg-amber-50/60 p-3 dark:border-amber-500/30 dark:bg-amber-500/10">
+                <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                  Paciente menor de idade — a LGPD (art. 14) exige o consentimento de um
+                  responsável legal para tratar os dados.
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="guardianName">Responsável legal</Label>
+                  <Input
+                    id="guardianName"
+                    placeholder="Nome do pai, mãe ou responsável"
+                    value={form.guardianName}
+                    onChange={(e) => setForm({ ...form, guardianName: e.target.value })}
+                  />
+                </div>
+                <label className="flex items-start gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.guardianConsent}
+                    onChange={(e) => setForm({ ...form, guardianConsent: e.target.checked })}
+                    className="mt-0.5 h-4 w-4 accent-primary"
+                  />
+                  <span className="text-muted-foreground">
+                    Confirmo que obtive o consentimento do responsável legal para tratar os
+                    dados deste paciente menor de idade.
+                  </span>
+                </label>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="medicalHistory">Histórico Médico</Label>
               <Textarea
