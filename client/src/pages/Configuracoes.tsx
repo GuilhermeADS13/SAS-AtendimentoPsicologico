@@ -243,7 +243,7 @@ export default function Configuracoes() {
                   <ValorAtual valor={contato?.email} vazio="Nenhum e-mail definido" />
                 )}
               </div>
-              <Button variant="outline" size="sm" onClick={() => setDialogoEmail(true)}>
+              <Button variant="outline" size="sm" className="h-10 sm:h-8" onClick={() => setDialogoEmail(true)}>
                 Alterar e-mail
               </Button>
             </Linha>
@@ -258,7 +258,7 @@ export default function Configuracoes() {
                 <KeyRound className="w-4 h-4 shrink-0 text-muted-foreground" />
                 <p className="text-sm font-medium tracking-widest text-foreground">••••••••</p>
               </div>
-              <Button variant="outline" size="sm" onClick={() => setDialogoSenha(true)}>
+              <Button variant="outline" size="sm" className="h-10 sm:h-8" onClick={() => setDialogoSenha(true)}>
                 Alterar senha
               </Button>
             </Linha>
@@ -304,13 +304,14 @@ export default function Configuracoes() {
                       size="sm"
                       onClick={() => salvarTelefone.mutate({ phone: telefone.trim() })}
                       disabled={salvarTelefone.isPending}
-                      className="bg-primary hover:bg-primary/90"
+                      className="h-10 sm:h-8 bg-primary hover:bg-primary/90"
                     >
                       {salvarTelefone.isPending ? "Salvando..." : "Salvar"}
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
+                      className="h-10 sm:h-8"
                       disabled={salvarTelefone.isPending}
                       onClick={() => {
                         // Volta ao valor do servidor: sair da edição não pode
@@ -336,6 +337,7 @@ export default function Configuracoes() {
                   <Button
                     variant="outline"
                     size="sm"
+                    className="h-10 sm:h-8"
                     disabled={isLoading}
                     onClick={() => setEditandoTelefone(true)}
                   >
