@@ -46,7 +46,7 @@ const therapistMenu = [
   { icon: UserRound, label: "Perfil", path: "/profile" },
   // Configurações é separada do Perfil de propósito: lá ficam os dados que os
   // pacientes veem (bio, especialidades); aqui, os dados de ACESSO à conta.
-  { icon: Settings, label: "Configurações", path: "/configuracoes" },
+  { icon: Settings, label: "Configurações da conta", path: "/configuracoes" },
   // Ajuda no menu, não escondida no menu da conta: ninguém abre "Sair" para
   // procurar ajuda — quem precisa dela está com um problema, não indo embora.
   { icon: CircleHelp, label: "Ajuda", path: "/ajuda" },
@@ -64,7 +64,7 @@ const patientMenu = [
   { icon: LumaOwlIcon, label: "Luma — Meu apoio", path: "/luma" },
   { icon: Stethoscope, label: "Minha Psicóloga", path: "/psicologa" },
   { icon: UserRound, label: "Meu Cadastro", path: "/profile" },
-  { icon: Settings, label: "Configurações", path: "/configuracoes" },
+  { icon: Settings, label: "Configurações da conta", path: "/configuracoes" },
   { icon: CircleHelp, label: "Ajuda", path: "/ajuda" },
 ];
 
