@@ -145,6 +145,34 @@ const DUVIDAS_PACIENTE: Duvida[] = [
           Manter o telefone em dia ajuda: é por ele que ela consegue te avisar de alguma
           mudança.
         </li>
+        <li>
+          O telefone também pode ser trocado em{" "}
+          <strong>Configurações da conta</strong> — é o mesmo dado, nos dois lugares.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Como troco meu e-mail de acesso ou minha senha",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          No menu, abra <strong>Configurações da conta</strong>. Cada item mostra o valor
+          atual antes de você mexer em qualquer coisa.
+        </li>
+        <li>
+          Nos dois casos pedimos a sua <strong>senha atual</strong>. É proposital: sem
+          isso, quem pegasse seu computador destravado trocaria seus dados de acesso.
+        </li>
+        <li>
+          Ao trocar o e-mail, enviamos um link para o{" "}
+          <strong>endereço novo</strong>. A troca só vale depois que você clicar nesse
+          link — até lá, continue entrando com o e-mail antigo.
+        </li>
+        <li>
+          Isso é diferente de <strong>“Esqueci minha senha”</strong>: aquele serve para
+          quando você <em>não consegue entrar</em>; este, para quando já está dentro.
+        </li>
       </ul>
     ),
   },
@@ -360,6 +388,31 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
         <li>
           Serve como <strong>cópia de segurança e para arquivar</strong>. Vale baixar de
           tempos em tempos.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Como troco meu e-mail de acesso, minha senha ou meu telefone",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          No menu, abra <strong>Configurações da conta</strong>. Cada item mostra o valor
+          atual antes de você mexer em qualquer coisa.
+        </li>
+        <li>
+          Para trocar e-mail ou senha pedimos a sua <strong>senha atual</strong>. Num
+          sistema com prontuário isso importa: sem essa confirmação, quem alcançasse seu
+          computador destravado trocaria os dados de acesso e tomaria a conta.
+        </li>
+        <li>
+          Ao trocar o e-mail, enviamos um link para o{" "}
+          <strong>endereço novo</strong>. A troca só vale depois que você clicar nele —
+          até lá, continue entrando com o e-mail antigo.
+        </li>
+        <li>
+          O telefone daqui é o seu contato profissional. Os dados que os pacientes veem
+          (bio, formação, valor da consulta) ficam em <strong>Perfil</strong>.
         </li>
       </ul>
     ),
