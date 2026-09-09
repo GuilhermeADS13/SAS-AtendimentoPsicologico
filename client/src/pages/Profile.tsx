@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
+import { Redirect } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useRole } from "@/hooks/useRole";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
-import PatientProfile from "./PatientProfile";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,12 +30,10 @@ export default function Profile() {
     );
   }
 
+  // O cadastro do paciente foi unificado em "Configurações da conta". Quem chegar
+  // aqui por link/bookmark antigo é levado para lá, em vez de ver uma tela órfã.
   if (!isTherapist) {
-    return (
-      <DashboardLayout>
-        <PatientProfile />
-      </DashboardLayout>
-    );
+    return <Redirect to="/configuracoes" />;
   }
 
   return <TherapistProfile />;

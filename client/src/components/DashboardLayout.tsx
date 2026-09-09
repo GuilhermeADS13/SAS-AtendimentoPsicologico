@@ -25,7 +25,7 @@ import { supabase } from "@/lib/supabase";
 import { trpc } from "@/lib/trpc";
 import { NotificationsBell } from "./NotificationsBell";
 import { PatientNotificationsBell } from "./PatientNotificationsBell";
-import { LogoLockup, LumaOwlIcon } from "./Logo";
+import { LogoFull, LogoLockup, LumaOwlIcon } from "./Logo";
 import LumaOnboarding from "./LumaOnboarding";
 import { BadgeCheck, Brain, Calendar, CircleHelp, LayoutDashboard, LogOut, PanelLeft, Settings, Stethoscope, UserRound, Users, Video, Wallet } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
@@ -63,7 +63,8 @@ const patientMenu = [
   { icon: Calendar, label: "Minhas Consultas", path: "/consultas" },
   { icon: LumaOwlIcon, label: "Luma — Meu apoio", path: "/luma" },
   { icon: Stethoscope, label: "Minha Psicóloga", path: "/psicologa" },
-  { icon: UserRound, label: "Meu Cadastro", path: "/profile" },
+  // "Meu Cadastro" saiu: o cadastro do paciente agora vive DENTRO de
+  // "Configurações da conta" (uma aba só, sem duplicar telefone).
   { icon: Settings, label: "Configurações da conta", path: "/configuracoes" },
   { icon: CircleHelp, label: "Ajuda", path: "/ajuda" },
 ];
@@ -97,6 +98,7 @@ export default function DashboardLayout({
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
+          <LogoFull className="w-52" />
           <div className="flex flex-col items-center gap-6">
             <h1 className="text-2xl font-semibold tracking-tight text-center">
               Entre para continuar
