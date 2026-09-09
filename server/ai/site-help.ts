@@ -28,7 +28,7 @@ export function answerSiteHelp(question: string): SiteHelpResponse {
     return {
       model: "site-help-local",
       topic: "profile",
-      content: "Para atualizar seus dados, abra “Perfil” ou “Meu Cadastro” no menu. Altere somente as informações necessárias e salve ao finalizar.",
+      content: "Para atualizar seus dados (nome, telefone, endereço) ou trocar o e-mail e a senha, abra “Configurações da conta” no menu — está tudo lá, na mesma tela. Altere o que precisar e salve ao finalizar.",
     };
   }
 
@@ -59,6 +59,6 @@ export function answerSiteHelp(question: string): SiteHelpResponse {
   return {
     model: "site-help-local",
     topic: "general",
-    content: "Posso ajudar a encontrar Minhas Consultas, Perfil, Minha Psicóloga, a sala de videochamada ou a página da Luma. Diga qual área você deseja abrir.",
+    content: "Posso ajudar a encontrar Minhas Consultas, Configurações da conta, Minha Psicóloga, a sala de videochamada ou a página da Luma. Diga qual área você deseja abrir.",
   };
 }
