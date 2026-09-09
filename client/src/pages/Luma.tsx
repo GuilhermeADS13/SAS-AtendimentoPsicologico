@@ -121,6 +121,10 @@ export default function Luma() {
           role: "assistant",
           content: result.content,
         }]);
+        // O paciente não executa "ações" (a Luma dele é navegação), então o menu
+        // "E agora?" nunca aparecia. Depois de cada resposta, ofereço os próximos
+        // passos do dia a dia dele — para não deixar a conversa parada.
+        setSugestoesPosAcao(proximosPassosPaciente());
         return;
       }
 
@@ -146,6 +150,11 @@ export default function Luma() {
           : "O apoio de navegação está temporariamente indisponível. Tente novamente em instantes.",
       }]);
     }
+  }
+
+  /** Próximos passos do PACIENTE — o "e agora?" dele, no contexto de navegação. */
+  function proximosPassosPaciente(): string[] {
+    return ["Ver minhas consultas", "Como entro na videochamada?", "Atualizar meus dados"];
   }
 
   /** O que costuma vir depois de cada ação — o "e agora?" da terapeuta. */
@@ -259,7 +268,7 @@ export default function Luma() {
             emptyStateMessage={isClinicalUser ? "Olá! Eu sou a Luma, sua coruja de apoio clínico. Consulto os registros autorizados (sessões e documentos) e cuido da agenda do paciente: agendar, remarcar, cancelar e registrar pagamento. Toda alteração na agenda aparece como uma proposta, e só acontece quando você clicar em Confirmar. Selecione um paciente e uma sugestão abaixo para começar." : "Olá! Eu sou a Luma, sua coruja de apoio no VozInterior. Escolha uma sugestão para aprender a usar o sistema."}
             followUpPrompts={sugestoesPosAcao}
             onRestart={resetConversation}
-            suggestedPrompts={isClinicalUser ? ["Resumir os últimos registros autorizados", "Ver os próximos agendamentos", "Agendar uma consulta", "Organizar os próximos pontos para a sessão"] : ["Ver minhas consultas", "Entrar na videochamada", "Atualizar meu perfil", "Encontrar minha psicóloga"]}
+            suggestedPrompts={isClinicalUser ? ["Resumir os últimos registros autorizados", "Ver os próximos agendamentos", "Agendar uma consulta", "Organizar os próximos pontos para a sessão"] : ["Ver minhas consultas", "Como entro na videochamada?", "Atualizar meus dados", "Encontrar minha psicóloga"]}
             onMessageFeedback={handleFeedback}
             feedbackByMessageId={feedbackByMessageId}
             pendingAction={isClinicalUser ? pendingAction : null}
