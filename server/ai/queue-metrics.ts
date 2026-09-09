@@ -33,7 +33,9 @@ export async function getDocumentQueueMetrics(dbOverride?: Db): Promise<Document
       EXTRACT(EPOCH FROM (now() - MIN("lockedAt") FILTER (WHERE "status" = 'processing')))::int AS "oldestProcessingAgeSeconds"
     FROM "aiDocumentJobs"
   `);
-  const row = (result as unknown as { rows: Array<Record<string, unknown>> }).rows[0] ?? {};
+  // postgres-js devolve o array de linhas direto (não `{ rows }` — isso é
+  // node-postgres). Com `.rows`, a métrica lia sempre `{}` e zerava tudo.
+  const row = (result as unknown as Array<Record<string, unknown>>)[0] ?? {};
   const pending = Number(row.pending ?? 0);
   const processing = Number(row.processing ?? 0);
   const indexed = Number(row.indexed ?? 0);

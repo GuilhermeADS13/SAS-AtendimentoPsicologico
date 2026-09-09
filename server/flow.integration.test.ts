@@ -129,4 +129,14 @@ describe.runIf(RUN)("fluxo de integração (Postgres real)", () => {
     const p = await outroCaller.patients.get({ id: patientId });
     expect(p).toBeNull();
   });
+
+  // Regressão: `db.execute` com o driver postgres-js devolve o array de linhas
+  // direto, não `{ rows }`. Ler `.rows[0]` dava undefined e o worker de indexação
+  // caía a cada ciclo com "Cannot read properties of undefined (reading '0')".
+  // Contra o Postgres real, este teste falharia antes da correção e passa depois.
+  it("a fila de documentos processa sem quebrar no driver (fila vazia → null)", async () => {
+    const { processNextDocumentJob } = await import("./ai/document-queue");
+    const job = await processNextDocumentJob();
+    expect(job).toBeNull();
+  });
 });
