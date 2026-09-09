@@ -5,6 +5,7 @@ import { useRole } from "@/hooks/useRole";
 import { iniciais } from "@/lib/iniciais";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
+import PatientProfile from "./PatientProfile";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -223,6 +224,12 @@ export default function Configuracoes() {
           </CardContent>
         </Card>
 
+        {/* Paciente: o cadastro (nome, telefone, nascimento, endereço, foto) vive
+            AQUI, não numa aba separada — por isso a aba "Meu Cadastro" saiu do
+            menu. O telefone dele vem deste formulário, então a seção "Contato"
+            abaixo não aparece para o paciente (evita dois campos de telefone). */}
+        {!isTherapist && <PatientProfile embedded />}
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -265,6 +272,7 @@ export default function Configuracoes() {
           </CardContent>
         </Card>
 
+        {isTherapist && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -348,6 +356,7 @@ export default function Configuracoes() {
             </Linha>
           </CardContent>
         </Card>
+        )}
       </div>
 
       <Dialog open={dialogoEmail} onOpenChange={setDialogoEmail}>

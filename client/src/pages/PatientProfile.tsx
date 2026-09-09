@@ -16,8 +16,12 @@ function toDateInput(value: unknown): string {
   return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
 }
 
-/** Área do paciente: cadastro próprio + suas consultas agendadas. */
-export default function PatientProfile() {
+/**
+ * Cadastro do paciente. `embedded` = renderizado DENTRO de outra página (a de
+ * Configurações da conta): aí some o título/wrapper próprios, para virar só mais
+ * uma seção. Solto (sem embedded) mantém o cabeçalho "Meu Cadastro".
+ */
+export default function PatientProfile({ embedded = false }: { embedded?: boolean }) {
   const { user } = useAuth();
   const utils = trpc.useUtils();
   const { data: profile, isLoading } = trpc.me.profile.useQuery();
@@ -106,13 +110,15 @@ export default function PatientProfile() {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-foreground">Meu Cadastro</h1>
-        <p className="text-muted-foreground">
-          Seus dados de contato para o atendimento.
-        </p>
-      </div>
+    <div className={embedded ? "space-y-6" : "space-y-6 max-w-2xl"}>
+      {!embedded && (
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold text-foreground">Meu Cadastro</h1>
+          <p className="text-muted-foreground">
+            Seus dados de contato para o atendimento.
+          </p>
+        </div>
+      )}
 
       {!profile && convite && (
         <Card className="border-primary/40 bg-primary/5">
@@ -147,7 +153,9 @@ export default function PatientProfile() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <UserRound className="w-5 h-5 text-primary" />
-            {user?.email}
+            {/* Embutido em Configurações, o e-mail já está no topo da página —
+                aqui vira só o rótulo da seção. */}
+            {embedded ? "Meus dados" : user?.email}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
