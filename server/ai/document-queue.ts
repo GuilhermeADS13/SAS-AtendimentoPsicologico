@@ -67,7 +67,11 @@ export async function claimNextDocumentJob(workerId = randomUUID(), dbOverride?:
     WHERE job."id" = candidate."id"
     RETURNING job."id", job."documentId", job."attempts", job."maxAttempts"
   `);
-  const row = (result as unknown as { rows: ClaimedJob[] }).rows[0];
+  // O driver é postgres-js (ver server/db.ts): `db.execute` devolve o array de
+  // linhas DIRETO, não um objeto `{ rows }` (isso é node-postgres). Ler `.rows`
+  // dava `undefined`, e `.rows[0]` derrubava o worker a cada ciclo com
+  // "Cannot read properties of undefined (reading '0')".
+  const row = (result as unknown as ClaimedJob[])[0];
   return row ?? null;
 }
 
@@ -121,7 +125,9 @@ export async function deadLetterStaleJobs(dbOverride?: Db): Promise<number> {
       AND "lockedAt" < now() - interval '15 minutes'
       AND "attempts" >= "maxAttempts"
   `);
-  return (result as unknown as { rowCount?: number }).rowCount ?? 0;
+  // postgres-js expõe as linhas afetadas em `.count` (não `.rowCount`, que é do
+  // node-postgres). Com o nome errado, o dead-letter reportava sempre 0.
+  return (result as unknown as { count?: number }).count ?? 0;
 }
 
 export async function processNextDocumentJob(dbOverride?: Db): Promise<ClaimedJob | null> {
