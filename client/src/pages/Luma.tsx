@@ -142,10 +142,17 @@ export default function Luma() {
         sources: result.sources,
       }]);
       setPendingAction(result.pendingAction ?? null);
-    } catch {
+    } catch (err) {
+      // Rate limit do provedor de IA (429/TPM do plano) é temporário e não é
+      // "falha do sistema": a mensagem genérica assustava ("informe a equipe")
+      // quando bastava esperar alguns segundos.
+      const msg = err instanceof Error ? err.message : String(err);
+      const semCota = /\b429\b|rate limit|too many requests|tokens per minute|\btpm\b/i.test(msg);
       setMessages(current => [...current, {
         role: "assistant",
-        content: isClinicalUser
+        content: semCota
+          ? "Estou recebendo muitos pedidos ao mesmo tempo e preciso de alguns segundos. Tente de novo em instantes — nada do que você fez foi perdido."
+          : isClinicalUser
           ? "A Luma clínica não conseguiu concluir esta conversa agora. O sistema registrou a falha com segurança. Tente novamente em instantes; se persistir, informe a equipe responsável pelo sistema."
           : "O apoio de navegação está temporariamente indisponível. Tente novamente em instantes.",
       }]);
