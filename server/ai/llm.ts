@@ -162,6 +162,21 @@ export function buildGeneralActivityResponse(): string {
   return "Posso sugerir atividades gerais de acompanhamento, sem atribuí-las a um diagnóstico ou prontuário específico:\n\n1. Registrar mudanças percebidas desde o último encontro.\n2. Anotar situações, emoções e estratégias que ajudaram durante a semana.\n3. Definir um pequeno objetivo para revisar na próxima sessão.\n\nEssas sugestões devem ser adaptadas e revisadas pela profissional responsável antes de serem usadas no atendimento.";
 }
 
+/**
+ * A mensagem pede uma AÇÃO na agenda (agendar/remarcar/cancelar/registrar
+ * pagamento)? Essas ações não dependem de registros clínicos prévios — um
+ * paciente recém-cadastrado ainda não tem sessão nem documento, mas a psicóloga
+ * precisa poder marcar a PRIMEIRA consulta dele. Usada para NÃO curto-circuitar
+ * esses pedidos no atalho de "escopo sem dados".
+ */
+export function pareceAcaoDeAgenda(mensagem: string): boolean {
+  // "marcar" conjuga com C (marcar/marcou) e com QU (marque/marquei) — daí o
+  // (?:c|qu). Idem remarcar/desmarcar. agendar/cancelar/pagar não têm essa troca.
+  return /(agend|remar(?:c|qu)|reagend|desmar(?:c|qu)|\bmar(?:c|qu)|cancel|\bpag|cobran|(criar|nova|abrir|registrar)\W+(?:\w+\W+){0,3}?(consulta|agendament|pagament|sess))/i.test(
+    mensagem,
+  );
+}
+
 export function buildNoClinicalDataResponse(userMessage: string): string {
   const asksForActivities = /atividad|evoluç|próxim|acompanh/i.test(userMessage);
   if (asksForActivities) {
@@ -222,8 +237,19 @@ export async function runOpenSourceAgent(
 
   // Se o escopo não possui nenhum dado, não desperdice tempo com embeddings ou Ollama.
   // A checagem mantém o mesmo filtro de autorização usado pelas ferramentas clínicas.
+  //
+  // EXCEÇÃO: pedidos de AÇÃO na agenda (agendar/remarcar/cancelar/registrar
+  // pagamento) NÃO dependem de registros clínicos prévios — um paciente recém
+  // cadastrado ainda não tem sessão nem documento, mas a psicóloga precisa poder
+  // marcar a PRIMEIRA consulta dele. Sem esta exceção, o atalho respondia "não
+  // encontrei registros" e a Luma nunca chegava às ferramentas de agenda.
   const scopedPatientId = requestedPatientId ?? ctx.patientId ?? undefined;
-  if (isAiRagEnabled() && scopedPatientId != null && !(await hasAuthorizedClinicalData(ctx, scopedPatientId, db))) {
+  if (
+    isAiRagEnabled() &&
+    scopedPatientId != null &&
+    !pareceAcaoDeAgenda(latestUserMessage?.content ?? "") &&
+    !(await hasAuthorizedClinicalData(ctx, scopedPatientId, db))
+  ) {
     recordAgentRequest(Date.now() - startedAt, "success");
     return {
       content: buildNoClinicalDataResponse(latestUserMessage?.content ?? ""),
