@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
+import { formatarData, formatarHora, formatarMesAno } from "@shared/datas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -106,8 +107,8 @@ export default function Appointments() {
     const numero = digits.startsWith("55") ? digits : `55${digits}`; // 55 = Brasil
 
     const dt = new Date(appt.scheduledAt);
-    const data = dt.toLocaleDateString("pt-BR");
-    const hora = dt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const data = formatarData(dt);
+    const hora = formatarHora(dt);
     const url = `${window.location.origin}${roomUrlFor(appt.id, appt.patientId, appt.roomToken)}`;
     const primeiroNome = patientName(appt.patientId).split(" ")[0];
     const comPsi = user?.name ? ` com ${user.name}` : "";
@@ -279,7 +280,7 @@ export default function Appointments() {
   const aReceberMes = doMes
     .filter((a) => !a.paid && a.status !== "cancelled" && a.status !== "no_show")
     .reduce((soma, a) => soma + (a.price ?? 0), 0);
-  const mesLabel = agora.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const mesLabel = formatarMesAno(agora);
   /** "2026-07-15" da consulta no horário de Brasília — comparável ao <input type="date">. */
   const diaDaConsulta = (quando: string | Date) =>
     new Date(quando).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -643,7 +644,7 @@ export default function Appointments() {
                         <div className="min-w-0">
                           <h3 className="truncate font-semibold">{patientName(appointment.patientId)}</h3>
                           <p className="text-sm text-muted-foreground">
-                            {scheduled.toLocaleDateString("pt-BR")} às {scheduled.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} · {appointment.duration} min
+                            {formatarData(scheduled)} às {formatarHora(scheduled)} · {appointment.duration} min
                           </p>
                         </div>
                         <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${getStatusColor(status)}`}>
@@ -667,7 +668,7 @@ export default function Appointments() {
                         </button>
                       </div>
                       <div className="space-y-1 text-xs text-muted-foreground">
-                        {appointment.paidAt ? <p>Pago em {new Date(appointment.paidAt).toLocaleDateString("pt-BR")}</p> : appointment.updatedAt ? <p>Atualizado em {new Date(appointment.updatedAt).toLocaleDateString("pt-BR")}</p> : null}
+                        {appointment.paidAt ? <p>Pago em {formatarData(appointment.paidAt)}</p> : appointment.updatedAt ? <p>Atualizado em {formatarData(appointment.updatedAt)}</p> : null}
                         {appointment.paymentUpdatedByName ? <p>Alterado por {appointment.paymentUpdatedByName}</p> : null}
                       </div>
                       {/* Consulta cancelada ou já realizada não tem sala para copiar nem
@@ -776,16 +777,13 @@ export default function Appointments() {
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <Calendar className="w-4 h-4 text-muted-foreground" />
-                              {scheduled.toLocaleDateString("pt-BR")}
+                              {formatarData(scheduled)}
                             </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <Clock className="w-4 h-4 text-muted-foreground" />
-                              {scheduled.toLocaleTimeString("pt-BR", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
+                              {formatarHora(scheduled)}
                             </div>
                           </TableCell>
                           <TableCell>{appointment.duration} min</TableCell>
@@ -830,11 +828,11 @@ export default function Appointments() {
                                 </button>
                               {appointment.paidAt ? (
                                 <span className="text-[10px] text-muted-foreground" title="Data em que o pagamento foi registrado">
-                                  Pago em {new Date(appointment.paidAt).toLocaleDateString("pt-BR")}
+                                  Pago em {formatarData(appointment.paidAt)}
                                 </span>
                               ) : appointment.updatedAt ? (
                                 <span className="text-[10px] text-muted-foreground" title="Última atualização registrada para esta consulta">
-                                  Atualizado em {new Date(appointment.updatedAt).toLocaleDateString("pt-BR")}
+                                  Atualizado em {formatarData(appointment.updatedAt)}
                                 </span>
                               ) : null}
                               {appointment.paymentUpdatedByName ? (

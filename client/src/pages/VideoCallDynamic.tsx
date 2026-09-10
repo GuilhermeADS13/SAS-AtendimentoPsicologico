@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AlertCircle, ChevronUp, CheckCircle2, Copy, ShieldAlert, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
-import { formatarNascimento } from "@shared/datas";
+import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -391,7 +391,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                       </p>
                       <p className="text-sm text-foreground">
                         {lastSession
-                          ? new Date(lastSession.startedAt).toLocaleString("pt-BR")
+                          ? formatarDataHora(lastSession.startedAt)
                           : "Nenhuma sessão registrada"}
                       </p>
                     </div>
@@ -435,7 +435,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                               patientSessions.map((session) => (
                                 <div key={session.id} className="bg-muted/30 rounded p-2 text-xs border border-border/50">
                                   <p className="font-semibold text-foreground">
-                                    {new Date(session.startedAt).toLocaleDateString("pt-BR")}
+                                    {formatarData(session.startedAt)}
                                   </p>
                                   <p className="text-muted-foreground mt-1 line-clamp-2">
                                     {session.clinicalNotes}
@@ -455,7 +455,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                               {recordings.data?.map((rec) => (
                                 <div key={rec.id} className="bg-muted/30 rounded p-2 text-xs border border-border/50 flex items-center justify-between gap-2">
                                   <span className="text-muted-foreground">
-                                    {rec.startedAt ? new Date(rec.startedAt).toLocaleString("pt-BR") : "—"}
+                                    {rec.startedAt ? formatarDataHora(rec.startedAt) : "—"}
                                     {rec.duration ? ` · ${Math.round(rec.duration / 60)}min` : ""}
                                   </span>
                                   {rec.recordingUrl ? (

@@ -1,4 +1,5 @@
 import { ReactNode, useEffect, useState } from "react";
+import { formatarMesAno } from "@shared/datas";
 import { supabase } from "@/lib/supabase";
 import { trpc } from "@/lib/trpc";
 import { useRole } from "@/hooks/useRole";
@@ -188,7 +189,7 @@ export default function Configuracoes() {
 
   const papel = isAdmin ? "Administradora" : isTherapist ? "Psicóloga" : "Paciente";
   const desde = user?.createdAt
-    ? new Date(user.createdAt).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })
+    ? formatarMesAno(user.createdAt)
     : null;
 
   return (

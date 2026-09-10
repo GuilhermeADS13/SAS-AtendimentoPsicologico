@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatarData } from "@shared/datas";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -77,7 +78,7 @@ export default function TherapistRequests() {
                         <p className="text-sm text-muted-foreground">{r.email}</p>
                         <p className="text-sm text-foreground mt-1">
                           CRP <strong>{r.crp}</strong> · pedido em{" "}
-                          {new Date(r.createdAt).toLocaleDateString("pt-BR")}
+                          {formatarData(r.createdAt)}
                         </p>
                         {r.message && (
                           <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">

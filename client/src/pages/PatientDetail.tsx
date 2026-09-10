@@ -8,7 +8,7 @@ import {
   removeDocumentFile,
 } from "@/lib/supabase";
 import { exportProntuarioPDF, exportProntuarioDOCX } from "@/lib/prontuario-export";
-import { formatarNascimento } from "@shared/datas";
+import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -485,7 +485,7 @@ export default function PatientDetail() {
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4 text-primary" />
                           <span className="font-semibold text-foreground">
-                            {new Date(session.startedAt).toLocaleString("pt-BR")}
+                            {formatarDataHora(session.startedAt)}
                           </span>
                         </div>
                         {session.mood ? (
@@ -556,7 +556,7 @@ export default function PatientDetail() {
                         <div className="min-w-0">
                           <p className="font-semibold text-foreground truncate">{doc.fileName}</p>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(doc.createdAt).toLocaleDateString("pt-BR")} ·{" "}
+                            {formatarData(doc.createdAt)} ·{" "}
                             {Math.max(1, Math.round(doc.fileSize / 1024))} KB
                           </p>
                         </div>
@@ -622,7 +622,7 @@ export default function PatientDetail() {
                           <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
                           <div>
                             <p className="font-medium text-foreground">
-                              {new Date(a.scheduledAt).toLocaleDateString("pt-BR")}
+                              {formatarData(a.scheduledAt)}
                             </p>
                             <p className="text-sm text-muted-foreground">
                               {formatarBRL(a.price)}

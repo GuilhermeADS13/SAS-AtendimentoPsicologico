@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatarData } from "@shared/datas";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -243,7 +244,7 @@ export default function Records() {
                           </span>
                         </TableCell>
                         <TableCell>
-                          {new Date(patient.createdAt).toLocaleDateString("pt-BR")}
+                          {formatarData(patient.createdAt)}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
