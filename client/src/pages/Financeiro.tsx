@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatarData, formatarMesAno } from "@shared/datas";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -34,7 +35,7 @@ function intervalo(periodo: Periodo): { inicio: Date; fim: Date; label: string }
   return {
     inicio: new Date(y, m, 1),
     fim: new Date(y, m + 1, 1),
-    label: hoje.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }),
+    label: formatarMesAno(hoje),
   };
 }
 
@@ -135,9 +136,9 @@ export default function Financeiro() {
     const nome = nomePaciente(g.patientId).split(" ")[0];
     const corpo =
       g.consultas.length === 1
-        ? `do pagamento da nossa consulta do dia ${new Date(
+        ? `do pagamento da nossa consulta do dia ${formatarData(
             g.consultas[0].scheduledAt,
-          ).toLocaleDateString("pt-BR")} (${formatarBRL(g.total)})`
+          )} (${formatarBRL(g.total)})`
         : `do pagamento de ${g.consultas.length} consultas (total ${formatarBRL(g.total)})`;
     const msg = `Olá, ${nome}! 😊\n\nPassando para lembrar ${corpo}.\n\nQualquer dúvida, estou à disposição!`;
     return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
@@ -231,7 +232,7 @@ export default function Financeiro() {
             <div className="space-y-2">
               {grupos.map((g) => {
                 const href = lembrarGrupoHref(g);
-                const desde = new Date(g.consultas[0].scheduledAt).toLocaleDateString("pt-BR");
+                const desde = formatarData(g.consultas[0].scheduledAt);
                 const n = g.consultas.length;
                 return (
                   <Card key={g.patientId}>

@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { formatarData } from "@shared/datas";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { NotificationsMenu, type NotifItem } from "./NotificationsMenu";
@@ -35,7 +36,7 @@ export function PatientNotificationsBell() {
   const items: NotifItem[] = notifications.map((n) => ({
     id: n.id,
     titulo: TYPE_LABEL[n.notificationType] ?? "Aviso da sua consulta",
-    subtitulo: new Date(n.createdAt).toLocaleDateString("pt-BR"),
+    subtitulo: formatarData(n.createdAt),
   }));
 
   return (

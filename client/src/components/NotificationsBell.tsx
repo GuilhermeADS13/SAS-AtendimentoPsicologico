@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { formatarData } from "@shared/datas";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -58,7 +59,7 @@ export function NotificationsBell() {
   const items: NotifItem[] = notifications.map((n) => ({
     id: n.id,
     titulo: TYPE_LABEL[n.notificationType] ?? "Notificação",
-    subtitulo: `${n.recipientEmail} · ${new Date(n.createdAt).toLocaleDateString("pt-BR")} · ${
+    subtitulo: `${n.recipientEmail} · ${formatarData(n.createdAt)} · ${
       STATUS_LABEL[n.status] ?? n.status
     }`,
   }));

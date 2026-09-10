@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatarHora, formatarMesAno, FUSO_BR } from "@shared/datas";
 import type { RouterOutputs } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -36,7 +37,7 @@ function mesmoDia(a: Date, b: Date): boolean {
 }
 
 const hora = (v: string | Date) =>
-  new Date(v).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  formatarHora(v);
 
 /**
  * Agenda em calendário, com duas granularidades: SEMANA (dom–sáb, cada consulta
@@ -80,7 +81,7 @@ export function CalendarioAgenda({
       d.setDate(inicio.getDate() + i);
       return d;
     });
-    const opts: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short" };
+    const opts: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", timeZone: FUSO_BR };
     label = `${inicio.toLocaleDateString("pt-BR", opts)} – ${dias[6].toLocaleDateString("pt-BR", opts)}`;
   } else {
     const primeiro = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
@@ -93,7 +94,7 @@ export function CalendarioAgenda({
       d.setDate(inicioGrade.getDate() + i);
       return d;
     });
-    label = cursor.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    label = formatarMesAno(cursor);
   }
 
   const ampliarDia = (dia: Date) => {

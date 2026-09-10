@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatarDataHora, formatarMesAno } from "@shared/datas";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -45,8 +46,8 @@ export default function MyAppointments() {
       a.therapistName ?? "",
       a.therapistCrp ?? "",
       STATUS_LABEL[a.status] ?? a.status,
-      data.toLocaleString("pt-BR"),
-      data.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }),
+      formatarDataHora(data),
+      formatarMesAno(data),
     ]
       .join(" ")
       .toLowerCase();
@@ -169,7 +170,7 @@ export default function MyAppointments() {
                           ) : null}
                         </p>
                         <p className="text-sm text-foreground/80">
-                          {new Date(a.scheduledAt).toLocaleString("pt-BR")}
+                          {formatarDataHora(a.scheduledAt)}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {a.duration} min
@@ -231,7 +232,7 @@ export default function MyAppointments() {
                           {a.therapistName || "Sua psicóloga"}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {new Date(a.scheduledAt).toLocaleString("pt-BR")}
+                          {formatarDataHora(a.scheduledAt)}
                         </p>
                       </div>
                       <span className="text-xs text-muted-foreground">

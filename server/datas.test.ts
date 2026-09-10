@@ -33,3 +33,33 @@ describe("formatarNascimento", () => {
     expect(formatarNascimento(null, "")).toBe("");
   });
 });
+
+/**
+ * Horário/data COM hora sempre no fuso de Brasília, independentemente de onde a
+ * pessoa abre. O caso "perto da meia-noite" é o que prova o valor: 02:00 UTC do
+ * dia 16 é ainda 23:00 do dia 15 em Brasília — sem fixar o fuso, a tela mostraria
+ * o dia errado (e o navegador de teste, em UTC, mostrava a hora +3).
+ */
+import { formatarData, formatarHora, formatarDataHora, formatarMesAno } from "@shared/datas";
+
+describe("data/hora no fuso de Brasília", () => {
+  it("converte a hora UTC para Brasília (17:00Z → 14:00)", () => {
+    expect(formatarHora("2026-09-15T17:00:00Z")).toBe("14:00");
+  });
+
+  it("formata data e data+hora em Brasília", () => {
+    expect(formatarData("2026-09-15T17:00:00Z")).toBe("15/09/2026");
+    expect(formatarDataHora("2026-09-15T17:00:00Z")).toBe("15/09/2026, 14:00");
+  });
+
+  it("perto da meia-noite, mantém o dia de Brasília (02:00Z do dia 16 = dia 15)", () => {
+    expect(formatarData("2026-09-16T02:00:00Z")).toBe("15/09/2026");
+    expect(formatarHora("2026-09-16T02:00:00Z")).toBe("23:00");
+  });
+
+  it("mês/ano por extenso e fallback para valor ausente", () => {
+    expect(formatarMesAno("2026-09-15T17:00:00Z")).toBe("setembro de 2026");
+    expect(formatarData(null)).toBe("—");
+    expect(formatarHora("não é data")).toBe("—");
+  });
+});

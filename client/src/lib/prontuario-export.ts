@@ -10,7 +10,7 @@
  * profissional clica em baixar, sem pesar no carregamento do app.
  */
 import type { RouterOutputs } from "@/lib/trpc";
-import { formatarNascimento } from "@shared/datas";
+import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
 
 type Patient = NonNullable<RouterOutputs["patients"]["get"]>;
 type Session = RouterOutputs["sessions"]["getByPatient"][number];
@@ -46,10 +46,10 @@ const traco = "—";
 function data(v: unknown): string {
   if (!v) return traco;
   const d = new Date(v as string);
-  return Number.isNaN(d.getTime()) ? traco : d.toLocaleDateString("pt-BR");
+  return Number.isNaN(d.getTime()) ? traco : formatarData(d);
 }
 function dataHora(d: Date): string {
-  return d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+  return formatarDataHora(d);
 }
 function tamanho(bytes: number): string {
   if (!bytes) return traco;
