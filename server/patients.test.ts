@@ -163,7 +163,7 @@ describe("vínculo paciente ↔ psicóloga", () => {
       roomAccess.indexOf("export async function pacienteDoUsuario"),
       roomAccess.indexOf("export type AcessoSala"),
     );
-    expect(helper).toContain("set({ userId: user.id })");
+    expect(helper).toContain("userId: user.id");
   });
 });
 

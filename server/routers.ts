@@ -1124,6 +1124,10 @@ export const appRouter = router({
           email,
           phone: input.phone,
           medicalHistory: input.medicalHistory,
+          // Nasce "pending" (aguardando cadastro): é só o convite da psicóloga,
+          // o paciente ainda não criou/vinculou a conta dele. Vira "active"
+          // sozinho quando ele entra pela primeira vez (ver pacienteDoUsuario).
+          status: "pending",
         });
 
         return result;

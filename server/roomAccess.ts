@@ -47,12 +47,17 @@ export async function pacienteDoUsuario(db: Db, user: Usuario) {
 
   if (!convite.length) return null;
 
+  // Vínculo fechado agora: o paciente criou a conta e entrou. Se estava
+  // "pending" (só o convite da psicóloga), passa a "active". Não mexe em quem
+  // foi inativado/arquivado de propósito — o set repõe o mesmo valor.
+  const status = convite[0].status === "pending" ? ("active" as const) : convite[0].status;
+
   await db
     .update(patients)
-    .set({ userId: user.id })
+    .set({ userId: user.id, status })
     .where(eq(patients.id, convite[0].id));
 
-  return { ...convite[0], userId: user.id };
+  return { ...convite[0], userId: user.id, status };
 }
 
 export type AcessoSala = {
