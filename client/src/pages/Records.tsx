@@ -237,10 +237,16 @@ export default function Records() {
                             className={`px-2 py-1 rounded-full text-xs font-semibold ${
                               patient.status === "active"
                                 ? "bg-green-100 text-green-800"
-                                : "bg-gray-100 text-gray-800"
+                                : patient.status === "pending"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-gray-100 text-gray-800"
                             }`}
                           >
-                            {patient.status === "active" ? "Ativo" : "Inativo"}
+                            {patient.status === "active"
+                              ? "Ativo"
+                              : patient.status === "pending"
+                                ? "Aguardando cadastro"
+                                : "Inativo"}
                           </span>
                         </TableCell>
                         <TableCell>
