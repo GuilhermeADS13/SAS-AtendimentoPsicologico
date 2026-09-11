@@ -529,7 +529,14 @@ export const appRouter = router({
       .input(z.object({
         firstName: z.string().min(1),
         lastName: z.string().min(1),
-        phone: z.string().optional(),
+        // Obrigatório: é por ele que a psicóloga avisa/lembra o paciente pelo
+        // WhatsApp (ver whatsappHref em Appointments/Financeiro). Exige DDD +
+        // número (>= 10 dígitos), senão o link wa.me não abre uma conversa real.
+        phone: z
+          .string()
+          .refine((v) => v.replace(/\D/g, "").length >= 10, {
+            message: "Informe um telefone com DDD (ex.: (81) 99999-9999) — é por ele que sua psicóloga te contata no WhatsApp.",
+          }),
         dateOfBirth: z.string().optional(),
         address: z.string().optional(),
         /** Path no bucket `avatars`. "" remove a foto. Opcional. */
