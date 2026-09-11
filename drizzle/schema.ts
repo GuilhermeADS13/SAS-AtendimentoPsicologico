@@ -207,7 +207,7 @@ export const appointments = pgTable("appointments", {
    * Código aleatório que entra no nome da sala de vídeo (apt<id>-<roomToken>),
    * para o link ser IMPOSSÍVEL de adivinhar. Antes a sala era `sala-apt<id>`
    * (sequencial): dava para enumerar sala-apt1, sala-apt2... e cair numa consulta
-   * clínica, inclusive direto no servidor público do MiroTalk. Com o token, só
+   * clínica. Com o token, só
    * entra quem tem o link exato — o modelo do Zoom/Meet.
    */
   roomToken: varchar("roomToken", { length: 32 }),
