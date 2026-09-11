@@ -24,8 +24,8 @@ const writeLS = (k: string, v: string) => {
 /**
  * Tela de preparação antes de entrar na videochamada: escolher e testar
  * microfone, câmera e alto-falante (com preview, medidor de nível do microfone e
- * teste de som). Ao entrar, o stream do preview é liberado — o Daily/MiroTalk
- * pede o seu próprio dentro do iframe. Serve também de sala de espera leve.
+ * teste de som). Ao entrar, o stream do preview é liberado — a videochamada
+ * WebRTC pega o seu próprio. Serve também de sala de espera leve.
  */
 export default function VideoCallLobby({
   title,

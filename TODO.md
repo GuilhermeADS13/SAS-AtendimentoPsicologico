@@ -34,14 +34,14 @@ Estado em 2026-07-15. Em produção: https://sas-atendimento-psicologico.onrende
 - [x] O que o paciente edita atualiza sozinho na grade da psicóloga (mesma linha no banco)
 
 ## Módulo de Videochamada
-- [x] MiroTalk SFU embutido (instância pública; VITE_MIROTALK_URL para self-host)
+- [x] Videochamada WebRTC própria P2P (STUN grátis; TURN opcional via Metered)
 - [x] Sala por agendamento (sala-apt<id>), ligando prontuário e anotações
 - [x] Prontuário em aba separada da chamada, só para a psicóloga
 - [x] Botão "Copiar link da sala" (psicóloga)
 - [x] Anotações da sessão com auto-save durante a chamada
 - [x] Notificações de presença em tempo real (WebSocket)
 - [x] Registro da chamada no banco (videoCalls) + campo recordingUrl
-- [ ] Gravação de fato — exige self-host do MiroTalk (a instância pública não grava)
+- [ ] Gravação de fato — não implementada (a videochamada WebRTC atual não grava)
 - [ ] Tela de histórico de videochamadas
 
 ## Prontuários

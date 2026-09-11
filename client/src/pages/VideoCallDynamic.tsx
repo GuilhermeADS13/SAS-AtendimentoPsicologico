@@ -28,7 +28,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const [showSidebar, setShowSidebar] = useState(false);
   const [patientPresent, setPatientPresent] = useState(false);
   const [sessionNotes, setSessionNotes] = useState("");
-  // Só entra na chamada (MiroTalk) depois de passar pela tela de preparação.
+  // Só entra na chamada depois de passar pela tela de preparação.
   const [joined, setJoined] = useState(false);
   const [nowTs, setNowTs] = useState(() => Date.now());
   const joinedAtRef = useRef(0);
@@ -212,7 +212,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
     if (!window.confirm("Encerrar a videochamada agora?")) return;
     if (notesEnabled) {
       const durationSeconds = Math.round((Date.now() - startedAtRef.current) / 1000);
-      // Persiste fim da sessão (e a URL da gravação, quando disponível do MiroTalk).
+      // Persiste o fim da sessão (duração) no banco.
       try {
         await finishCall.mutateAsync({ roomId: room, durationSeconds });
       } catch (err) {
@@ -291,7 +291,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
 
         {/* Main Content — empilha no mobile, lado a lado no desktop */}
         <div className="flex-1 flex flex-col gap-4 min-h-0 lg:flex-row">
-          {/* MiroTalk Container */}
+          {/* Vídeo (WebRTC P2P) */}
           <div className="relative flex-1 min-h-[55vh] bg-black rounded-lg overflow-hidden flex flex-col lg:min-h-0">
             {isTherapist && !patientPresent && !error && (
               <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-xs font-medium text-white shadow">
