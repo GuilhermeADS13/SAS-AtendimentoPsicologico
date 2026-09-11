@@ -242,11 +242,6 @@ Ressalva: dorme após ~15 min sem uso (a próxima visita leva ~50s para acordar)
 3. Cada push na **`main` redeploya sozinho** (`autoDeploy`) — ou seja, **push na
    `main` é deploy em produção**
 
-### Fly.io (CD opcional)
-
-`.github/workflows/cd.yml` faz deploy no Fly a cada push na `main`, **depois** do CI.
-Sem o segredo `FLY_API_TOKEN`, o passo é pulado sem falhar o build.
-
 ---
 
 ## 👥 Papéis e cadastro de psicólogas
