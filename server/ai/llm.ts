@@ -46,6 +46,50 @@ export function getOpenSourceLlmConfig(env: NodeJS.ProcessEnv = process.env): Op
   };
 }
 
+/**
+ * Cadeia de provedores de IA, em ordem de preferência. O primeiro é o principal
+ * (LLM_*); os seguintes são backups numerados (LLM_FALLBACK_1_*, _2_, …). Quando
+ * o principal estoura o rate limit (a Groq free são 8000 tokens/min, e o
+ * cancelamento pela Luma clínica já chega perto), o agente cai para o próximo,
+ * que tem cota própria e fresca. Cada backup precisa da API compatível com
+ * OpenAI; para a Luma CLÍNICA, precisa também suportar function calling (Cerebras,
+ * OpenRouter, Together). Sem backups configurados, a lista tem só o principal.
+ */
+export function getLlmProviders(env: NodeJS.ProcessEnv = process.env): OpenSourceLlmConfig[] {
+  const clean = (v: string | undefined) => v?.trim();
+  const providers = [getOpenSourceLlmConfig(env)];
+  for (let i = 1; i <= 5; i++) {
+    const baseUrl = clean(env[`LLM_FALLBACK_${i}_BASE_URL`]);
+    const apiKey = clean(env[`LLM_FALLBACK_${i}_API_KEY`]);
+    const model = clean(env[`LLM_FALLBACK_${i}_MODEL`]);
+    if (baseUrl && apiKey && model) {
+      providers.push({
+        baseUrl,
+        apiKey,
+        model,
+        temperature: Number(clean(env[`LLM_FALLBACK_${i}_TEMPERATURE`]) ?? clean(env.LLM_TEMPERATURE) ?? "0.2"),
+        maxTokens: Number(clean(env[`LLM_FALLBACK_${i}_MAX_TOKENS`]) ?? clean(env.LLM_MAX_TOKENS) ?? "800"),
+      });
+    }
+  }
+  return providers;
+}
+
+/**
+ * Vale cair para o próximo provedor? Só para falhas do PROVEDOR que outro poderia
+ * atender: rate limit (429/TPM), sobrecarga (5xx) ou queda de conexão. Um 400/401
+ * é problema da nossa requisição/chave — repetiria em qualquer provedor, então
+ * não adianta o fallback.
+ */
+export function deveTentarProximoProvedor(error: unknown): boolean {
+  const status = (error as { status?: number })?.status;
+  if (status === 429 || (typeof status === "number" && status >= 500)) return true;
+  const msg = error instanceof Error ? error.message : String(error);
+  return /\b429\b|rate limit|tokens per minute|\btpm\b|too many requests|overloaded|service unavailable|timeout|ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN|fetch failed/i.test(
+    msg,
+  );
+}
+
 export function createOpenSourceChatModel(config = getOpenSourceLlmConfig()) {
   // reasoning_effort (low|medium|high) para modelos de raciocínio como o gpt-oss,
   // opcional via LLM_REASONING_EFFORT. O raciocínio consome o orçamento de tokens,
@@ -284,7 +328,6 @@ export async function runOpenSourceAgent(
     }
   };
   const toolsEnabled = areClinicalToolsEnabled() && isAiRagEnabled();
-  const chatModel = createOpenSourceChatModel(config);
   const patientName = scopedPatientId != null ? await getScopedPatientName(db, ctx, scopedPatientId) : undefined;
   let systemPrompt = clinicalSystemPrompt(ctx, requestedPatientId, toolsEnabled, patientName);
   // Memória: dá continuidade usando conversas anteriores da terapeuta com a Luma
@@ -296,45 +339,64 @@ export async function runOpenSourceAgent(
     }
   }
 
-  let content: string;
-  try {
-    if (toolsEnabled) {
-      const agent = createAgent({
-        model: chatModel,
-        tools: createClinicalTools(ctx, db, collectSources, turnKey, pending => { pendingAction = pending; }),
-        systemPrompt,
-      });
-      const result = await agent.invoke({
-        messages: preparedMessages.map(message => [message.role, message.content] as const),
-      });
-      content = contentToText(result.messages.at(-1)?.content).trim();
-    } else {
-      // Sem ferramentas, o createAgent envia tool_choice:"none". Modelos agênticos
-      // (gpt-oss e afins) ainda emitem uma chamada de ferramenta, e o provedor
-      // responde 400 ("Tool choice is none, but model called a tool"). Sem
-      // ferramentas basta o chat direto: sem tool_choice, sem esse conflito.
-      const withSystem: OpenSourceChatMessage[] = [
-        { role: "system", content: systemPrompt },
-        ...preparedMessages,
-      ];
-      const response = await chatModel.invoke(
-        withSystem.map(message => [message.role, message.content] as const),
+  // Failover: tenta cada provedor em ordem. Se o atual está sem cota (429/TPM) ou
+  // fora do ar, cai para o próximo — que tem limite próprio. Só desiste quando a
+  // lista acaba ou o erro não é do tipo que outro provedor resolveria.
+  const provedores = getLlmProviders();
+  let content = "";
+  let modeloUsado = config.model;
+  for (let tentativa = 0; tentativa < provedores.length; tentativa++) {
+    const prov = provedores[tentativa];
+    // Reset entre tentativas: um provedor que falhou não pode deixar proposta ou
+    // fontes da tentativa anterior contaminando a resposta do próximo.
+    pendingAction = undefined;
+    sourceMap.clear();
+    const chatModel = createOpenSourceChatModel(prov);
+    try {
+      if (toolsEnabled) {
+        const agent = createAgent({
+          model: chatModel,
+          tools: createClinicalTools(ctx, db, collectSources, turnKey, pending => { pendingAction = pending; }),
+          systemPrompt,
+        });
+        const result = await agent.invoke({
+          messages: preparedMessages.map(message => [message.role, message.content] as const),
+        });
+        content = contentToText(result.messages.at(-1)?.content).trim();
+      } else {
+        // Sem ferramentas, o createAgent envia tool_choice:"none". Modelos agênticos
+        // (gpt-oss e afins) ainda emitem uma chamada de ferramenta, e o provedor
+        // responde 400 ("Tool choice is none, but model called a tool"). Sem
+        // ferramentas basta o chat direto: sem tool_choice, sem esse conflito.
+        const withSystem: OpenSourceChatMessage[] = [
+          { role: "system", content: systemPrompt },
+          ...preparedMessages,
+        ];
+        const response = await chatModel.invoke(
+          withSystem.map(message => [message.role, message.content] as const),
+        );
+        content = contentToText(response.content).trim();
+      }
+      modeloUsado = prov.model;
+      break;
+    } catch (error) {
+      // Log sem segredos (modelo, flag de ferramentas, status e mensagem do
+      // provedor) para diagnosticar pelo Logs do Render sem expor a chave.
+      const status = (error as { status?: number })?.status;
+      const detail = error instanceof Error ? error.message : String(error);
+      const temProximo = tentativa < provedores.length - 1 && deveTentarProximoProvedor(error);
+      console.error(
+        `[luma] provedor ${tentativa + 1}/${provedores.length} (model=${prov.model}, tools=${toolsEnabled}, status=${status ?? "?"}) falhou${temProximo ? ", tentando o próximo" : ""}: ${detail}`,
       );
-      content = contentToText(response.content).trim();
+      if (temProximo) continue;
+      recordAgentRequest(Date.now() - startedAt, "error");
+      throw error;
     }
-  } catch (error) {
-    recordAgentRequest(Date.now() - startedAt, "error");
-    // Log sem segredos (modelo, flag de ferramentas, status e mensagem do
-    // provedor) para diagnosticar pelo Logs do Render sem expor a chave.
-    const status = (error as { status?: number })?.status;
-    const detail = error instanceof Error ? error.message : String(error);
-    console.error(`[luma] agente falhou (model=${config.model}, tools=${toolsEnabled}, status=${status ?? "?"}): ${detail}`);
-    throw error;
   }
   if (!content) throw new Error("O agente não retornou conteúdo");
   const response = {
     content,
-    model: config.model,
+    model: modeloUsado,
     sources: Array.from(sourceMap.values()),
     ...(pendingAction ? { pendingAction } : {}),
   };
