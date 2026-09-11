@@ -99,10 +99,16 @@ export default function PatientProfile({ embedded = false }: { embedded?: boolea
       toast.error("Informe nome e sobrenome.");
       return;
     }
+    // Telefone é obrigatório: é por ele que a psicóloga te avisa/lembra pelo
+    // WhatsApp. Sem DDD + número o link não abre uma conversa real.
+    if (form.phone.replace(/\D/g, "").length < 10) {
+      toast.error("Informe um telefone com DDD — é por ele que sua psicóloga te contata no WhatsApp.");
+      return;
+    }
     save.mutate({
       firstName: form.firstName,
       lastName: form.lastName,
-      phone: form.phone || undefined,
+      phone: form.phone,
       dateOfBirth: form.dateOfBirth || undefined,
       address: form.address || undefined,
       photoKey: form.photoKey,
@@ -195,13 +201,16 @@ export default function PatientProfile({ embedded = false }: { embedded?: boolea
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Telefone</Label>
+                  <Label htmlFor="phone">Telefone *</Label>
                   <Input
                     id="phone"
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
                     placeholder="(81) 99999-9999"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Sua psicóloga usa para te avisar e lembrar das consultas pelo WhatsApp.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="dateOfBirth">Data de Nascimento</Label>

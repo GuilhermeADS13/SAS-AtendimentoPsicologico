@@ -117,8 +117,21 @@ describe("vínculo paciente ↔ psicóloga", () => {
   it("quem não foi cadastrado pela psicóloga não consegue criar o próprio cadastro", async () => {
     const caller = appRouter.createCaller(createAuthContext(2, "user"));
     await expect(
-      caller.me.saveProfile({ firstName: "Ana", lastName: "Souza" }),
+      caller.me.saveProfile({ firstName: "Ana", lastName: "Souza", phone: "(81) 99999-9999" }),
     ).rejects.toThrow();
+  });
+
+  /**
+   * O telefone do paciente é obrigatório: é a única via da psicóloga para
+   * avisar/lembrar pelo WhatsApp (whatsappHref em Appointments/Financeiro). Sem
+   * DDD + número, o link wa.me não abre conversa — então a validação recusa
+   * ANTES de tocar o banco.
+   */
+  it("saveProfile exige um telefone com DDD para a feature de WhatsApp", async () => {
+    const caller = appRouter.createCaller(createAuthContext(2, "user"));
+    await expect(
+      caller.me.saveProfile({ firstName: "Ana", lastName: "Souza", phone: "99999" }),
+    ).rejects.toThrow(/telefone/i);
   });
 
   /**
