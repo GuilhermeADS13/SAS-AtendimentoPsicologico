@@ -89,6 +89,16 @@ services:
         value: "0.2"
       - key: LLM_MAX_TOKENS
         value: "800"
+      # FAILOVER: quando o Groq fica sem cota (429/TPM), a Luma cai para este
+      # backup, que tem limite proprio. Cerebras: free, rapido e com function
+      # calling (necessario para a Luma clinica agendar/cancelar). So preencher a
+      # chave no painel liga o failover; sem ela, segue so no Groq.
+      - key: LLM_FALLBACK_1_BASE_URL
+        value: https://api.cerebras.ai/v1
+      - key: LLM_FALLBACK_1_MODEL
+        value: gpt-oss-120b
+      - key: LLM_FALLBACK_1_API_KEY # chave da Cerebras (cerebras.ai) — SEGREDO
+        sync: false
       - key: AI_AGENT_ENABLED # false = desliga a Luma na hora (kill switch)
         value: "true"
 
