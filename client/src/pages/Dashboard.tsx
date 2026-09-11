@@ -33,7 +33,11 @@ export default function Dashboard() {
   const consultasHoje = appointments.filter(
     (a) => a.status === "scheduled" && isToday(a.scheduledAt),
   ).length;
-  const pacientesAtivos = patients.filter((p) => p.status === "active").length;
+  // Conta quem está na grade da psicóloga: ativos + aguardando cadastro (quem ela
+  // já cadastrou mas ainda não vinculou a conta). Só exclui inativados/arquivados.
+  const pacientesNaGrade = patients.filter(
+    (p) => p.status === "active" || p.status === "pending",
+  ).length;
 
   if (loading) {
     return (
@@ -84,8 +88,8 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">{pacientesAtivos}</div>
-              <p className="text-xs text-muted-foreground mt-1">Pacientes ativos</p>
+              <div className="text-2xl font-bold text-foreground">{pacientesNaGrade}</div>
+              <p className="text-xs text-muted-foreground mt-1">Ativos e aguardando cadastro</p>
             </CardContent>
           </Card>
 
