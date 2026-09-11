@@ -7,7 +7,7 @@ com os cuidados de privacidade que isso exige.
 ![CI](https://github.com/GuilhermeADS13/SAS-AtendimentoPsicologico/actions/workflows/ci.yml/badge.svg)
 ![Status](https://img.shields.io/badge/status-em%20produção-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-1.0.1-blue)
 
 ---
 
@@ -34,6 +34,8 @@ navegadores**; o servidor só intermedeia o aperto de mão.
   e **SAMU 192**, sem passar pelo modelo
 - **RAG** — busca em documentos indexados (pgvector), com filtro de escopo no `WHERE`
 - **Ações com confirmação** — agendar/alterar só depois de o usuário confirmar
+- **Failover de provedor** — se o LLM principal fica sem cota (429), a Luma cai para
+  um backup configurado, sem quebrar a conversa
 - **Tour de boas-vindas** — na primeira entrada, a Luma apresenta cada aba do sistema
 
 ### 📋 Prontuários e sessões
@@ -41,11 +43,16 @@ navegadores**; o servidor só intermedeia o aperto de mão.
 Cadastro de pacientes, histórico clínico, anotações por sessão e evolução ao longo
 do tempo. Upload de documentos com indexação assíncrona (fila + OCR).
 
+O paciente cadastrado pela psicóloga fica **Aguardando cadastro** até criar a conta
+com o mesmo e-mail — aí vira **Ativo**. Ele mantém os próprios dados de contato, com
+**telefone obrigatório** (usado nos avisos por WhatsApp).
+
 ### 📅 Agenda e financeiro
 
 Calendário, status (agendado / realizado / cancelado / a confirmar), filtros por
 data e por pagamento, duração flexível, exportação para **Google Calendar e `.ics`**,
-e **lembretes automáticos por e-mail**.
+**lembretes automáticos por e-mail** e **avisos semiautomáticos por WhatsApp** (abre a
+conversa com a mensagem pronta — lembrete, cancelamento ou cobrança).
 
 ### 👤 Autenticação e papéis
 
@@ -107,6 +114,7 @@ AI_AGENT_ENABLED=true
 LLM_BASE_URL=https://api.groq.com/openai/v1
 LLM_API_KEY=<chave>
 LLM_MODEL=openai/gpt-oss-120b
+# Backup opcional p/ o rate limit (429): LLM_FALLBACK_1_BASE_URL / _API_KEY / _MODEL
 # Embeddings do RAG: precisa de um endpoint com /embeddings próprio.
 LLM_EMBEDDING_BASE_URL=<url>
 LLM_EMBEDDING_MODEL=<modelo>
@@ -147,7 +155,7 @@ pnpm ai:worker   # opcional: fila de indexação de documentos
 │   ├── ai/                 # Luma: llm, rag, clinical-tools, clinical-safety, worker
 │   └── _core/              # Express, tRPC, auth, roteador de upgrade WS
 ├── drizzle/                # schema.ts (17 tabelas) + migrations
-├── shared/                 # Código compartilhado (ex.: calendario.ts)
+├── shared/                 # Código compartilhado (calendario, datas, dinheiro, crp…)
 ├── e2e/                    # Playwright
 └── docs/                   # Notas de arquitetura e operação
 ```
@@ -295,7 +303,7 @@ Por ser um sistema **clínico**, alguns pontos são inegociáveis:
   SAMU 192) e recusa de assuntos fora do sistema
 - **Sem dados clínicos em log ou em mensagem de commit**
 - **SQL injection** — prevenido pelo Drizzle; **XSS** — sanitização do React
-- **Segredos** — só no host (Render/Fly). Se um vazar, **rotacione**: chave nova no
+- **Segredos** — só no host (Render). Se um vazar, **rotacione**: chave nova no
   painel *e* variável atualizada no mesmo momento
 
 Política de privacidade e LGPD estão publicadas em `/privacidade`.
@@ -334,4 +342,4 @@ MIT — veja [LICENSE](LICENSE).
 
 ---
 
-**Versão:** 1.0.0 · **Última atualização:** Setembro de 2026 · **Status:** ✅ em produção
+**Versão:** 1.0.1 · **Última atualização:** Setembro de 2026 · **Status:** ✅ em produção
