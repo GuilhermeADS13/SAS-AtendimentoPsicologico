@@ -4,7 +4,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { LumaOwlIcon } from "@/components/Logo";
 import { Loader2, Send, User, Sparkles, ThumbsUp, ThumbsDown, RotateCcw, CalendarClock, Check, X } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Streamdown } from "streamdown";
 
 /**
@@ -85,6 +85,13 @@ export type AIChatBoxProps = {
    * Click to send directly
    */
   suggestedPrompts?: string[];
+
+  /**
+   * Menu de sugestões "rico" (ícone + rótulo + dica curta), mostrado no estado
+   * vazio como cartões organizados. Quando presente, tem prioridade sobre
+   * `suggestedPrompts`. O clique envia o `label` como mensagem.
+   */
+  suggestedMenu?: { label: string; hint?: string; icon?: ReactNode }[];
 
   /**
    * Display identity for the assistant persona
@@ -194,6 +201,7 @@ export function AIChatBox({
   height = "600px",
   emptyStateMessage = "Converse com a Luma, sua coruja de apoio.",
   suggestedPrompts,
+  suggestedMenu,
   followUpPrompts,
   onRestart,
   agentName = "Luma",
@@ -336,7 +344,31 @@ export function AIChatBox({
                 <p className="max-w-2xl break-words text-sm">{emptyStateMessage}</p>
               </div>
 
-              {suggestedPrompts && suggestedPrompts.length > 0 && (
+              {suggestedMenu && suggestedMenu.length > 0 ? (
+                <div className="grid w-full max-w-xl grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  {suggestedMenu.map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => onSendMessage(item.label)}
+                      disabled={isLoading}
+                      className="flex items-start gap-3 rounded-xl border border-border bg-card px-3 py-3 text-left transition-colors hover:border-primary/40 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {item.icon && (
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          {item.icon}
+                        </span>
+                      )}
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium text-foreground">{item.label}</span>
+                        {item.hint && (
+                          <span className="mt-0.5 block text-xs text-muted-foreground">{item.hint}</span>
+                        )}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : suggestedPrompts && suggestedPrompts.length > 0 ? (
                 <div className="flex w-full max-w-2xl flex-wrap justify-center gap-2">
                   {suggestedPrompts.map((prompt) => (
                     <button
@@ -350,7 +382,7 @@ export function AIChatBox({
                     </button>
                   ))}
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
         ) : (

@@ -20,6 +20,20 @@ describe("separação de papéis da Luma", () => {
     expect(response.content).not.toMatch(/prontu[aá]rio|diagn[oó]stico/i);
   });
 
+  // A Luma do paciente (navegação, sem LLM) também precisa acolher crise: é ela
+  // que o paciente tem à mão. Uma fala de risco não pode cair no menu de ajuda.
+  it("intercepta crise no modo paciente com acolhimento e CVV/SAMU", () => {
+    const response = answerSiteHelp("não aguento mais viver");
+    expect(response.topic).toBe("crisis");
+    expect(response.content).toMatch(/\b188\b|CVV/);
+    expect(response.content).toMatch(/\b192\b|SAMU/);
+  });
+
+  it("não faz diagnóstico nem indica medicação no modo paciente", () => {
+    expect(answerSiteHelp("qual é o meu diagnóstico?").topic).toBe("boundary");
+    expect(answerSiteHelp("qual remédio devo tomar?").topic).toBe("boundary");
+  });
+
   it("responde sugestões de atividades sem depender do modelo", () => {
     const response = buildGeneralActivityResponse();
 
