@@ -31,6 +31,9 @@ importers:
       '@langchain/openai':
         specifier: ^1.5.8
         version: 1.5.8(@langchain/core@1.2.8(openai@6.49.0(ws@8.21.0)(zod@4.1.12))(ws@8.21.0))(ws@8.21.0)
+      '@mediapipe/tasks-vision':
+        specifier: ^1.0.1
+        version: 1.0.1
       '@radix-ui/react-accordion':
         specifier: ^1.2.12
         version: 1.2.12(@types/react-dom@19.2.1(@types/react@19.2.1))(@types/react@19.2.1)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
@@ -1211,6 +1214,9 @@ packages:
     peerDependencies:
       '@llamaindex/core': 0.6.22
       '@llamaindex/env': 0.1.30
+
+  '@mediapipe/tasks-vision@1.0.1':
+    resolution: {integrity: sha512-rvRE2FmAZ6ZxKSw7wq+e+jQDpN3t1B/tD2mJz9SmAzb1msoDkd4dMoE4wAh8Z30Um0PQwLiHr9QtomhmXk3aUQ==}
 
   '@medv/finder@4.0.2':
     resolution: {integrity: sha512-RraNY9SCcx4KZV0Dh6BEW6XEW2swkqYca74pkFFRw6hHItSHiy+O/xMnpbofjYbzXj0tSpBGthUF1hHTsr3vIQ==}
@@ -6078,6 +6084,8 @@ snapshots:
       - p-retry
       - rxjs
       - zod
+
+  '@mediapipe/tasks-vision@1.0.1': {}
 
   '@medv/finder@4.0.2': {}
 

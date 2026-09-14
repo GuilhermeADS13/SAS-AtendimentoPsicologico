@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Focus,
+  Image as ImageIcon,
   Loader2,
   Maximize,
   Mic,
@@ -12,8 +13,15 @@ import {
   VideoOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import { getAccessToken } from "@/lib/supabase";
+import {
+  carregarImagemFundo,
+  iniciarFundoVirtual,
+  type ControleFundo,
+} from "@/lib/virtualBackground";
 
 /**
  * Videochamada 1:1 peer-to-peer (WebRTC), sem provedor externo nem cartão.
@@ -57,6 +65,18 @@ const readLS = (k: string) => {
 const STUN_RESERVA: RTCIceServer[] = [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
 ];
+
+/**
+ * Fundos virtuais (imagens em client/public/backgrounds). Oferecidos só no
+ * desktop: a segmentação processa cada quadro e pesaria demais no celular.
+ */
+const FUNDOS = [
+  { nome: "Biblioteca", url: "/backgrounds/biblioteca.jpg" },
+  { nome: "Escritório", url: "/backgrounds/escritorio-plantas.jpg" },
+  { nome: "Floresta", url: "/backgrounds/floresta.jpg" },
+  { nome: "Sala clara", url: "/backgrounds/sala-clara.jpg" },
+  { nome: "Home office", url: "/backgrounds/home-office.jpg" },
+] as const;
 
 /**
  * Qualidade da chamada, ajustada no PRÓPRIO cliente (setParameters do WebRTC) —
@@ -111,6 +131,11 @@ export default function WebRTCCall({
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const telaStreamRef = useRef<MediaStream | null>(null);
+  // Pipeline de fundo virtual (null = desligado) e a trilha de vídeo do "lado da
+  // câmera" atualmente enviada — câmera crua OU o canvas do fundo. É a que o
+  // compartilhamento de tela restaura ao parar.
+  const fundoRef = useRef<ControleFundo | null>(null);
+  const trilhaCameraRef = useRef<MediaStreamTrack | null>(null);
   // Candidatos ICE que chegam antes de termos a descrição remota ficam na fila.
   const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
 
@@ -121,6 +146,8 @@ export default function WebRTCCall({
   const [telaCheia, setTelaCheia] = useState(false);
   const [desfoqueSuportado, setDesfoqueSuportado] = useState(false);
   const [desfoqueLigado, setDesfoqueLigado] = useState(false);
+  const [fundoAtual, setFundoAtual] = useState<string | null>(null);
+  const [fundoCarregando, setFundoCarregando] = useState(false);
 
   // Compartilhar tela usa getDisplayMedia, uma API só de DESKTOP: o iOS Safari não
   // tem e o Chrome no Android não a suporta. Sem esta checagem, o botão aparecia no
@@ -129,6 +156,12 @@ export default function WebRTCCall({
   const podeCompartilharTela =
     typeof navigator !== "undefined" &&
     typeof navigator.mediaDevices?.getDisplayMedia === "function";
+
+  // "Desktop" = tem mouse (hover + ponteiro fino). O fundo virtual roda MediaPipe
+  // quadro a quadro; no celular pesaria a consulta, então só é oferecido aqui.
+  const ehDesktop =
+    typeof window !== "undefined" &&
+    !!window.matchMedia?.("(hover: hover) and (pointer: fine)").matches;
 
   useEffect(() => {
     let disposed = false;
@@ -170,6 +203,7 @@ export default function WebRTCCall({
         return;
       }
       localStreamRef.current = stream;
+      trilhaCameraRef.current = stream.getVideoTracks()[0] ?? null;
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
       // O desfoque de fundo só existe em alguns navegadores/sistemas: pergunta à
@@ -307,6 +341,8 @@ export default function WebRTCCall({
       } catch {
         /* já fechado */
       }
+      fundoRef.current?.parar();
+      fundoRef.current = null;
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       wsRef.current = null;
       pcRef.current = null;
@@ -339,9 +375,11 @@ export default function WebRTCCall({
   const pararCompartilhamento = useCallback(async () => {
     telaStreamRef.current?.getTracks().forEach(t => t.stop());
     telaStreamRef.current = null;
-    const camera = localStreamRef.current?.getVideoTracks()[0];
+    // Volta ao "lado da câmera" atual: o fundo virtual, se estiver ligado, ou a
+    // câmera crua.
+    const volta = trilhaCameraRef.current ?? localStreamRef.current?.getVideoTracks()[0];
     const sender = pcRef.current?.getSenders().find(s => s.track?.kind === "video");
-    if (camera && sender) await sender.replaceTrack(camera);
+    if (volta && sender) await sender.replaceTrack(volta);
     // Voltou a camera: prioridade e a fluidez do rosto de novo.
     if (pcRef.current) await ajustarQualidade(pcRef.current, "camera");
     setCompartilhando(false);
@@ -373,10 +411,59 @@ export default function WebRTCCall({
     }
   };
 
+  /**
+   * Fundo virtual: substitui o fundo real por uma imagem (ou desliga). Troca a
+   * trilha enviada (replaceTrack) pela do canvas processado. É mutuamente
+   * exclusivo com o desfoque nativo — os dois sobre a mesma câmera se anulariam.
+   */
+  const trocarFundo = async (url: string | null) => {
+    const camera = localStreamRef.current;
+    if (!camera) return;
+    const sender = pcRef.current?.getSenders().find(s => s.track?.kind === "video");
+    try {
+      if (url === null) {
+        fundoRef.current?.parar();
+        fundoRef.current = null;
+        const trilhaCam = camera.getVideoTracks()[0] ?? null;
+        trilhaCameraRef.current = trilhaCam;
+        if (localVideoRef.current) localVideoRef.current.srcObject = camera;
+        if (!compartilhando && sender && trilhaCam) await sender.replaceTrack(trilhaCam);
+        setFundoAtual(null);
+        return;
+      }
+      const img = await carregarImagemFundo(url);
+      if (fundoRef.current) {
+        fundoRef.current.definirImagem(img); // já rodando: só troca a imagem
+      } else {
+        setFundoCarregando(true);
+        // Desliga o desfoque nativo antes: ele agiria sobre a câmera que alimenta
+        // o fundo, borrando a própria pessoa.
+        if (desfoqueLigado) {
+          try {
+            await camera.getVideoTracks()[0]?.applyConstraints({ advanced: [{ backgroundBlur: false } as RestricaoComDesfoque] });
+          } catch { /* ignora */ }
+          setDesfoqueLigado(false);
+        }
+        const controle = await iniciarFundoVirtual(camera, img);
+        fundoRef.current = controle;
+        trilhaCameraRef.current = controle.trilha;
+        if (localVideoRef.current) localVideoRef.current.srcObject = controle.stream;
+        if (!compartilhando && sender) await sender.replaceTrack(controle.trilha);
+        setFundoCarregando(false);
+      }
+      setFundoAtual(url);
+    } catch {
+      setFundoCarregando(false);
+      onError?.("Não foi possível ativar o fundo. Tente de novo.");
+    }
+  };
+
   const alternarDesfoque = async () => {
     const trilha = localStreamRef.current?.getVideoTracks()[0];
     if (!trilha) return;
     const novo = !desfoqueLigado;
+    // Desfoque e fundo virtual não convivem (agiriam sobre a mesma câmera).
+    if (novo && fundoRef.current) await trocarFundo(null);
     try {
       await trilha.applyConstraints({ advanced: [{ backgroundBlur: novo } as RestricaoComDesfoque] });
       setDesfoqueLigado(novo);
@@ -484,6 +571,58 @@ export default function WebRTCCall({
         >
           <Focus className="h-4 w-4" />
         </Button>
+        {ehDesktop && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={fundoAtual ? "default" : "secondary"}
+                size="icon"
+                className="rounded-full"
+                disabled={fundoCarregando}
+                aria-label="Trocar o fundo do vídeo"
+                title="Trocar o fundo do vídeo"
+              >
+                {fundoCarregando ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ImageIcon className="h-4 w-4" />
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent side="top" className="w-64 p-3">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">Fundo do vídeo</p>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => void trocarFundo(null)}
+                  className={cn(
+                    "flex aspect-video items-center justify-center rounded-md border text-[11px] text-muted-foreground transition hover:bg-muted",
+                    fundoAtual === null && "ring-2 ring-primary",
+                  )}
+                >
+                  Nenhum
+                </button>
+                {FUNDOS.map((f) => (
+                  <button
+                    key={f.url}
+                    type="button"
+                    onClick={() => void trocarFundo(f.url)}
+                    title={f.nome}
+                    aria-label={f.nome}
+                    className={cn(
+                      "aspect-video rounded-md border bg-cover bg-center transition hover:opacity-90",
+                      fundoAtual === f.url && "ring-2 ring-primary",
+                    )}
+                    style={{ backgroundImage: `url(${f.url})` }}
+                  />
+                ))}
+              </div>
+              <p className="mt-2 text-[10px] leading-tight text-muted-foreground">
+                Só no computador. Pode pesar em máquinas mais fracas.
+              </p>
+            </PopoverContent>
+          </Popover>
+        )}
         <Button
           variant="secondary"
           size="icon"
