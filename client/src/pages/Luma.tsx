@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import {
+  CalendarClock,
   CalendarDays,
   CalendarPlus,
   FileText,
@@ -8,6 +9,7 @@ import {
   ListChecks,
   LockKeyhole,
   MessageCircle,
+  Receipt,
   Settings,
   ShieldCheck,
   Video,
@@ -51,8 +53,8 @@ export default function Luma() {
   const [selectedPatientId, setSelectedPatientId] = useState<string>("");
   const [feedbackByMessageId, setFeedbackByMessageId] = useState<Record<number, LumaFeedback>>({});
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-  // Sugestões de "e agora?" mostradas só depois de concluir uma ação.
-  const [sugestoesPosAcao, setSugestoesPosAcao] = useState<string[]>([]);
+  // Sugestões de "e agora?" (em cartões) mostradas só depois de concluir uma ação.
+  const [sugestoesPosAcao, setSugestoesPosAcao] = useState<{ label: string; hint?: string; icon?: ReactNode }[]>([]);
 
   const patientsQuery = trpc.patients.list.useQuery(undefined, {
     enabled: isClinicalUser,
@@ -188,23 +190,28 @@ export default function Luma() {
   }
 
   /** Próximos passos do PACIENTE — o "e agora?" dele, no contexto de navegação. */
-  function proximosPassosPaciente(): string[] {
-    return ["Ver minhas consultas", "Como entro na videochamada?", "Atualizar meus dados"];
+  function proximosPassosPaciente(): { label: string; icon: ReactNode }[] {
+    return [
+      { label: "Ver minhas consultas", icon: <CalendarDays className="size-5" /> },
+      { label: "Como entro na videochamada?", icon: <Video className="size-5" /> },
+      { label: "Atualizar meus dados", icon: <Settings className="size-5" /> },
+    ];
   }
 
   /** O que costuma vir depois de cada ação — o "e agora?" da terapeuta. */
-  function proximosPassos(acao: string): string[] {
+  function proximosPassos(acao: string): { label: string; icon: ReactNode }[] {
+    const verAgenda = { label: "Ver os próximos agendamentos", icon: <CalendarDays className="size-5" /> };
     switch (acao) {
       case "agendar_consulta":
-        return ["Ver os próximos agendamentos", "Agendar outra consulta", "Registrar pagamento"];
+        return [verAgenda, { label: "Agendar outra consulta", icon: <CalendarPlus className="size-5" /> }, { label: "Registrar pagamento", icon: <Receipt className="size-5" /> }];
       case "remarcar_consulta":
-        return ["Ver os próximos agendamentos", "Remarcar outra consulta"];
+        return [verAgenda, { label: "Remarcar outra consulta", icon: <CalendarClock className="size-5" /> }];
       case "cancelar_consulta":
-        return ["Ver os próximos agendamentos", "Agendar uma nova consulta"];
+        return [verAgenda, { label: "Agendar uma nova consulta", icon: <CalendarPlus className="size-5" /> }];
       case "registrar_pagamento":
-        return ["Ver os próximos agendamentos", "Registrar outro pagamento"];
+        return [verAgenda, { label: "Registrar outro pagamento", icon: <Receipt className="size-5" /> }];
       default:
-        return ["Ver os próximos agendamentos"];
+        return [verAgenda];
     }
   }
 
@@ -301,7 +308,7 @@ export default function Luma() {
               ? (selectedPatientId ? "Pergunte sobre os registros deste paciente" : "Selecione um paciente acima")
               : "Pergunte sobre o uso do site"}
             emptyStateMessage={isClinicalUser ? "Olá! Eu sou a Luma, sua coruja de apoio clínico. Consulto os registros autorizados (sessões e documentos) e cuido da agenda do paciente: agendar, remarcar, cancelar e registrar pagamento. Toda alteração na agenda aparece como uma proposta, e só acontece quando você clicar em Confirmar. Selecione um paciente e uma sugestão abaixo para começar." : "Olá! Eu sou a Luma, sua coruja de apoio no VozInterior. Escolha uma sugestão para aprender a usar o sistema."}
-            followUpPrompts={sugestoesPosAcao}
+            followUpMenu={sugestoesPosAcao}
             onRestart={resetConversation}
             suggestedMenu={isClinicalUser ? MENU_CLINICO : MENU_PACIENTE}
             onMessageFeedback={handleFeedback}

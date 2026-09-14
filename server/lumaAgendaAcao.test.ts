@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pareceAcaoDeAgenda } from "./ai/llm";
+import { pareceAcaoDeAgenda, pareceNavegacao } from "./ai/llm";
 
 /**
  * Regressão: a Luma clínica curto-circuitava com "Não encontrei registros" quando
@@ -31,5 +31,33 @@ describe("pareceAcaoDeAgenda", () => {
     "qual a capital da França",
   ])("NÃO confunde leitura/fora de escopo com ação: %s", (msg) => {
     expect(pareceAcaoDeAgenda(msg)).toBe(false);
+  });
+});
+
+/**
+ * Perguntas de navegação ("onde vejo X", "como faço Y aqui") sao USO DO SISTEMA e
+ * nao dependem de registros — nao podem cair no atalho de "sem registros". Aqui
+ * garantimos que `pareceNavegacao` reconhece navegacao e nao confunde com leitura
+ * clinica ("como está a evolução") nem com fora de escopo.
+ */
+describe("pareceNavegacao", () => {
+  it.each([
+    "onde vejo meus pacientes?",
+    "onde fica o financeiro",
+    "como faço para cadastrar um paciente",
+    "como acesso os pagamentos",
+    "como entro na videochamada",
+    "como cadastro um paciente aqui",
+  ])("reconhece navegação: %s", (msg) => {
+    expect(pareceNavegacao(msg)).toBe(true);
+  });
+
+  it.each([
+    "resumir os últimos registros autorizados",
+    "como está a evolução do paciente?",
+    "agende uma consulta para amanhã",
+    "quanto é 1 + 1",
+  ])("NÃO confunde leitura/ação/fora de escopo com navegação: %s", (msg) => {
+    expect(pareceNavegacao(msg)).toBe(false);
   });
 });

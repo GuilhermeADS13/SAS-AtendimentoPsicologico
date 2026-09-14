@@ -164,6 +164,7 @@ export function clinicalSystemPrompt(ctx: AiAccessContext, requestedPatientId?: 
     "ESCOPO TRANCADO — você é EXCLUSIVAMENTE a assistente do sistema VozInterior. Só trata de: (1) a agenda e as consultas; (2) registros clínicos autorizados do paciente em escopo; (3) como usar o próprio sistema (telas, agendar, pagamentos, videochamada, cadastro); (4) apoio ao acompanhamento dentro do sistema — organizar pontos das sessões e sugerir tópicos/atividades para a profissional revisar (nunca como diagnóstico). QUALQUER outro assunto está FORA do escopo — conhecimento geral, matemática ou contas (ex.: 'quanto é 1+1'), programação, história, geografia, notícias, clima, receitas, tradução, piadas, opinião pessoal ou conversa fiada. Nesses casos NÃO responda à pergunta, nem 'só desta vez': recuse em uma frase gentil e reconduza ao que você faz.",
     "Exemplo de recusa fora de escopo: 'Sou a assistente do VozInterior e só ajudo com a agenda, os registros e o uso do sistema. Posso te ajudar com uma dessas coisas?' (Use isso APENAS para assuntos realmente de fora, como os do parágrafo acima — nunca para dúvidas de uso do sistema.)",
     "USO DO SISTEMA é escopo (3): perguntas de 'como faço X aqui' (cadastrar paciente, agendar, ver pagamentos, entrar na videochamada) você RESPONDE com orientação prática — NUNCA recuse como se fosse fora de escopo. Mapa do menu da profissional: Dashboard; Pacientes (cadastrar/ver pacientes — botão 'Novo Paciente'); Agendamentos (agenda, status e valores); Financeiro (resumo de pagamentos); Luma; Perfil (dados profissionais); Configurações (trocar e-mail de acesso, senha e telefone — pede a senha atual para confirmar); Ajuda (passo a passo detalhado). Para cadastrar um paciente: menu 'Pacientes' > 'Novo Paciente' > preencher os dados > 'Cadastrar'. A videochamada não é um item do menu — ela abre a partir de um agendamento. Se não tiver certeza dos passos exatos, oriente a abrir a página 'Ajuda' no menu.",
+    "Uma pergunta de 'onde vejo...', 'onde fica...' ou 'como faço/acesso/entro/cadastro... aqui' é USO DO SISTEMA: responda com o mapa do menu acima, de forma prática e direta, MESMO que o paciente em escopo ainda não tenha registros clínicos. NUNCA responda 'não encontrei registros' a uma pergunta de navegação — ela não é sobre prontuário. Ex.: 'onde vejo meus pacientes?' → 'No menu, em Pacientes.'",
     toolsEnabled
       ? "Use ferramentas clínicas somente quando necessário e cite claramente quando uma informação veio de um registro do sistema."
       : "Neste modo você NÃO tem acesso a prontuários, documentos ou buscas clínicas e não deve tentar usar ferramentas. Não afirme dados específicos de pacientes: ajude a profissional a usar o sistema e a organizar o próprio raciocínio, indicando onde no sistema encontrar cada informação.",
@@ -217,6 +218,19 @@ export function pareceAcaoDeAgenda(mensagem: string): boolean {
   // "marcar" conjuga com C (marcar/marcou) e com QU (marque/marquei) — daí o
   // (?:c|qu). Idem remarcar/desmarcar. agendar/cancelar/pagar não têm essa troca.
   return /(agend|remar(?:c|qu)|reagend|desmar(?:c|qu)|\bmar(?:c|qu)|cancel|\bpag|cobran|(criar|nova|abrir|registrar)\W+(?:\w+\W+){0,3}?(consulta|agendament|pagament|sess))/i.test(
+    mensagem,
+  );
+}
+
+/**
+ * A mensagem é uma pergunta de NAVEGAÇÃO/USO do sistema ("onde vejo X", "como faço
+ * Y aqui")? Isso é escopo (3) e NÃO depende de registros clínicos — então não pode
+ * cair no atalho de "escopo sem dados" ("não encontrei registros"), que confundia
+ * quem só queria saber onde ficava uma tela. Deixa a pergunta chegar ao modelo, que
+ * responde com o mapa do menu (ver clinicalSystemPrompt).
+ */
+export function pareceNavegacao(mensagem: string): boolean {
+  return /\bonde\b|\bcomo\s+(?:eu\s+)?(?:faço|faco|vejo|acho|encontro|acesso|entro|abro|uso|mudo|troco|altero|cadastr|configur|edito|atualizo)/i.test(
     mensagem,
   );
 }
@@ -282,16 +296,18 @@ export async function runOpenSourceAgent(
   // Se o escopo não possui nenhum dado, não desperdice tempo com embeddings ou Ollama.
   // A checagem mantém o mesmo filtro de autorização usado pelas ferramentas clínicas.
   //
-  // EXCEÇÃO: pedidos de AÇÃO na agenda (agendar/remarcar/cancelar/registrar
-  // pagamento) NÃO dependem de registros clínicos prévios — um paciente recém
-  // cadastrado ainda não tem sessão nem documento, mas a psicóloga precisa poder
-  // marcar a PRIMEIRA consulta dele. Sem esta exceção, o atalho respondia "não
-  // encontrei registros" e a Luma nunca chegava às ferramentas de agenda.
+  // EXCEÇÕES (não curto-circuitar): (a) pedidos de AÇÃO na agenda (agendar/remarcar/
+  // cancelar/registrar pagamento) NÃO dependem de registros prévios — um paciente
+  // recém-cadastrado ainda não tem sessão, mas a psicóloga precisa marcar a PRIMEIRA
+  // consulta dele; (b) perguntas de NAVEGAÇÃO/uso do sistema ("onde vejo meus
+  // pacientes") também não são sobre registros — responder "não encontrei registros"
+  // a elas confundia. Nos dois casos a mensagem segue para o modelo.
   const scopedPatientId = requestedPatientId ?? ctx.patientId ?? undefined;
   if (
     isAiRagEnabled() &&
     scopedPatientId != null &&
     !pareceAcaoDeAgenda(latestUserMessage?.content ?? "") &&
+    !pareceNavegacao(latestUserMessage?.content ?? "") &&
     !(await hasAuthorizedClinicalData(ctx, scopedPatientId, db))
   ) {
     recordAgentRequest(Date.now() - startedAt, "success");
