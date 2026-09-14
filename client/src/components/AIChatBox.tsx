@@ -123,6 +123,12 @@ export type AIChatBoxProps = {
   followUpPrompts?: string[];
 
   /**
+   * Versão "rica" das sugestões pós-ação (ícone + rótulo + dica), mostrada em
+   * cartões — o mesmo visual do menu inicial. Tem prioridade sobre `followUpPrompts`.
+   */
+  followUpMenu?: { label: string; hint?: string; icon?: ReactNode }[];
+
+  /**
    * Recomeçar a conversa. Fica no menu DENTRO do chat, junto das sugestões —
    * solto no topo da página ficava longe de onde a pessoa está olhando.
    */
@@ -203,6 +209,7 @@ export function AIChatBox({
   suggestedPrompts,
   suggestedMenu,
   followUpPrompts,
+  followUpMenu,
   onRestart,
   agentName = "Luma",
   agentSubtitle = "Sua coruja de apoio no atendimento psicológico",
@@ -509,33 +516,58 @@ export function AIChatBox({
               {/* Menu do chat. Depois de concluir uma ação, a conversa terminava
                   em "pronto, agendei" e a pessoa ficava sem saber o próximo passo;
                   e "Voltar ao início" ficava solto no topo da página, longe daqui. */}
-              {((followUpPrompts && followUpPrompts.length > 0) || (onRestart && displayMessages.length > 0)) && !isLoading && (
+              {((followUpMenu && followUpMenu.length > 0) || (followUpPrompts && followUpPrompts.length > 0) || (onRestart && displayMessages.length > 0)) && !isLoading && (
                 <div className="ml-11 space-y-2">
-                  {followUpPrompts && followUpPrompts.length > 0 && (
+                  {((followUpMenu && followUpMenu.length > 0) || (followUpPrompts && followUpPrompts.length > 0)) && (
                     <p className="text-xs font-medium text-muted-foreground">E agora?</p>
                   )}
-                  <div className="flex flex-wrap gap-2">
-                    {followUpPrompts?.map(prompt => (
-                      <button
-                        key={prompt}
-                        type="button"
-                        onClick={() => onSendMessage(prompt)}
-                        className="rounded-full border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-accent"
-                      >
-                        {prompt}
-                      </button>
-                    ))}
-                    {onRestart && displayMessages.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={onRestart}
-                        title="Limpa a tela e começa uma conversa nova (nada é apagado)"
-                        className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                      >
-                        <RotateCcw className="size-3.5" /> Voltar ao início
-                      </button>
-                    )}
-                  </div>
+                  {followUpMenu && followUpMenu.length > 0 ? (
+                    <div className="grid max-w-xl grid-cols-1 gap-2 sm:grid-cols-2">
+                      {followUpMenu.map((item) => (
+                        <button
+                          key={item.label}
+                          type="button"
+                          onClick={() => onSendMessage(item.label)}
+                          className="flex items-start gap-3 rounded-xl border border-border bg-card px-3 py-2.5 text-left transition-colors hover:border-primary/40 hover:bg-accent"
+                        >
+                          {item.icon && (
+                            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                              {item.icon}
+                            </span>
+                          )}
+                          <span className="min-w-0">
+                            <span className="block text-sm font-medium text-foreground">{item.label}</span>
+                            {item.hint && (
+                              <span className="mt-0.5 block text-xs text-muted-foreground">{item.hint}</span>
+                            )}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : followUpPrompts && followUpPrompts.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {followUpPrompts.map(prompt => (
+                        <button
+                          key={prompt}
+                          type="button"
+                          onClick={() => onSendMessage(prompt)}
+                          className="rounded-full border border-border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-accent"
+                        >
+                          {prompt}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {onRestart && displayMessages.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={onRestart}
+                      title="Limpa a tela e começa uma conversa nova (nada é apagado)"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    >
+                      <RotateCcw className="size-3.5" /> Voltar ao início
+                    </button>
+                  )}
                 </div>
               )}
             </div>
