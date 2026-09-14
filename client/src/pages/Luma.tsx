@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { LockKeyhole, MessageCircle, ShieldCheck } from "lucide-react";
+import {
+  CalendarDays,
+  CalendarPlus,
+  FileText,
+  HeartHandshake,
+  ListChecks,
+  LockKeyhole,
+  MessageCircle,
+  Settings,
+  ShieldCheck,
+  Video,
+} from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { AIChatBox, type LumaFeedback, type Message, type PendingAction } from "@/components/AIChatBox";
 import { useRole } from "@/hooks/useRole";
@@ -12,6 +23,23 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { LumaOwlIcon } from "@/components/Logo";
+
+// Menu inicial da Luma clínica (terapeuta): as coisas que ela faz bem — agenda e
+// leitura de registros autorizados.
+const MENU_CLINICO = [
+  { label: "Ver os próximos agendamentos", hint: "A agenda deste paciente", icon: <CalendarDays className="size-5" /> },
+  { label: "Agendar uma consulta", hint: "Eu proponho, você confirma", icon: <CalendarPlus className="size-5" /> },
+  { label: "Resumir os últimos registros autorizados", hint: "Sessões e documentos", icon: <FileText className="size-5" /> },
+  { label: "Organizar os próximos pontos para a sessão", hint: "Preparar o atendimento", icon: <ListChecks className="size-5" /> },
+];
+
+// Menu inicial da Luma de apoio (paciente): navegação pelo site.
+const MENU_PACIENTE = [
+  { label: "Ver minhas consultas", hint: "Próximas e anteriores", icon: <CalendarDays className="size-5" /> },
+  { label: "Como entro na videochamada?", hint: "Passo a passo", icon: <Video className="size-5" /> },
+  { label: "Atualizar meus dados", hint: "Telefone, e-mail e senha", icon: <Settings className="size-5" /> },
+  { label: "Encontrar minha psicóloga", hint: "Contato e informações", icon: <HeartHandshake className="size-5" /> },
+];
 
 export default function Luma() {
   const [, setLocation] = useLocation();
@@ -275,7 +303,7 @@ export default function Luma() {
             emptyStateMessage={isClinicalUser ? "Olá! Eu sou a Luma, sua coruja de apoio clínico. Consulto os registros autorizados (sessões e documentos) e cuido da agenda do paciente: agendar, remarcar, cancelar e registrar pagamento. Toda alteração na agenda aparece como uma proposta, e só acontece quando você clicar em Confirmar. Selecione um paciente e uma sugestão abaixo para começar." : "Olá! Eu sou a Luma, sua coruja de apoio no VozInterior. Escolha uma sugestão para aprender a usar o sistema."}
             followUpPrompts={sugestoesPosAcao}
             onRestart={resetConversation}
-            suggestedPrompts={isClinicalUser ? ["Resumir os últimos registros autorizados", "Ver os próximos agendamentos", "Agendar uma consulta", "Organizar os próximos pontos para a sessão"] : ["Ver minhas consultas", "Como entro na videochamada?", "Atualizar meus dados", "Encontrar minha psicóloga"]}
+            suggestedMenu={isClinicalUser ? MENU_CLINICO : MENU_PACIENTE}
             onMessageFeedback={handleFeedback}
             feedbackByMessageId={feedbackByMessageId}
             pendingAction={isClinicalUser ? pendingAction : null}
