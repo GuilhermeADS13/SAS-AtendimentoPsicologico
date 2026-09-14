@@ -122,6 +122,14 @@ export default function WebRTCCall({
   const [desfoqueSuportado, setDesfoqueSuportado] = useState(false);
   const [desfoqueLigado, setDesfoqueLigado] = useState(false);
 
+  // Compartilhar tela usa getDisplayMedia, uma API só de DESKTOP: o iOS Safari não
+  // tem e o Chrome no Android não a suporta. Sem esta checagem, o botão aparecia no
+  // celular e o clique não fazia nada (o erro caía no catch, sem feedback). Feature
+  // detection: some com o botão onde a API não existe, como já fazemos no desfoque.
+  const podeCompartilharTela =
+    typeof navigator !== "undefined" &&
+    typeof navigator.mediaDevices?.getDisplayMedia === "function";
+
   useEffect(() => {
     let disposed = false;
     const onErr = onError;
@@ -447,16 +455,18 @@ export default function WebRTCCall({
         >
           {camOn ? <VideoIcon className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
         </Button>
-        <Button
-          variant={compartilhando ? "default" : "secondary"}
-          size="icon"
-          onClick={compartilharTela}
-          className="rounded-full"
-          aria-label={compartilhando ? "Parar de compartilhar a tela" : "Compartilhar a tela"}
-          title={compartilhando ? "Parar de compartilhar a tela" : "Compartilhar a tela"}
-        >
-          <MonitorUp className="h-4 w-4" />
-        </Button>
+        {podeCompartilharTela && (
+          <Button
+            variant={compartilhando ? "default" : "secondary"}
+            size="icon"
+            onClick={compartilharTela}
+            className="rounded-full"
+            aria-label={compartilhando ? "Parar de compartilhar a tela" : "Compartilhar a tela"}
+            title={compartilhando ? "Parar de compartilhar a tela" : "Compartilhar a tela"}
+          >
+            <MonitorUp className="h-4 w-4" />
+          </Button>
+        )}
         <Button
           variant={desfoqueLigado ? "default" : "secondary"}
           size="icon"
