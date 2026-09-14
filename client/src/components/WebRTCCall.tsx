@@ -8,6 +8,7 @@ import {
   MicOff,
   Minimize,
   MonitorUp,
+  Paperclip,
   PhoneOff,
   Video as VideoIcon,
   VideoOff,
@@ -136,6 +137,13 @@ export default function WebRTCCall({
   // compartilhamento de tela restaura ao parar.
   const fundoRef = useRef<ControleFundo | null>(null);
   const trilhaCameraRef = useRef<MediaStreamTrack | null>(null);
+  // Canal de dados (P2P) para "mostrar arquivo": envia imagem/PDF direto ao outro
+  // lado, sem passar pelo servidor. recebendoRef junta os pedaços que chegam;
+  // arquivoUrlRef guarda a URL do blob atual para liberar depois.
+  const dcRef = useRef<RTCDataChannel | null>(null);
+  const recebendoRef = useRef<{ mime: string; nome: string; partes: ArrayBuffer[] } | null>(null);
+  const arquivoUrlRef = useRef<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   // Candidatos ICE que chegam antes de termos a descrição remota ficam na fila.
   const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
 
@@ -148,6 +156,8 @@ export default function WebRTCCall({
   const [desfoqueLigado, setDesfoqueLigado] = useState(false);
   const [fundoAtual, setFundoAtual] = useState<string | null>(null);
   const [fundoCarregando, setFundoCarregando] = useState(false);
+  const [canalPronto, setCanalPronto] = useState(false);
+  const [arquivo, setArquivo] = useState<{ url: string; tipo: "imagem" | "pdf"; nome: string } | null>(null);
 
   // Compartilhar tela usa getDisplayMedia, uma API só de DESKTOP: o iOS Safari não
   // tem e o Chrome no Android não a suporta. Sem esta checagem, o botão aparecia no
@@ -227,6 +237,14 @@ export default function WebRTCCall({
       const pc = new RTCPeerConnection({ iceServers: servidoresIce });
       pcRef.current = pc;
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+      // Canal de dados para "mostrar arquivo". Quem cria é a ofertante (terapeuta),
+      // ANTES da oferta, para já ir na negociação; o paciente recebe por ondatachannel.
+      if (role === "therapist") {
+        configurarCanal(pc.createDataChannel("arquivos"));
+      } else {
+        pc.ondatachannel = (e) => configurarCanal(e.channel);
+      }
 
       pc.ontrack = (event) => {
         if (!remoteStreamRef.current) remoteStreamRef.current = new MediaStream();
@@ -343,6 +361,9 @@ export default function WebRTCCall({
       }
       fundoRef.current?.parar();
       fundoRef.current = null;
+      if (arquivoUrlRef.current) URL.revokeObjectURL(arquivoUrlRef.current);
+      arquivoUrlRef.current = null;
+      dcRef.current = null;
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       wsRef.current = null;
       pcRef.current = null;
@@ -458,6 +479,80 @@ export default function WebRTCCall({
     }
   };
 
+  /** Mostra um arquivo (imagem/PDF), enviado ou recebido, como overlay sobre o vídeo. */
+  const mostrarArquivo = (blob: Blob, mime: string, nome: string) => {
+    if (arquivoUrlRef.current) URL.revokeObjectURL(arquivoUrlRef.current);
+    const url = URL.createObjectURL(blob);
+    arquivoUrlRef.current = url;
+    setArquivo({ url, tipo: mime === "application/pdf" ? "pdf" : "imagem", nome });
+  };
+
+  /** Fecha o arquivo em exibição. `notificar` avisa o outro lado para fechar também. */
+  const fecharArquivo = (notificar = true) => {
+    if (arquivoUrlRef.current) {
+      URL.revokeObjectURL(arquivoUrlRef.current);
+      arquivoUrlRef.current = null;
+    }
+    setArquivo(null);
+    if (notificar && dcRef.current?.readyState === "open") {
+      dcRef.current.send(JSON.stringify({ t: "fechar" }));
+    }
+  };
+
+  // Prepara o canal de dados: recebe os metadados (JSON) e depois os pedaços
+  // binários, remonta o arquivo e o exibe. Usado nos dois lados.
+  const configurarCanal = (dc: RTCDataChannel) => {
+    dc.binaryType = "arraybuffer";
+    dcRef.current = dc;
+    dc.onopen = () => setCanalPronto(true);
+    dc.onclose = () => setCanalPronto(false);
+    dc.onmessage = (e: MessageEvent) => {
+      if (typeof e.data === "string") {
+        let msg: { t?: string; mime?: string; nome?: string };
+        try {
+          msg = JSON.parse(e.data);
+        } catch {
+          return;
+        }
+        if (msg.t === "inicio") {
+          recebendoRef.current = { mime: msg.mime || "", nome: msg.nome || "arquivo", partes: [] };
+        } else if (msg.t === "fim" && recebendoRef.current) {
+          const r = recebendoRef.current;
+          mostrarArquivo(new Blob(r.partes, { type: r.mime }), r.mime, r.nome);
+          recebendoRef.current = null;
+        } else if (msg.t === "fechar") {
+          fecharArquivo(false);
+        }
+      } else if (recebendoRef.current) {
+        recebendoRef.current.partes.push(e.data as ArrayBuffer);
+      }
+    };
+  };
+
+  /** Envia um arquivo (imagem/PDF) pelo canal de dados, em pedaços, e mostra localmente. */
+  const enviarArquivo = async (file: File) => {
+    const dc = dcRef.current;
+    if (!dc || dc.readyState !== "open") return;
+    if (file.size > 20 * 1024 * 1024) {
+      onError?.("Arquivo muito grande (máximo 20 MB).");
+      return;
+    }
+    if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+      onError?.("Envie uma imagem ou um PDF.");
+      return;
+    }
+    const buf = await file.arrayBuffer();
+    dc.send(JSON.stringify({ t: "inicio", nome: file.name, mime: file.type }));
+    const CHUNK = 16 * 1024;
+    for (let off = 0; off < buf.byteLength; off += CHUNK) {
+      // Espera a fila baixar antes de continuar (evita estourar o buffer do canal).
+      while (dc.bufferedAmount > 1_000_000) await new Promise((r) => setTimeout(r, 20));
+      dc.send(buf.slice(off, off + CHUNK));
+    }
+    dc.send(JSON.stringify({ t: "fim" }));
+    mostrarArquivo(new Blob([buf], { type: file.type }), file.type, file.name);
+  };
+
   const alternarDesfoque = async () => {
     const trilha = localStreamRef.current?.getVideoTracks()[0];
     if (!trilha) return;
@@ -519,6 +614,31 @@ export default function WebRTCCall({
         className="absolute bottom-16 right-3 h-20 w-28 rounded-md border border-white/20 object-cover shadow-lg sm:h-28 sm:w-40 lg:h-32 lg:w-48"
       />
 
+      {/* Arquivo (imagem/PDF) que um lado está mostrando, sobre o vídeo. A barra de
+          controles fica DEPOIS no DOM, então continua por cima e acessível. */}
+      {arquivo && (
+        <div className="absolute inset-0 flex flex-col bg-black/95">
+          <div className="flex items-center justify-between gap-2 px-3 py-2">
+            <span className="truncate text-sm text-white">{arquivo.nome}</span>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => fecharArquivo(true)}
+              className="shrink-0"
+            >
+              Fechar
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1">
+            {arquivo.tipo === "imagem" ? (
+              <img src={arquivo.url} alt={arquivo.nome} className="h-full w-full object-contain" />
+            ) : (
+              <iframe src={arquivo.url} title={arquivo.nome} className="h-full w-full border-0 bg-white" />
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Barra única de controles, como nos apps de vídeo: encerrar fica AQUI,
           junto do resto — antes ele ficava fora do vídeo e desalinhado. */}
       <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/50 p-1.5 backdrop-blur">
@@ -554,6 +674,28 @@ export default function WebRTCCall({
             <MonitorUp className="h-4 w-4" />
           </Button>
         )}
+        <Button
+          variant="secondary"
+          size="icon"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={!canalPronto}
+          className="rounded-full"
+          aria-label="Mostrar uma imagem ou PDF"
+          title={canalPronto ? "Mostrar uma imagem ou PDF" : "Disponível quando a chamada conectar"}
+        >
+          <Paperclip className="h-4 w-4" />
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,application/pdf"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void enviarArquivo(f);
+            e.target.value = "";
+          }}
+        />
         <Button
           variant={desfoqueLigado ? "default" : "secondary"}
           size="icon"
