@@ -83,7 +83,8 @@ jobs:
           for f in \
             drizzle/migrations/0022_onboarding_seen.sql \
             drizzle/migrations/0023_therapist_phone.sql \
-            drizzle/migrations/0025_patient_guardian.sql; do
+            drizzle/migrations/0025_patient_guardian.sql \
+            drizzle/migrations/0026_patient_user_fk.sql; do
             echo "aplicando $f"
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f "$f"
           done
