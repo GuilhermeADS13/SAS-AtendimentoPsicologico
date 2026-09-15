@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { ChatOpenAI } from "@langchain/openai";
+import { ToolMessage, type BaseMessageLike } from "@langchain/core/messages";
 import { createAgent } from "langchain";
 import { createClinicalTools, fetchConversationMemory, getScopedPatientName, hasAuthorizedClinicalData, type AiSourceReference } from "./clinical-tools";
 import type { AiAccessContext } from "./access";
@@ -243,6 +244,61 @@ export function buildNoClinicalDataResponse(userMessage: string): string {
   return "Não encontrei registros clínicos autorizados para este paciente. Verifique se o paciente correto foi selecionado ou se os registros ainda foram lançados no sistema.";
 }
 
+/**
+ * Fallback DETERMINÍSTICO para ações de agenda. Modelos agênticos (gpt-oss e afins)
+ * às vezes DESCREVEM a ação em vez de CHAMAR a ferramenta — e sem a chamada nenhuma
+ * proposta é emitida, então o botão de confirmação nunca aparece. Aqui reinvocamos o
+ * modelo com tool_choice "required": ele é obrigado a chamar uma ferramenta a cada
+ * passo e não consegue mais escapar para prosa. Repetimos poucas vezes (remarcar/
+ * cancelar/registrar pagamento precisam antes consultar a agenda para achar o número
+ * da consulta) até uma ferramenta de ESCRITA propor a ação — o callback de escrita
+ * seta o pendingAction. O texto de confirmação é sintetizado do resumo, sem depender
+ * da redação do modelo. Qualquer erro cai fora sem quebrar: o chamador mantém a
+ * resposta em texto que já tinha.
+ */
+export async function forcarPropostaDeAgenda(
+  chatModel: ReturnType<typeof createOpenSourceChatModel>,
+  tools: ReturnType<typeof createClinicalTools>,
+  systemPrompt: string,
+  preparedMessages: OpenSourceChatMessage[],
+  pendingAtual: () => LumaPendingAction | undefined,
+): Promise<string | undefined> {
+  try {
+    const comFerramentas = chatModel.bindTools(tools, { tool_choice: "required" });
+    // As ferramentas têm assinaturas de invoke distintas (schemas diferentes), então
+    // o dispatch genérico por nome usa uma visão mínima invocável comum.
+    type FerramentaInvocavel = { name: string; invoke: (args: Record<string, unknown>) => Promise<unknown> };
+    const porNome = new Map<string, FerramentaInvocavel>(
+      tools.map(t => [t.name, t as unknown as FerramentaInvocavel]),
+    );
+    const historico: BaseMessageLike[] = [
+      ["system", `${systemPrompt}\n\nATENÇÃO: a última mensagem pede uma AÇÃO na agenda. CHAME a ferramenta apropriada AGORA — para remarcar, cancelar ou registrar pagamento, primeiro consulte os agendamentos para achar o número da consulta. NÃO responda em texto.`],
+      ...preparedMessages.map(message => [message.role, message.content] as BaseMessageLike),
+    ];
+    for (let passo = 0; passo < 4; passo++) {
+      const resposta = await comFerramentas.invoke(historico);
+      const chamadas = resposta.tool_calls ?? [];
+      if (chamadas.length === 0) break;
+      historico.push(resposta);
+      for (const chamada of chamadas) {
+        const ferramenta = porNome.get(chamada.name);
+        const saida = ferramenta ? await ferramenta.invoke(chamada.args) : `Ferramenta ${chamada.name} indisponível.`;
+        historico.push(new ToolMessage({
+          content: typeof saida === "string" ? saida : JSON.stringify(saida),
+          tool_call_id: chamada.id ?? chamada.name,
+        }));
+      }
+      const pending = pendingAtual();
+      if (pending) {
+        return `Preparei esta ação para você revisar: ${pending.resumo} Basta clicar em Confirmar na tela para concluir, ou em Agora não para descartar.`;
+      }
+    }
+  } catch (error) {
+    console.error(`[luma] fallback deterministico de agenda falhou: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  return undefined;
+}
+
 export async function runOpenSourceAgent(
   messages: OpenSourceChatMessage[],
   ctx: AiAccessContext,
@@ -370,15 +426,24 @@ export async function runOpenSourceAgent(
     const chatModel = createOpenSourceChatModel(prov);
     try {
       if (toolsEnabled) {
+        const clinicalTools = createClinicalTools(ctx, db, collectSources, turnKey, pending => { pendingAction = pending; });
         const agent = createAgent({
           model: chatModel,
-          tools: createClinicalTools(ctx, db, collectSources, turnKey, pending => { pendingAction = pending; }),
+          tools: clinicalTools,
           systemPrompt,
         });
         const result = await agent.invoke({
           messages: preparedMessages.map(message => [message.role, message.content] as const),
         });
         content = contentToText(result.messages.at(-1)?.content).trim();
+        // Determinístico: modelos agênticos às vezes DESCREVEM a ação de agenda
+        // ("responda sim") em vez de CHAMAR a ferramenta — e sem a chamada nenhuma
+        // proposta é emitida, então o botão de confirmação nunca aparece. Se a
+        // mensagem pede uma ação na agenda e nada foi proposto, forçamos a chamada.
+        if (!pendingAction && pareceAcaoDeAgenda(latestUserMessage?.content ?? "")) {
+          const textoForcado = await forcarPropostaDeAgenda(chatModel, clinicalTools, systemPrompt, preparedMessages, () => pendingAction);
+          if (textoForcado) content = textoForcado;
+        }
       } else {
         // Sem ferramentas, o createAgent envia tool_choice:"none". Modelos agênticos
         // (gpt-oss e afins) ainda emitem uma chamada de ferramenta, e o provedor
