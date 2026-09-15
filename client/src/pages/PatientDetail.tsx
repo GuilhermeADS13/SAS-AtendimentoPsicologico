@@ -7,8 +7,17 @@ import {
   getDocumentSignedUrl,
   removeDocumentFile,
 } from "@/lib/supabase";
-import { exportProntuarioPDF, exportProntuarioDOCX } from "@/lib/prontuario-export";
+import { exportProntuarioPDF, exportProntuarioDOCX, exportTclePDF } from "@/lib/prontuario-export";
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
+import {
+  ANAMNESE_CAMPOS,
+  TCLE_CAMPOS,
+  SOAP_CAMPOS,
+  agruparCampos,
+  type CampoProntuario,
+  type AnamneseData,
+  type TcleData,
+} from "@shared/prontuario";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -29,8 +38,56 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, FileText, Calendar, MessageSquare, Pencil, Plus, Upload, Download, Trash2, FileDown, Loader2, Wallet, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, FileText, Calendar, MessageSquare, Pencil, Plus, Upload, Download, Trash2, FileDown, Loader2, Wallet, CheckCircle2, ClipboardList, FileSignature, Save } from "lucide-react";
 import { formatarBRL } from "@shared/dinheiro";
+
+// Renderiza um formulário de campos agrupados (anamnese, TCLE) a partir da
+// configuração única de shared/prontuario.ts — sem repetir a lista de campos.
+function CamposEditaveis({
+  campos,
+  valores,
+  onChange,
+}: {
+  campos: readonly CampoProntuario[];
+  valores: Record<string, string>;
+  onChange: (chave: string, valor: string) => void;
+}) {
+  return (
+    <div className="space-y-6">
+      {agruparCampos(campos).map(({ grupo, campos }) => (
+        <div key={grupo} className="space-y-3">
+          <h3 className="text-sm font-semibold text-foreground">{grupo}</h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {campos.map((campo) => (
+              <div
+                key={campo.chave}
+                className={campo.multilinha ? "space-y-1.5 sm:col-span-2" : "space-y-1.5"}
+              >
+                <Label htmlFor={`campo-${campo.chave}`}>{campo.rotulo}</Label>
+                {campo.multilinha ? (
+                  <Textarea
+                    id={`campo-${campo.chave}`}
+                    rows={3}
+                    value={valores[campo.chave] ?? ""}
+                    onChange={(e) => onChange(campo.chave, e.target.value)}
+                    placeholder={campo.ajuda}
+                  />
+                ) : (
+                  <Input
+                    id={`campo-${campo.chave}`}
+                    value={valores[campo.chave] ?? ""}
+                    onChange={(e) => onChange(campo.chave, e.target.value)}
+                    placeholder={campo.ajuda}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // Converte Date | string | null para o formato do <input type="date"> (YYYY-MM-DD).
 function toDateInput(value: unknown): string {
@@ -77,6 +134,11 @@ export default function PatientDetail() {
     emergencyPhone: "",
     guardianName: "",
     guardianConsent: false,
+    // Prontuário CFP
+    initialDemand: "",
+    therapeuticGoals: "",
+    dischargeSummary: "",
+    discharged: false,
   });
 
   // Preenche o formulário quando o paciente carrega.
@@ -94,7 +156,14 @@ export default function PatientDetail() {
       emergencyPhone: patient.emergencyPhone ?? "",
       guardianName: patient.guardianName ?? "",
       guardianConsent: Boolean(patient.guardianConsentAt),
+      initialDemand: patient.initialDemand ?? "",
+      therapeuticGoals: patient.therapeuticGoals ?? "",
+      dischargeSummary: patient.dischargeSummary ?? "",
+      discharged: Boolean(patient.dischargedAt),
     });
+    setAnamnese((patient.anamnesis as Record<string, string> | null) ?? {});
+    setTcle((patient.tcle as Record<string, string> | null) ?? {});
+    setTcleSigned(Boolean(patient.tcleSignedAt));
   }, [patient]);
 
   const updatePatient = trpc.patients.update.useMutation({
@@ -105,6 +174,20 @@ export default function PatientDetail() {
       toast.success("Dados do paciente atualizados!");
     },
     onError: (e) => toast.error(e.message || "Erro ao salvar alterações"),
+  });
+
+  // Anamnese e TCLE têm formulários próprios (abas), salvos sem fechar o diálogo
+  // de edição. Reusam patients.update, que aceita salvar só esses campos.
+  const [anamnese, setAnamnese] = useState<Record<string, string>>({});
+  const [tcle, setTcle] = useState<Record<string, string>>({});
+  const [tcleSigned, setTcleSigned] = useState(false);
+
+  const salvarProntuario = trpc.patients.update.useMutation({
+    onSuccess: () => {
+      utils.patients.get.invalidate({ id: patientId });
+      toast.success("Prontuário atualizado.");
+    },
+    onError: (e) => toast.error(e.message || "Erro ao salvar"),
   });
 
   const handleSave = () => {
@@ -131,7 +214,24 @@ export default function PatientDetail() {
       // contato de emergência): vai sempre, mesmo quando o paciente tem conta.
       guardianName: form.guardianName,
       guardianConsent: form.guardianConsent,
+      // Prontuário CFP — dados clínicos da psicóloga, vão sempre.
+      initialDemand: form.initialDemand,
+      therapeuticGoals: form.therapeuticGoals,
+      dischargeSummary: form.dischargeSummary,
+      discharged: form.discharged,
     });
+  };
+
+  const salvarAnamnese = () =>
+    salvarProntuario.mutate({ id: patientId, anamnesis: anamnese as AnamneseData });
+  const salvarTcle = () =>
+    salvarProntuario.mutate({ id: patientId, tcle: tcle as TcleData, tcleSigned });
+  const baixarTcle = async () => {
+    try {
+      await exportTclePDF({ patient: patient!, terms: tcle as TcleData, emitidoPor: user?.name });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao gerar o TCLE");
+    }
   };
 
   // Sessões reais do paciente (evolução clínica).
@@ -140,32 +240,46 @@ export default function PatientDetail() {
     { enabled: patientId > 0 },
   );
   const [isSessionOpen, setIsSessionOpen] = useState(false);
-  const [sessionForm, setSessionForm] = useState({
-    clinicalNotes: "",
+  const sessionFormVazio = {
+    subjective: "",
+    objective: "",
+    assessment: "",
+    plan: "",
     mood: "",
-    treatment: "",
-    nextSteps: "",
-  });
+    clinicalNotes: "",
+  };
+  const [sessionForm, setSessionForm] = useState(sessionFormVazio);
   const createSession = trpc.sessions.create.useMutation({
     onSuccess: () => {
       utils.sessions.getByPatient.invalidate({ patientId });
-      setSessionForm({ clinicalNotes: "", mood: "", treatment: "", nextSteps: "" });
+      setSessionForm(sessionFormVazio);
       setIsSessionOpen(false);
       toast.success("Sessão registrada!");
     },
     onError: (e) => toast.error(e.message || "Erro ao registrar sessão"),
   });
   const handleSaveSession = () => {
-    if (!sessionForm.clinicalNotes.trim()) {
-      toast.error("Descreva as anotações clínicas.");
+    const preenchido = [
+      sessionForm.subjective,
+      sessionForm.objective,
+      sessionForm.assessment,
+      sessionForm.plan,
+      sessionForm.clinicalNotes,
+    ].some((v) => v.trim());
+    if (!preenchido) {
+      toast.error("Preencha ao menos o Subjetivo (S) ou o resumo da sessão.");
       return;
     }
     createSession.mutate({
       patientId,
+      // clinicalNotes segue no contrato (obrigatório): mandamos o resumo, que
+      // pode ficar vazio quando a evolução está toda no SOAP.
       clinicalNotes: sessionForm.clinicalNotes,
       mood: sessionForm.mood || undefined,
-      treatment: sessionForm.treatment || undefined,
-      nextSteps: sessionForm.nextSteps || undefined,
+      subjective: sessionForm.subjective || undefined,
+      objective: sessionForm.objective || undefined,
+      assessment: sessionForm.assessment || undefined,
+      plan: sessionForm.plan || undefined,
     });
   };
 
@@ -418,10 +532,12 @@ export default function PatientDetail() {
 
         {/* Tabs */}
         <Tabs defaultValue="info" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid h-auto w-full grid-cols-3 lg:grid-cols-6">
             <TabsTrigger value="info">Informações</TabsTrigger>
+            <TabsTrigger value="anamnese">Anamnese</TabsTrigger>
             <TabsTrigger value="sessions">Sessões</TabsTrigger>
             <TabsTrigger value="documents">Documentos</TabsTrigger>
+            <TabsTrigger value="tcle">TCLE</TabsTrigger>
             <TabsTrigger value="pagamentos">Pagamentos</TabsTrigger>
           </TabsList>
 
@@ -454,6 +570,70 @@ export default function PatientDetail() {
                     {patient.medicalHistory || "—"}
                   </p>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Plano clínico (Resolução CFP 001/2009): demanda inicial,
+                objetivos/plano terapêutico e encerramento. Editável no botão
+                "Editar dados clínicos". */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Plano clínico</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Campos do prontuário exigidos pela Resolução CFP nº 001/2009.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Demanda inicial</p>
+                  <p className="text-foreground whitespace-pre-wrap">
+                    {patient.initialDemand || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Objetivos e plano terapêutico</p>
+                  <p className="text-foreground whitespace-pre-wrap">
+                    {patient.therapeuticGoals || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    Encerramento / alta
+                    {patient.dischargedAt ? ` · ${formatarData(patient.dischargedAt)}` : ""}
+                  </p>
+                  <p className="text-foreground whitespace-pre-wrap">
+                    {patient.dischargeSummary || (patient.dischargedAt ? "Encerrado." : "Em acompanhamento.")}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Anamnese Tab — ficha estruturada da 1ª sessão */}
+          <TabsContent value="anamnese" className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">Ficha de Anamnese</h2>
+                <p className="text-sm text-muted-foreground">
+                  Levantamento da 1ª sessão. Salve quando quiser — pode completar aos poucos.
+                </p>
+              </div>
+              <Button
+                onClick={salvarAnamnese}
+                disabled={salvarProntuario.isPending}
+                className="bg-primary hover:bg-primary/90 shrink-0"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {salvarProntuario.isPending ? "Salvando..." : "Salvar anamnese"}
+              </Button>
+            </div>
+            <Card>
+              <CardContent className="pt-6">
+                <CamposEditaveis
+                  campos={ANAMNESE_CAMPOS}
+                  valores={anamnese}
+                  onChange={(chave, valor) => setAnamnese((a) => ({ ...a, [chave]: valor }))}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -494,9 +674,21 @@ export default function PatientDetail() {
                           </span>
                         ) : null}
                       </div>
-                      <p className="text-sm text-foreground whitespace-pre-wrap">
-                        {session.clinicalNotes}
-                      </p>
+                      {session.clinicalNotes ? (
+                        <p className="text-sm text-foreground whitespace-pre-wrap">
+                          {session.clinicalNotes}
+                        </p>
+                      ) : null}
+                      {/* Evolução SOAP (quando registrada). */}
+                      {SOAP_CAMPOS.map((campo) => {
+                        const valor = session[campo.chave as keyof typeof session] as string | null;
+                        return valor ? (
+                          <p key={campo.chave} className="text-sm text-muted-foreground whitespace-pre-wrap">
+                            <span className="font-medium text-foreground">{campo.rotulo}:</span>{" "}
+                            {valor}
+                          </p>
+                        ) : null;
+                      })}
                       {session.treatment ? (
                         <p className="text-sm text-muted-foreground">
                           <span className="font-medium text-foreground">Tratamento:</span>{" "}
@@ -585,6 +777,57 @@ export default function PatientDetail() {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          {/* TCLE Tab — termo de consentimento livre e esclarecido */}
+          <TabsContent value="tcle" className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">Termo de Consentimento (TCLE)</h2>
+                <p className="text-sm text-muted-foreground">
+                  Termos do contrato terapêutico. Gere o PDF para o paciente assinar.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={baixarTcle}>
+                  <FileDown className="w-4 h-4 mr-2" />
+                  Gerar TCLE (PDF)
+                </Button>
+                <Button
+                  onClick={salvarTcle}
+                  disabled={salvarProntuario.isPending}
+                  className="bg-primary hover:bg-primary/90"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {salvarProntuario.isPending ? "Salvando..." : "Salvar"}
+                </Button>
+              </div>
+            </div>
+            <Card>
+              <CardContent className="space-y-6 pt-6">
+                <CamposEditaveis
+                  campos={TCLE_CAMPOS}
+                  valores={tcle}
+                  onChange={(chave, valor) => setTcle((t) => ({ ...t, [chave]: valor }))}
+                />
+                <label className="flex items-start gap-2 border-t pt-4 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={tcleSigned}
+                    onChange={(e) => setTcleSigned(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-primary"
+                  />
+                  <span className="text-muted-foreground">
+                    Termo assinado pelo paciente.
+                    {patient.tcleSignedAt ? ` Registrado em ${formatarData(patient.tcleSignedAt)}.` : ""}
+                  </span>
+                </label>
+                <p className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <FileSignature className="mt-0.5 h-4 w-4 shrink-0" />
+                  Salve os termos antes de gerar o PDF para que apareçam preenchidos no documento.
+                </p>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Pagamentos deste paciente */}
@@ -783,6 +1026,54 @@ export default function PatientDetail() {
                 onChange={(e) => setForm({ ...form, medicalHistory: e.target.value })}
               />
             </div>
+
+            {/* Plano clínico (Resolução CFP 001/2009). */}
+            <div className="space-y-4 rounded-md border border-primary/20 bg-primary/5 p-3">
+              <p className="text-xs font-medium text-foreground">Plano clínico (CFP)</p>
+              <div className="space-y-2">
+                <Label htmlFor="initialDemand">Demanda inicial</Label>
+                <Textarea
+                  id="initialDemand"
+                  rows={3}
+                  value={form.initialDemand}
+                  onChange={(e) => setForm({ ...form, initialDemand: e.target.value })}
+                  placeholder="Queixa, motivo da busca e hipóteses iniciais."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="therapeuticGoals">Objetivos e plano terapêutico</Label>
+                <Textarea
+                  id="therapeuticGoals"
+                  rows={3}
+                  value={form.therapeuticGoals}
+                  onChange={(e) => setForm({ ...form, therapeuticGoals: e.target.value })}
+                  placeholder="O que se pretende alcançar com as intervenções."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dischargeSummary">Encerramento / alta e encaminhamentos</Label>
+                <Textarea
+                  id="dischargeSummary"
+                  rows={3}
+                  value={form.dischargeSummary}
+                  onChange={(e) => setForm({ ...form, dischargeSummary: e.target.value })}
+                  placeholder="Motivo e conduta da alta, interrupção ou encaminhamento."
+                />
+              </div>
+              <label className="flex items-start gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.discharged}
+                  onChange={(e) => setForm({ ...form, discharged: e.target.checked })}
+                  className="mt-0.5 h-4 w-4 accent-primary"
+                />
+                <span className="text-muted-foreground">
+                  Registrar encerramento/alta (grava a data de hoje).
+                  {patient.dischargedAt ? ` Encerrado em ${formatarData(patient.dischargedAt)}.` : ""}
+                </span>
+              </label>
+            </div>
+
             <Button
               onClick={handleSave}
               disabled={updatePatient.isPending}
@@ -801,16 +1092,21 @@ export default function PatientDetail() {
             <DialogTitle>Registrar Nova Sessão</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="clinicalNotes">Anotações Clínicas *</Label>
-              <Textarea
-                id="clinicalNotes"
-                rows={6}
-                value={sessionForm.clinicalNotes}
-                onChange={(e) => setSessionForm({ ...sessionForm, clinicalNotes: e.target.value })}
-                placeholder="Descreva os pontos principais da sessão, a evolução do paciente..."
-              />
-            </div>
+            <p className="text-sm text-muted-foreground">
+              Evolução no método SOAP. Preencha o que fizer sentido — o resumo é opcional.
+            </p>
+            {SOAP_CAMPOS.map((campo) => (
+              <div key={campo.chave} className="space-y-2">
+                <Label htmlFor={`soap-${campo.chave}`}>{campo.rotulo}</Label>
+                <Textarea
+                  id={`soap-${campo.chave}`}
+                  rows={3}
+                  value={sessionForm[campo.chave as "subjective" | "objective" | "assessment" | "plan"]}
+                  onChange={(e) => setSessionForm({ ...sessionForm, [campo.chave]: e.target.value })}
+                  placeholder={campo.ajuda}
+                />
+              </div>
+            ))}
             <div className="space-y-2">
               <Label htmlFor="mood">Humor / Estado</Label>
               <Input
@@ -821,23 +1117,13 @@ export default function PatientDetail() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="treatment">Tratamento / Conduta</Label>
+              <Label htmlFor="clinicalNotes">Resumo / observações (opcional)</Label>
               <Textarea
-                id="treatment"
+                id="clinicalNotes"
                 rows={3}
-                value={sessionForm.treatment}
-                onChange={(e) => setSessionForm({ ...sessionForm, treatment: e.target.value })}
-                placeholder="Técnicas aplicadas, orientações..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="nextSteps">Próximos Passos</Label>
-              <Textarea
-                id="nextSteps"
-                rows={2}
-                value={sessionForm.nextSteps}
-                onChange={(e) => setSessionForm({ ...sessionForm, nextSteps: e.target.value })}
-                placeholder="Plano para a próxima sessão..."
+                value={sessionForm.clinicalNotes}
+                onChange={(e) => setSessionForm({ ...sessionForm, clinicalNotes: e.target.value })}
+                placeholder="Um resumo livre da sessão, se quiser."
               />
             </div>
             <Button

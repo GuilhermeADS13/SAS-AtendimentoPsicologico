@@ -1,4 +1,5 @@
 import { COOKIE_NAME } from "@shared/const";
+import { anamneseSchema, tcleSchema } from "@shared/prontuario";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, therapistProcedure, adminProcedure, router } from "./_core/trpc";
@@ -1182,6 +1183,17 @@ export const appRouter = router({
         // vem como booleano da UI: marcado grava a data do consentimento.
         guardianName: z.string().optional(),
         guardianConsent: z.boolean().optional(),
+        // Prontuário (CFP 001/2009). São dados clínicos da psicóloga: valem mesmo
+        // quando o paciente tem conta própria (que só mantém os dados pessoais).
+        initialDemand: z.string().optional(),
+        therapeuticGoals: z.string().optional(),
+        dischargeSummary: z.string().optional(),
+        // `discharged` como booleano da UI: marcado grava a data do encerramento.
+        discharged: z.boolean().optional(),
+        anamnesis: anamneseSchema.optional(),
+        tcle: tcleSchema.optional(),
+        // `tcleSigned` como booleano da UI: marcado grava a data da assinatura.
+        tcleSigned: z.boolean().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
@@ -1244,6 +1256,18 @@ export const appRouter = router({
         if (input.guardianConsent !== undefined) {
           // Só grava a data quando marca; desmarcar limpa o registro do consentimento.
           set.guardianConsentAt = input.guardianConsent ? new Date() : null;
+        }
+        if (input.initialDemand !== undefined) set.initialDemand = input.initialDemand || null;
+        if (input.therapeuticGoals !== undefined) set.therapeuticGoals = input.therapeuticGoals || null;
+        if (input.dischargeSummary !== undefined) set.dischargeSummary = input.dischargeSummary || null;
+        if (input.discharged !== undefined) {
+          // Marcar registra a data do encerramento; desmarcar reabre o caso.
+          set.dischargedAt = input.discharged ? new Date() : null;
+        }
+        if (input.anamnesis !== undefined) set.anamnesis = input.anamnesis;
+        if (input.tcle !== undefined) set.tcle = input.tcle;
+        if (input.tcleSigned !== undefined) {
+          set.tcleSignedAt = input.tcleSigned ? new Date() : null;
         }
 
         if (Object.keys(set).length > 0) {
@@ -1606,6 +1630,11 @@ export const appRouter = router({
         treatment: z.string().optional(),
         nextSteps: z.string().optional(),
         mood: z.string().optional(),
+        // Evolução estruturada SOAP (opcional; sessões antigas não têm).
+        subjective: z.string().optional(),
+        objective: z.string().optional(),
+        assessment: z.string().optional(),
+        plan: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
@@ -1637,6 +1666,10 @@ export const appRouter = router({
           treatment: input.treatment,
           nextSteps: input.nextSteps,
           mood: input.mood,
+          subjective: input.subjective,
+          objective: input.objective,
+          assessment: input.assessment,
+          plan: input.plan,
         });
       }),
   }),
