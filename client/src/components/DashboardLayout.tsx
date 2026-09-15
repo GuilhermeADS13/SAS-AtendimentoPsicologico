@@ -39,7 +39,7 @@ import { Button } from "./ui/button";
 // avulsa seria "cega" — sem paciente, as anotações da sessão se perderiam.
 const therapistMenu = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-  { icon: Users, label: "Pacientes", path: "/records" },
+  { icon: Users, label: "Pacientes / Prontuários", path: "/records" },
   { icon: LumaOwlIcon, label: "Luma — Assistente IA", path: "/luma" },
   { icon: Calendar, label: "Agendamentos", path: "/appointments" },
   { icon: Wallet, label: "Financeiro", path: "/financeiro" },
