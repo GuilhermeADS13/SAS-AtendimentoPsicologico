@@ -1,5 +1,5 @@
 import { COOKIE_NAME } from "@shared/const";
-import { anamneseSchema, tcleSchema } from "@shared/prontuario";
+import { anamneseSchema, tcleSchema, noteTemplatesSchema } from "@shared/prontuario";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, therapistProcedure, adminProcedure, router } from "./_core/trpc";
@@ -1807,6 +1807,48 @@ export const appRouter = router({
           console.error("Error fetching patient notes:", error);
           throw error;
         }
+      }),
+  }),
+
+  // Modelos de anotação do próprio psicólogo (nome + corpo em markdown).
+  noteTemplates: router({
+    list: therapistProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return [];
+      const therapist = await db
+        .select({ noteTemplates: therapists.noteTemplates })
+        .from(therapists)
+        .where(eq(therapists.userId, ctx.user.id))
+        .limit(1);
+      return therapist[0]?.noteTemplates ?? [];
+    }),
+
+    // Substitui a lista inteira (o cliente manda o conjunto atual). Garante no
+    // máximo um padrão: se vier mais de um marcado, vale o primeiro.
+    save: therapistProcedure
+      .input(noteTemplatesSchema)
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const therapist = await db
+          .select({ id: therapists.id })
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+        if (!therapist.length) throw new Error("Therapist not found");
+
+        let achouPadrao = false;
+        const normalizados = input.map((tpl) => {
+          const padrao = Boolean(tpl.padrao) && !achouPadrao;
+          if (padrao) achouPadrao = true;
+          return { ...tpl, padrao };
+        });
+
+        await db
+          .update(therapists)
+          .set({ noteTemplates: normalizados })
+          .where(eq(therapists.id, therapist[0].id));
+        return { success: true } as const;
       }),
   }),
 

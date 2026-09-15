@@ -117,6 +117,27 @@ const chavesTcle = TCLE_CAMPOS.map(c => c.chave) as [TcleChave, ...TcleChave[]];
 export const anamneseSchema = z.partialRecord(z.enum(chavesAnamnese), z.string().max(8000));
 export const tcleSchema = z.partialRecord(z.enum(chavesTcle), z.string().max(8000));
 
+/**
+ * Modelos de anotação. Os INTERNOS vêm com o sistema; o psicólogo também cria os
+ * dele (nome + corpo em markdown) nas Configurações. Aparecem como botões de
+ * inserir nas anotações da videochamada e no registro de sessão do prontuário.
+ */
+export const MODELOS_INTERNOS = [
+  { nome: "SOAP", corpo: "**S — Subjetivo**\n\n\n**O — Objetivo**\n\n\n**A — Avaliação**\n\n\n**P — Plano**\n" },
+  { nome: "Evolução breve", corpo: "**Evolução**\n\n\n**Conduta / próximos passos**\n" },
+] as const;
+
+export type NoteTemplate = { id: string; nome: string; corpo: string; padrao?: boolean };
+
+export const noteTemplateSchema = z.object({
+  id: z.string().min(1).max(64),
+  nome: z.string().trim().min(1).max(80),
+  corpo: z.string().max(8000),
+  padrao: z.boolean().optional(),
+});
+/** Lista de modelos do psicólogo (guardada em therapists.noteTemplates). */
+export const noteTemplatesSchema = z.array(noteTemplateSchema).max(30);
+
 /** SOAP — evolução estruturada de uma sessão (Resolução CFP + método SOAP). */
 export const SOAP_CAMPOS = [
   { chave: "subjective", rotulo: "S — Subjetivo", grupo: "SOAP", multilinha: true, ajuda: "O que o paciente relata (queixas, percepções)." },

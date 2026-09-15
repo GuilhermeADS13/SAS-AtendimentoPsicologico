@@ -1,6 +1,6 @@
 import { boolean, customType, index, integer, jsonb, pgEnum, pgTable, serial, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import type { AnamneseData, TcleData } from "../shared/prontuario";
+import type { AnamneseData, TcleData, NoteTemplate } from "../shared/prontuario";
 
 /**
  * Schema Postgres (Supabase). Colunas em camelCase para casar com os tipos gerados.
@@ -147,6 +147,9 @@ export const therapists = pgTable("therapists", {
   /** Telefone de contato, editável em Configurações. Mesmo tamanho de
    *  `patients.phone` para os dois lados aceitarem o mesmo formato. */
   phone: varchar("phone", { length: 20 }),
+  /** Modelos de anotação do próprio psicólogo (nome + corpo em markdown; um pode
+   *  ser o padrão). Usados nas anotações da chamada e no prontuário. Ver shared/prontuario.ts. */
+  noteTemplates: jsonb("noteTemplates").$type<NoteTemplate[]>(),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
     .defaultNow()
