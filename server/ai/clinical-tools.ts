@@ -217,6 +217,11 @@ export async function readPatientSessions(
     clinicalNotes: sessions.clinicalNotes,
     treatment: sessions.treatment,
     nextSteps: sessions.nextSteps,
+    // Evolução SOAP (quando registrada) — a Luma lê como parte da sessão.
+    subjective: sessions.subjective,
+    objective: sessions.objective,
+    assessment: sessions.assessment,
+    plan: sessions.plan,
   }).from(sessions)
     .where(and(eq(sessions.patientId, patient.id), eq(sessions.therapistId, patient.therapistId)))
     .orderBy(desc(sessions.startedAt)).limit(20);

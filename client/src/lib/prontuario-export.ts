@@ -11,6 +11,7 @@
  */
 import type { RouterOutputs } from "@/lib/trpc";
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
+import { ANAMNESE_CAMPOS, TCLE_CAMPOS, SOAP_CAMPOS, type TcleData } from "@shared/prontuario";
 
 type Patient = NonNullable<RouterOutputs["patients"]["get"]>;
 type Session = RouterOutputs["sessions"]["getByPatient"][number];
@@ -76,9 +77,15 @@ function montar(dados: ProntuarioData): Prontuario {
     .map((s) => {
       const campos: Campo[] = [];
       if (s.mood) campos.push({ rotulo: "Humor / estado", valor: s.mood });
-      campos.push({ rotulo: "Anotações clínicas", valor: s.clinicalNotes || traco });
+      if (s.clinicalNotes) campos.push({ rotulo: "Anotações clínicas", valor: s.clinicalNotes });
+      // Evolução SOAP (quando registrada), na ordem S → O → A → P.
+      for (const campo of SOAP_CAMPOS) {
+        const valor = s[campo.chave as keyof typeof s] as string | null;
+        if (valor) campos.push({ rotulo: campo.rotulo, valor });
+      }
       if (s.treatment) campos.push({ rotulo: "Tratamento / conduta", valor: s.treatment });
       if (s.nextSteps) campos.push({ rotulo: "Próximos passos", valor: s.nextSteps });
+      if (!campos.length) campos.push({ rotulo: "Anotações clínicas", valor: traco });
       return { titulo: dataHora(new Date(s.startedAt)), campos };
     });
 
@@ -86,48 +93,69 @@ function montar(dados: ProntuarioData): Prontuario {
     (d) => `${d.fileName} · ${data(d.createdAt)} · ${tamanho(d.fileSize)}`,
   );
 
+  // Anamnese: só os campos preenchidos, com o rótulo humano da configuração.
+  const anamneseCampos: Campo[] = ANAMNESE_CAMPOS
+    .filter((c) => (p.anamnesis?.[c.chave] ?? "").trim())
+    .map((c) => ({ rotulo: c.rotulo, valor: p.anamnesis![c.chave]! }));
+
+  // TCLE: termos preenchidos + registro de assinatura.
+  const tcleCampos: Campo[] = TCLE_CAMPOS
+    .filter((c) => (p.tcle?.[c.chave] ?? "").trim())
+    .map((c) => ({ rotulo: c.rotulo, valor: p.tcle![c.chave]! }));
+  if (p.tcleSignedAt) tcleCampos.push({ rotulo: "Assinado em", valor: data(p.tcleSignedAt) });
+
+  const encerramentoTexto = p.dischargeSummary
+    ? (p.dischargedAt ? `${p.dischargeSummary}\n(Encerrado em ${data(p.dischargedAt)})` : p.dischargeSummary)
+    : (p.dischargedAt ? `Encerrado em ${data(p.dischargedAt)}.` : "Em acompanhamento.");
+
+  const secoes: Secao[] = [
+    {
+      tipo: "campos",
+      titulo: "Dados pessoais",
+      campos: [
+        { rotulo: "Nome", valor: nome },
+        { rotulo: "E-mail", valor: p.email || traco },
+        { rotulo: "Telefone", valor: p.phone || traco },
+        // Nascimento em UTC (dia puro); as demais datas do doc têm hora e vão
+        // no fuso local via data(). Ver shared/datas.ts.
+        { rotulo: "Nascimento", valor: formatarNascimento(p.dateOfBirth) },
+        { rotulo: "Endereço", valor: p.address || traco },
+        { rotulo: "Status", valor: statusLabel(p.status) },
+      ],
+    },
+    {
+      tipo: "campos",
+      titulo: "Contato de emergência",
+      campos: [
+        { rotulo: "Nome", valor: p.emergencyContact || traco },
+        { rotulo: "Telefone", valor: p.emergencyPhone || traco },
+      ],
+    },
+    { tipo: "texto", titulo: "Histórico médico", texto: p.medicalHistory || traco },
+    { tipo: "texto", titulo: "Demanda inicial", texto: p.initialDemand || traco },
+    { tipo: "texto", titulo: "Objetivos e plano terapêutico", texto: p.therapeuticGoals || traco },
+  ];
+
+  if (anamneseCampos.length) {
+    secoes.push({ tipo: "campos", titulo: "Anamnese", campos: anamneseCampos });
+  }
+
+  secoes.push(
+    { tipo: "sessoes", titulo: "Evolução clínica", sessoes, vazio: "Nenhuma sessão registrada." },
+    { tipo: "texto", titulo: "Encerramento / alta", texto: encerramentoTexto },
+    { tipo: "lista", titulo: "Documentos anexados", itens: anexos, vazio: "Nenhum documento anexado." },
+  );
+
+  if (tcleCampos.length) {
+    secoes.push({ tipo: "campos", titulo: "Termo de Consentimento (TCLE)", campos: tcleCampos });
+  }
+
   return {
     titulo: "VozInterior — Prontuário",
     paciente: nome,
     emitido: `Emitido por ${emitidoPor || traco} em ${dataHora(new Date())}`,
-    secoes: [
-      {
-        tipo: "campos",
-        titulo: "Dados pessoais",
-        campos: [
-          { rotulo: "Nome", valor: nome },
-          { rotulo: "E-mail", valor: p.email || traco },
-          { rotulo: "Telefone", valor: p.phone || traco },
-          // Nascimento em UTC (dia puro); as demais datas do doc têm hora e vão
-          // no fuso local via data(). Ver shared/datas.ts.
-          { rotulo: "Nascimento", valor: formatarNascimento(p.dateOfBirth) },
-          { rotulo: "Endereço", valor: p.address || traco },
-          { rotulo: "Status", valor: statusLabel(p.status) },
-        ],
-      },
-      {
-        tipo: "campos",
-        titulo: "Contato de emergência",
-        campos: [
-          { rotulo: "Nome", valor: p.emergencyContact || traco },
-          { rotulo: "Telefone", valor: p.emergencyPhone || traco },
-        ],
-      },
-      { tipo: "texto", titulo: "Histórico médico", texto: p.medicalHistory || traco },
-      {
-        tipo: "sessoes",
-        titulo: "Evolução clínica",
-        sessoes,
-        vazio: "Nenhuma sessão registrada.",
-      },
-      {
-        tipo: "lista",
-        titulo: "Documentos anexados",
-        itens: anexos,
-        vazio: "Nenhum documento anexado.",
-      },
-    ],
-    rodape: "Cópia gerada em " + data(new Date()) + ". Documento sob guarda do profissional.",
+    secoes,
+    rodape: "Cópia gerada em " + data(new Date()) + ". Documento sob guarda do profissional (guarda mínima de 5 anos — Resolução CFP nº 001/2009).",
   };
 }
 
@@ -277,4 +305,118 @@ export async function buildProntuarioDocxBlob(dados: ProntuarioData): Promise<Bl
 export async function exportProntuarioDOCX(dados: ProntuarioData): Promise<void> {
   const blob = await buildProntuarioDocxBlob(dados);
   baixar(blob, nomeArquivo(nomePaciente(dados), "docx"));
+}
+
+// ================= TCLE (Termo de Consentimento) =================
+export type TcleDocData = {
+  patient: Patient;
+  terms: TcleData;
+  /** Nome do(a) psicólogo(a). */
+  emitidoPor?: string | null;
+  crp?: string | null;
+};
+
+/** Valor do termo ou uma linha em branco para preencher à mão. */
+function ou(valor: string | undefined, tamanho = 24): string {
+  const v = (valor ?? "").trim();
+  return v || "_".repeat(tamanho);
+}
+
+/** Monta os parágrafos do TCLE a partir dos termos (texto fixo + variáveis). */
+function montarTcle(dados: TcleDocData): { titulo: string; blocos: { titulo?: string; texto: string }[]; assinaturas: string[] } {
+  const t = dados.terms;
+  const nome = `${dados.patient.firstName} ${dados.patient.lastName}`.trim();
+  const prof = ou(dados.emitidoPor ?? undefined, 30);
+  const crp = ou(dados.crp ?? undefined, 12);
+  return {
+    titulo: "TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO (TCLE)",
+    blocos: [
+      {
+        texto: `Pelo presente instrumento, eu, ${nome}, declaro que fui devidamente informado(a) e concordo com os termos da prestação de serviços psicológicos conduzidos pelo(a) psicólogo(a) ${prof}, CRP nº ${crp}.`,
+      },
+      {
+        titulo: "1. DO PROCESSO TERAPÊUTICO",
+        texto: `Compreendo que a psicoterapia é um processo colaborativo que visa o autoconhecimento e o manejo de demandas emocionais e comportamentais. As sessões têm duração de ${ou(t.duracaoSessao, 12)} e frequência ${ou(t.frequencia, 12)}.`,
+      },
+      {
+        titulo: "2. DO SIGILO PROFISSIONAL",
+        texto: "Estou ciente de que os atendimentos são estritamente confidenciais, conforme o Código de Ética Profissional do Psicólogo. O sigilo só poderá ser quebrado em situações de risco de vida para si mesmo ou para terceiros, ou por determinação judicial legalmente embasada.",
+      },
+      {
+        titulo: "3. DOS REGISTROS (PRONTUÁRIO)",
+        texto: "Fui informado(a) de que as informações das sessões serão registradas em prontuário seguro, de propriedade minha, mas sob a guarda do(a) psicólogo(a) pelo período legal de 5 anos, conforme normas do CFP e da LGPD.",
+      },
+      {
+        titulo: "4. FALTAS E CANCELAMENTOS",
+        texto: `Comprometo-me a avisar sobre faltas ou pedidos de reagendamento com antecedência mínima de ${ou(t.antecedenciaCancelamento, 10)}. Cancelamentos fora deste prazo sujeitam-se à cobrança do valor da sessão.`,
+      },
+      {
+        titulo: "5. VALORES E PAGAMENTO",
+        texto: `O valor acordado por sessão é de ${ou(t.valorSessao, 14)}, com pagamento ${ou(t.diaPagamento, 18)} via ${ou(t.formaPagamento, 16)}.`,
+      },
+      ...(t.local?.trim() ? [{ titulo: "6. LOCAL DO ATENDIMENTO", texto: t.local.trim() }] : []),
+      ...(t.observacoes?.trim() ? [{ titulo: "OBSERVAÇÕES", texto: t.observacoes.trim() }] : []),
+      { texto: `Local: ${"_".repeat(28)}   Data: ${dados.patient.tcleSignedAt ? data(dados.patient.tcleSignedAt) : "____/____/______"}.` },
+    ],
+    assinaturas: [
+      "__________________________________________",
+      "Assinatura do(a) Paciente (ou Responsável Legal)",
+      "",
+      "__________________________________________",
+      "Assinatura e CRP do(a) Psicólogo(a)",
+    ],
+  };
+}
+
+export async function buildTclePdfBlob(dados: TcleDocData): Promise<Blob> {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const m = montarTcle(dados);
+
+  const margem = 56;
+  const larguraPag = doc.internal.pageSize.getWidth();
+  const alturaPag = doc.internal.pageSize.getHeight();
+  const maxW = larguraPag - margem * 2;
+  let y = margem;
+
+  const garantir = (espaco: number) => {
+    if (y + espaco > alturaPag - margem) {
+      doc.addPage();
+      y = margem;
+    }
+  };
+  const texto = (t: string, size: number, estilo: "normal" | "bold" | "italic", cor = 40) => {
+    doc.setFont("helvetica", estilo);
+    doc.setFontSize(size);
+    doc.setTextColor(cor);
+    for (const linha of doc.splitTextToSize(t, maxW)) {
+      const lh = size * 1.4;
+      garantir(lh);
+      doc.text(linha, margem, y);
+      y += lh;
+    }
+  };
+
+  texto(m.titulo, 14, "bold", 33);
+  y += 10;
+  for (const bloco of m.blocos) {
+    if (bloco.titulo) {
+      y += 6;
+      texto(bloco.titulo, 11, "bold", 33);
+    }
+    texto(bloco.texto, 10.5, "normal");
+    y += 4;
+  }
+  y += 24;
+  for (const linha of m.assinaturas) texto(linha || " ", 10, "normal", 60);
+
+  const ab = doc.output("arraybuffer");
+  return new Blob([ab], { type: "application/pdf" });
+}
+
+export async function exportTclePDF(dados: TcleDocData): Promise<void> {
+  const blob = await buildTclePdfBlob(dados);
+  const nome = `${dados.patient.firstName} ${dados.patient.lastName}`.trim();
+  const limpo = nome.replace(/[^\w\s.-]+/g, "").replace(/\s+/g, " ").trim();
+  baixar(blob, `TCLE - ${limpo} - ${new Date().toISOString().slice(0, 10)}.pdf`);
 }

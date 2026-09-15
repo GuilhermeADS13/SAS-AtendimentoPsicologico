@@ -1,5 +1,6 @@
 import { boolean, customType, index, integer, jsonb, pgEnum, pgTable, serial, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import type { AnamneseData, TcleData } from "../shared/prontuario";
 
 /**
  * Schema Postgres (Supabase). Colunas em camelCase para casar com os tipos gerados.
@@ -183,6 +184,21 @@ export const patients = pgTable("patients", {
   /** Quando a psicóloga registrou ter obtido o consentimento do responsável.
    *  Nulo = não registrado (a UI cobra para menores). */
   guardianConsentAt: timestamp("guardianConsentAt", { withTimezone: true, mode: "date" }),
+  // ── Prontuário (Resolução CFP nº 001/2009) ──────────────────────────────────
+  /** Avaliação da demanda inicial: queixa, motivos da busca e hipóteses iniciais. */
+  initialDemand: text("initialDemand"),
+  /** Objetivos e plano terapêutico (o que se pretende alcançar). */
+  therapeuticGoals: text("therapeuticGoals"),
+  /** Registro de encerramento/alta e encaminhamentos (motivo e conduta). */
+  dischargeSummary: text("dischargeSummary"),
+  /** Data do encerramento/alta, quando houver. */
+  dischargedAt: timestamp("dischargedAt", { withTimezone: true, mode: "date" }),
+  /** Ficha de anamnese estruturada (1ª sessão). Ver shared/prontuario.ts. */
+  anamnesis: jsonb("anamnesis").$type<AnamneseData>(),
+  /** Termos variáveis do TCLE (duração, frequência, valor...). Ver shared/prontuario.ts. */
+  tcle: jsonb("tcle").$type<TcleData>(),
+  /** Quando o TCLE foi aceito/assinado pelo paciente. Nulo = não registrado. */
+  tcleSignedAt: timestamp("tcleSignedAt", { withTimezone: true, mode: "date" }),
   status: patientStatusEnum("status").default("active").notNull(),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
@@ -246,6 +262,12 @@ export const sessions = pgTable("sessions", {
   treatment: text("treatment"),
   nextSteps: text("nextSteps"),
   mood: varchar("mood", { length: 50 }),
+  // Evolução estruturada SOAP (método internacional). Colunas próprias, além dos
+  // campos livres acima — sessões antigas ficam sem SOAP e continuam válidas.
+  subjective: text("subjective"),
+  objective: text("objective"),
+  assessment: text("assessment"),
+  plan: text("plan"),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
     .defaultNow()
