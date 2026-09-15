@@ -45,6 +45,16 @@ describe("persona e segurança clínica da Luma", () => {
     expect(prompt).toContain("patientId 42");
   });
 
+  it("orienta a confirmar ação de agenda pelo botão, sem pedir 'sim' por mensagem", () => {
+    const prompt = clinicalSystemPrompt(therapistContext, 42);
+    // O botão de confirmação só aparece quando a ferramenta é CHAMADA; narrar a
+    // ação em texto não faz nada acontecer (bug observado em produção).
+    expect(prompt).toContain("OBRIGADA a CHAMAR a ferramenta");
+    expect(prompt).toContain("botão 'Confirmar'");
+    // A UX é o botão na tela, não confirmação por texto: não pedir "responder sim".
+    expect(prompt).toContain("NUNCA peça para ela 'responder sim'");
+  });
+
   it("mantém orientação segura para pedidos de decisão em crise", () => {
     const prompt = clinicalSystemPrompt({ userId: 8, role: "patient", patientId: 42 });
     expect(prompt).toContain("Quando a solicitação envolver uma decisão clínica, oriente a procurar o(a) profissional responsável");
