@@ -9,11 +9,17 @@ import WebRTCCall from "@/components/WebRTCCall";
 import VideoCallLobby from "@/components/VideoCallLobby";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { AlertCircle, ChevronUp, CheckCircle2, Copy, ShieldAlert, Loader2 } from "lucide-react";
+import { AlertCircle, ChevronUp, CheckCircle2, Copy, ShieldAlert, Loader2, Bold, Italic, List, Eye, ClipboardList } from "lucide-react";
 import { useLocation } from "wouter";
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Streamdown } from "streamdown";
+
+// Modelos prontos inseridos no editor de anotações (markdown).
+const MODELO_SOAP =
+  "**S — Subjetivo**\n\n\n**O — Objetivo**\n\n\n**A — Avaliação**\n\n\n**P — Plano**\n";
+const MODELO_BREVE = "**Evolução**\n\n\n**Conduta / próximos passos**\n";
 
 interface VideoCallDynamicProps {
   /** Nome da sala (apt<id>-<token>), sempre vindo da rota /videocall/:roomId. */
@@ -28,6 +34,41 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const [showSidebar, setShowSidebar] = useState(false);
   const [patientPresent, setPatientPresent] = useState(false);
   const [sessionNotes, setSessionNotes] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
+  const notesRef = useRef<HTMLTextAreaElement>(null);
+
+  // Edição de markdown no textarea controlado: aplica a transformação e restaura
+  // o cursor (senão o caret pula para o fim a cada clique da barra).
+  const editarNotas = (
+    transform: (ctx: { value: string; start: number; end: number }) => { value: string; caret: number },
+  ) => {
+    const ta = notesRef.current;
+    const start = ta?.selectionStart ?? sessionNotes.length;
+    const end = ta?.selectionEnd ?? sessionNotes.length;
+    const { value, caret } = transform({ value: sessionNotes, start, end });
+    setSessionNotes(value);
+    requestAnimationFrame(() => {
+      ta?.focus();
+      ta?.setSelectionRange(caret, caret);
+    });
+  };
+  const envolver = (marca: string) =>
+    editarNotas(({ value, start, end }) => {
+      const sel = value.slice(start, end) || "texto";
+      const novo = value.slice(0, start) + marca + sel + marca + value.slice(end);
+      return { value: novo, caret: start + marca.length + sel.length + marca.length };
+    });
+  const inserirLista = () =>
+    editarNotas(({ value, start, end }) => {
+      const inicioLinha = value.lastIndexOf("\n", start - 1) + 1;
+      const novo = value.slice(0, inicioLinha) + "- " + value.slice(inicioLinha);
+      return { value: novo, caret: end + 2 };
+    });
+  const inserirModelo = (tpl: string) =>
+    editarNotas(({ value }) => {
+      const base = value.trim() ? value.replace(/\s*$/, "") + "\n\n" : "";
+      return { value: base + tpl, caret: base.length + tpl.length };
+    });
   // Só entra na chamada depois de passar pela tela de preparação.
   const [joined, setJoined] = useState(false);
   const [nowTs, setNowTs] = useState(() => Date.now());
@@ -397,15 +438,48 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                     </div>
                   </TabsContent>
 
-                  {/* Notes Tab — sempre editável, com auto-save */}
+                  {/* Notes Tab — SOAP/markdown, modelos e auto-save */}
                   <TabsContent value="notes" className="p-4 space-y-3">
-                        <Textarea
-                          value={sessionNotes}
-                          onChange={(e) => setSessionNotes(e.target.value)}
-                          placeholder="Digite suas anotações da sessão... (salva sozinho)"
-                          rows={6}
-                          className="resize-none"
-                        />
+                        {/* Modelos + formatação */}
+                        <div className="flex flex-wrap items-center gap-1">
+                          <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" title="Inserir modelo SOAP" onClick={() => inserirModelo(MODELO_SOAP)}>
+                            <ClipboardList className="w-3.5 h-3.5 mr-1" /> SOAP
+                          </Button>
+                          <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" title="Inserir modelo de evolução breve" onClick={() => inserirModelo(MODELO_BREVE)}>
+                            Evolução breve
+                          </Button>
+                          <span className="mx-1 h-4 w-px bg-border" />
+                          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="Negrito" onClick={() => envolver("**")}>
+                            <Bold className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="Itálico" onClick={() => envolver("*")}>
+                            <Italic className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="Lista" onClick={inserirLista}>
+                            <List className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 ml-auto text-xs" title="Pré-visualizar formatação" onClick={() => setShowPreview((p) => !p)}>
+                            <Eye className="w-3.5 h-3.5 mr-1" /> {showPreview ? "Editar" : "Pré-ver"}
+                          </Button>
+                        </div>
+
+                        {showPreview ? (
+                          <div className="min-h-[220px] rounded-md border border-border bg-muted/20 p-3 text-sm">
+                            {sessionNotes.trim() ? (
+                              <Streamdown>{sessionNotes}</Streamdown>
+                            ) : (
+                              <p className="text-muted-foreground">Nada para pré-visualizar ainda.</p>
+                            )}
+                          </div>
+                        ) : (
+                          <Textarea
+                            ref={notesRef}
+                            value={sessionNotes}
+                            onChange={(e) => setSessionNotes(e.target.value)}
+                            placeholder="Anotações da sessão. Use os modelos (SOAP) e a formatação acima. Salva sozinho."
+                            className="min-h-[220px] resize-y text-sm leading-relaxed"
+                          />
+                        )}
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-muted-foreground">
                             {!notesEnabled && "Sala avulsa — anotações não vinculadas a um agendamento"}
@@ -438,7 +512,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                                     {formatarData(session.startedAt)}
                                   </p>
                                   <p className="text-muted-foreground mt-1 line-clamp-2">
-                                    {session.clinicalNotes}
+                                    {session.clinicalNotes || session.subjective || session.assessment || "—"}
                                   </p>
                                 </div>
                               ))

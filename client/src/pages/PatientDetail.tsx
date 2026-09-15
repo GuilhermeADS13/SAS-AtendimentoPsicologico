@@ -395,8 +395,14 @@ export default function PatientDetail() {
     );
   }
 
-  const statusLabel =
-    patient.status === "active" ? "Ativo" : patient.status === "inactive" ? "Inativo" : "Arquivado";
+  // Rótulo e cor por status. "pending" = cadastrado pela psicóloga, aguardando o
+  // paciente criar a conta (antes caía no genérico e aparecia como "Arquivado").
+  const statusInfo = {
+    active: { label: "Ativo", cor: "text-green-600" },
+    pending: { label: "Aguardando cadastro", cor: "text-amber-600" },
+    inactive: { label: "Inativo", cor: "text-muted-foreground" },
+    archived: { label: "Arquivado", cor: "text-muted-foreground" },
+  }[patient.status] ?? { label: patient.status, cor: "text-foreground" };
 
   // Com conta vinculada, os dados pessoais vêm do "Meu Cadastro" do paciente e
   // chegam aqui sozinhos — editar por fora só criaria divergência (foi o que
@@ -490,7 +496,7 @@ export default function PatientDetail() {
           <Card>
             <CardContent>
               <p className="text-sm text-muted-foreground">Status</p>
-              <p className="text-lg font-semibold text-green-600">{statusLabel}</p>
+              <p className={`text-lg font-semibold ${statusInfo.cor}`}>{statusInfo.label}</p>
             </CardContent>
           </Card>
           <Card>
