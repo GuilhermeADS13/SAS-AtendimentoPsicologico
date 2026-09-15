@@ -15,11 +15,7 @@ import { formatarData, formatarDataHora, formatarNascimento } from "@shared/data
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Streamdown } from "streamdown";
-
-// Modelos prontos inseridos no editor de anotações (markdown).
-const MODELO_SOAP =
-  "**S — Subjetivo**\n\n\n**O — Objetivo**\n\n\n**A — Avaliação**\n\n\n**P — Plano**\n";
-const MODELO_BREVE = "**Evolução**\n\n\n**Conduta / próximos passos**\n";
+import { MODELOS_INTERNOS } from "@shared/prontuario";
 
 interface VideoCallDynamicProps {
   /** Nome da sala (apt<id>-<token>), sempre vindo da rota /videocall/:roomId. */
@@ -101,10 +97,26 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
     { appointmentId },
     { enabled: notesEnabled },
   );
+  // Modelos do psicólogo (para os botões de inserir e o padrão que pré-carrega).
+  const templatesQuery = trpc.noteTemplates.list.useQuery(undefined, { enabled: notesEnabled });
+  const templates = templatesQuery.data ?? [];
+  const modeloPadrao = templates.find((t) => t.padrao);
+
+  // Inicializa as anotações UMA vez: carrega o que já foi salvo; se a anotação
+  // está em branco e existe um modelo padrão, pré-carrega esse modelo. O ref
+  // impede que um refetch sobrescreva o que a psicóloga já está digitando.
+  const notesInitRef = useRef(false);
   useEffect(() => {
+    if (notesInitRef.current || !notesEnabled) return;
+    if (savedNotes.isLoading || templatesQuery.isLoading) return;
+    notesInitRef.current = true;
     const saved = savedNotes.data?.[0]?.notes;
-    if (typeof saved === "string") setSessionNotes(saved);
-  }, [savedNotes.data]);
+    if (typeof saved === "string" && saved.trim()) {
+      setSessionNotes(saved);
+    } else if (modeloPadrao?.corpo) {
+      setSessionNotes(modeloPadrao.corpo);
+    }
+  }, [notesEnabled, savedNotes.isLoading, savedNotes.data, templatesQuery.isLoading, modeloPadrao]);
 
   // Auto-save real: persiste no router sessionNotes (debounce de 1,5s).
   const saveNotes = trpc.sessionNotes.save.useMutation();
@@ -442,12 +454,17 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                   <TabsContent value="notes" className="p-4 space-y-3">
                         {/* Modelos + formatação */}
                         <div className="flex flex-wrap items-center gap-1">
-                          <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" title="Inserir modelo SOAP" onClick={() => inserirModelo(MODELO_SOAP)}>
-                            <ClipboardList className="w-3.5 h-3.5 mr-1" /> SOAP
-                          </Button>
-                          <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" title="Inserir modelo de evolução breve" onClick={() => inserirModelo(MODELO_BREVE)}>
-                            Evolução breve
-                          </Button>
+                          {MODELOS_INTERNOS.map((m, i) => (
+                            <Button key={m.nome} type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" title={`Inserir modelo ${m.nome}`} onClick={() => inserirModelo(m.corpo)}>
+                              {i === 0 && <ClipboardList className="w-3.5 h-3.5 mr-1" />}
+                              {m.nome}
+                            </Button>
+                          ))}
+                          {templates.map((t) => (
+                            <Button key={t.id} type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" title={`Inserir modelo ${t.nome}`} onClick={() => inserirModelo(t.corpo)}>
+                              {t.nome}
+                            </Button>
+                          ))}
                           <span className="mx-1 h-4 w-px bg-border" />
                           <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="Negrito" onClick={() => envolver("**")}>
                             <Bold className="w-3.5 h-3.5" />

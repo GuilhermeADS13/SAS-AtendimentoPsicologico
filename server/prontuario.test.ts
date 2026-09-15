@@ -5,6 +5,7 @@ import {
   agruparCampos,
   anamneseSchema,
   tcleSchema,
+  noteTemplatesSchema,
 } from "@shared/prontuario";
 
 /**
@@ -47,5 +48,18 @@ describe("prontuário — validação e configuração", () => {
       "assessment",
       "plan",
     ]);
+  });
+
+  it("modelos de anotação: aceita lista válida e rejeita nome vazio", () => {
+    expect(
+      noteTemplatesSchema.safeParse([
+        { id: "a", nome: "Evolução TCC", corpo: "**Queixa**", padrao: true },
+      ]).success,
+    ).toBe(true);
+    expect(
+      noteTemplatesSchema.safeParse([{ id: "a", nome: "", corpo: "x" }]).success,
+    ).toBe(false);
+    // Campo obrigatório ausente (corpo).
+    expect(noteTemplatesSchema.safeParse([{ id: "a", nome: "X" }]).success).toBe(false);
   });
 });

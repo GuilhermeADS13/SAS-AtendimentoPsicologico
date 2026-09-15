@@ -13,6 +13,7 @@ import {
   ANAMNESE_CAMPOS,
   TCLE_CAMPOS,
   SOAP_CAMPOS,
+  MODELOS_INTERNOS,
   agruparCampos,
   type CampoProntuario,
   type AnamneseData,
@@ -282,6 +283,16 @@ export default function PatientDetail() {
       plan: sessionForm.plan || undefined,
     });
   };
+
+  // Modelos de anotação do psicólogo — botões que inserem o modelo no "Resumo"
+  // da sessão (os modelos são texto livre; o SOAP tem os campos próprios).
+  const noteTemplatesQuery = trpc.noteTemplates.list.useQuery();
+  const noteTemplates = noteTemplatesQuery.data ?? [];
+  const inserirModeloSessao = (corpo: string) =>
+    setSessionForm((f) => ({
+      ...f,
+      clinicalNotes: (f.clinicalNotes.trim() ? f.clinicalNotes.replace(/\s*$/, "") + "\n\n" : "") + corpo,
+    }));
 
   // Documentos reais (metadados no banco + arquivo no Supabase Storage).
   const documentsQuery = trpc.documents.getByPatient.useQuery(
@@ -1124,12 +1135,26 @@ export default function PatientDetail() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="clinicalNotes">Resumo / observações (opcional)</Label>
+              {/* Modelos: inserem no resumo (internos + os do psicólogo). */}
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-xs text-muted-foreground mr-1">Modelos:</span>
+                {MODELOS_INTERNOS.map((m) => (
+                  <Button key={m.nome} type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => inserirModeloSessao(m.corpo)}>
+                    {m.nome}
+                  </Button>
+                ))}
+                {noteTemplates.map((t) => (
+                  <Button key={t.id} type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => inserirModeloSessao(t.corpo)}>
+                    {t.nome}
+                  </Button>
+                ))}
+              </div>
               <Textarea
                 id="clinicalNotes"
-                rows={3}
+                rows={4}
                 value={sessionForm.clinicalNotes}
                 onChange={(e) => setSessionForm({ ...sessionForm, clinicalNotes: e.target.value })}
-                placeholder="Um resumo livre da sessão, se quiser."
+                placeholder="Um resumo livre da sessão, ou use um modelo acima."
               />
             </div>
             <Button
