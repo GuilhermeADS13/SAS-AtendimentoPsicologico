@@ -228,7 +228,13 @@ export default function Records() {
                     filteredPatients.map((patient) => (
                       <TableRow key={patient.id}>
                         <TableCell className="font-medium">
-                          {patient.firstName} {patient.lastName}
+                          <button
+                            onClick={() => setLocation(`/records/${patient.id}`)}
+                            className="text-left hover:text-primary hover:underline"
+                            title="Abrir prontuário"
+                          >
+                            {patient.firstName} {patient.lastName}
+                          </button>
                         </TableCell>
                         <TableCell>{patient.email}</TableCell>
                         <TableCell>{patient.phone || "—"}</TableCell>
@@ -255,13 +261,14 @@ export default function Records() {
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
                               onClick={() => setLocation(`/records/${patient.id}`)}
-                              className="text-primary hover:bg-primary/10"
-                              title="Ver prontuário"
+                              className="text-primary border-primary/30 hover:bg-primary/10"
+                              title="Abrir prontuário"
                             >
-                              <Eye className="w-4 h-4" />
+                              <Eye className="w-4 h-4 mr-1.5" />
+                              Ver prontuário
                             </Button>
                             <Button
                               variant="ghost"
