@@ -146,19 +146,14 @@ export default function Dashboard() {
               <Calendar className="w-6 h-6" />
               <span>Agendar Consulta</span>
             </Button>
+            {/* Pacientes e Prontuários são a mesma tela (/records): um card só,
+                para não repetir a mesma ação. */}
             <Button
               onClick={() => setLocation("/records")}
               className="h-24 flex flex-col items-center justify-center gap-2 bg-secondary hover:bg-secondary/90 text-secondary-foreground"
             >
               <Users className="w-6 h-6" />
-              <span>Gerenciar Pacientes</span>
-            </Button>
-            <Button
-              onClick={() => setLocation("/records")}
-              className="h-24 flex flex-col items-center justify-center gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"
-            >
-              <FileText className="w-6 h-6" />
-              <span>Prontuários</span>
+              <span>Pacientes / Prontuários</span>
             </Button>
             {/* A chamada começa pela agenda: é o agendamento que leva à sala
                 com o prontuário e as anotações do paciente. */}
