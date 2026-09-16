@@ -27,7 +27,7 @@ import { NotificationsBell } from "./NotificationsBell";
 import { PatientNotificationsBell } from "./PatientNotificationsBell";
 import { LogoFull, LogoLockup, LumaOwlIcon } from "./Logo";
 import LumaOnboarding from "./LumaOnboarding";
-import { BadgeCheck, Brain, Calendar, CircleHelp, LayoutDashboard, LogOut, PanelLeft, Settings, Stethoscope, UserRound, Users, Video, Wallet } from "lucide-react";
+import { BadgeCheck, Brain, Calendar, CircleHelp, LayoutDashboard, LogOut, MessageSquare, PanelLeft, Settings, Stethoscope, UserRound, Users, Video, Wallet } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -40,6 +40,7 @@ import { Button } from "./ui/button";
 const therapistMenu = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Users, label: "Pacientes / Prontuários", path: "/records" },
+  { icon: MessageSquare, label: "Mensagens", path: "/mensagens" },
   { icon: LumaOwlIcon, label: "Luma — Assistente IA", path: "/luma" },
   { icon: Calendar, label: "Agendamentos", path: "/appointments" },
   { icon: Wallet, label: "Financeiro", path: "/financeiro" },
@@ -61,6 +62,7 @@ const adminMenu = [{ icon: BadgeCheck, label: "Solicitações", path: "/solicita
 // entra pela consulta ("Entrar na sala"), que garante a mesma sala da psicóloga.
 const patientMenu = [
   { icon: Calendar, label: "Minhas Consultas", path: "/consultas" },
+  { icon: MessageSquare, label: "Mensagens", path: "/mensagens" },
   { icon: LumaOwlIcon, label: "Luma — Meu apoio", path: "/luma" },
   { icon: Stethoscope, label: "Minha Psicóloga", path: "/psicologa" },
   // "Meu Cadastro" saiu: o cadastro do paciente agora vive DENTRO de
@@ -153,6 +155,13 @@ function DashboardLayoutContent({
     retry: false,
   });
   const solicitacoesPendentes = solicitacoes.filter((r) => r.status === "pending").length;
+
+  // Mensagens não lidas para o badge do menu (psicóloga ou paciente).
+  const { data: chatNaoLidas = 0 } = trpc.chat.unreadCount.useQuery(undefined, {
+    enabled: !isAdmin,
+    refetchInterval: 30_000,
+    retry: false,
+  });
 
   // Logout: encerra a sessão do Supabase e a do backend, e volta ao login.
   const handleLogout = async () => {
@@ -256,6 +265,11 @@ function DashboardLayoutContent({
                       {item.path === "/solicitacoes" && solicitacoesPendentes > 0 && (
                         <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium flex items-center justify-center">
                           {solicitacoesPendentes}
+                        </span>
+                      )}
+                      {item.path === "/mensagens" && chatNaoLidas > 0 && (
+                        <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium flex items-center justify-center">
+                          {chatNaoLidas}
                         </span>
                       )}
                     </SidebarMenuButton>

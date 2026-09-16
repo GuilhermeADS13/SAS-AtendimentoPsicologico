@@ -318,6 +318,41 @@ export const documents = pgTable("documents", {
 export type Document = typeof documents.$inferSelect;
 export type InsertDocument = typeof documents.$inferInsert;
 
+/**
+ * Chat 1:1 entre a psicóloga e cada paciente (fora da sessão). Cada mensagem
+ * pertence a um "thread" identificado pelo par (therapistId, patientId).
+ * `senderRole` diz de que lado veio; `readAt` marca quando o OUTRO lado leu
+ * (base do indicador de não lidas). Anexo opcional no Storage (bucket documents),
+ * baixado por URL assinada no servidor. Conteúdo é clínico: acesso só aos dois.
+ */
+export const chatMessages = pgTable(
+  "chatMessages",
+  {
+    id: serial("id").primaryKey(),
+    therapistId: integer("therapistId").notNull(),
+    patientId: integer("patientId").notNull(),
+    /** users.id de quem enviou (auditoria; o lado é o senderRole). */
+    senderUserId: integer("senderUserId").notNull(),
+    senderRole: varchar("senderRole", { length: 16 }).notNull(), // "therapist" | "patient"
+    content: text("content"),
+    /** Anexo opcional (path no bucket privado documents). */
+    fileKey: varchar("fileKey", { length: 512 }),
+    fileName: varchar("fileName", { length: 256 }),
+    fileType: varchar("fileType", { length: 100 }),
+    fileSize: integer("fileSize"),
+    /** Quando o destinatário leu. Nulo = não lida. */
+    readAt: timestamp("readAt", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    // Lista/lida por thread, em ordem cronológica.
+    index("chatMessages_thread_idx").on(table.therapistId, table.patientId, table.createdAt),
+  ],
+);
+
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = typeof chatMessages.$inferInsert;
+
 /** Chunks de texto extraído de arquivos, com embedding compatível com pgvector. */
 export const aiDocumentProcessingStatusEnum = pgEnum("aiDocumentProcessingStatus", ["pending", "processing", "indexed", "failed"]);
 

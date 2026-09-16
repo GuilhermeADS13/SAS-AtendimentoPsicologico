@@ -4,6 +4,7 @@ import NotFound from "@/pages/NotFound";
 import Dashboard from "@/pages/Dashboard";
 import VideoCallDynamic from "@/pages/VideoCallDynamic";
 import Records from "@/pages/Records";
+import Mensagens from "@/pages/Mensagens";
 import Appointments from "@/pages/Appointments";
 import PatientDetail from "@/pages/PatientDetail";
 import Profile from "@/pages/Profile";
@@ -88,6 +89,7 @@ function Router() {
           </TherapistOnly>
         )}
       </Route>
+      <Route path={"/mensagens"} component={Mensagens} />
       <Route path={"/consultas"} component={MyAppointments} />
       <Route path={"/psicologa"} component={MyTherapist} />
       <Route path={"/profile"} component={Profile} />

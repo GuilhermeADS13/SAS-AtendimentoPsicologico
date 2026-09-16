@@ -46,6 +46,24 @@ export async function removeDocumentFile(path: string): Promise<void> {
   await supabase.storage.from(DOCS_BUCKET).remove([path]);
 }
 
+/**
+ * Anexo do chat: sobe para o bucket privado `documents` sob o uid do remetente
+ * (a RLS exige o uid no 1º segmento). O download pelo OUTRO lado é feito por URL
+ * assinada no servidor (chat.attachmentUrl) — o remetente não consegue liberar
+ * cross-uid pelo cliente. Devolve o path (fileKey).
+ */
+export async function uploadChatFile(file: File): Promise<string> {
+  if (!supabase) throw new Error("Supabase não configurado.");
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  if (!uid) throw new Error("Faça login para enviar arquivos.");
+  const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+  const path = `${uid}/chat/${Date.now()}_${safeName}`;
+  const { error } = await supabase.storage.from(DOCS_BUCKET).upload(path, file, { upsert: false });
+  if (error) throw error;
+  return path;
+}
+
 const AVATARS_BUCKET = "avatars";
 export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 export const AVATAR_MIME = ["image/jpeg", "image/png", "image/webp"];

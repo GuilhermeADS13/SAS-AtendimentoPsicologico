@@ -6,8 +6,10 @@ import { publicProcedure, protectedProcedure, therapistProcedure, adminProcedure
 import { z } from "zod";
 import { iceServersParaChamada } from "./turn";
 import { getDb } from "./db";
-import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessageFeedback, patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users } from "../drizzle/schema";
-import { eq, and, asc, desc, isNull, ne, inArray, getTableColumns } from "drizzle-orm";
+import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessageFeedback, patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users, chatMessages } from "../drizzle/schema";
+import { signDocumentUrl } from "./storage";
+import { sendEmail } from "./mailer";
+import { eq, and, asc, desc, isNull, ne, inArray, getTableColumns, sql, ilike } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { runOpenSourceAgent } from "./ai/llm";
 import { answerSiteHelp } from "./ai/site-help";
@@ -49,6 +51,89 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, message: string):
   } finally {
     if (timer) clearTimeout(timer);
   }
+}
+
+/**
+ * Resolve o thread de chat do usuário logado, dos DOIS lados:
+ * - psicóloga: precisa do patientId e ele tem de ser paciente dela;
+ * - paciente: o thread é o dele (resolvido pela conta), patientId é ignorado.
+ * Devolve null quando o usuário não participa (ex.: admin, ou paciente que a
+ * psicóloga tentou acessar sem ser dela).
+ */
+async function resolverParticipanteChat(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  user: { id: number; email?: string | null },
+  patientIdInput?: number,
+): Promise<{ therapistId: number; patientId: number; role: "therapist" | "patient" } | null> {
+  const t = await db
+    .select({ id: therapists.id })
+    .from(therapists)
+    .where(eq(therapists.userId, user.id))
+    .limit(1);
+  if (t.length) {
+    if (!patientIdInput) return null;
+    const owned = await db
+      .select({ id: patients.id })
+      .from(patients)
+      .where(and(eq(patients.id, patientIdInput), eq(patients.therapistId, t[0].id)))
+      .limit(1);
+    if (!owned.length) return null;
+    return { therapistId: t[0].id, patientId: patientIdInput, role: "therapist" };
+  }
+  const paciente = await pacienteDoUsuario(db, { id: user.id, email: user.email });
+  if (paciente) return { therapistId: paciente.therapistId, patientId: paciente.id, role: "patient" };
+  return null;
+}
+
+const escHtml = (s: string) =>
+  s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
+
+/** Avisa por e-mail o OUTRO lado (best-effort) que chegou uma mensagem no chat. */
+async function notifyNewChatMessage(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  part: { therapistId: number; patientId: number; role: "therapist" | "patient" },
+): Promise<void> {
+  const base = process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:3000";
+  const link = `${base}/mensagens`;
+  if (part.role === "therapist") {
+    // Remetente é a psicóloga → avisa o paciente.
+    const p = await db
+      .select({ email: patients.email, firstName: patients.firstName })
+      .from(patients)
+      .where(eq(patients.id, part.patientId))
+      .limit(1);
+    const to = p[0]?.email;
+    if (!to) return;
+    await sendEmail(
+      to,
+      "Nova mensagem da sua psicóloga — VozInterior",
+      `<p>Olá${p[0]?.firstName ? `, ${escHtml(p[0].firstName)}` : ""}!</p>
+       <p>Você recebeu uma nova mensagem da sua psicóloga no VozInterior.</p>
+       <p><a href="${link}">Abrir mensagens</a></p>`,
+    );
+    return;
+  }
+  // Remetente é o paciente → avisa a psicóloga (conta vinculada ao therapist).
+  const t = await db
+    .select({ email: users.email })
+    .from(therapists)
+    .innerJoin(users, eq(users.id, therapists.userId))
+    .where(eq(therapists.id, part.therapistId))
+    .limit(1);
+  const to = t[0]?.email;
+  if (!to) return;
+  const p = await db
+    .select({ firstName: patients.firstName, lastName: patients.lastName })
+    .from(patients)
+    .where(eq(patients.id, part.patientId))
+    .limit(1);
+  const nome = p[0] ? `${p[0].firstName} ${p[0].lastName}`.trim() : "um paciente";
+  await sendEmail(
+    to,
+    "Nova mensagem no VozInterior",
+    `<p>Você recebeu uma nova mensagem de ${escHtml(nome)} no VozInterior.</p>
+     <p><a href="${link}">Abrir mensagens</a></p>`,
+  );
 }
 
 export const appRouter = router({
@@ -2222,6 +2307,228 @@ export const appRouter = router({
           .where(and(eq(videoCalls.roomId, input.roomId), eq(videoCalls.therapistId, therapist[0].id)));
 
         return { success: true } as const;
+      }),
+  }),
+
+  // Chat 1:1 psicóloga ↔ paciente (fora da sessão). Texto + anexos, com
+  // não-lidas e busca. Os dois lados usam os mesmos procedimentos; o servidor
+  // resolve o thread pela conta (ver resolverParticipanteChat).
+  chat: router({
+    // Lista de conversas da psicóloga: cada paciente com prévia + não-lidas.
+    threads: therapistProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return [];
+      const therapist = await db
+        .select({ id: therapists.id })
+        .from(therapists)
+        .where(eq(therapists.userId, ctx.user.id))
+        .limit(1);
+      if (!therapist.length) return [];
+      const therapistId = therapist[0].id;
+
+      const pacientes = await db
+        .select({ id: patients.id, firstName: patients.firstName, lastName: patients.lastName })
+        .from(patients)
+        .where(and(eq(patients.therapistId, therapistId), ne(patients.status, "archived")));
+
+      // Não-lidas (mandadas pelo paciente) e data da última msg, por paciente.
+      const resumo = await db
+        .select({
+          patientId: chatMessages.patientId,
+          unread: sql<number>`sum(case when ${chatMessages.senderRole} = 'patient' and ${chatMessages.readAt} is null then 1 else 0 end)`,
+          lastAt: sql<string | null>`max(${chatMessages.createdAt})`,
+        })
+        .from(chatMessages)
+        .where(eq(chatMessages.therapistId, therapistId))
+        .groupBy(chatMessages.patientId);
+      const porPaciente = new Map(resumo.map((r) => [r.patientId, r]));
+
+      // Prévia da última mensagem por thread (janela recente; solo practice).
+      const recentes = await db
+        .select({
+          patientId: chatMessages.patientId,
+          content: chatMessages.content,
+          fileName: chatMessages.fileName,
+          senderRole: chatMessages.senderRole,
+          createdAt: chatMessages.createdAt,
+        })
+        .from(chatMessages)
+        .where(eq(chatMessages.therapistId, therapistId))
+        .orderBy(desc(chatMessages.createdAt))
+        .limit(400);
+      const previa = new Map<number, (typeof recentes)[number]>();
+      for (const m of recentes) if (!previa.has(m.patientId)) previa.set(m.patientId, m);
+
+      return pacientes
+        .map((p) => {
+          const r = porPaciente.get(p.id);
+          const ult = previa.get(p.id);
+          return {
+            patientId: p.id,
+            firstName: p.firstName,
+            lastName: p.lastName,
+            unread: Number(r?.unread ?? 0),
+            lastAt: (r?.lastAt as string | null) ?? null,
+            preview: ult ? (ult.content?.trim() || (ult.fileName ? `📎 ${ult.fileName}` : "")) : "",
+            lastFromMe: ult?.senderRole === "therapist",
+          };
+        })
+        .sort((a, b) => {
+          if (a.lastAt && b.lastAt) return a.lastAt < b.lastAt ? 1 : -1;
+          if (a.lastAt) return -1;
+          if (b.lastAt) return 1;
+          return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+        });
+    }),
+
+    // Mensagens do thread (cronológico). patientId só é usado pela psicóloga.
+    messages: protectedProcedure
+      .input(z.object({ patientId: z.number().optional(), search: z.string().trim().max(120).optional() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return { role: null as "therapist" | "patient" | null, messages: [] as (typeof chatMessages.$inferSelect)[] };
+        const part = await resolverParticipanteChat(db, ctx.user, input.patientId);
+        if (!part) return { role: null, messages: [] };
+        const filtros = [
+          eq(chatMessages.therapistId, part.therapistId),
+          eq(chatMessages.patientId, part.patientId),
+        ];
+        if (input.search) filtros.push(ilike(chatMessages.content, `%${input.search}%`));
+        const rows = await db
+          .select()
+          .from(chatMessages)
+          .where(and(...filtros))
+          .orderBy(desc(chatMessages.createdAt))
+          .limit(500);
+        // Devolve em ordem cronológica (asc) para a interface renderizar de cima
+        // para baixo; a busca desc + reverse mantém as 500 mais recentes.
+        return { role: part.role, messages: rows.reverse() };
+      }),
+
+    // Envia uma mensagem (texto e/ou anexo já enviado ao Storage).
+    send: protectedProcedure
+      .input(
+        z.object({
+          patientId: z.number().optional(),
+          content: z.string().trim().max(4000).optional(),
+          fileKey: z.string().max(512).optional(),
+          fileName: z.string().max(256).optional(),
+          fileType: z.string().max(100).optional(),
+          fileSize: z.number().int().nonnegative().optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const part = await resolverParticipanteChat(db, ctx.user, input.patientId);
+        if (!part) throw new Error("Conversa não disponível.");
+        if (!input.content && !input.fileKey) throw new Error("Mensagem vazia.");
+        const inserted = await db
+          .insert(chatMessages)
+          .values({
+            therapistId: part.therapistId,
+            patientId: part.patientId,
+            senderUserId: ctx.user.id,
+            senderRole: part.role,
+            content: input.content || null,
+            fileKey: input.fileKey || null,
+            fileName: input.fileName || null,
+            fileType: input.fileType || null,
+            fileSize: input.fileSize ?? null,
+          })
+          .returning({ id: chatMessages.id, createdAt: chatMessages.createdAt });
+        // Aviso ao destinatário (best-effort; não derruba o envio se falhar).
+        try {
+          await notifyNewChatMessage(db, part);
+        } catch (err) {
+          console.error("Falha ao notificar nova mensagem de chat:", err);
+        }
+        return { id: inserted[0]?.id, createdAt: inserted[0]?.createdAt } as const;
+      }),
+
+    // Marca como lidas as mensagens recebidas do outro lado neste thread.
+    markRead: protectedProcedure
+      .input(z.object({ patientId: z.number().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return { success: false } as const;
+        const part = await resolverParticipanteChat(db, ctx.user, input.patientId);
+        if (!part) return { success: false } as const;
+        const outro = part.role === "therapist" ? "patient" : "therapist";
+        await db
+          .update(chatMessages)
+          .set({ readAt: new Date() })
+          .where(
+            and(
+              eq(chatMessages.therapistId, part.therapistId),
+              eq(chatMessages.patientId, part.patientId),
+              eq(chatMessages.senderRole, outro),
+              isNull(chatMessages.readAt),
+            ),
+          );
+        return { success: true } as const;
+      }),
+
+    // Total de não-lidas do usuário (badge do menu). Psicóloga: todos os pacientes.
+    unreadCount: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return 0;
+      const therapist = await db
+        .select({ id: therapists.id })
+        .from(therapists)
+        .where(eq(therapists.userId, ctx.user.id))
+        .limit(1);
+      if (therapist.length) {
+        const rows = await db
+          .select({ n: sql<number>`count(*)` })
+          .from(chatMessages)
+          .where(
+            and(
+              eq(chatMessages.therapistId, therapist[0].id),
+              eq(chatMessages.senderRole, "patient"),
+              isNull(chatMessages.readAt),
+            ),
+          );
+        return Number(rows[0]?.n ?? 0);
+      }
+      const paciente = await pacienteDoUsuario(db, { id: ctx.user.id, email: ctx.user.email });
+      if (!paciente) return 0;
+      const rows = await db
+        .select({ n: sql<number>`count(*)` })
+        .from(chatMessages)
+        .where(
+          and(
+            eq(chatMessages.therapistId, paciente.therapistId),
+            eq(chatMessages.patientId, paciente.id),
+            eq(chatMessages.senderRole, "therapist"),
+            isNull(chatMessages.readAt),
+          ),
+        );
+      return Number(rows[0]?.n ?? 0);
+    }),
+
+    // URL assinada (servidor) para baixar o anexo de uma mensagem do meu thread.
+    attachmentUrl: protectedProcedure
+      .input(z.object({ messageId: z.number(), patientId: z.number().optional() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return { url: null as string | null };
+        const part = await resolverParticipanteChat(db, ctx.user, input.patientId);
+        if (!part) return { url: null };
+        const rows = await db
+          .select({ fileKey: chatMessages.fileKey })
+          .from(chatMessages)
+          .where(
+            and(
+              eq(chatMessages.id, input.messageId),
+              eq(chatMessages.therapistId, part.therapistId),
+              eq(chatMessages.patientId, part.patientId),
+            ),
+          )
+          .limit(1);
+        const fileKey = rows[0]?.fileKey;
+        if (!fileKey) return { url: null };
+        return { url: await signDocumentUrl(fileKey) };
       }),
   }),
 });

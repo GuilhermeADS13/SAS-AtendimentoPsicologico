@@ -86,7 +86,8 @@ jobs:
             drizzle/migrations/0025_patient_guardian.sql \
             drizzle/migrations/0026_patient_user_fk.sql \
             drizzle/migrations/0027_prontuario_cfp.sql \
-            drizzle/migrations/0028_note_templates.sql; do
+            drizzle/migrations/0028_note_templates.sql \
+            drizzle/migrations/0029_chat_messages.sql; do
             echo "aplicando $f"
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f "$f"
           done
