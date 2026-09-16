@@ -5,7 +5,16 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Video, VideoOff, Mic, MicOff, Loader2, AlertCircle, Volume2 } from "lucide-react";
 
-const LS = { mic: "sas-video-mic", cam: "sas-video-cam", spk: "sas-video-spk" };
+const LS = {
+  mic: "sas-video-mic",
+  cam: "sas-video-cam",
+  spk: "sas-video-spk",
+  // Preferências on/off levadas para a sala (WebRTCCall): "0" = off.
+  micOn: "sas-video-mic-on",
+  camOn: "sas-video-cam-on",
+  // Ocultar a própria miniatura na sala: "1" = oculta.
+  selfView: "sas-video-selfview",
+};
 const readLS = (k: string) => {
   try {
     return localStorage.getItem(k) || "";
@@ -46,8 +55,11 @@ export default function VideoCallLobby({
   const [micId, setMicId] = useState<string>(() => readLS(LS.mic));
   const [camId, setCamId] = useState<string>(() => readLS(LS.cam));
   const [spkId, setSpkId] = useState<string>(() => readLS(LS.spk));
-  const [camOn, setCamOn] = useState(true);
-  const [micOn, setMicOn] = useState(true);
+  // Começa refletindo a última escolha (só "off" se salvou "0"); a preview e a
+  // sala usam o mesmo valor, então o que aparecer aqui é o que vale ao entrar.
+  const [camOn, setCamOn] = useState(() => readLS(LS.camOn) !== "0");
+  const [micOn, setMicOn] = useState(() => readLS(LS.micOn) !== "0");
+  const [selfViewHidden, setSelfViewHidden] = useState(() => readLS(LS.selfView) === "1");
   const [level, setLevel] = useState(0);
 
   const stopMeter = () => {
@@ -132,6 +144,7 @@ export default function VideoCallLobby({
     if (t) {
       t.enabled = !t.enabled;
       setMicOn(t.enabled);
+      writeLS(LS.micOn, t.enabled ? "1" : "0");
     }
   };
   const toggleCam = () => {
@@ -139,8 +152,15 @@ export default function VideoCallLobby({
     if (t) {
       t.enabled = !t.enabled;
       setCamOn(t.enabled);
+      writeLS(LS.camOn, t.enabled ? "1" : "0");
     }
   };
+  const toggleSelfView = () =>
+    setSelfViewHidden((oculta) => {
+      const nova = !oculta;
+      writeLS(LS.selfView, nova ? "1" : "0");
+      return nova;
+    });
 
   const testSpeaker = async () => {
     try {
@@ -256,6 +276,17 @@ export default function VideoCallLobby({
           </div>
         )}
       </div>
+
+      {/* Preferência levada para a sala: não mostrar a própria miniatura no canto. */}
+      <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={selfViewHidden}
+          onChange={toggleSelfView}
+          className="h-4 w-4 accent-primary"
+        />
+        Não mostrar minha própria telinha na chamada
+      </label>
 
       <Button size="lg" className="w-full" onClick={enter}>
         Entrar na chamada

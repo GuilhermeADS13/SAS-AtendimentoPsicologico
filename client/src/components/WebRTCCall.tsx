@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Eye,
+  EyeOff,
   Focus,
   Image as ImageIcon,
   Loader2,
@@ -49,12 +51,28 @@ type Role = "therapist" | "patient";
 type CapacidadesComDesfoque = MediaTrackCapabilities & { backgroundBlur?: boolean[] };
 type RestricaoComDesfoque = MediaTrackConstraintSet & { backgroundBlur?: boolean };
 
-const LS = { mic: "sas-video-mic", cam: "sas-video-cam", spk: "sas-video-spk" };
+const LS = {
+  mic: "sas-video-mic",
+  cam: "sas-video-cam",
+  spk: "sas-video-spk",
+  // Preferências on/off, compartilhadas com o lobby (VideoCallLobby): "0" = off.
+  micOn: "sas-video-mic-on",
+  camOn: "sas-video-cam-on",
+  // Ocultar a própria miniatura no canto: "1" = oculta.
+  selfView: "sas-video-selfview",
+};
 const readLS = (k: string) => {
   try {
     return localStorage.getItem(k) || "";
   } catch {
     return "";
+  }
+};
+const writeLS = (k: string, v: string) => {
+  try {
+    localStorage.setItem(k, v);
+  } catch {
+    /* private mode */
   }
 };
 
@@ -148,8 +166,11 @@ export default function WebRTCCall({
   const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
 
   const [connected, setConnected] = useState(false);
-  const [micOn, setMicOn] = useState(true);
-  const [camOn, setCamOn] = useState(true);
+  // Estado inicial vem da preferência escolhida no lobby (só é "off" se salvou "0").
+  const [micOn, setMicOn] = useState(() => readLS(LS.micOn) !== "0");
+  const [camOn, setCamOn] = useState(() => readLS(LS.camOn) !== "0");
+  // Ocultar a própria miniatura (canto). "1" = oculta; padrão visível.
+  const [selfViewHidden, setSelfViewHidden] = useState(() => readLS(LS.selfView) === "1");
   const [compartilhando, setCompartilhando] = useState(false);
   const [telaCheia, setTelaCheia] = useState(false);
   const [desfoqueSuportado, setDesfoqueSuportado] = useState(false);
@@ -215,6 +236,13 @@ export default function WebRTCCall({
       localStreamRef.current = stream;
       trilhaCameraRef.current = stream.getVideoTracks()[0] ?? null;
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+
+      // Respeita o que a pessoa escolheu no lobby: se desligou câmera/microfone
+      // lá, entra na sala já desligado (antes a sala sempre começava ligada).
+      const vtInicial = stream.getVideoTracks()[0];
+      if (vtInicial) vtInicial.enabled = readLS(LS.camOn) !== "0";
+      const atInicial = stream.getAudioTracks()[0];
+      if (atInicial) atInicial.enabled = readLS(LS.micOn) !== "0";
 
       // O desfoque de fundo só existe em alguns navegadores/sistemas: pergunta à
       // trilha se ela sabe fazer, em vez de supor e falhar na hora do clique.
@@ -378,6 +406,7 @@ export default function WebRTCCall({
     if (track) {
       track.enabled = !track.enabled;
       setMicOn(track.enabled);
+      writeLS(LS.micOn, track.enabled ? "1" : "0");
     }
   };
   const toggleCam = () => {
@@ -385,8 +414,15 @@ export default function WebRTCCall({
     if (track) {
       track.enabled = !track.enabled;
       setCamOn(track.enabled);
+      writeLS(LS.camOn, track.enabled ? "1" : "0");
     }
   };
+  const toggleSelfView = () =>
+    setSelfViewHidden((oculta) => {
+      const nova = !oculta;
+      writeLS(LS.selfView, nova ? "1" : "0");
+      return nova;
+    });
 
   /**
    * Compartilhar tela: troca a trilha de vídeo que já está sendo enviada
@@ -600,19 +636,45 @@ export default function WebRTCCall({
         </div>
       )}
 
-      {/* Meu próprio vídeo em miniatura (canto). */}
-      <video
-        ref={localVideoRef}
-        autoPlay
-        playsInline
-        muted
-        /* bottom-16 (não bottom-3): a barra de controles é centralizada e tem
-           ~272px; com a miniatura à direita na MESMA altura, as duas se cruzavam
-           e os botões da direita (inclusive encerrar) caíam por cima do vídeo.
-           Só deixaria de colidir acima de ~680px de largura útil — então ela sobe
-           em qualquer tamanho, e encolhe no celular. */
-        className="absolute bottom-16 right-3 h-20 w-28 rounded-md border border-white/20 object-cover shadow-lg sm:h-28 sm:w-40 lg:h-32 lg:w-48"
-      />
+      {/* Meu próprio vídeo em miniatura (canto), com opção de ocultar. O <video>
+          fica sempre montado (mesmo oculto) para não perder o srcObject/ref.
+          bottom-16 (não bottom-3): a barra de controles é centralizada e tem
+          ~272px; com a miniatura à direita na MESMA altura, as duas se cruzavam
+          e os botões da direita (inclusive encerrar) caíam por cima do vídeo.
+          Só deixaria de colidir acima de ~680px de largura útil — então ela sobe
+          em qualquer tamanho, e encolhe no celular. */}
+      <div
+        className={`absolute bottom-16 right-3 h-20 w-28 sm:h-28 sm:w-40 lg:h-32 lg:w-48 ${
+          selfViewHidden ? "hidden" : ""
+        }`}
+      >
+        <video
+          ref={localVideoRef}
+          autoPlay
+          playsInline
+          muted
+          className="h-full w-full rounded-md border border-white/20 object-cover shadow-lg"
+        />
+        <button
+          type="button"
+          onClick={toggleSelfView}
+          title="Ocultar minha imagem"
+          aria-label="Ocultar minha imagem"
+          className="absolute right-1 top-1 rounded bg-black/60 p-1 text-white transition-colors hover:bg-black/80"
+        >
+          <EyeOff className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {selfViewHidden && (
+        <button
+          type="button"
+          onClick={toggleSelfView}
+          title="Mostrar minha imagem"
+          className="absolute bottom-16 right-3 flex items-center gap-1.5 rounded-md border border-white/20 bg-black/60 px-2.5 py-1.5 text-xs text-white shadow-lg transition-colors hover:bg-black/80"
+        >
+          <Eye className="h-3.5 w-3.5" /> Minha imagem
+        </button>
+      )}
 
       {/* Arquivo (imagem/PDF) que um lado está mostrando, sobre o vídeo. A barra de
           controles fica DEPOIS no DOM, então continua por cima e acessível. */}
