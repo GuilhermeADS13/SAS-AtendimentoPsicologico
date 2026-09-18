@@ -9,13 +9,14 @@ import WebRTCCall from "@/components/WebRTCCall";
 import VideoCallLobby from "@/components/VideoCallLobby";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { AlertCircle, ChevronUp, CheckCircle2, Copy, ShieldAlert, Loader2, Bold, Italic, List, Eye, ClipboardList } from "lucide-react";
+import { AlertCircle, ChevronUp, CheckCircle2, Copy, ShieldAlert, Loader2, Bold, Italic, List, Eye, ClipboardList, MessageSquare } from "lucide-react";
 import { useLocation } from "wouter";
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Streamdown } from "streamdown";
 import { MODELOS_INTERNOS } from "@shared/prontuario";
+import ChatConversa from "@/components/ChatConversa";
 
 interface VideoCallDynamicProps {
   /** Nome da sala (apt<id>-<token>), sempre vindo da rota /videocall/:roomId. */
@@ -28,6 +29,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const room = roomId;
   const [error, setError] = useState<string | null>(null);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [showChat, setShowChat] = useState(false);
   const [patientPresent, setPatientPresent] = useState(false);
   const [sessionNotes, setSessionNotes] = useState("");
   const [showPreview, setShowPreview] = useState(false);
@@ -91,6 +93,17 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   // Prontuário/anotações/gravação são exclusivos da psicóloga DESTA consulta.
   const isTherapist = access?.allowed ? access.role === "therapist" : false;
   const notesEnabled = isTherapist && appointmentId > 0 && patientId > 0;
+
+  // Chat DENTRO da chamada (estilo Meet), no MESMO thread da aba Mensagens
+  // (conectados). Disponível quando há thread: psicóloga com paciente, ou o
+  // próprio paciente. O badge de não lidas ajuda a achar o chat.
+  const podeChat = allowed && (isTherapist ? patientId > 0 : true);
+  const chatUnread = trpc.chat.unreadCount.useQuery(undefined, {
+    enabled: podeChat,
+    refetchInterval: 15000,
+    retry: false,
+  });
+  const chatNaoLidas = chatUnread.data ?? 0;
 
   // Carrega as anotações já salvas para este agendamento.
   const savedNotes = trpc.sessionNotes.getByAppointment.useQuery(
@@ -314,6 +327,25 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {/* Chat dentro da chamada. Mesmo nome/ícone do menu "Mensagens" e
+                sempre visível — uma cliente não achava o chat na sessão. */}
+            {podeChat && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowChat(true)}
+                className="relative"
+                title="Abrir mensagens"
+              >
+                <MessageSquare className="w-4 h-4 mr-1.5" />
+                Mensagens
+                {chatNaoLidas > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold text-white">
+                    {chatNaoLidas}
+                  </span>
+                )}
+              </Button>
+            )}
             {/* No mobile o prontuário é uma gaveta; este botão abre/fecha. */}
             {isTherapist && patient && (
               <Button variant="outline" size="sm" className="lg:hidden" onClick={() => setShowSidebar((v) => !v)}>
@@ -365,6 +397,27 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
               />
             )}
           </div>
+
+          {/* Chat da chamada — painel que desliza sobre o vídeo (estilo Meet),
+              nos dois papéis. É o MESMO thread da aba Mensagens (conectados). */}
+          {podeChat && (
+            <>
+              <div
+                className={`fixed inset-0 z-40 bg-black/40 transition-opacity ${showChat ? "opacity-100" : "pointer-events-none opacity-0"}`}
+                onClick={() => setShowChat(false)}
+                aria-hidden="true"
+              />
+              <div
+                className={`fixed inset-y-0 right-0 z-50 flex w-96 max-w-[92vw] flex-col overflow-hidden border-l border-border bg-card shadow-xl transition-transform ${showChat ? "translate-x-0" : "translate-x-full"}`}
+              >
+                <ChatConversa
+                  patientId={isTherapist ? patientId : undefined}
+                  titulo={isTherapist ? (patient ? `${patient.firstName} ${patient.lastName}` : "Mensagens") : "Minha psicóloga"}
+                  onClose={() => setShowChat(false)}
+                />
+              </div>
+            </>
+          )}
 
           {/* Prontuário — gaveta sobre o vídeo no mobile, painel fixo no desktop */}
           {patient && (
