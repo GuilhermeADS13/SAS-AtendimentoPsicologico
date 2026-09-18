@@ -160,13 +160,17 @@ export default function Luma() {
 
       // O servidor aceita no máximo 20 mensagens (e ainda trima o histórico). Numa
       // conversa longa, mandar tudo estourava o limite e derrubava a Luma inteira
-      // ("Too big: expected array to have <=20 items"). Enviamos a 1ª mensagem
-      // (contexto inicial) + as 19 mais recentes = no máximo 20.
+      // ("Too big: expected array to have <=20 items"). Enviamos as ~20 mais
+      // recentes como uma fatia CONTÍGUA: o histórico alterna user/assistant, então
+      // fatiar contíguo preserva a alternância (juntar "1ª + últimas 19" podia
+      // colar duas mensagens do mesmo papel e quebrar provedores estritos). Só
+      // garantimos que começa numa mensagem do usuário.
       const semSistema = nextMessages.filter(
         (message): message is Message & { role: "user" | "assistant" } => message.role !== "system",
       );
+      const recentes = semSistema.slice(-20);
       const messagesParaEnviar =
-        semSistema.length > 20 ? [semSistema[0], ...semSistema.slice(-19)] : semSistema;
+        recentes[0]?.role === "assistant" ? recentes.slice(1) : recentes;
 
       const result = await chatMutation.mutateAsync({
         messages: messagesParaEnviar,

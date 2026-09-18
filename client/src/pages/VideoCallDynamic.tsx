@@ -414,6 +414,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                   patientId={isTherapist ? patientId : undefined}
                   titulo={isTherapist ? (patient ? `${patient.firstName} ${patient.lastName}` : "Mensagens") : "Minha psicóloga"}
                   onClose={() => setShowChat(false)}
+                  ativo={showChat}
                 />
               </div>
             </>

@@ -21,10 +21,17 @@ export default function ChatConversa({
   patientId,
   titulo,
   onClose,
+  ativo = true,
 }: {
   patientId?: number;
   titulo?: string;
   onClose?: () => void;
+  /**
+   * Só faz polling e marca como lido quando está ativo. Na videochamada o painel
+   * fica MONTADO (para a animação de deslizar), então sem isso ele marcaria as
+   * mensagens como lidas e zeraria o badge de não-lidas mesmo fechado.
+   */
+  ativo?: boolean;
 }) {
   const utils = trpc.useUtils();
   const [texto, setTexto] = useState("");
@@ -36,7 +43,7 @@ export default function ChatConversa({
 
   const q = trpc.chat.messages.useQuery(
     { patientId, search: buscaAtiva || undefined },
-    { refetchInterval: 5000 },
+    { refetchInterval: ativo ? 5000 : false, enabled: ativo },
   );
   const role = q.data?.role ?? null;
   const mensagens = q.data?.messages ?? [];
@@ -63,12 +70,12 @@ export default function ChatConversa({
       setTyping.mutate({ patientId });
     }
   };
-  const typingQ = trpc.chat.typingStatus.useQuery({ patientId }, { refetchInterval: 2000 });
+  const typingQ = trpc.chat.typingStatus.useQuery({ patientId }, { refetchInterval: ativo ? 2000 : false, enabled: ativo });
   const outroDigitando = typingQ.data?.typing ?? false;
 
   // Marca como lidas as mensagens recebidas quando a conversa está aberta.
   useEffect(() => {
-    if (!q.data || !role) return;
+    if (!ativo || !q.data || !role) return;
     const temNaoLida = mensagens.some((m) => m.senderRole !== role && !m.readAt);
     if (!temNaoLida) return;
     markRead.mutate(
@@ -82,7 +89,7 @@ export default function ChatConversa({
       },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q.data]);
+  }, [q.data, ativo]);
 
   // Rola para a última mensagem quando a lista muda (e não estamos buscando).
   useEffect(() => {

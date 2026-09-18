@@ -66,7 +66,8 @@ export default function NoteTemplatesManager() {
       utils.noteTemplates.getModelo.invalidate();
       toast.success("Modelo de prontuário enviado. A Luma vai seguir esse formato.");
     },
-    onError: (e) => toast.error(e.message || "Falha ao processar o modelo."),
+    // O erro é tratado no catch do handleModelo (que também cobre falha de upload),
+    // então não toasta aqui para não mostrar a mensagem duas vezes.
   });
   const limparModelo = trpc.noteTemplates.clearModelo.useMutation({
     onSuccess: () => {

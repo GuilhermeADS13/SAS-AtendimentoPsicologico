@@ -1970,27 +1970,38 @@ export const appRouter = router({
           .limit(1);
         if (!therapist.length) throw new Error("Therapist not found");
 
-        const buffer = await downloadDocumentFile(input.fileKey);
-        if (!buffer) throw new Error("Não foi possível ler o arquivo enviado.");
-        let texto = "";
+        // Segurança: o fileKey vem do cliente e o download usa a service role
+        // (fura a RLS do bucket). Aceita SÓ um arquivo no próprio prefixo do
+        // usuário (`<uid>/modelo/...`, o mesmo que uploadModelFile gera); sem
+        // isso, daria para ler/apagar arquivo de outro escopo (IDOR).
+        const uid = ctx.user.openId.startsWith("sb:") ? ctx.user.openId.slice(3) : null;
+        if (!uid || !input.fileKey.startsWith(`${uid}/modelo/`)) {
+          throw new Error("Arquivo inválido.");
+        }
+
         try {
-          const chunks = await extractClinicalDocument(buffer, input.fileType, input.fileName);
-          texto = chunks.map((c) => c.content).join("\n").trim().slice(0, 8000);
-        } catch (e) {
+          const buffer = await downloadDocumentFile(input.fileKey);
+          if (!buffer) throw new Error("Não foi possível ler o arquivo enviado.");
+          let texto = "";
+          try {
+            const chunks = await extractClinicalDocument(buffer, input.fileType, input.fileName);
+            texto = chunks.map((c) => c.content).join("\n").trim().slice(0, 8000);
+          } catch (e) {
+            throw new Error(e instanceof Error ? e.message : "Falha ao extrair o texto do arquivo.");
+          }
+          if (!texto) {
+            throw new Error("Não consegui extrair texto do arquivo (use um PDF ou DOCX com texto).");
+          }
+          await db
+            .update(therapists)
+            .set({ prontuarioModel: texto, prontuarioModelName: input.fileName })
+            .where(eq(therapists.id, therapist[0].id));
+          return { success: true } as const;
+        } finally {
+          // Só o texto importa para a Luma; o arquivo é temporário. Remove sempre
+          // (sucesso ou falha) para não deixar órfão no Storage.
           await removeStorageFile(input.fileKey);
-          throw new Error(e instanceof Error ? e.message : "Falha ao extrair o texto do arquivo.");
         }
-        if (!texto) {
-          await removeStorageFile(input.fileKey);
-          throw new Error("Não consegui extrair texto do arquivo (use um PDF ou DOCX com texto).");
-        }
-        await db
-          .update(therapists)
-          .set({ prontuarioModel: texto, prontuarioModelName: input.fileName })
-          .where(eq(therapists.id, therapist[0].id));
-        // Só o texto importa para a Luma; o arquivo não precisa ficar no Storage.
-        await removeStorageFile(input.fileKey);
-        return { success: true } as const;
       }),
 
     // Remove o modelo de prontuário do profissional.
@@ -2546,8 +2557,16 @@ export const appRouter = router({
         const part = await resolverParticipanteChat(db, ctx.user, input.patientId);
         if (!part) return { ok: false } as const;
         const key = `${part.therapistId}:${part.patientId}`;
+        const agora = Date.now();
+        // Poda entradas mortas (ninguém digitou nos últimos TTL): sem isso o Map
+        // acumularia uma entrada por thread que já usou o chat, para sempre.
+        chatTypingState.forEach((v, k) => {
+          if (agora - Math.max(v.therapist, v.patient) >= CHAT_TYPING_TTL_MS) {
+            chatTypingState.delete(k);
+          }
+        });
         const st = chatTypingState.get(key) ?? { therapist: 0, patient: 0 };
-        st[part.role] = Date.now();
+        st[part.role] = agora;
         chatTypingState.set(key, st);
         return { ok: true } as const;
       }),
