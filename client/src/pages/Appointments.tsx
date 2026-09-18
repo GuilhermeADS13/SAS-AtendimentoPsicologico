@@ -225,11 +225,16 @@ export default function Appointments() {
       toast.error("Selecione o paciente, a data e a hora.");
       return;
     }
+    const dur = parseInt(formData.duration, 10);
+    if (!Number.isFinite(dur) || dur < 5 || dur > 480) {
+      toast.error("Informe uma duração entre 5 e 480 minutos.");
+      return;
+    }
     const scheduledAt = new Date(`${formData.date}T${formData.time}`).toISOString();
     createAppt.mutate({
       patientId: Number(formData.patientId),
       scheduledAt,
-      duration: parseInt(formData.duration),
+      duration: dur,
       repetirSemanas: parseInt(formData.repetir) || 1,
       price: reaisParaCentavos(formData.valor),
     });
@@ -257,11 +262,16 @@ export default function Appointments() {
       toast.error("Informe a data e a hora.");
       return;
     }
+    const dur = parseInt(formData.duration, 10);
+    if (!Number.isFinite(dur) || dur < 5 || dur > 480) {
+      toast.error("Informe uma duração entre 5 e 480 minutos.");
+      return;
+    }
     const scheduledAt = new Date(`${formData.date}T${formData.time}`).toISOString();
     editarAppt.mutate({
       id: editingId,
       scheduledAt,
-      duration: parseInt(formData.duration),
+      duration: dur,
       price: reaisParaCentavos(formData.valor),
     });
   };
@@ -417,20 +427,19 @@ export default function Appointments() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="duration">Duração (minutos)</Label>
-                <Select
+                <Input
+                  id="duration"
+                  type="number"
+                  min={5}
+                  max={480}
+                  step={5}
                   value={formData.duration}
-                  onValueChange={(value) => setFormData({ ...formData, duration: value })}
-                >
-                  <SelectTrigger id="duration">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="30">30 minutos</SelectItem>
-                    <SelectItem value="60">1 hora</SelectItem>
-                    <SelectItem value="90">1 hora 30 min</SelectItem>
-                    <SelectItem value="120">2 horas</SelectItem>
-                  </SelectContent>
-                </Select>
+                  onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                  placeholder="Ex.: 50"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Escolha a duração em minutos (ex.: 50). De 5 a 480 minutos.
+                </p>
               </div>
               {/* Terapia é semanal: repetir cria N consultas independentes, no
                   mesmo dia/hora das semanas seguintes, cada uma com sua sala.
