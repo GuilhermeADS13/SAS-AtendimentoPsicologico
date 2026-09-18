@@ -7,7 +7,8 @@ import { z } from "zod";
 import { iceServersParaChamada } from "./turn";
 import { getDb } from "./db";
 import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessageFeedback, patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users, chatMessages } from "../drizzle/schema";
-import { signDocumentUrl } from "./storage";
+import { signDocumentUrl, downloadDocumentFile, removeDocumentFile as removeStorageFile } from "./storage";
+import { extractClinicalDocument } from "./ai/document-ingestion";
 import { sendEmail } from "./mailer";
 import { eq, and, asc, desc, isNull, ne, inArray, getTableColumns, sql, ilike } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -1941,6 +1942,67 @@ export const appRouter = router({
           .where(eq(therapists.id, therapist[0].id));
         return { success: true } as const;
       }),
+
+    // Modelo de prontuário do profissional (documento enviado): estado atual.
+    getModelo: therapistProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return { nome: null as string | null, temModelo: false };
+      const t = await db
+        .select({ nome: therapists.prontuarioModelName, modelo: therapists.prontuarioModel })
+        .from(therapists)
+        .where(eq(therapists.userId, ctx.user.id))
+        .limit(1);
+      return { nome: t[0]?.nome ?? null, temModelo: Boolean(t[0]?.modelo?.trim()) };
+    }),
+
+    // Recebe o arquivo (já no Storage), extrai o texto e guarda como o modelo de
+    // prontuário do profissional. Só o TEXTO é guardado (a Luma usa como formato);
+    // o arquivo é removido do Storage depois.
+    saveModelo: therapistProcedure
+      .input(z.object({ fileKey: z.string().max(512), fileName: z.string().max(256), fileType: z.string().max(120) }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const therapist = await db
+          .select({ id: therapists.id })
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+        if (!therapist.length) throw new Error("Therapist not found");
+
+        const buffer = await downloadDocumentFile(input.fileKey);
+        if (!buffer) throw new Error("Não foi possível ler o arquivo enviado.");
+        let texto = "";
+        try {
+          const chunks = await extractClinicalDocument(buffer, input.fileType, input.fileName);
+          texto = chunks.map((c) => c.content).join("\n").trim().slice(0, 8000);
+        } catch (e) {
+          await removeStorageFile(input.fileKey);
+          throw new Error(e instanceof Error ? e.message : "Falha ao extrair o texto do arquivo.");
+        }
+        if (!texto) {
+          await removeStorageFile(input.fileKey);
+          throw new Error("Não consegui extrair texto do arquivo (use um PDF ou DOCX com texto).");
+        }
+        await db
+          .update(therapists)
+          .set({ prontuarioModel: texto, prontuarioModelName: input.fileName })
+          .where(eq(therapists.id, therapist[0].id));
+        // Só o texto importa para a Luma; o arquivo não precisa ficar no Storage.
+        await removeStorageFile(input.fileKey);
+        return { success: true } as const;
+      }),
+
+    // Remove o modelo de prontuário do profissional.
+    clearModelo: therapistProcedure.mutation(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      await db
+        .update(therapists)
+        .set({ prontuarioModel: null, prontuarioModelName: null })
+        .where(eq(therapists.userId, ctx.user.id));
+      return { success: true } as const;
+    }),
   }),
 
   // Documentos dos prontuários (metadados; o arquivo fica no Supabase Storage).

@@ -150,6 +150,11 @@ export const therapists = pgTable("therapists", {
   /** Modelos de anotação do próprio psicólogo (nome + corpo em markdown; um pode
    *  ser o padrão). Usados nas anotações da chamada e no prontuário. Ver shared/prontuario.ts. */
   noteTemplates: jsonb("noteTemplates").$type<NoteTemplate[]>(),
+  /** Texto extraído do MODELO DE PRONTUÁRIO que o profissional enviou (PDF/DOCX).
+   *  Cada profissional tem o seu; a Luma o usa como formato a seguir (escopo do
+   *  profissional, nunca vaza para outro). `prontuarioModelName` = nome do arquivo. */
+  prontuarioModel: text("prontuarioModel"),
+  prontuarioModelName: varchar("prontuarioModelName", { length: 256 }),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
     .defaultNow()

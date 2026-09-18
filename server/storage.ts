@@ -29,3 +29,22 @@ export async function signDocumentUrl(fileKey: string, ttlSeconds = 300): Promis
   }
   return data?.signedUrl ?? null;
 }
+
+/** Baixa um arquivo do bucket privado (service role), como Buffer, ou null. */
+export async function downloadDocumentFile(fileKey: string): Promise<Buffer | null> {
+  const client = storageClient();
+  if (!client) return null;
+  const { data, error } = await client.storage.from(DOCS_BUCKET).download(fileKey);
+  if (error || !data) {
+    console.error("Falha ao baixar arquivo do Storage:", error?.message ?? "vazio");
+    return null;
+  }
+  return Buffer.from(await data.arrayBuffer());
+}
+
+/** Remove um arquivo do bucket (best-effort; não lança). */
+export async function removeDocumentFile(fileKey: string): Promise<void> {
+  const client = storageClient();
+  if (!client) return;
+  await client.storage.from(DOCS_BUCKET).remove([fileKey]).catch(() => {});
+}

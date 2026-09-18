@@ -129,6 +129,31 @@ export async function getScopedPatientName(db: Db, ctx: AiAccessContext, patient
  * dar continuidade. Limitado (~1200 chars) para não estourar o orçamento de tokens.
  * Só terapeuta e só o próprio escopo (userId+therapistId+patientId) — LGPD.
  */
+/**
+ * Formato de prontuário/anotação DO PROFISSIONAL, para a Luma seguir: o texto do
+ * modelo que ele enviou (PDF/DOCX) + os modelos de anotação que ele digitou.
+ * Escopo do profissional (ctx.therapistId) — nunca vaza para outro. É só FORMATO,
+ * não dado clínico. Devolve null quando não há modelo nem templates.
+ */
+export async function fetchTherapistFormat(ctx: AiAccessContext, db: Db): Promise<string | null> {
+  if (ctx.role !== "therapist" || ctx.therapistId == null) return null;
+  const rows = await db
+    .select({ modelo: therapists.prontuarioModel, templates: therapists.noteTemplates })
+    .from(therapists)
+    .where(eq(therapists.id, ctx.therapistId))
+    .limit(1);
+  const modelo = rows[0]?.modelo?.trim();
+  const templates = rows[0]?.templates ?? [];
+  const partes: string[] = [];
+  if (modelo) partes.push(`Modelo de prontuário enviado pelo profissional:\n${modelo}`);
+  if (templates.length) {
+    const t = templates.map((m) => `- ${m.nome}:\n${m.corpo}`).join("\n").slice(0, 4000);
+    partes.push(`Modelos de anotação do profissional:\n${t}`);
+  }
+  if (!partes.length) return null;
+  return partes.join("\n\n").slice(0, 8000);
+}
+
 export async function fetchConversationMemory(
   ctx: AiAccessContext, patientId: number | undefined, db: Db, excludeConversationId?: number,
 ): Promise<string> {

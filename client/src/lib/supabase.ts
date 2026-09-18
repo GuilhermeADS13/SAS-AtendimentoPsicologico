@@ -64,6 +64,22 @@ export async function uploadChatFile(file: File): Promise<string> {
   return path;
 }
 
+/**
+ * Upload do MODELO DE PRONTUÁRIO do profissional (PDF/DOCX). Sobe sob o uid dele;
+ * o servidor baixa, extrai o texto e remove o arquivo (só o texto é guardado).
+ */
+export async function uploadModelFile(file: File): Promise<string> {
+  if (!supabase) throw new Error("Supabase não configurado.");
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  if (!uid) throw new Error("Faça login para enviar arquivos.");
+  const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+  const path = `${uid}/modelo/${Date.now()}_${safeName}`;
+  const { error } = await supabase.storage.from(DOCS_BUCKET).upload(path, file, { upsert: false });
+  if (error) throw error;
+  return path;
+}
+
 const AVATARS_BUCKET = "avatars";
 export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 export const AVATAR_MIME = ["image/jpeg", "image/png", "image/webp"];

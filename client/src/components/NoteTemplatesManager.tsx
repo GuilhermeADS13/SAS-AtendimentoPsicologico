@@ -1,13 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { uploadModelFile } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Plus, Trash2, Star } from "lucide-react";
+import { FileText, Plus, Trash2, Star, Upload, Loader2, FileUp } from "lucide-react";
 import type { NoteTemplate } from "@shared/prontuario";
+
+const MODELO_MAX = 20 * 1024 * 1024; // 20 MB
 
 /**
  * Gerencia os modelos de anotação do psicólogo (nome + corpo em markdown; um pode
@@ -53,6 +56,46 @@ export default function NoteTemplatesManager() {
     salvar.mutate(limpos);
   };
 
+  // Modelo de prontuário por upload (PDF/DOCX): o servidor extrai o texto e a Luma
+  // passa a seguir esse formato.
+  const modeloRef = useRef<HTMLInputElement>(null);
+  const [enviandoModelo, setEnviandoModelo] = useState(false);
+  const modeloAtual = trpc.noteTemplates.getModelo.useQuery();
+  const salvarModelo = trpc.noteTemplates.saveModelo.useMutation({
+    onSuccess: () => {
+      utils.noteTemplates.getModelo.invalidate();
+      toast.success("Modelo de prontuário enviado. A Luma vai seguir esse formato.");
+    },
+    onError: (e) => toast.error(e.message || "Falha ao processar o modelo."),
+  });
+  const limparModelo = trpc.noteTemplates.clearModelo.useMutation({
+    onSuccess: () => {
+      utils.noteTemplates.getModelo.invalidate();
+      toast.success("Modelo removido.");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const handleModelo = async (file: File) => {
+    if (file.size > MODELO_MAX) {
+      toast.error("Arquivo muito grande (máximo 20 MB).");
+      return;
+    }
+    setEnviandoModelo(true);
+    try {
+      const fileKey = await uploadModelFile(file);
+      await salvarModelo.mutateAsync({
+        fileKey,
+        fileName: file.name,
+        fileType: file.type || "application/octet-stream",
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao enviar o modelo.");
+    } finally {
+      setEnviandoModelo(false);
+      if (modeloRef.current) modeloRef.current.value = "";
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -68,6 +111,70 @@ export default function NoteTemplatesManager() {
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Upload do modelo de prontuário do profissional — a Luma segue o formato. */}
+        <div className="space-y-2 rounded-md border border-primary/20 bg-primary/5 p-3">
+          <div className="flex items-center gap-2">
+            <FileUp className="h-4 w-4 text-primary" />
+            <p className="text-sm font-medium text-foreground">Seu modelo de prontuário (arquivo)</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Envie o seu modelo de prontuário em PDF ou DOCX. A Luma passa a seguir esse
+            formato ao te ajudar a organizar a sessão e as notas — é só o formato, ela não
+            inventa dados clínicos. Guardamos apenas o texto do modelo.
+          </p>
+          <input
+            ref={modeloRef}
+            type="file"
+            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleModelo(f);
+            }}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={enviandoModelo}
+              onClick={() => modeloRef.current?.click()}
+            >
+              {enviandoModelo ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="mr-1.5 h-4 w-4" />
+              )}
+              {enviandoModelo
+                ? "Processando..."
+                : modeloAtual.data?.temModelo
+                  ? "Substituir modelo"
+                  : "Enviar modelo (PDF/DOCX)"}
+            </Button>
+            {modeloAtual.data?.temModelo && (
+              <>
+                <span className="text-xs text-muted-foreground">
+                  Atual: {modeloAtual.data.nome || "modelo enviado"}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:bg-destructive/10"
+                  disabled={limparModelo.isPending}
+                  onClick={() => limparModelo.mutate()}
+                  title="Remover modelo"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <p className="pt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Modelos digitados
+        </p>
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Carregando...</p>
         ) : modelos.length === 0 ? (

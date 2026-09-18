@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { ChatOpenAI } from "@langchain/openai";
 import { ToolMessage, type BaseMessageLike } from "@langchain/core/messages";
 import { createAgent } from "langchain";
-import { createClinicalTools, fetchConversationMemory, getScopedPatientName, hasAuthorizedClinicalData, type AiSourceReference } from "./clinical-tools";
+import { createClinicalTools, fetchConversationMemory, fetchTherapistFormat, getScopedPatientName, hasAuthorizedClinicalData, type AiSourceReference } from "./clinical-tools";
 import type { AiAccessContext } from "./access";
 import { buildAgentCacheKey, getCachedAgentResponse, setCachedAgentResponse } from "./response-cache";
 import { recordAgentCacheMiss, recordAgentKillSwitch, recordAgentRequest, recordAgentSafetyIntercept } from "./runtime-metrics";
@@ -408,6 +408,15 @@ export async function runOpenSourceAgent(
     const memoria = await fetchConversationMemory(ctx, scopedPatientId, db, currentConversationId);
     if (memoria) {
       systemPrompt += `\n\nMemória de conversas anteriores com a Luma sobre este paciente (use como contexto para dar continuidade; NÃO é registro clínico verificado, não repita literalmente nem invente dados a partir disso):\n${memoria}`;
+    }
+  }
+  // Formato de prontuário DESTE profissional (modelo que ele enviou + templates):
+  // a Luma segue essa estrutura ao organizar pontos/preparar a sessão. Escopo do
+  // profissional; independe de haver paciente selecionado.
+  if (toolsEnabled) {
+    const formato = await fetchTherapistFormat(ctx, db);
+    if (formato) {
+      systemPrompt += `\n\nFORMATO DE PRONTUÁRIO/ANOTAÇÃO DESTE PROFISSIONAL — quando ajudar a organizar os pontos da sessão, preparar o atendimento ou sugerir a estrutura de uma nota, SIGA esta estrutura/modelo do profissional. É só o FORMATO; NÃO invente dados clínicos a partir dele:\n${formato}`;
     }
   }
 
