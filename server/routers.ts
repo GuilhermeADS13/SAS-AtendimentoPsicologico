@@ -85,6 +85,12 @@ async function resolverParticipanteChat(
   return null;
 }
 
+// Estado efêmero de "digitando" por thread (em memória; reseta no restart, e o
+// TTL cobre um deploy no meio). key = `${therapistId}:${patientId}`; guarda o
+// último instante em que cada lado sinalizou que está digitando.
+const chatTypingState = new Map<string, { therapist: number; patient: number }>();
+const CHAT_TYPING_TTL_MS = 5000;
+
 const escHtml = (s: string) =>
   s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
 
@@ -2467,6 +2473,35 @@ export const appRouter = router({
             ),
           );
         return { success: true } as const;
+      }),
+
+    // Sinaliza que EU estou digitando neste thread (efêmero, em memória).
+    setTyping: protectedProcedure
+      .input(z.object({ patientId: z.number().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return { ok: false } as const;
+        const part = await resolverParticipanteChat(db, ctx.user, input.patientId);
+        if (!part) return { ok: false } as const;
+        const key = `${part.therapistId}:${part.patientId}`;
+        const st = chatTypingState.get(key) ?? { therapist: 0, patient: 0 };
+        st[part.role] = Date.now();
+        chatTypingState.set(key, st);
+        return { ok: true } as const;
+      }),
+
+    // O OUTRO lado está digitando agora? (dentro do TTL). Base do "está digitando".
+    typingStatus: protectedProcedure
+      .input(z.object({ patientId: z.number().optional() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return { typing: false };
+        const part = await resolverParticipanteChat(db, ctx.user, input.patientId);
+        if (!part) return { typing: false };
+        const st = chatTypingState.get(`${part.therapistId}:${part.patientId}`);
+        if (!st) return { typing: false };
+        const outro = part.role === "therapist" ? st.patient : st.therapist;
+        return { typing: Date.now() - outro < CHAT_TYPING_TTL_MS };
       }),
 
     // Total de não-lidas do usuário (badge do menu). Psicóloga: todos os pacientes.

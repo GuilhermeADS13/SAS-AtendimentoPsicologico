@@ -51,6 +51,21 @@ export default function ChatConversa({
   });
   const markRead = trpc.chat.markRead.useMutation();
 
+  // "Está digitando": sinalizo (no máx. 1x a cada 2s enquanto escrevo) e verifico
+  // o outro lado por polling curto. É por polling (o chat inteiro é), então tem
+  // ~2s de latência — some sozinho pelo TTL do servidor.
+  const setTyping = trpc.chat.setTyping.useMutation();
+  const ultimoTypingRef = useRef(0);
+  const sinalizarDigitando = () => {
+    const agora = Date.now();
+    if (agora - ultimoTypingRef.current > 2000) {
+      ultimoTypingRef.current = agora;
+      setTyping.mutate({ patientId });
+    }
+  };
+  const typingQ = trpc.chat.typingStatus.useQuery({ patientId }, { refetchInterval: 2000 });
+  const outroDigitando = typingQ.data?.typing ?? false;
+
   // Marca como lidas as mensagens recebidas quando a conversa está aberta.
   useEffect(() => {
     if (!q.data || !role) return;
@@ -186,6 +201,13 @@ export default function ChatConversa({
         <div ref={fimRef} />
       </div>
 
+      {/* "Está digitando" (com o nome do outro lado). */}
+      {outroDigitando && (
+        <div className="border-t border-border px-3 py-1.5 text-xs italic text-muted-foreground">
+          {titulo ?? "A pessoa"} está digitando…
+        </div>
+      )}
+
       {/* Composer */}
       <div className="flex items-end gap-2 border-t border-border p-3">
         <input
@@ -210,7 +232,10 @@ export default function ChatConversa({
         </Button>
         <Textarea
           value={texto}
-          onChange={(e) => setTexto(e.target.value)}
+          onChange={(e) => {
+            setTexto(e.target.value);
+            sinalizarDigitando();
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
