@@ -30,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, Wallet, Table as TableIcon, CalendarDays, Filter, Loader2, Pencil } from "lucide-react";
+import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, Wallet, Table as TableIcon, CalendarDays, Filter, Loader2, Pencil, RotateCcw } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { CalendarioAgenda } from "@/components/CalendarioAgenda";
@@ -709,13 +709,17 @@ export default function Appointments() {
                                 uid: `apt${appointment.id}@vozinterior`,
                               }}
                             />
-                            <Button variant="outline" size="sm" onClick={() => updateStatus.mutate({ id: appointment.id, status: "completed" })} className="h-10 justify-center gap-1.5 text-green-700" title="Marcar consulta como realizada">
+                            <Button variant="outline" size="sm" onClick={() => { if (window.confirm("Marcar esta consulta como realizada?")) updateStatus.mutate({ id: appointment.id, status: "completed" }); }} className="h-10 justify-center gap-1.5 text-green-700" title="Marcar consulta como realizada">
                               <CheckCircle className="h-4 w-4" /> Realizada
                             </Button>
                             <Button variant="outline" size="sm" onClick={() => updateStatus.mutate({ id: appointment.id, status: "cancelled" })} className="h-10 justify-center gap-1.5 text-red-700" title="Cancelar consulta">
                               <XCircle className="h-4 w-4" /> Cancelar
                             </Button>
                           </>
+                        ) : status === "completed" ? (
+                          <Button variant="outline" size="sm" onClick={() => updateStatus.mutate({ id: appointment.id, status: "scheduled" })} className="h-10 justify-center gap-1.5" title="Desfazer: volta a consulta para 'Agendada'">
+                            <RotateCcw className="h-4 w-4" /> Desfazer realizada
+                          </Button>
                         ) : <span className="text-xs text-muted-foreground">Sem ações</span>}
                       </div>
                     </article>
@@ -927,7 +931,7 @@ export default function Appointments() {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => updateStatus.mutate({ id: appointment.id, status: "completed" })}
+                                    onClick={() => { if (window.confirm("Marcar esta consulta como realizada?")) updateStatus.mutate({ id: appointment.id, status: "completed" }); }}
                                     className="h-auto min-h-8 w-full justify-start gap-1.5 whitespace-normal text-left text-green-700 hover:bg-green-100 hover:text-green-800"
                                     title="Marcar consulta como realizada"
                                     aria-label="Marcar consulta como realizada"
@@ -947,6 +951,18 @@ export default function Appointments() {
                                     <span>Cancelar</span>
                                   </Button>
                                 </>
+                              ) : status === "completed" ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => updateStatus.mutate({ id: appointment.id, status: "scheduled" })}
+                                  className="h-auto min-h-8 w-full justify-start gap-1.5 whitespace-normal text-left"
+                                  title="Desfazer: volta a consulta para 'Agendada'"
+                                  aria-label="Desfazer consulta realizada"
+                                >
+                                  <RotateCcw className="h-4 w-4" />
+                                  <span>Desfazer realizada</span>
+                                </Button>
                               ) : (
                                 <span className="text-xs text-muted-foreground">Sem ações</span>
                               )}
