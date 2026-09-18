@@ -306,9 +306,7 @@ export default function Mensagens() {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Mensagens</h1>
           <p className="text-muted-foreground">
-            {isTherapist
-              ? "Fale com o seu paciente e troque arquivos com segurança."
-              : "Fale com a sua psicóloga e troque arquivos com segurança."}
+            {isTherapist ? "Fale com o seu paciente." : "Fale com o seu profissional."}
           </p>
         </div>
         {isTherapist ? (
