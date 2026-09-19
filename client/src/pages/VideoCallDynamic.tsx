@@ -9,6 +9,16 @@ import WebRTCCall from "@/components/WebRTCCall";
 import VideoCallLobby from "@/components/VideoCallLobby";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { AlertCircle, ChevronUp, CheckCircle2, Copy, ShieldAlert, Loader2, Bold, Italic, List, Eye, ClipboardList, MessageSquare } from "lucide-react";
 import { useLocation } from "wouter";
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
@@ -30,6 +40,10 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const [error, setError] = useState<string | null>(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  // Confirmações de encerrar a chamada / marcar como realizada (modal, no lugar
+  // do window.confirm).
+  const [confirmarEncerrar, setConfirmarEncerrar] = useState(false);
+  const [perguntarRealizada, setPerguntarRealizada] = useState(false);
   const [patientPresent, setPatientPresent] = useState(false);
   const [sessionNotes, setSessionNotes] = useState("");
   const [showPreview, setShowPreview] = useState(false);
@@ -274,26 +288,42 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
     );
   }
 
-  const handleEndCall = async () => {
-    if (!window.confirm("Encerrar a videochamada agora?")) return;
+  const sairDaChamada = () => setLocation(isTherapist ? "/dashboard" : "/consultas");
+
+  // Botão "Encerrar": abre o modal de confirmação.
+  const handleEndCall = () => setConfirmarEncerrar(true);
+
+  // Passo 1 (confirmado): registra o fim da sessão e decide se ainda pergunta
+  // sobre marcar como realizada, ou já sai.
+  const encerrarChamada = async () => {
+    setConfirmarEncerrar(false);
     if (notesEnabled) {
       const durationSeconds = Math.round((Date.now() - startedAtRef.current) / 1000);
-      // Persiste o fim da sessão (duração) no banco.
       try {
         await finishCall.mutateAsync({ roomId: room, durationSeconds });
       } catch (err) {
         console.error("Falha ao registrar fim da videochamada:", err);
       }
-      // Oferece fechar o fluxo marcando a consulta como realizada.
-      if (appointmentId > 0 && window.confirm("Marcar esta consulta como realizada?")) {
-        try {
-          await markStatus.mutateAsync({ id: appointmentId, status: "completed" });
-        } catch (err) {
-          console.error("Falha ao marcar consulta como realizada:", err);
-        }
+      if (appointmentId > 0) {
+        setPerguntarRealizada(true);
+        return;
       }
     }
-    setLocation(isTherapist ? "/dashboard" : "/consultas");
+    sairDaChamada();
+  };
+
+  // Passo 2: opcionalmente marca como realizada e sai (a chamada já foi encerrada,
+  // então qualquer escolha leva embora — igual ao fluxo anterior).
+  const marcarRealizadaESair = async (marcar: boolean) => {
+    setPerguntarRealizada(false);
+    if (marcar && appointmentId > 0) {
+      try {
+        await markStatus.mutateAsync({ id: appointmentId, status: "completed" });
+      } catch (err) {
+        console.error("Falha ao marcar consulta como realizada:", err);
+      }
+    }
+    sairDaChamada();
   };
 
   const copyRoomLink = () => {
@@ -632,6 +662,51 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
             (ver WebRTCCall): aqui embaixo ele centralizava na largura da página,
             não na do vídeo, e ficava desalinhado dos outros controles. */}
       </div>
+
+      <AlertDialog open={confirmarEncerrar} onOpenChange={(o) => !o && setConfirmarEncerrar(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Encerrar a videochamada?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A chamada vai terminar para você.
+              {isTherapist ? " Em seguida você pode registrar a consulta como realizada." : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={(e) => { e.preventDefault(); setConfirmarEncerrar(false); }}>
+              Voltar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); encerrarChamada(); }}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Encerrar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={perguntarRealizada} onOpenChange={(o) => { if (!o) marcarRealizadaESair(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Marcar consulta como realizada?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A videochamada foi encerrada. Deseja marcar esta consulta como realizada?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={(e) => { e.preventDefault(); marcarRealizadaESair(false); }}>
+              Agora não
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); marcarRealizadaESair(true); }}
+              className="bg-primary hover:bg-primary/90"
+            >
+              Marcar como realizada
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

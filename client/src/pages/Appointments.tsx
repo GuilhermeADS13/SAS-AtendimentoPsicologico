@@ -206,8 +206,9 @@ export default function Appointments() {
     onError: (e) => toast.error(e.message || "Erro ao atualizar status"),
   });
 
-  // Confirmação (modal) antes de marcar como realizada, no lugar do window.confirm.
+  // Confirmações via modal (no lugar do window.confirm).
   const [confirmarRealizada, setConfirmarRealizada] = useState<(typeof appointments)[number] | null>(null);
+  const [confirmarPago, setConfirmarPago] = useState<(typeof appointments)[number] | null>(null);
 
   const setPayment = trpc.appointments.setPayment.useMutation({
     onSuccess: (_data, vars) => {
@@ -221,11 +222,18 @@ export default function Appointments() {
     },
   });
 
-  const togglePayment = (appointment: (typeof appointments)[number]) => {
-    const nextPaid = !appointment.paid;
-    if (nextPaid && !window.confirm("Confirmar que esta consulta foi paga?")) return;
+  const efetivarPagamento = (appointment: (typeof appointments)[number], paid: boolean) => {
     setPaymentUpdatingId(appointment.id);
-    setPayment.mutate({ id: appointment.id, paid: nextPaid });
+    setPayment.mutate({ id: appointment.id, paid });
+  };
+
+  const togglePayment = (appointment: (typeof appointments)[number]) => {
+    // Marcar como PAGO pede confirmação (modal); voltar para pendente é direto.
+    if (!appointment.paid) {
+      setConfirmarPago(appointment);
+      return;
+    }
+    efetivarPagamento(appointment, false);
   };
 
   const copyToClipboard = (path: string) => {
@@ -731,7 +739,7 @@ export default function Appointments() {
                           </>
                         ) : status === "completed" ? (
                           <Button variant="outline" size="sm" onClick={() => updateStatus.mutate({ id: appointment.id, status: "scheduled" })} className="h-10 justify-center gap-1.5" title="Desfazer: volta a consulta para 'Agendada'">
-                            <RotateCcw className="h-4 w-4" /> Desfazer realizada
+                            <RotateCcw className="h-4 w-4" /> Desfazer consulta realizada
                           </Button>
                         ) : <span className="text-xs text-muted-foreground">Sem ações</span>}
                       </div>
@@ -974,7 +982,7 @@ export default function Appointments() {
                                   aria-label="Desfazer consulta realizada"
                                 >
                                   <RotateCcw className="h-4 w-4" />
-                                  <span>Desfazer realizada</span>
+                                  <span>Desfazer consulta realizada</span>
                                 </Button>
                               ) : (
                                 <span className="text-xs text-muted-foreground">Sem ações</span>
@@ -1015,6 +1023,32 @@ export default function Appointments() {
               className="bg-primary hover:bg-primary/90"
             >
               Marcar como realizada
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!confirmarPago} onOpenChange={(o) => !o && setConfirmarPago(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar pagamento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmarPago
+                ? `A consulta com ${patientName(confirmarPago.patientId)} será marcada como paga.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (confirmarPago) efetivarPagamento(confirmarPago, true);
+                setConfirmarPago(null);
+              }}
+              className="bg-primary hover:bg-primary/90"
+            >
+              Marcar como paga
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
