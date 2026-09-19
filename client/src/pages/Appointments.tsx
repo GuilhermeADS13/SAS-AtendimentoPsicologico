@@ -13,6 +13,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -195,6 +205,9 @@ export default function Appointments() {
     },
     onError: (e) => toast.error(e.message || "Erro ao atualizar status"),
   });
+
+  // Confirmação (modal) antes de marcar como realizada, no lugar do window.confirm.
+  const [confirmarRealizada, setConfirmarRealizada] = useState<(typeof appointments)[number] | null>(null);
 
   const setPayment = trpc.appointments.setPayment.useMutation({
     onSuccess: (_data, vars) => {
@@ -709,7 +722,7 @@ export default function Appointments() {
                                 uid: `apt${appointment.id}@vozinterior`,
                               }}
                             />
-                            <Button variant="outline" size="sm" onClick={() => { if (window.confirm("Marcar esta consulta como realizada?")) updateStatus.mutate({ id: appointment.id, status: "completed" }); }} className="h-10 justify-center gap-1.5 text-green-700" title="Marcar consulta como realizada">
+                            <Button variant="outline" size="sm" onClick={() => setConfirmarRealizada(appointment)} className="h-10 justify-center gap-1.5 text-green-700" title="Marcar consulta como realizada">
                               <CheckCircle className="h-4 w-4" /> Realizada
                             </Button>
                             <Button variant="outline" size="sm" onClick={() => updateStatus.mutate({ id: appointment.id, status: "cancelled" })} className="h-10 justify-center gap-1.5 text-red-700" title="Cancelar consulta">
@@ -931,7 +944,7 @@ export default function Appointments() {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => { if (window.confirm("Marcar esta consulta como realizada?")) updateStatus.mutate({ id: appointment.id, status: "completed" }); }}
+                                    onClick={() => setConfirmarRealizada(appointment)}
                                     className="h-auto min-h-8 w-full justify-start gap-1.5 whitespace-normal text-left text-green-700 hover:bg-green-100 hover:text-green-800"
                                     title="Marcar consulta como realizada"
                                     aria-label="Marcar consulta como realizada"
@@ -980,6 +993,32 @@ export default function Appointments() {
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog open={!!confirmarRealizada} onOpenChange={(o) => !o && setConfirmarRealizada(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Marcar consulta como realizada?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmarRealizada
+                ? `A consulta com ${patientName(confirmarRealizada.patientId)} será marcada como realizada. Você pode desfazer depois.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (confirmarRealizada) updateStatus.mutate({ id: confirmarRealizada.id, status: "completed" });
+                setConfirmarRealizada(null);
+              }}
+              className="bg-primary hover:bg-primary/90"
+            >
+              Marcar como realizada
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
