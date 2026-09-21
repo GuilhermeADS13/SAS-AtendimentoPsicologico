@@ -11,6 +11,7 @@ import {
   MonitorUp,
   Paperclip,
   PhoneOff,
+  Settings,
   Video as VideoIcon,
   VideoOff,
 } from "lucide-react";
@@ -166,6 +167,15 @@ export default function WebRTCCall({
   const [fundoCarregando, setFundoCarregando] = useState(false);
   const [canalPronto, setCanalPronto] = useState(false);
   const [arquivo, setArquivo] = useState<{ url: string; tipo: "imagem" | "pdf"; nome: string } | null>(null);
+  // Dispositivos (mic/câmera/alto-falante) para trocar DENTRO da chamada.
+  const [dispositivos, setDispositivos] = useState<{
+    mics: MediaDeviceInfo[];
+    cams: MediaDeviceInfo[];
+    spks: MediaDeviceInfo[];
+  }>({ mics: [], cams: [], spks: [] });
+  const [micAtual, setMicAtual] = useState(() => readLS(LS.mic));
+  const [camAtual, setCamAtual] = useState(() => readLS(LS.cam));
+  const [spkAtual, setSpkAtual] = useState(() => readLS(LS.spk));
 
   // Compartilhar tela usa getDisplayMedia, uma API só de DESKTOP: o iOS Safari não
   // tem e o Chrome no Android não a suporta. Sem esta checagem, o botão aparecia no
@@ -483,6 +493,133 @@ export default function WebRTCCall({
     }
   };
 
+  // Lista os dispositivos disponíveis (para o seletor da chamada). Os rótulos só
+  // vêm preenchidos depois da permissão de mídia — que já foi dada ao entrar.
+  const atualizarDispositivos = async () => {
+    try {
+      const lista = await navigator.mediaDevices.enumerateDevices();
+      setDispositivos({
+        mics: lista.filter((d) => d.kind === "audioinput"),
+        cams: lista.filter((d) => d.kind === "videoinput"),
+        spks: lista.filter((d) => d.kind === "audiooutput"),
+      });
+    } catch {
+      /* enumerateDevices pode falhar sem permissão; ignora */
+    }
+  };
+
+  // Troca o MICROFONE em uso (ou recupera o áudio quando o dispositivo some, ex.:
+  // tirar o fone): recaptura a trilha e a injeta na conexão sem renegociar.
+  const aplicarMic = async (deviceId?: string) => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    let novo: MediaStream;
+    try {
+      novo = await navigator.mediaDevices.getUserMedia({
+        audio: deviceId ? { deviceId: { exact: deviceId } } : true,
+      });
+    } catch {
+      onError?.("Não foi possível acessar o microfone.");
+      return;
+    }
+    const nova = novo.getAudioTracks()[0];
+    if (!nova) return;
+    const antiga = stream.getAudioTracks()[0];
+    nova.enabled = antiga ? antiga.enabled : micOn; // preserva mudo/ligado
+    const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === "audio");
+    if (sender) await sender.replaceTrack(nova);
+    if (antiga) {
+      stream.removeTrack(antiga);
+      antiga.stop();
+    }
+    stream.addTrack(nova);
+    const id = nova.getSettings().deviceId;
+    if (id) {
+      writeLS(LS.mic, id);
+      setMicAtual(id);
+    }
+  };
+
+  // Troca a CÂMERA em uso. Se o fundo virtual estiver ligado, reinicia o pipeline
+  // com a câmera nova; senão manda a câmera direto (a não ser que a tela esteja
+  // sendo compartilhada, aí só atualiza a fonte que volta ao parar de compartilhar).
+  const aplicarCam = async (deviceId?: string) => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    let novo: MediaStream;
+    try {
+      novo = await navigator.mediaDevices.getUserMedia({
+        video: deviceId ? { deviceId: { exact: deviceId } } : true,
+      });
+    } catch {
+      onError?.("Não foi possível acessar a câmera.");
+      return;
+    }
+    const nova = novo.getVideoTracks()[0];
+    if (!nova) return;
+    const antiga = stream.getVideoTracks()[0];
+    nova.enabled = antiga ? antiga.enabled : camOn;
+    const tinhaFundo = fundoAtual;
+    if (fundoRef.current) {
+      fundoRef.current.parar();
+      fundoRef.current = null;
+    }
+    if (antiga) {
+      stream.removeTrack(antiga);
+      antiga.stop();
+    }
+    stream.addTrack(nova);
+    trilhaCameraRef.current = nova;
+    if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+    const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === "video");
+    if (tinhaFundo) {
+      await trocarFundo(tinhaFundo); // reinicia o fundo com a câmera nova
+    } else if (!compartilhando && sender) {
+      await sender.replaceTrack(nova);
+    }
+    const id = nova.getSettings().deviceId;
+    if (id) {
+      writeLS(LS.cam, id);
+      setCamAtual(id);
+    }
+  };
+
+  // Troca o ALTO-FALANTE (só onde o navegador oferece setSinkId).
+  const aplicarAltoFalante = async (deviceId: string) => {
+    const el = remoteVideoRef.current as
+      | (HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> })
+      | null;
+    if (!el?.setSinkId) return;
+    try {
+      await el.setSinkId(deviceId);
+      writeLS(LS.spk, deviceId);
+      setSpkAtual(deviceId);
+    } catch {
+      onError?.("Não foi possível trocar o alto-falante.");
+    }
+  };
+
+  // Recuperação automática quando um dispositivo é conectado/removido (ex.: tirar
+  // o fone). Um ref sempre com a versão mais nova evita closure velha no listener.
+  const aoTrocarDispositivos = () => {
+    void atualizarDispositivos();
+    const at = localStreamRef.current?.getAudioTracks()[0];
+    if (at && at.readyState === "ended") void aplicarMic();
+    const vt = localStreamRef.current?.getVideoTracks()[0];
+    if (vt && vt.readyState === "ended") void aplicarCam();
+  };
+  const aoTrocarDispositivosRef = useRef(aoTrocarDispositivos);
+  aoTrocarDispositivosRef.current = aoTrocarDispositivos;
+
+  useEffect(() => {
+    void atualizarDispositivos();
+    const md = navigator.mediaDevices;
+    if (!md?.addEventListener) return;
+    const h = () => aoTrocarDispositivosRef.current();
+    md.addEventListener("devicechange", h);
+    return () => md.removeEventListener("devicechange", h);
+  }, []);
+
   /** Mostra um arquivo (imagem/PDF), enviado ou recebido, como overlay sobre o vídeo. */
   const mostrarArquivo = (blob: Blob, mime: string, nome: string) => {
     if (arquivoUrlRef.current) URL.revokeObjectURL(arquivoUrlRef.current);
@@ -760,6 +897,62 @@ export default function WebRTCCall({
               </p>
             </PopoverContent>
           </Popover>
+        <Popover onOpenChange={(o) => { if (o) void atualizarDispositivos(); }}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="secondary"
+              size="icon"
+              className="rounded-full"
+              aria-label="Configurar microfone e câmera"
+              title="Configurar microfone e câmera"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent side="top" className="w-72 space-y-3 p-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Microfone</label>
+              <select
+                value={micAtual}
+                onChange={(e) => void aplicarMic(e.target.value || undefined)}
+                className="w-full rounded-md border bg-background p-2 text-sm"
+              >
+                <option value="">Padrão do sistema</option>
+                {dispositivos.mics.map((d) => (
+                  <option key={d.deviceId} value={d.deviceId}>{d.label || "Microfone"}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Câmera</label>
+              <select
+                value={camAtual}
+                onChange={(e) => void aplicarCam(e.target.value || undefined)}
+                className="w-full rounded-md border bg-background p-2 text-sm"
+              >
+                <option value="">Padrão do sistema</option>
+                {dispositivos.cams.map((d) => (
+                  <option key={d.deviceId} value={d.deviceId}>{d.label || "Câmera"}</option>
+                ))}
+              </select>
+            </div>
+            {dispositivos.spks.length > 0 && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Alto-falante</label>
+                <select
+                  value={spkAtual}
+                  onChange={(e) => void aplicarAltoFalante(e.target.value)}
+                  className="w-full rounded-md border bg-background p-2 text-sm"
+                >
+                  <option value="">Padrão do sistema</option>
+                  {dispositivos.spks.map((d) => (
+                    <option key={d.deviceId} value={d.deviceId}>{d.label || "Alto-falante"}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
         <Button
           variant="secondary"
           size="icon"
