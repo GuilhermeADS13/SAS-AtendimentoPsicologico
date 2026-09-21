@@ -1,0 +1,18 @@
+-- Corrige o BUG "permission denied for function is_therapist_uid" que o PACIENTE
+-- toma ao trocar a foto de perfil.
+--
+-- A migração 0024_revoke_dead_functions.sql revogou o EXECUTE de
+-- public.is_therapist_uid(text) de `authenticated` achando que era função morta.
+-- Ela NÃO é morta: a policy RLS do bucket `avatars`
+-- (supabase/policies/avatars_storage.sql, "avatars therapist photo readable")
+-- chama essa função em todo SELECT/upload no bucket. Sem EXECUTE, o Postgres
+-- estoura "permission denied for function is_therapist_uid" ao avaliar a policy —
+-- e o paciente não consegue salvar/ver a própria foto.
+--
+-- Reconcede só o is_therapist_uid. A rls_auto_enable() segue revogada (essa sim
+-- sem uso). Reversível.
+--
+-- Aplicar em produção via Supabase (apply_migration/SQL Editor) com autorização.
+-- NÃO entra no loop do ci.yml: a função só existe no Supabase real (a policy do
+-- bucket não roda no Postgres de teste do CI) — mesmo motivo da 0024 estar fora.
+GRANT EXECUTE ON FUNCTION public.is_therapist_uid(text) TO authenticated;
