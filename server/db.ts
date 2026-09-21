@@ -39,7 +39,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     };
     const updateSet: Record<string, unknown> = {};
 
-    const textFields = ["name", "email", "loginMethod"] as const;
+    const textFields = ["email", "loginMethod"] as const;
     type TextField = (typeof textFields)[number];
 
     const assignNullable = (field: TextField) => {
@@ -51,6 +51,14 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     };
 
     textFields.forEach(assignNullable);
+
+    // `name` é semeado na CRIAÇÃO da conta (a partir do Supabase), mas depois o
+    // app é dono dele: o cadastro do paciente grava users.name (ver
+    // me.saveProfile) e isso NÃO pode ser sobrescrito pelo metadado do Supabase
+    // a cada requisição. Por isso vai só no INSERT (values), nunca no updateSet.
+    if (user.name !== undefined) {
+      values.name = user.name ?? null;
+    }
 
     if (user.lastSignedIn !== undefined) {
       values.lastSignedIn = user.lastSignedIn;

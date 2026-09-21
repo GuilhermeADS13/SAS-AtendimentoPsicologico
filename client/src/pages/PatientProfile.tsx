@@ -84,6 +84,9 @@ export default function PatientProfile({ embedded = false }: { embedded?: boolea
     onSuccess: () => {
       utils.me.profile.invalidate();
       utils.me.therapist.invalidate();
+      // O nome da conta muda junto (topo/menu leem auth.me) — recarrega para
+      // refletir na hora.
+      utils.auth.me.invalidate();
       toast.success("Cadastro salvo!");
     },
     onError: (e) => toast.error(e.message || "Erro ao salvar"),

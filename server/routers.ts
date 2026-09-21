@@ -666,6 +666,13 @@ export const appRouter = router({
           })
           .where(eq(patients.id, paciente.id));
 
+        // O nome da CONTA (users.name) é o que aparece no topo/menu. Mantém em dia
+        // com o cadastro para não ficar mostrando o nome antigo do Supabase.
+        const nomeCompleto = `${input.firstName} ${input.lastName}`.trim();
+        if (nomeCompleto) {
+          await db.update(users).set({ name: nomeCompleto }).where(eq(users.id, ctx.user.id));
+        }
+
         return { success: true, action: "updated" as const };
       }),
 
