@@ -32,6 +32,16 @@ import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./ui/alert-dialog";
 
 // Menu da psicóloga (acesso clínico completo).
 // "Videochamada" NÃO é um item: toda sala nasce de um agendamento
@@ -182,6 +192,16 @@ function DashboardLayoutContent({
     ? [...therapistMenu, ...(isAdmin ? adminMenu : [])]
     : patientMenu;
   const activeMenuItem = menuItems.find(item => item.path === location);
+
+  // Durante a videochamada, clicar num item do menu trocaria a rota e ENCERRARIA
+  // a chamada sem querer. Pede confirmação antes de sair.
+  const [saindoParaPath, setSaindoParaPath] = useState<string | null>(null);
+  const emChamada = location.startsWith("/videocall");
+  const irPara = (path: string) => {
+    if (path === location) return;
+    if (emChamada) setSaindoParaPath(path);
+    else setLocation(path);
+  };
   // A sala de vídeo não está no menu do paciente, mas o cabeçalho deve nomeá-la.
   const headerTitle =
     activeMenuItem?.label ?? (location.startsWith("/videocall") ? "Videochamada" : "Menu");
@@ -252,7 +272,7 @@ function DashboardLayoutContent({
                   <SidebarMenuItem key={item.path}>
                     <SidebarMenuButton
                       isActive={isActive}
-                      onClick={() => setLocation(item.path)}
+                      onClick={() => irPara(item.path)}
                       tooltip={item.label}
                       className={`h-10 transition-all font-normal`}
                     >
@@ -335,6 +355,31 @@ function DashboardLayoutContent({
 
       {/* Tour de boas-vindas na primeira entrada (paciente ou psicóloga). */}
       <LumaOnboarding role={isTherapist ? "therapist" : "patient"} userId={user?.id} />
+
+      <AlertDialog open={!!saindoParaPath} onOpenChange={(o) => !o && setSaindoParaPath(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sair da videochamada?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se você sair agora, a videochamada será encerrada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuar na chamada</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                const alvo = saindoParaPath;
+                setSaindoParaPath(null);
+                if (alvo) setLocation(alvo);
+              }}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Sair da chamada
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

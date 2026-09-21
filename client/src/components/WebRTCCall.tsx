@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Eye,
   EyeOff,
-  Focus,
   Image as ImageIcon,
   Loader2,
   Maximize,
@@ -40,16 +39,6 @@ import {
 
 type Role = "therapist" | "patient";
 
-/**
- * `backgroundBlur` é o desfoque de fundo que o próprio navegador/sistema aplica
- * na trilha da câmera. Ainda não está nos tipos padrão do DOM, daí estes tipos.
- * Escolhido de propósito no lugar de segmentação por modelo (MediaPipe): não
- * baixa modelo nem processa quadro a quadro, então não rouba CPU/bateria durante
- * a consulta. Em troca, só existe em alguns navegadores — onde não houver, o
- * botão aparece desabilitado, explicando o motivo.
- */
-type CapacidadesComDesfoque = MediaTrackCapabilities & { backgroundBlur?: boolean[] };
-type RestricaoComDesfoque = MediaTrackConstraintSet & { backgroundBlur?: boolean };
 
 const LS = {
   mic: "sas-video-mic",
@@ -173,8 +162,6 @@ export default function WebRTCCall({
   const [selfViewHidden, setSelfViewHidden] = useState(() => readLS(LS.selfView) === "1");
   const [compartilhando, setCompartilhando] = useState(false);
   const [telaCheia, setTelaCheia] = useState(false);
-  const [desfoqueSuportado, setDesfoqueSuportado] = useState(false);
-  const [desfoqueLigado, setDesfoqueLigado] = useState(false);
   const [fundoAtual, setFundoAtual] = useState<string | null>(null);
   const [fundoCarregando, setFundoCarregando] = useState(false);
   const [canalPronto, setCanalPronto] = useState(false);
@@ -187,12 +174,6 @@ export default function WebRTCCall({
   const podeCompartilharTela =
     typeof navigator !== "undefined" &&
     typeof navigator.mediaDevices?.getDisplayMedia === "function";
-
-  // "Desktop" = tem mouse (hover + ponteiro fino). O fundo virtual roda MediaPipe
-  // quadro a quadro; no celular pesaria a consulta, então só é oferecido aqui.
-  const ehDesktop =
-    typeof window !== "undefined" &&
-    !!window.matchMedia?.("(hover: hover) and (pointer: fine)").matches;
 
   useEffect(() => {
     let disposed = false;
@@ -243,11 +224,6 @@ export default function WebRTCCall({
       if (vtInicial) vtInicial.enabled = readLS(LS.camOn) !== "0";
       const atInicial = stream.getAudioTracks()[0];
       if (atInicial) atInicial.enabled = readLS(LS.micOn) !== "0";
-
-      // O desfoque de fundo só existe em alguns navegadores/sistemas: pergunta à
-      // trilha se ela sabe fazer, em vez de supor e falhar na hora do clique.
-      const capacidades = stream.getVideoTracks()[0]?.getCapabilities?.() as CapacidadesComDesfoque | undefined;
-      setDesfoqueSuportado(Array.isArray(capacidades?.backgroundBlur) && capacidades.backgroundBlur.includes(true));
 
       // 2) Conexão peer-to-peer. Os servidores ICE vêm do servidor (credenciais
       //    TURN temporárias); se a busca falhar, segue com STUN em vez de abortar.
@@ -493,14 +469,6 @@ export default function WebRTCCall({
         fundoRef.current.definirImagem(img); // já rodando: só troca a imagem
       } else {
         setFundoCarregando(true);
-        // Desliga o desfoque nativo antes: ele agiria sobre a câmera que alimenta
-        // o fundo, borrando a própria pessoa.
-        if (desfoqueLigado) {
-          try {
-            await camera.getVideoTracks()[0]?.applyConstraints({ advanced: [{ backgroundBlur: false } as RestricaoComDesfoque] });
-          } catch { /* ignora */ }
-          setDesfoqueLigado(false);
-        }
         const controle = await iniciarFundoVirtual(camera, img);
         fundoRef.current = controle;
         trilhaCameraRef.current = controle.trilha;
@@ -587,22 +555,6 @@ export default function WebRTCCall({
     }
     dc.send(JSON.stringify({ t: "fim" }));
     mostrarArquivo(new Blob([buf], { type: file.type }), file.type, file.name);
-  };
-
-  const alternarDesfoque = async () => {
-    const trilha = localStreamRef.current?.getVideoTracks()[0];
-    if (!trilha) return;
-    const novo = !desfoqueLigado;
-    // Desfoque e fundo virtual não convivem (agiriam sobre a mesma câmera).
-    if (novo && fundoRef.current) await trocarFundo(null);
-    try {
-      await trilha.applyConstraints({ advanced: [{ backgroundBlur: novo } as RestricaoComDesfoque] });
-      setDesfoqueLigado(novo);
-    } catch {
-      // Declarou a capacidade mas recusou aplicar: some com o botão em vez de
-      // deixar a pessoa clicando em algo que não funciona.
-      setDesfoqueSuportado(false);
-    }
   };
 
   const alternarTelaCheia = () => {
@@ -758,25 +710,7 @@ export default function WebRTCCall({
             e.target.value = "";
           }}
         />
-        <Button
-          variant={desfoqueLigado ? "default" : "secondary"}
-          size="icon"
-          onClick={alternarDesfoque}
-          disabled={!desfoqueSuportado}
-          className="rounded-full"
-          aria-label={desfoqueLigado ? "Desligar desfoque do fundo" : "Desfocar o fundo"}
-          title={
-            desfoqueSuportado
-              ? desfoqueLigado
-                ? "Desligar desfoque do fundo"
-                : "Desfocar o fundo"
-              : "Seu navegador não oferece desfoque de fundo"
-          }
-        >
-          <Focus className="h-4 w-4" />
-        </Button>
-        {ehDesktop && (
-          <Popover>
+        <Popover>
             <PopoverTrigger asChild>
               <Button
                 variant={fundoAtual ? "default" : "secondary"}
@@ -822,11 +756,10 @@ export default function WebRTCCall({
                 ))}
               </div>
               <p className="mt-2 text-[10px] leading-tight text-muted-foreground">
-                Só no computador. Pode pesar em máquinas mais fracas.
+                Pode pesar em aparelhos mais fracos.
               </p>
             </PopoverContent>
           </Popover>
-        )}
         <Button
           variant="secondary"
           size="icon"
