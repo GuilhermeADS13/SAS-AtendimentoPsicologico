@@ -88,6 +88,11 @@ export default function Configuracoes() {
   const [novoEmail, setNovoEmail] = useState("");
   const [senhaParaEmail, setSenhaParaEmail] = useState("");
   const [salvandoEmail, setSalvandoEmail] = useState(false);
+  // Troca de e-mail em 2 passos: "dados" (novo e-mail + senha) e "codigo".
+  const [etapaEmail, setEtapaEmail] = useState<"dados" | "codigo">("dados");
+  const [codigoEmail, setCodigoEmail] = useState("");
+  const pedirCodigoEmail = trpc.me.requestEmailChange.useMutation();
+  const confirmarTrocaEmail = trpc.me.confirmEmailChange.useMutation();
 
   const [dialogoSenha, setDialogoSenha] = useState(false);
   const [senhaAtual, setSenhaAtual] = useState("");
@@ -131,8 +136,16 @@ export default function Configuracoes() {
     return true;
   };
 
-  const trocarEmail = async () => {
-    if (!supabase) return;
+  const fecharDialogoEmail = () => {
+    setDialogoEmail(false);
+    setEtapaEmail("dados");
+    setNovoEmail("");
+    setSenhaParaEmail("");
+    setCodigoEmail("");
+  };
+
+  // Passo 1: confere a senha atual e pede o código (enviado aos dois e-mails).
+  const solicitarCodigoEmail = async () => {
     const alvo = novoEmail.trim();
     if (!alvo) {
       toast.error("Digite o novo e-mail.");
@@ -145,17 +158,38 @@ export default function Configuracoes() {
     setSalvandoEmail(true);
     try {
       if (!(await conferirSenhaAtual(senhaParaEmail))) return;
-      const { error } = await supabase.auth.updateUser({ email: alvo });
-      if (error) throw error;
-      // A troca NÃO vale ainda: o Supabase manda um link para o endereço novo e
-      // só efetiva quando a pessoa clica. Dizer isso evita ela achar que já
-      // pode entrar com o e-mail novo.
-      toast.success(`Link de confirmação enviado para ${alvo}. A troca vale depois que você confirmar.`);
-      setNovoEmail("");
-      setSenhaParaEmail("");
-      setDialogoEmail(false);
+      await pedirCodigoEmail.mutateAsync({ novoEmail: alvo });
+      toast.success("Enviamos um código para o e-mail novo e para o atual.");
+      setEtapaEmail("codigo");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível trocar o e-mail");
+      toast.error(e instanceof Error ? e.message : "Não foi possível enviar o código.");
+    } finally {
+      setSalvandoEmail(false);
+    }
+  };
+
+  // Passo 2: confirma o código; o servidor troca o e-mail (admin) e devolve o novo.
+  const confirmarCodigoEmail = async () => {
+    const codigo = codigoEmail.trim();
+    if (codigo.length < 4) {
+      toast.error("Digite o código que chegou no e-mail.");
+      return;
+    }
+    setSalvandoEmail(true);
+    try {
+      await confirmarTrocaEmail.mutateAsync({ codigo });
+      // O token da sessão ainda tem o e-mail antigo; atualiza para o novo.
+      try {
+        await supabase?.auth.refreshSession();
+      } catch {
+        /* segue: na próxima entrada já usa o e-mail novo */
+      }
+      utils.me.contato.invalidate();
+      utils.auth.me.invalidate();
+      toast.success("E-mail alterado! Use o novo e-mail no próximo login.");
+      fecharDialogoEmail();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível confirmar o código.");
     } finally {
       setSalvandoEmail(false);
     }
@@ -363,7 +397,7 @@ export default function Configuracoes() {
         {isTherapist && <NoteTemplatesManager />}
       </div>
 
-      <Dialog open={dialogoEmail} onOpenChange={setDialogoEmail}>
+      <Dialog open={dialogoEmail} onOpenChange={(o) => (o ? setDialogoEmail(true) : fecharDialogoEmail())}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Alterar e-mail de acesso</DialogTitle>
@@ -371,49 +405,91 @@ export default function Configuracoes() {
               Hoje sua conta usa <strong className="break-all">{contato?.email}</strong>.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="novo-email">Novo e-mail</Label>
-              <Input
-                id="novo-email"
-                type="email"
-                /* "off": com autoComplete="email" o navegador preenchia o campo
-                   com o e-mail ATUAL, e a tela nascia parecendo já preenchida. */
-                autoComplete="off"
-                value={novoEmail}
-                onChange={(e) => setNovoEmail(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="senha-email">Senha atual</Label>
-              <Input
-                id="senha-email"
-                type="password"
-                autoComplete="current-password"
-                value={senhaParaEmail}
-                onChange={(e) => setSenhaParaEmail(e.target.value)}
-              />
-            </div>
-            <p className="flex gap-2 rounded-md bg-muted p-3 text-xs leading-relaxed text-muted-foreground">
-              <Info className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>
-                Enviaremos um link para o endereço novo. A troca só vale depois que você
-                clicar nesse link — até lá, continue entrando com o e-mail atual.
-              </span>
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setDialogoEmail(false)}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={trocarEmail}
-              disabled={salvandoEmail || !novoEmail || !senhaParaEmail}
-              className="bg-primary hover:bg-primary/90"
-            >
-              {salvandoEmail ? "Enviando..." : "Enviar confirmação"}
-            </Button>
-          </DialogFooter>
+          {etapaEmail === "dados" ? (
+            <>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="novo-email">Novo e-mail</Label>
+                  <Input
+                    id="novo-email"
+                    type="email"
+                    /* "off": com autoComplete="email" o navegador preenchia o campo
+                       com o e-mail ATUAL, e a tela nascia parecendo já preenchida. */
+                    autoComplete="off"
+                    value={novoEmail}
+                    onChange={(e) => setNovoEmail(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="senha-email">Senha atual</Label>
+                  <Input
+                    id="senha-email"
+                    type="password"
+                    autoComplete="current-password"
+                    value={senhaParaEmail}
+                    onChange={(e) => setSenhaParaEmail(e.target.value)}
+                  />
+                </div>
+                <p className="flex gap-2 rounded-md bg-muted p-3 text-xs leading-relaxed text-muted-foreground">
+                  <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>
+                    Enviaremos um código para o e-mail <strong>novo</strong> e para o{" "}
+                    <strong>atual</strong>. A troca só vale depois que você digitar esse
+                    código — até lá, continue entrando com o e-mail atual.
+                  </span>
+                </p>
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={fecharDialogoEmail}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={solicitarCodigoEmail}
+                  disabled={salvandoEmail || !novoEmail || !senhaParaEmail}
+                  className="bg-primary hover:bg-primary/90"
+                >
+                  {salvandoEmail ? "Enviando..." : "Enviar código"}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="codigo-email">Código de verificação</Label>
+                  <Input
+                    id="codigo-email"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="000000"
+                    maxLength={6}
+                    value={codigoEmail}
+                    onChange={(e) => setCodigoEmail(e.target.value.replace(/\D/g, ""))}
+                    className="text-center text-lg tracking-[0.4em]"
+                  />
+                </div>
+                <p className="flex gap-2 rounded-md bg-muted p-3 text-xs leading-relaxed text-muted-foreground">
+                  <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>
+                    Enviamos um código para <strong className="break-all">{novoEmail}</strong> e
+                    para o seu e-mail atual. Ele vale por 15 minutos.
+                  </span>
+                </p>
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setEtapaEmail("dados")} disabled={salvandoEmail}>
+                  Voltar
+                </Button>
+                <Button
+                  onClick={confirmarCodigoEmail}
+                  disabled={salvandoEmail || codigoEmail.trim().length < 4}
+                  className="bg-primary hover:bg-primary/90"
+                >
+                  {salvandoEmail ? "Confirmando..." : "Confirmar troca"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

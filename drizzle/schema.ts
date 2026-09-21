@@ -85,6 +85,13 @@ export const users = pgTable("users", {
   /** Quando a pessoa concluiu (ou pulou) o tour de boas-vindas. Nulo = ainda não viu.
    *  Fica na CONTA, não no navegador: senão o tour reaparece a cada dispositivo. */
   onboardingSeenAt: timestamp("onboardingSeenAt", { withTimezone: true, mode: "date" }),
+  // Troca de e-mail por código (fluxo próprio, sem depender do e-mail do Supabase):
+  // guarda o e-mail novo pendente, o HASH do código enviado, a expiração e o nº de
+  // tentativas. Só com o código certo (mandado para os DOIS e-mails) a troca vale.
+  emailChangeNew: varchar("emailChangeNew", { length: 320 }),
+  emailChangeCodeHash: text("emailChangeCodeHash"),
+  emailChangeExpires: timestamp("emailChangeExpires", { withTimezone: true, mode: "date" }),
+  emailChangeAttempts: integer("emailChangeAttempts").default(0).notNull(),
 });
 
 export type User = typeof users.$inferSelect;

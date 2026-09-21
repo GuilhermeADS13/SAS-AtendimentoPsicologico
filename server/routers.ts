@@ -10,6 +10,8 @@ import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessag
 import { signDocumentUrl, downloadDocumentFile, removeDocumentFile as removeStorageFile } from "./storage";
 import { extractClinicalDocument } from "./ai/document-ingestion";
 import { sendEmail } from "./mailer";
+import { trocarEmailSupabase } from "./supabaseAdmin";
+import { randomInt, createHash } from "node:crypto";
 import { eq, and, asc, desc, isNull, ne, inArray, getTableColumns, sql, ilike } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { runOpenSourceAgent } from "./ai/llm";
@@ -616,6 +618,116 @@ export const appRouter = router({
         }
         await db.update(patients).set({ phone }).where(eq(patients.id, paciente.id));
         return { ok: true };
+      }),
+
+    /**
+     * Troca de e-mail por CÓDIGO (fluxo próprio, sem o e-mail de confirmação do
+     * Supabase — que exige SMTP customizado para editar o template). O e-mail é a
+     * porta de entrada da conta, então: gera um código de 6 dígitos, manda para os
+     * DOIS endereços (o ATUAL confirma que o dono autorizou; o NOVO, que o endereço
+     * é válido/seu) e só troca quando o código volta certo (confirmEmailChange).
+     */
+    requestEmailChange: protectedProcedure
+      .input(z.object({ novoEmail: z.string().email().max(320) }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const novo = input.novoEmail.trim().toLowerCase();
+        const atual = (ctx.user.email ?? "").toLowerCase();
+        if (novo === atual) throw new Error("Este já é o seu e-mail atual.");
+        const existe = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.email, novo))
+          .limit(1);
+        if (existe.length && existe[0].id !== ctx.user.id) {
+          throw new Error("Este e-mail já está em uso por outra conta.");
+        }
+        const codigo = String(randomInt(0, 1_000_000)).padStart(6, "0");
+        const hash = createHash("sha256").update(codigo).digest("hex");
+        await db
+          .update(users)
+          .set({
+            emailChangeNew: novo,
+            emailChangeCodeHash: hash,
+            emailChangeExpires: new Date(Date.now() + 15 * 60_000),
+            emailChangeAttempts: 0,
+          })
+          .where(eq(users.id, ctx.user.id));
+        const assunto = "Código para trocar seu e-mail — VozInterior";
+        const corpo = `<p>Seu código para trocar o e-mail no VozInterior é:</p>
+          <p style="font-size:26px;font-weight:bold;letter-spacing:4px">${codigo}</p>
+          <p>Ele vale por 15 minutos. Se não foi você que pediu, ignore este e-mail — sua conta continua segura e o e-mail não muda.</p>`;
+        if (atual) await sendEmail(atual, assunto, corpo);
+        await sendEmail(novo, assunto, corpo);
+        return { ok: true } as const;
+      }),
+
+    confirmEmailChange: protectedProcedure
+      .input(z.object({ codigo: z.string().trim().min(4).max(10) }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const linhas = await db
+          .select({
+            novo: users.emailChangeNew,
+            hash: users.emailChangeCodeHash,
+            expira: users.emailChangeExpires,
+            tentativas: users.emailChangeAttempts,
+          })
+          .from(users)
+          .where(eq(users.id, ctx.user.id))
+          .limit(1);
+        const p = linhas[0];
+        const limpar = () =>
+          db
+            .update(users)
+            .set({
+              emailChangeNew: null,
+              emailChangeCodeHash: null,
+              emailChangeExpires: null,
+              emailChangeAttempts: 0,
+            })
+            .where(eq(users.id, ctx.user.id));
+
+        if (!p?.novo || !p.hash || !p.expira) {
+          throw new Error("Nenhuma troca de e-mail pendente. Peça o código de novo.");
+        }
+        if (p.expira.getTime() < Date.now()) {
+          await limpar();
+          throw new Error("O código expirou. Peça um novo.");
+        }
+        if (p.tentativas >= 5) {
+          await limpar();
+          throw new Error("Muitas tentativas. Peça um novo código.");
+        }
+        const hash = createHash("sha256").update(input.codigo.trim()).digest("hex");
+        if (hash !== p.hash) {
+          await db
+            .update(users)
+            .set({ emailChangeAttempts: p.tentativas + 1 })
+            .where(eq(users.id, ctx.user.id));
+          throw new Error("Código incorreto.");
+        }
+        // Código certo: troca no Supabase (admin, já confirmado) e no nosso banco.
+        const authUid = ctx.user.openId.startsWith("sb:") ? ctx.user.openId.slice(3) : null;
+        if (!authUid) throw new Error("Conta inválida para troca de e-mail.");
+        try {
+          await trocarEmailSupabase(authUid, p.novo);
+        } catch {
+          throw new Error("Não foi possível concluir a troca. O e-mail pode já estar em uso.");
+        }
+        await db
+          .update(users)
+          .set({
+            email: p.novo,
+            emailChangeNew: null,
+            emailChangeCodeHash: null,
+            emailChangeExpires: null,
+            emailChangeAttempts: 0,
+          })
+          .where(eq(users.id, ctx.user.id));
+        return { ok: true, email: p.novo } as const;
       }),
 
     saveProfile: protectedProcedure
