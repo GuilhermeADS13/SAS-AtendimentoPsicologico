@@ -20,6 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import { getAccessToken } from "@/lib/supabase";
+import { toast } from "sonner";
 import {
   carregarImagemFundo,
   iniciarFundoVirtual,
@@ -176,6 +177,9 @@ export default function WebRTCCall({
   const [micAtual, setMicAtual] = useState(() => readLS(LS.mic));
   const [camAtual, setCamAtual] = useState(() => readLS(LS.cam));
   const [spkAtual, setSpkAtual] = useState(() => readLS(LS.spk));
+  // "Quem está falando": brilho verde na tela (o outro lado) e na miniatura (eu).
+  const [localFalando, setLocalFalando] = useState(false);
+  const [remoteFalando, setRemoteFalando] = useState(false);
 
   // Compartilhar tela usa getDisplayMedia, uma API só de DESKTOP: o iOS Safari não
   // tem e o Chrome no Android não a suporta. Sem esta checagem, o botão aparecia no
@@ -489,7 +493,7 @@ export default function WebRTCCall({
       setFundoAtual(url);
     } catch {
       setFundoCarregando(false);
-      onError?.("Não foi possível ativar o fundo. Tente de novo.");
+      toast.error("Não foi possível ativar o fundo. Tente de novo.");
     }
   };
 
@@ -519,7 +523,7 @@ export default function WebRTCCall({
         audio: deviceId ? { deviceId: { exact: deviceId } } : true,
       });
     } catch {
-      onError?.("Não foi possível acessar o microfone.");
+      toast.error("Não foi possível acessar o microfone.");
       return;
     }
     const nova = novo.getAudioTracks()[0];
@@ -552,7 +556,7 @@ export default function WebRTCCall({
         video: deviceId ? { deviceId: { exact: deviceId } } : true,
       });
     } catch {
-      onError?.("Não foi possível acessar a câmera.");
+      toast.error("Não foi possível acessar a câmera.");
       return;
     }
     const nova = novo.getVideoTracks()[0];
@@ -595,7 +599,7 @@ export default function WebRTCCall({
       writeLS(LS.spk, deviceId);
       setSpkAtual(deviceId);
     } catch {
-      onError?.("Não foi possível trocar o alto-falante.");
+      toast.error("Não foi possível trocar o alto-falante.");
     }
   };
 
@@ -673,25 +677,36 @@ export default function WebRTCCall({
   /** Envia um arquivo (imagem/PDF) pelo canal de dados, em pedaços, e mostra localmente. */
   const enviarArquivo = async (file: File) => {
     const dc = dcRef.current;
-    if (!dc || dc.readyState !== "open") return;
+    if (!dc || dc.readyState !== "open") {
+      toast.error("O envio de arquivos fica disponível quando a chamada conecta.");
+      return;
+    }
+    // Erros de validação/envio usam toast: um erro aqui NÃO pode derrubar a
+    // chamada (o onError do componente encerra a videochamada no pai).
     if (file.size > 20 * 1024 * 1024) {
-      onError?.("Arquivo muito grande (máximo 20 MB).");
+      toast.error("Arquivo muito grande (máximo 20 MB).");
       return;
     }
     if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
-      onError?.("Envie uma imagem ou um PDF.");
+      toast.error("Envie uma imagem ou um PDF.");
       return;
     }
-    const buf = await file.arrayBuffer();
-    dc.send(JSON.stringify({ t: "inicio", nome: file.name, mime: file.type }));
-    const CHUNK = 16 * 1024;
-    for (let off = 0; off < buf.byteLength; off += CHUNK) {
-      // Espera a fila baixar antes de continuar (evita estourar o buffer do canal).
-      while (dc.bufferedAmount > 1_000_000) await new Promise((r) => setTimeout(r, 20));
-      dc.send(buf.slice(off, off + CHUNK));
+    try {
+      const buf = await file.arrayBuffer();
+      dc.send(JSON.stringify({ t: "inicio", nome: file.name, mime: file.type }));
+      const CHUNK = 16 * 1024;
+      for (let off = 0; off < buf.byteLength; off += CHUNK) {
+        // Se o canal fechar no meio (a pessoa saiu), para sem derrubar a chamada.
+        if (dc.readyState !== "open") throw new Error("canal fechado");
+        // Espera a fila baixar antes de continuar (evita estourar o buffer do canal).
+        while (dc.bufferedAmount > 1_000_000) await new Promise((r) => setTimeout(r, 20));
+        dc.send(buf.slice(off, off + CHUNK));
+      }
+      dc.send(JSON.stringify({ t: "fim" }));
+      mostrarArquivo(new Blob([buf], { type: file.type }), file.type, file.name);
+    } catch {
+      toast.error("Não foi possível enviar o arquivo. A chamada continua normalmente.");
     }
-    dc.send(JSON.stringify({ t: "fim" }));
-    mostrarArquivo(new Blob([buf], { type: file.type }), file.type, file.name);
   };
 
   const alternarTelaCheia = () => {
@@ -705,6 +720,57 @@ export default function WebRTCCall({
     return () => document.removeEventListener("fullscreenchange", aoMudar);
   }, []);
 
+  // Detector de fala: mede o nível de áudio de cada lado e acende o brilho verde
+  // de quem está falando. Só depois de conectar (aí a trilha remota existe).
+  useEffect(() => {
+    if (!connected) return;
+    const AC =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AC) return;
+    const ctx = new AC();
+    type Item = { analyser: AnalyserNode; buf: Uint8Array<ArrayBuffer>; set: (v: boolean) => void; ate: number; ultimo: boolean };
+    const itens: Item[] = [];
+    const criar = (stream: MediaStream | null, set: (v: boolean) => void) => {
+      if (!stream || stream.getAudioTracks().length === 0) return;
+      try {
+        const src = ctx.createMediaStreamSource(stream);
+        const an = ctx.createAnalyser();
+        an.fftSize = 512;
+        src.connect(an); // só para medir; NÃO liga no destino (não gera eco)
+        itens.push({ analyser: an, buf: new Uint8Array(new ArrayBuffer(an.fftSize)), set, ate: 0, ultimo: false });
+      } catch {
+        /* navegador sem Web Audio p/ este stream: sem brilho, sem quebrar a chamada */
+      }
+    };
+    criar(localStreamRef.current, setLocalFalando);
+    criar(remoteStreamRef.current, setRemoteFalando);
+    const id = window.setInterval(() => {
+      const agora = Date.now();
+      for (const it of itens) {
+        it.analyser.getByteTimeDomainData(it.buf);
+        let soma = 0;
+        for (let i = 0; i < it.buf.length; i++) {
+          const d = it.buf[i] - 128;
+          soma += d * d;
+        }
+        const rms = Math.sqrt(soma / it.buf.length);
+        if (rms > 8) it.ate = agora + 350; // falando; segura 350ms p/ não piscar
+        const falando = agora < it.ate;
+        if (falando !== it.ultimo) {
+          it.ultimo = falando;
+          it.set(falando);
+        }
+      }
+    }, 120);
+    return () => {
+      window.clearInterval(id);
+      void ctx.close().catch(() => {});
+      setLocalFalando(false);
+      setRemoteFalando(false);
+    };
+  }, [connected]);
+
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden rounded-lg bg-black">
       {/* Vídeo do outro lado ocupa a tela toda. */}
@@ -713,6 +779,13 @@ export default function WebRTCCall({
         autoPlay
         playsInline
         className="h-full w-full object-contain"
+      />
+
+      {/* Brilho verde quando o OUTRO lado está falando. */}
+      <div
+        className={`pointer-events-none absolute inset-0 rounded-lg ring-4 ring-inset ring-green-400/80 transition-opacity duration-150 ${
+          remoteFalando ? "opacity-100" : "opacity-0"
+        }`}
       />
 
       {/* Enquanto o outro lado não conecta, um aviso discreto. */}
@@ -742,7 +815,9 @@ export default function WebRTCCall({
           autoPlay
           playsInline
           muted
-          className="h-full w-full rounded-md border border-white/20 object-cover shadow-lg"
+          className={`h-full w-full rounded-md object-cover shadow-lg transition-all duration-150 ${
+            localFalando ? "ring-2 ring-green-400" : "border border-white/20"
+          }`}
         />
         <button
           type="button"
