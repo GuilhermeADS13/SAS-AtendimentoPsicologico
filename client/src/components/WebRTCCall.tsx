@@ -182,9 +182,9 @@ export default function WebRTCCall({
   // "Quem está falando": brilho verde na tela (o outro lado) e na miniatura (eu).
   const [localFalando, setLocalFalando] = useState(false);
   const [remoteFalando, setRemoteFalando] = useState(false);
-  // Silenciar o áudio do OUTRO lado (você para de ouvir), mesmo com o mic dele
-  // ligado. É só no SEU aparelho — muta a reprodução do <video>, não a trilha.
-  const [audioRemotoMudo, setAudioRemotoMudo] = useState(false);
+  // Volume do OUTRO lado (0–100), só no SEU aparelho — mexe no <video>, não na
+  // trilha. Em 0 você para de ouvir a pessoa mesmo com o mic dela ligado.
+  const [volumeRemoto, setVolumeRemoto] = useState(100);
 
   // Compartilhar tela usa getDisplayMedia, uma API só de DESKTOP: o iOS Safari não
   // tem e o Chrome no Android não a suporta. Sem esta checagem, o botão aparecia no
@@ -418,12 +418,13 @@ export default function WebRTCCall({
       writeLS(LS.selfView, nova ? "1" : "0");
       return nova;
     });
-  const toggleAudioRemoto = () =>
-    setAudioRemotoMudo((mudo) => {
-      const novo = !mudo;
-      if (remoteVideoRef.current) remoteVideoRef.current.muted = novo;
-      return novo;
-    });
+  const aplicarVolumeRemoto = (v: number) => {
+    setVolumeRemoto(v);
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.volume = v / 100;
+      remoteVideoRef.current.muted = v === 0;
+    }
+  };
 
   /**
    * Compartilhar tela: troca a trilha de vídeo que já está sendo enviada
@@ -889,6 +890,38 @@ export default function WebRTCCall({
         >
           {micOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
         </Button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant={volumeRemoto === 0 ? "destructive" : "secondary"}
+              size="icon"
+              className="rounded-full"
+              aria-label="Volume do outro lado"
+              title="Volume do outro lado (só no seu aparelho)"
+            >
+              {volumeRemoto === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent side="top" className="w-56 p-3">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Volume do outro lado</p>
+            <div className="flex items-center gap-2">
+              <VolumeX className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={volumeRemoto}
+                onChange={(e) => aplicarVolumeRemoto(Number(e.target.value))}
+                className="h-1.5 w-full cursor-pointer accent-primary"
+                aria-label="Ajustar o volume do outro lado"
+              />
+              <Volume2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </div>
+            <p className="mt-2 text-[10px] leading-tight text-muted-foreground">
+              Em 0 você para de ouvir a pessoa, mesmo com o microfone dela ligado.
+            </p>
+          </PopoverContent>
+        </Popover>
         <Button
           variant={camOn ? "secondary" : "destructive"}
           size="icon"
@@ -983,27 +1016,16 @@ export default function WebRTCCall({
               </p>
             </PopoverContent>
           </Popover>
-        <Button
-          variant={audioRemotoMudo ? "destructive" : "secondary"}
-          size="icon"
-          onClick={toggleAudioRemoto}
-          className="rounded-full"
-          aria-label={audioRemotoMudo ? "Voltar a ouvir o outro lado" : "Silenciar o outro lado"}
-          title={audioRemotoMudo ? "Voltar a ouvir o outro lado" : "Silenciar o áudio do outro lado (você para de ouvir, mesmo com o mic dele ligado)"}
-        >
-          {audioRemotoMudo ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-        </Button>
         <Popover onOpenChange={(o) => { if (o) void atualizarDispositivos(); }}>
           <PopoverTrigger asChild>
             <Button
               variant="secondary"
-              size="sm"
-              className="h-9 gap-1.5 rounded-full px-3"
-              aria-label="Configurações da chamada"
+              size="icon"
+              className="rounded-full"
+              aria-label="Configurações: microfone, câmera e alto-falante"
               title="Configurações: microfone, câmera e alto-falante"
             >
               <Settings className="h-4 w-4" />
-              <span>Configurações</span>
             </Button>
           </PopoverTrigger>
           <PopoverContent side="top" className="w-72 space-y-3 p-3">
