@@ -7,7 +7,6 @@ import { iniciais } from "@/lib/iniciais";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import PatientProfile from "./PatientProfile";
-import NoteTemplatesManager from "@/components/NoteTemplatesManager";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -393,8 +392,6 @@ export default function Configuracoes() {
           </CardContent>
         </Card>
         )}
-
-        {isTherapist && <NoteTemplatesManager />}
       </div>
 
       <Dialog open={dialogoEmail} onOpenChange={(o) => (o ? setDialogoEmail(true) : fecharDialogoEmail())}>

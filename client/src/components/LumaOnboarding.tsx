@@ -40,7 +40,7 @@ const therapistSteps: Step[] = [
     path: "/records",
     icon: Users,
     title: "Pacientes / Prontuários",
-    body: "Para cadastrar alguém: clique em “Novo Paciente”, preencha os dados e confirme. Depois, use a busca e o ícone de olho para abrir o prontuário — anamnese, evolução das sessões, documentos e TCLE.",
+    body: "Para cadastrar alguém: clique em “Novo Paciente”, preencha os dados e confirme. Use a busca e o ícone de olho para abrir o prontuário — anamnese, evolução das sessões, documentos e TCLE. No topo, em “Meus modelos de prontuário”, você envia o seu modelo (PDF/DOCX) que eu sigo e cria modelos de anotação para as sessões.",
   },
   {
     path: "/mensagens",
@@ -64,13 +64,13 @@ const therapistSteps: Step[] = [
     path: "/luma",
     icon: null,
     title: "Falar comigo",
-    body: "Escolha o paciente no topo e me peça em português mesmo: “marque a Ana quinta às 14h”. Eu preparo a ação e você confirma no botão — nada acontece sem o seu “sim”. Eu também sigo o seu modelo de prontuário (enviado nas Configurações).",
+    body: "Escolha o paciente no topo e me peça em português mesmo: “marque a Ana quinta às 14h”. Eu preparo a ação e você confirma no botão — nada acontece sem o seu “sim”. Eu também sigo o seu modelo de prontuário (enviado em Pacientes / Prontuários).",
   },
   {
     path: "/configuracoes",
     icon: Settings,
     title: "Configurações da conta",
-    body: "Aqui você troca o e-mail (com um código de verificação enviado por e-mail), a senha e o telefone. É também onde ficam os seus modelos de anotação e o modelo de prontuário que eu sigo.",
+    body: "Aqui você troca o e-mail (com um código de verificação enviado por e-mail), a senha e o telefone de contato.",
   },
   {
     path: "/ajuda",

@@ -34,7 +34,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Eye, Trash2 } from "lucide-react";
+import { Plus, Search, Eye, Trash2, FileText } from "lucide-react";
+import NoteTemplatesManager from "@/components/NoteTemplatesManager";
 
 const emptyForm = {
   firstName: "",
@@ -50,6 +51,7 @@ export default function Records() {
   const { data: patients = [], isLoading } = trpc.patients.list.useQuery();
   const [searchTerm, setSearchTerm] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const [modelosOpen, setModelosOpen] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
 
   const createPatient = trpc.patients.create.useMutation({
@@ -102,11 +104,29 @@ export default function Records() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-foreground">Prontuários</h1>
-          <p className="text-muted-foreground">
-            Gerencie os prontuários e histórico clínico dos pacientes
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold text-foreground">Prontuários</h1>
+            <p className="text-muted-foreground">
+              Gerencie os prontuários e histórico clínico dos pacientes
+            </p>
+          </div>
+          {/* Modelos de prontuário/anotação: vivem AQUI (Prontuários), não em
+              Configurações da conta (que é só acesso: e-mail, senha, telefone). */}
+          <Dialog open={modelosOpen} onOpenChange={setModelosOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <FileText className="mr-2 h-4 w-4" />
+                Meus modelos de prontuário
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Modelos de prontuário e anotação</DialogTitle>
+              </DialogHeader>
+              <NoteTemplatesManager />
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Search and Add Button */}
