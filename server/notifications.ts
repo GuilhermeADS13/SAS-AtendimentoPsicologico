@@ -461,10 +461,12 @@ export async function sendAppointmentReminders() {
         appointment: appointments,
         patient: patients,
         therapist: therapists,
+        therapistEmail: users.email,
       })
       .from(appointments)
       .innerJoin(patients, eq(appointments.patientId, patients.id))
       .innerJoin(therapists, eq(appointments.therapistId, therapists.id))
+      .innerJoin(users, eq(users.id, therapists.userId))
       .where(
         and(
           eq(appointments.status, "scheduled"),
@@ -474,32 +476,37 @@ export async function sendAppointmentReminders() {
       );
 
     for (const record of upcomingAppointments) {
-      // Verificar se já foi enviado um lembrete
-      const existingNotification = await db
-        .select()
-        .from(notifications)
-        .where(
-          and(
-            eq(notifications.appointmentId, record.appointment.id),
-            eq(notifications.notificationType, "appointment_reminder"),
-            eq(notifications.recipientType, "patient")
+      // Um lembrete para CADA lado: paciente E psicóloga. Cada um tem o seu dedup
+      // (por recipientType), para não repetir e-mail nem um bloquear o outro.
+      const destinatarios: Array<{ tipo: "patient" | "therapist"; email: string | null }> = [
+        { tipo: "patient", email: record.patient.email },
+        { tipo: "therapist", email: record.therapistEmail },
+      ];
+
+      for (const { tipo, email } of destinatarios) {
+        if (!email) continue;
+        const jaExiste = await db
+          .select()
+          .from(notifications)
+          .where(
+            and(
+              eq(notifications.appointmentId, record.appointment.id),
+              eq(notifications.notificationType, "appointment_reminder"),
+              eq(notifications.recipientType, tipo)
+            )
           )
-        )
-        .limit(1);
+          .limit(1);
 
-      if (existingNotification.length === 0) {
-        // Criar notificação pendente
-        await db.insert(notifications).values({
-          appointmentId: record.appointment.id,
-          recipientType: "patient",
-          recipientEmail: record.patient.email,
-          notificationType: "appointment_reminder",
-          status: "pending",
-        });
-
-        console.log(
-          `[Notifications] Reminder queued for patient ${record.patient.email}`
-        );
+        if (jaExiste.length === 0) {
+          await db.insert(notifications).values({
+            appointmentId: record.appointment.id,
+            recipientType: tipo,
+            recipientEmail: email,
+            notificationType: "appointment_reminder",
+            status: "pending",
+          });
+          console.log(`[Notifications] Reminder queued for ${tipo} ${email}`);
+        }
       }
     }
   } catch (error) {

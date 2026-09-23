@@ -212,11 +212,21 @@ export async function readPatientAppointments(
     .where(and(eq(appointments.patientId, patient.id), eq(appointments.therapistId, patient.therapistId)))
     .orderBy(desc(appointments.scheduledAt)).limit(20);
 
+  // "Próxima consulta": a agendada mais perto de acontecer (>= agora). Deixa a
+  // Luma responder direto "quando é a próxima consulta" sem ter que deduzir da lista.
+  const agora = Date.now();
+  const proxima = rows
+    .filter((r) => r.status === "scheduled" && new Date(r.scheduledAt).getTime() >= agora)
+    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())[0];
+
   // Valor: com preço definido, expõe o valor real formatado (dado, sem chute); sem
   // preço, não diz número — orienta a confirmar com o responsável (nomeado). O
   // `price` cru (centavos) sai do retorno para não confundir com reais.
   return {
     psicologoResponsavel,
+    proximaConsulta: proxima
+      ? { id: proxima.id, scheduledAt: proxima.scheduledAt, duration: proxima.duration }
+      : null,
     consultas: rows.map(({ price, paid, ...rest }) => ({
       ...rest,
       valor: price != null ? formatarBRL(price) : `não definido — ${comQuemConfirmar}`,

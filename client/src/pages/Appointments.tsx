@@ -40,7 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, Wallet, Table as TableIcon, CalendarDays, Filter, Loader2, Pencil, RotateCcw } from "lucide-react";
+import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, Wallet, Table as TableIcon, CalendarDays, Filter, Loader2, Pencil, RotateCcw, Search } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { CalendarioAgenda } from "@/components/CalendarioAgenda";
@@ -90,6 +90,7 @@ export default function Appointments() {
   // ainda não confirmou presença — que é o que a profissional quer cobrar.
   const [filtroSituacao, setFiltroSituacao] = useState<"todas" | "scheduled" | "aConfirmar" | "completed" | "cancelled">("todas");
   const [filtroData, setFiltroData] = useState("");
+  const [busca, setBusca] = useState("");
   const [paymentUpdatingId, setPaymentUpdatingId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -316,20 +317,49 @@ export default function Appointments() {
   const diaDaConsulta = (quando: string | Date) =>
     new Date(quando).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
 
-  const filteredAppointments = appointments.filter((appointment) => {
-    const pagamentoOk =
-      filtroPagamento === "todos" || (filtroPagamento === "pagos" ? appointment.paid : !appointment.paid);
+  // A "próxima consulta": a agendada mais perto de acontecer (>= agora). Ganha um
+  // selo destacado na lista, na Luma e no lembrete por e-mail.
+  const proximaConsultaId = (() => {
+    const agora = Date.now();
+    let melhor: { id: number; t: number } | null = null;
+    for (const a of appointments) {
+      if (a.status !== "scheduled") continue;
+      const t = new Date(a.scheduledAt).getTime();
+      if (t < agora) continue;
+      if (!melhor || t < melhor.t) melhor = { id: a.id, t };
+    }
+    return melhor?.id ?? null;
+  })();
 
-    const situacaoOk =
-      filtroSituacao === "todas" ||
-      (filtroSituacao === "aConfirmar"
-        ? appointment.status === "scheduled" && !appointment.confirmedAt
-        : appointment.status === filtroSituacao);
+  const buscaNome = busca.trim().toLowerCase();
+  const filteredAppointments = appointments
+    .filter((appointment) => {
+      const pagamentoOk =
+        filtroPagamento === "todos" || (filtroPagamento === "pagos" ? appointment.paid : !appointment.paid);
 
-    const dataOk = !filtroData || diaDaConsulta(appointment.scheduledAt) === filtroData;
+      const situacaoOk =
+        filtroSituacao === "todas" ||
+        (filtroSituacao === "aConfirmar"
+          ? appointment.status === "scheduled" && !appointment.confirmedAt
+          : appointment.status === filtroSituacao);
 
-    return pagamentoOk && situacaoOk && dataOk;
-  });
+      const dataOk = !filtroData || diaDaConsulta(appointment.scheduledAt) === filtroData;
+
+      const nomeOk = !buscaNome || patientName(appointment.patientId).toLowerCase().includes(buscaNome);
+
+      return pagamentoOk && situacaoOk && dataOk && nomeOk;
+    })
+    // Próximas primeiro (a mais perto no topo); depois as passadas (mais recente
+    // primeiro). Assim a psicóloga abre e já vê o que vem a seguir.
+    .sort((a, b) => {
+      const agora = Date.now();
+      const ta = new Date(a.scheduledAt).getTime();
+      const tb = new Date(b.scheduledAt).getTime();
+      const aFut = ta >= agora;
+      const bFut = tb >= agora;
+      if (aFut !== bFut) return aFut ? -1 : 1;
+      return aFut ? ta - tb : tb - ta;
+    });
 
   const getStatusColor = (status: Status) => {
     switch (status) {
@@ -592,16 +622,27 @@ export default function Appointments() {
                     </div>
                   </div>
                   {/* Só aparece quando há algo filtrado: senão é um botão morto na tela. */}
-                  {(filtroPagamento !== "todos" || filtroSituacao !== "todas" || filtroData) && (
+                  {(filtroPagamento !== "todos" || filtroSituacao !== "todas" || filtroData || busca) && (
                     <Button
                       variant="ghost"
                       size="sm"
                       className="shrink-0"
-                      onClick={() => { setFiltroPagamento("todos"); setFiltroSituacao("todas"); setFiltroData(""); }}
+                      onClick={() => { setFiltroPagamento("todos"); setFiltroSituacao("todas"); setFiltroData(""); setBusca(""); }}
                     >
                       Limpar filtros
                     </Button>
                   )}
+                </div>
+
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={busca}
+                    onChange={(e) => setBusca(e.target.value)}
+                    placeholder="Buscar paciente pelo nome..."
+                    aria-label="Buscar paciente pelo nome"
+                    className="pl-9"
+                  />
                 </div>
 
                 <div className="grid gap-2 sm:grid-cols-3">
@@ -669,7 +710,7 @@ export default function Appointments() {
                   const roomUrl = roomUrlFor(appointment.id, appointment.patientId, appointment.roomToken);
                   const href = whatsappHref(appointment);
                   return (
-                    <article key={appointment.id} className="space-y-3 rounded-xl border bg-card p-4 shadow-sm">
+                    <article key={appointment.id} className={`space-y-3 rounded-xl border bg-card p-4 shadow-sm ${appointment.id === proximaConsultaId ? "ring-2 ring-primary/60" : ""}`}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <h3 className="truncate font-semibold">{patientName(appointment.patientId)}</h3>
@@ -677,9 +718,16 @@ export default function Appointments() {
                             {formatarData(scheduled)} às {formatarHora(scheduled)} · {appointment.duration} min
                           </p>
                         </div>
-                        <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${getStatusColor(status)}`}>
-                          {getStatusLabel(status)}
-                        </span>
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          {appointment.id === proximaConsultaId && (
+                            <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+                              Próxima
+                            </span>
+                          )}
+                          <span className={`rounded-full px-2 py-1 text-xs font-semibold ${getStatusColor(status)}`}>
+                            {getStatusLabel(status)}
+                          </span>
+                        </div>
                       </div>
                       {appointment.confirmedAt ? (
                         <p className="text-xs text-green-600">✓ Presença confirmada</p>
@@ -807,6 +855,11 @@ export default function Appointments() {
                         >
                           <TableCell className="font-medium">
                             {patientName(appointment.patientId)}
+                            {appointment.id === proximaConsultaId && (
+                              <span className="ml-2 rounded-full bg-primary px-2 py-0.5 align-middle text-[10px] font-bold text-primary-foreground">
+                                Próxima
+                              </span>
+                            )}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
