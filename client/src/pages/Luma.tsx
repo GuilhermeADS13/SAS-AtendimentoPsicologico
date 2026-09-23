@@ -186,6 +186,11 @@ export default function Luma() {
         sources: result.sources,
       }]);
       setPendingAction(result.pendingAction ?? null);
+      // Sem proposta pendente para confirmar, oferece o "e agora?" da terapeuta —
+      // para a conversa não parar depois de cada resposta (como já acontece com o
+      // paciente). Com proposta pendente, o foco é confirmar/descartar, então não
+      // polui com sugestões.
+      if (!result.pendingAction) setSugestoesPosAcao(proximosPassosTerapeuta());
     } catch (err) {
       // Rate limit do provedor de IA (429/TPM do plano) é temporário e não é
       // "falha do sistema": a mensagem genérica assustava ("informe a equipe")
@@ -209,6 +214,15 @@ export default function Luma() {
       { label: "Ver minhas consultas", icon: <CalendarDays className="size-5" /> },
       { label: "Como entro na videochamada?", icon: <Video className="size-5" /> },
       { label: "Atualizar meus dados", icon: <Settings className="size-5" /> },
+    ];
+  }
+
+  /** "E agora?" geral da terapeuta — depois de uma resposta normal (sem proposta). */
+  function proximosPassosTerapeuta(): { label: string; icon: ReactNode }[] {
+    return [
+      { label: "Ver os próximos agendamentos", icon: <CalendarDays className="size-5" /> },
+      { label: "Agendar uma consulta", icon: <CalendarPlus className="size-5" /> },
+      { label: "Registrar um pagamento", icon: <Receipt className="size-5" /> },
     ];
   }
 
