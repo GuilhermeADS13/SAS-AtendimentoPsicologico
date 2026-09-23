@@ -105,10 +105,10 @@ export default function NoteTemplatesManager() {
           Modelos de anotação
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Crie seus modelos de prontuário. Eles viram botões de inserir nas anotações da
-          videochamada e no registro de sessão. Aceita formatação em markdown
-          (**negrito**, *itálico*, listas com &quot;- &quot;). Marque um como padrão para
-          já abrir preenchido numa anotação nova.
+          Crie modelos com a estrutura que você usa nas anotações (por exemplo: Queixa,
+          Evolução e Conduta). Na videochamada e no registro da sessão, um clique já
+          insere o modelo pronto — é só preencher. Marque um como padrão para ele abrir
+          preenchido em toda anotação nova.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -223,7 +223,7 @@ export default function NoteTemplatesManager() {
               <Textarea
                 value={t.corpo}
                 onChange={(e) => atualizar(t.id, { corpo: e.target.value })}
-                placeholder={"Conteúdo do modelo.\nEx.:\n**Queixa**\n\n**Evolução**\n\n**Conduta**"}
+                placeholder={"Escreva a estrutura do modelo.\nEx.:\nQueixa:\n\nEvolução:\n\nConduta:"}
                 rows={5}
                 className="text-sm"
               />
