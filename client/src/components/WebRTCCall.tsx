@@ -890,7 +890,33 @@ export default function WebRTCCall({
         >
           {micOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
         </Button>
-        <Popover>
+        <Popover onOpenChange={(o) => { if (o) void atualizarDispositivos(); }}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="secondary"
+              size="icon"
+              className="rounded-full"
+              aria-label="Configurar microfone"
+              title="Escolher microfone"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent side="top" className="w-64 p-3">
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Microfone</label>
+            <select
+              value={micAtual}
+              onChange={(e) => void aplicarMic(e.target.value || undefined)}
+              className="w-full rounded-md border bg-background p-2 text-sm"
+            >
+              <option value="">Padrão do sistema</option>
+              {dispositivos.mics.map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>{d.label || "Microfone"}</option>
+              ))}
+            </select>
+          </PopoverContent>
+        </Popover>
+        <Popover onOpenChange={(o) => { if (o) void atualizarDispositivos(); }}>
           <PopoverTrigger asChild>
             <Button
               variant={volumeRemoto === 0 ? "destructive" : "secondary"}
@@ -902,24 +928,57 @@ export default function WebRTCCall({
               {volumeRemoto === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
             </Button>
           </PopoverTrigger>
-          <PopoverContent side="top" className="w-56 p-3">
-            <p className="mb-2 text-xs font-medium text-muted-foreground">Volume do outro lado</p>
-            <div className="flex items-center gap-2">
-              <VolumeX className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={volumeRemoto}
-                onChange={(e) => aplicarVolumeRemoto(Number(e.target.value))}
-                className="h-1.5 w-full cursor-pointer accent-primary"
-                aria-label="Ajustar o volume do outro lado"
-              />
-              <Volume2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <PopoverContent side="top" className="w-64 space-y-3 p-3">
+            <div>
+              <p className="mb-2 text-xs font-medium text-muted-foreground">Volume do outro lado</p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => aplicarVolumeRemoto(0)}
+                  title="Sem som"
+                  aria-label="Silenciar (volume 0)"
+                  className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <VolumeX className="h-4 w-4" />
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={volumeRemoto}
+                  onChange={(e) => aplicarVolumeRemoto(Number(e.target.value))}
+                  className="h-1.5 w-full cursor-pointer accent-primary"
+                  aria-label="Ajustar o volume do outro lado"
+                />
+                <button
+                  type="button"
+                  onClick={() => aplicarVolumeRemoto(100)}
+                  title="Volume máximo"
+                  aria-label="Volume máximo (100)"
+                  className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <Volume2 className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="mt-2 text-[10px] leading-tight text-muted-foreground">
+                Clique no ícone da esquerda para zerar ou no da direita para o máximo. Em 0 você para de ouvir a pessoa.
+              </p>
             </div>
-            <p className="mt-2 text-[10px] leading-tight text-muted-foreground">
-              Em 0 você para de ouvir a pessoa, mesmo com o microfone dela ligado.
-            </p>
+            {dispositivos.spks.length > 0 && (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Alto-falante</label>
+                <select
+                  value={spkAtual}
+                  onChange={(e) => void aplicarAltoFalante(e.target.value)}
+                  className="w-full rounded-md border bg-background p-2 text-sm"
+                >
+                  <option value="">Padrão do sistema</option>
+                  {dispositivos.spks.map((d) => (
+                    <option key={d.deviceId} value={d.deviceId}>{d.label || "Alto-falante"}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </PopoverContent>
         </Popover>
         <Button
@@ -932,6 +991,32 @@ export default function WebRTCCall({
         >
           {camOn ? <VideoIcon className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
         </Button>
+        <Popover onOpenChange={(o) => { if (o) void atualizarDispositivos(); }}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="secondary"
+              size="icon"
+              className="rounded-full"
+              aria-label="Configurar câmera"
+              title="Escolher câmera"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent side="top" className="w-64 p-3">
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Câmera</label>
+            <select
+              value={camAtual}
+              onChange={(e) => void aplicarCam(e.target.value || undefined)}
+              className="w-full rounded-md border bg-background p-2 text-sm"
+            >
+              <option value="">Padrão do sistema</option>
+              {dispositivos.cams.map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>{d.label || "Câmera"}</option>
+              ))}
+            </select>
+          </PopoverContent>
+        </Popover>
         {podeCompartilharTela && (
           <Button
             variant={compartilhando ? "default" : "secondary"}
@@ -1016,62 +1101,6 @@ export default function WebRTCCall({
               </p>
             </PopoverContent>
           </Popover>
-        <Popover onOpenChange={(o) => { if (o) void atualizarDispositivos(); }}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="secondary"
-              size="icon"
-              className="rounded-full"
-              aria-label="Configurações: microfone, câmera e alto-falante"
-              title="Configurações: microfone, câmera e alto-falante"
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent side="top" className="w-72 space-y-3 p-3">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Microfone</label>
-              <select
-                value={micAtual}
-                onChange={(e) => void aplicarMic(e.target.value || undefined)}
-                className="w-full rounded-md border bg-background p-2 text-sm"
-              >
-                <option value="">Padrão do sistema</option>
-                {dispositivos.mics.map((d) => (
-                  <option key={d.deviceId} value={d.deviceId}>{d.label || "Microfone"}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Câmera</label>
-              <select
-                value={camAtual}
-                onChange={(e) => void aplicarCam(e.target.value || undefined)}
-                className="w-full rounded-md border bg-background p-2 text-sm"
-              >
-                <option value="">Padrão do sistema</option>
-                {dispositivos.cams.map((d) => (
-                  <option key={d.deviceId} value={d.deviceId}>{d.label || "Câmera"}</option>
-                ))}
-              </select>
-            </div>
-            {dispositivos.spks.length > 0 && (
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Alto-falante</label>
-                <select
-                  value={spkAtual}
-                  onChange={(e) => void aplicarAltoFalante(e.target.value)}
-                  className="w-full rounded-md border bg-background p-2 text-sm"
-                >
-                  <option value="">Padrão do sistema</option>
-                  {dispositivos.spks.map((d) => (
-                    <option key={d.deviceId} value={d.deviceId}>{d.label || "Alto-falante"}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </PopoverContent>
-        </Popover>
         <Button
           variant="secondary"
           size="icon"
