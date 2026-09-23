@@ -174,7 +174,7 @@ export default function Financeiro() {
         </div>
 
         {/* Cartões do período */}
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-3" data-tour="financeiro">
           <Card className="border-primary/30 bg-primary/[0.03]">
             <CardContent className="space-y-1">
               <p className="text-xs text-muted-foreground flex items-center gap-1.5">

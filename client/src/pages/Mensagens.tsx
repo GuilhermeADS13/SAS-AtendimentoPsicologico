@@ -89,7 +89,7 @@ export default function Mensagens() {
   return (
     <DashboardLayout>
       <div className="space-y-4">
-        <div>
+        <div data-tour="mensagens">
           <h1 className="text-3xl font-bold text-foreground">Mensagens</h1>
           <p className="text-muted-foreground">
             {isTherapist ? "Fale com o seu paciente." : "Fale com o seu profissional."}

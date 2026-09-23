@@ -62,7 +62,7 @@ export default function MyAppointments() {
       <div className="space-y-6 max-w-3xl">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-foreground">Minhas Consultas</h1>
+            <h1 className="text-3xl font-bold text-foreground" data-tour="minhas-consultas">Minhas Consultas</h1>
             <p className="text-muted-foreground">
               Entre na sala no horário marcado. O link abre a videochamada com a psicóloga.
             </p>

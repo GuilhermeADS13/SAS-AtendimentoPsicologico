@@ -2,9 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { useSidebar } from "@/components/ui/sidebar";
 import { LumaOwlIcon } from "./Logo";
-import { Calendar, CircleHelp, MessageSquare, Settings, Stethoscope, Users, Wallet, X, type LucideIcon } from "lucide-react";
+import { Calendar, CircleHelp, FileText, MessageSquare, Settings, Stethoscope, Users, Wallet, X, type LucideIcon } from "lucide-react";
 
 /**
  * Tour de boas-vindas da Luma na PRIMEIRA entrada (paciente ou psicóloga).
@@ -28,8 +27,8 @@ export const OPEN_ONBOARDING_EVENT = "luma:onboarding";
 const STEP_PREFIX = "luma-onboarding-step:";
 
 type Role = "therapist" | "patient";
-// `target`: seletor CSS do elemento a destacar (holofote). Sem ele, destaca o
-// item do menu da própria rota (`[data-tour-path="<path>"]`).
+// `target`: seletor CSS do elemento a destacar na PÁGINA (holofote). Sem ele
+// (ex.: passo de boas-vindas), o fundo escurece por inteiro e o card fica embaixo.
 type Step = { path: string; icon: LucideIcon | null; title: string; body: string; target?: string };
 
 const therapistSteps: Step[] = [
@@ -37,49 +36,63 @@ const therapistSteps: Step[] = [
     path: "/dashboard",
     icon: null,
     title: "Oi, eu sou a Luma 🦉",
-    body: "Vou te levar por cada área e mostrar como fazer as coisas. Leva menos de um minuto — e você pode pular quando quiser.",
+    body: "Vou te levar por cada área e destacar, na tela, onde fica cada coisa. Leva menos de um minuto — e você pode pular quando quiser.",
   },
   {
     path: "/records",
     icon: Users,
-    title: "Pacientes / Prontuários",
-    body: "Para cadastrar alguém: clique em “Novo Paciente”, preencha os dados e confirme. Use a busca e o ícone de olho para abrir o prontuário — anamnese, evolução das sessões, documentos e TCLE. No topo, em “Meus modelos de prontuário”, você envia o seu modelo (PDF/DOCX) que eu sigo e cria modelos de anotação para as sessões.",
+    title: "Cadastrar pacientes",
+    body: "Clique em “Novo Paciente” para cadastrar alguém. Depois, use a busca e o ícone de olho para abrir o prontuário — anamnese, evolução das sessões, documentos e TCLE.",
+    target: '[data-tour="novo-paciente"]',
+  },
+  {
+    path: "/records",
+    icon: FileText,
+    title: "Modelos de prontuário",
+    body: "Aqui você envia o seu modelo de prontuário (PDF/DOCX) que eu sigo, e cria modelos de anotação prontos para inserir durante a sessão.",
+    target: '[data-tour="modelos-prontuario"]',
   },
   {
     path: "/mensagens",
     icon: MessageSquare,
     title: "Mensagens",
-    body: "Converse por texto com os seus pacientes e troque arquivos, a qualquer hora. As mensagens novas aparecem com um número aqui no menu — e é o mesmo chat que abre dentro da videochamada.",
+    body: "Converse por texto com os seus pacientes e troque arquivos. É o mesmo chat que abre dentro da videochamada.",
+    target: '[data-tour="mensagens"]',
   },
   {
     path: "/appointments",
     icon: Calendar,
-    title: "Agendamentos",
-    body: "Para marcar: “Nova Consulta” → paciente, data, duração (em minutos) e valor. A lista traz as próximas primeiro, com o selo “Próxima”, e você pode buscar pelo nome. Clique no pagamento para alternar pago/pendente, e use os botões para editar, marcar “Realizada”, entrar na sala ou cancelar.",
+    title: "Agendar consultas",
+    body: "Clique em “Nova Consulta” para marcar (paciente, data, duração e valor). A lista traz as próximas primeiro, com o selo “Próxima”, e dá para buscar pelo nome.",
+    target: '[data-tour="nova-consulta"]',
   },
   {
     path: "/financeiro",
     icon: Wallet,
     title: "Financeiro",
-    body: "O resumo do dinheiro: o que já foi recebido e o que está pendente, com o total. Serve para acompanhar sem abrir consulta por consulta.",
+    body: "O resumo do dinheiro: o que já foi recebido e o que está pendente, com o total — sem abrir consulta por consulta.",
+    target: '[data-tour="financeiro"]',
   },
   {
     path: "/luma",
     icon: null,
     title: "Falar comigo",
-    body: "Escolha o paciente no topo e me peça em português mesmo: “marque a Ana quinta às 14h”. Eu preparo a ação e você confirma no botão — nada acontece sem o seu “sim”. Eu também sigo o seu modelo de prontuário (enviado em Pacientes / Prontuários).",
+    body: "Escolha o paciente e me peça em português: “marque a Ana quinta às 14h”. Eu preparo a ação e você confirma no botão — nada acontece sem o seu “sim”.",
+    target: '[data-tour="luma-composer"]',
   },
   {
     path: "/configuracoes",
     icon: Settings,
     title: "Configurações da conta",
-    body: "Aqui você troca o e-mail (com um código de verificação enviado por e-mail), a senha e o telefone de contato.",
+    body: "Troque o e-mail (com um código de verificação), a senha e o telefone. Pedimos a senha atual antes de mexer no acesso.",
+    target: '[data-tour="config-acesso"]',
   },
   {
     path: "/ajuda",
     icon: CircleHelp,
     title: "Ajuda quando precisar",
-    body: "As dúvidas mais comuns estão aqui, junto do contato do suporte. E é por aqui que você pode rever este tour depois. Pronto — bom trabalho! 💜",
+    body: "As dúvidas mais comuns estão aqui, junto do contato do suporte — e é por aqui que você revê este tour depois. Bom trabalho! 💜",
+    target: '[data-tour="ajuda"]',
   },
 ];
 
@@ -88,43 +101,49 @@ const patientSteps: Step[] = [
     path: "/consultas",
     icon: null,
     title: "Oi, eu sou a Luma 🦉",
-    body: "Vou te mostrar o sistema rapidinho, passando por cada tela. Pode pular quando quiser.",
+    body: "Vou te mostrar o sistema rapidinho, destacando cada parte na tela. Pode pular quando quiser.",
   },
   {
     path: "/consultas",
     icon: Calendar,
     title: "Minhas Consultas",
-    body: "Aqui ficam as suas consultas. Use “Confirmar presença” para avisar que vai comparecer e, no horário marcado, clique em “Entrar na sala” para abrir a videochamada. Dentro da chamada, o botão “Mensagens” abre o chat com o seu profissional.",
+    body: "Suas consultas ficam aqui. Use “Confirmar presença” e, no horário, “Entrar na sala” para a videochamada. Dentro da chamada, o botão “Mensagens” abre o chat.",
+    target: '[data-tour="minhas-consultas"]',
   },
   {
     path: "/mensagens",
     icon: MessageSquare,
     title: "Mensagens",
-    body: "Fale por texto com o seu profissional e troque arquivos, a qualquer hora. As mensagens novas aparecem com um número aqui no menu.",
+    body: "Fale por texto com o seu profissional e troque arquivos, a qualquer hora.",
+    target: '[data-tour="mensagens"]',
   },
   {
     path: "/psicologa",
     icon: Stethoscope,
     title: "Minha Psicóloga",
-    body: "Os dados da profissional que te atende ficam aqui — útil quando precisar falar com ela fora do sistema.",
+    body: "Os dados da profissional que te atende ficam aqui — útil para falar com ela fora do sistema.",
+    target: '[data-tour="psicologa"]',
   },
   {
     path: "/luma",
     icon: null,
     title: "Falar comigo",
     body: "Ficou com dúvida de como usar o sistema? É só me perguntar aqui, a qualquer hora.",
+    target: '[data-tour="luma-composer"]',
   },
   {
     path: "/configuracoes",
     icon: Settings,
     title: "Configurações da conta",
-    body: "Aqui fica tudo da sua conta: seus dados de cadastro (nome, telefone, nascimento, endereço e foto) e o acesso — e-mail e senha. Para trocar o e-mail, você recebe um código de verificação por e-mail; para a senha, peço a senha atual — assim ninguém muda seus dados sem ser você.",
+    body: "Seus dados de cadastro e o acesso (e-mail e senha). Para trocar o e-mail você recebe um código; para a senha, pedimos a senha atual.",
+    target: '[data-tour="config-dados"]',
   },
   {
     path: "/ajuda",
     icon: CircleHelp,
     title: "Ajuda quando precisar",
     body: "As dúvidas mais comuns estão aqui, junto do contato do suporte — e dá para rever este tour por aqui. Boas-vindas! 💜",
+    target: '[data-tour="ajuda"]',
   },
 ];
 
@@ -132,9 +151,6 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
   const stepKey = userId != null ? `${STEP_PREFIX}${userId}` : null;
   const steps = role === "therapist" ? therapistSteps : patientSteps;
   const [, setLocation] = useLocation();
-  // No celular o menu lateral fica recolhido (um Sheet). Durante o tour, abrimos
-  // ele para o item do passo ficar visível e o holofote poder destacá-lo.
-  const { isMobile, setOpenMobile } = useSidebar();
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
   // Retângulo (coords da viewport) do elemento destacado pelo holofote. null =
@@ -228,8 +244,9 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
       return;
     }
     const passo = steps[index];
-    const sel = passo?.target ?? (passo?.path ? `[data-tour-path="${passo.path}"]` : null);
+    const sel = passo?.target ?? null;
     if (!sel) {
+      // Sem alvo (ex.: passo de boas-vindas): escurece tudo e centraliza o card.
       setAlvoRect(null);
       return;
     }
@@ -266,17 +283,10 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
     };
   }, [open, index, steps]);
 
-  // Celular: mantém o menu lateral (Sheet) aberto enquanto o tour está ativo, para
-  // o holofote conseguir destacar o item do passo. No desktop o menu já é fixo.
-  useEffect(() => {
-    if (open && isMobile) setOpenMobile(true);
-  }, [open, index, isMobile, setOpenMobile]);
-
   const encerrar = () => {
     marcarVisto();
     limparPasso();
     setOpen(false);
-    if (isMobile) setOpenMobile(false);
   };
   const proximo = () => {
     if (index < steps.length - 1) irPara(index + 1);

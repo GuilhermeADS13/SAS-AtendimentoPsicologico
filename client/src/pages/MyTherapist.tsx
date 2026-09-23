@@ -68,7 +68,7 @@ export default function MyTherapist() {
                     </AvatarFallback>
                   </Avatar>
 
-                  <div className="min-w-0 space-y-2">
+                  <div className="min-w-0 space-y-2" data-tour="psicologa">
                     <div>
                       <h1 className="text-2xl font-bold text-foreground">
                         {psi.nome || "Sua psicóloga"}

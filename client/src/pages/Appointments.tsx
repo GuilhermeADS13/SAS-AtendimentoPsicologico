@@ -421,7 +421,7 @@ export default function Appointments() {
           }}
         >
           <DialogTrigger asChild>
-            <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground sm:w-auto">
+            <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground sm:w-auto" data-tour="nova-consulta">
               <Plus className="w-4 h-4 mr-2" />
               Nova Consulta
             </Button>

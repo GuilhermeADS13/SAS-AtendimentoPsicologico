@@ -265,7 +265,7 @@ export default function Configuracoes() {
             abaixo não aparece para o paciente (evita dois campos de telefone). */}
         {!isTherapist && <PatientProfile embedded />}
 
-        <Card>
+        <Card data-tour="config-acesso">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-primary" />

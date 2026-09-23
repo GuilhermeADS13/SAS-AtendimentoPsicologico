@@ -115,7 +115,7 @@ export default function Records() {
               Configurações da conta (que é só acesso: e-mail, senha, telefone). */}
           <Dialog open={modelosOpen} onOpenChange={setModelosOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" data-tour="modelos-prontuario">
                 <FileText className="mr-2 h-4 w-4" />
                 Meus modelos de prontuário
               </Button>
@@ -142,7 +142,7 @@ export default function Records() {
           </div>
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" data-tour="novo-paciente">
                 <Plus className="w-4 h-4 mr-2" />
                 Novo Paciente
               </Button>

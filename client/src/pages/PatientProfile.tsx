@@ -158,7 +158,7 @@ export default function PatientProfile({ embedded = false }: { embedded?: boolea
         </Card>
       )}
 
-      <Card>
+      <Card data-tour="config-dados">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <UserRound className="w-5 h-5 text-primary" />

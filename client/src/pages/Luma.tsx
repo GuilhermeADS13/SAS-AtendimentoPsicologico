@@ -295,7 +295,7 @@ export default function Luma() {
     <DashboardLayout>
       <div className="mx-auto max-w-7xl space-y-5">
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <section className="space-y-4" aria-labelledby="luma-title">
+        <section className="space-y-4" aria-labelledby="luma-title" data-tour="luma-composer">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="mb-2 flex items-center gap-2 text-primary"><LumaOwlIcon className="h-7 w-7" /><span className="text-sm font-medium">{isClinicalUser ? "Assistente clínico de leitura" : "Assistente de navegação do site"}
