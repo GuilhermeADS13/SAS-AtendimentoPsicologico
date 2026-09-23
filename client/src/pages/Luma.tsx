@@ -128,10 +128,9 @@ export default function Luma() {
       toast.error("A Luma não está disponível para acesso clínico administrativo.");
       return;
     }
-    if (isClinicalUser && !selectedPatientId) {
-      toast.error("Selecione um paciente antes de consultar registros clínicos.");
-      return;
-    }
+    // Sem paciente selecionado a conversa segue: perguntas de navegação/uso do
+    // sistema não dependem de um paciente. Se a pergunta for sobre REGISTROS, a
+    // própria Luma pede para selecionar o paciente (ver clinicalSystemPrompt).
 
     const requestId = crypto.randomUUID();
     // Uma mensagem nova invalida a proposta anterior: o resumo que a terapeuta

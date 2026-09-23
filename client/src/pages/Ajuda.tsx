@@ -130,12 +130,28 @@ const DUVIDAS_PACIENTE: Duvida[] = [
     ),
   },
   {
+    pergunta: "Como mando mensagem para a minha psicóloga",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          No menu, abra <strong>Mensagens</strong>. Ali você conversa por texto com a sua
+          psicóloga e pode enviar arquivos, a qualquer hora.
+        </li>
+        <li>
+          O mesmo chat também aparece <strong>dentro da videochamada</strong>, no botão{" "}
+          <strong>“Mensagens”</strong>.
+        </li>
+        <li>Mensagens novas aparecem com um número ao lado de “Mensagens”, no menu.</li>
+      </ul>
+    ),
+  },
+  {
     pergunta: "Como atualizo meu telefone, endereço ou foto",
     resposta: (
       <ul className="list-disc pl-5 space-y-1">
         <li>
-          Vá em <strong>Meu Cadastro</strong>. Ali você altera nome, telefone, data de
-          nascimento, endereço e foto.
+          Vá em <strong>Configurações da conta</strong>. Ali ficam os seus dados: nome,
+          telefone, data de nascimento, endereço e foto.
         </li>
         <li>
           Depois de salvar, sua psicóloga já vê os dados novos — você não precisa avisar
@@ -144,10 +160,6 @@ const DUVIDAS_PACIENTE: Duvida[] = [
         <li>
           Manter o telefone em dia ajuda: é por ele que ela consegue te avisar de alguma
           mudança.
-        </li>
-        <li>
-          O telefone também pode ser trocado em{" "}
-          <strong>Configurações da conta</strong> — é o mesmo dado, nos dois lugares.
         </li>
       </ul>
     ),
@@ -165,9 +177,9 @@ const DUVIDAS_PACIENTE: Duvida[] = [
           isso, quem pegasse seu computador destravado trocaria seus dados de acesso.
         </li>
         <li>
-          Ao trocar o e-mail, enviamos um link para o{" "}
-          <strong>endereço novo</strong>. A troca só vale depois que você clicar nesse
-          link — até lá, continue entrando com o e-mail antigo.
+          Ao trocar o e-mail, enviamos um <strong>código de verificação</strong> para o
+          e-mail novo e para o atual. A troca só vale depois que você{" "}
+          <strong>digitar esse código</strong> — até lá, continue entrando com o e-mail antigo.
         </li>
         <li>
           Isso é diferente de <strong>“Esqueci minha senha”</strong>: aquele serve para
@@ -247,7 +259,8 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
     resposta: (
       <ul className="list-disc pl-5 space-y-1">
         <li>
-          Vá em <strong>Pacientes</strong> e clique em <strong>“Novo Paciente”</strong>.
+          Vá em <strong>Pacientes / Prontuários</strong> e clique em{" "}
+          <strong>“Novo Paciente”</strong>.
         </li>
         <li>
           O <strong>e-mail é o dado mais importante</strong>: é ele que liga o cadastro à
@@ -271,8 +284,8 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
           encontram.
         </li>
         <li>
-          Abra o paciente em <strong>Pacientes</strong> e confira se o e-mail é o mesmo
-          que ele usa para entrar. Corrigindo o e-mail, o vínculo acontece sozinho.
+          Abra o paciente em <strong>Pacientes / Prontuários</strong> e confira se o e-mail
+          é o mesmo que ele usa para entrar. Corrigindo o e-mail, o vínculo acontece sozinho.
         </li>
       </ul>
     ),
@@ -366,7 +379,7 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
     pergunta: "Como registro uma sessão no prontuário",
     resposta: (
       <p>
-        Abra o paciente em <strong>Pacientes</strong> e clique em{" "}
+        Abra o paciente em <strong>Pacientes / Prontuários</strong> e clique em{" "}
         <strong>“Nova Sessão”</strong>. Ali entram a evolução, o humor e os próximos
         passos — é o registro clínico, diferente das anotações rápidas feitas durante a
         chamada.
@@ -393,6 +406,42 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
     ),
   },
   {
+    pergunta: "Como envio o meu modelo de prontuário (que a Luma segue)",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Vá em <strong>Pacientes / Prontuários</strong> e clique em{" "}
+          <strong>“Meus modelos de prontuário”</strong>.
+        </li>
+        <li>
+          Em <strong>“Enviar modelo (PDF/DOCX)”</strong>, escolha o arquivo do seu modelo. A
+          Luma passa a <strong>seguir esse formato</strong> ao te ajudar a organizar a sessão.
+          Guardamos apenas o texto do modelo.
+        </li>
+        <li>
+          No mesmo lugar você cria <strong>modelos de anotação</strong> (com nome e conteúdo)
+          que viram botões de inserir durante a videochamada e no registro da sessão.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Como mando mensagem para o paciente",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          No menu, abra <strong>Mensagens</strong>. Ali você conversa por texto com os seus
+          pacientes e pode enviar arquivos.
+        </li>
+        <li>
+          O mesmo chat também aparece <strong>dentro da videochamada</strong>, no botão{" "}
+          <strong>“Mensagens”</strong>.
+        </li>
+        <li>Mensagens não lidas aparecem com um número ao lado de “Mensagens”, no menu.</li>
+      </ul>
+    ),
+  },
+  {
     pergunta: "Como troco meu e-mail de acesso, minha senha ou meu telefone",
     resposta: (
       <ul className="list-disc pl-5 space-y-1">
@@ -406,9 +455,9 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
           computador destravado trocaria os dados de acesso e tomaria a conta.
         </li>
         <li>
-          Ao trocar o e-mail, enviamos um link para o{" "}
-          <strong>endereço novo</strong>. A troca só vale depois que você clicar nele —
-          até lá, continue entrando com o e-mail antigo.
+          Ao trocar o e-mail, enviamos um <strong>código de verificação</strong> para o
+          e-mail novo e para o atual. A troca só vale depois que você{" "}
+          <strong>digitar esse código</strong> — até lá, continue entrando com o e-mail antigo.
         </li>
         <li>
           O telefone daqui é o seu contato profissional. Os dados que os pacientes veem

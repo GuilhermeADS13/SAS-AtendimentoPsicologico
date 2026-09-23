@@ -200,7 +200,7 @@ export function clinicalSystemPrompt(ctx: AiAccessContext, requestedPatientId?: 
               ? `Para esta conversa, o paciente no escopo é ${patientName}. Use patientId ${requestedPatientId} internamente nas ferramentas, mas ao falar refira-se sempre por ${patientName}, nunca pelo número.`
               : `Para esta conversa, use patientId ${requestedPatientId} como escopo solicitado e valide-o antes de qualquer leitura; ao falar, refira-se ao paciente pelo nome (obtido nas ferramentas), nunca pelo ID.`)
           : `A conversa está no escopo do patientId ${requestedPatientId}, mas sem acesso a registros: não invente dados desse paciente.`)
-      : "",
+      : "NENHUM paciente está selecionado nesta conversa. Perguntas de USO DO SISTEMA e de navegação você responde normalmente, sem exigir um paciente. Mas para consultar os REGISTROS de um paciente específico (sessões, documentos, a agenda de alguém) ou agir na agenda dele, peça gentilmente para a profissional escolher o paciente no seletor 'Paciente no escopo da conversa', no topo — sem isso você não tem acesso a esses dados e NÃO deve inventá-los.",
   ].filter(Boolean).join(" ");
 }
 
