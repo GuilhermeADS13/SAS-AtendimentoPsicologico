@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { LumaOwlIcon } from "./Logo";
-import { Calendar, CircleHelp, Settings, Stethoscope, Users, Wallet, X, type LucideIcon } from "lucide-react";
+import { Calendar, CircleHelp, MessageSquare, Settings, Stethoscope, Users, Wallet, X, type LucideIcon } from "lucide-react";
 
 /**
  * Tour de boas-vindas da Luma na PRIMEIRA entrada (paciente ou psicóloga).
@@ -39,14 +39,20 @@ const therapistSteps: Step[] = [
   {
     path: "/records",
     icon: Users,
-    title: "Pacientes",
-    body: "Para cadastrar alguém: clique em “Novo Paciente”, preencha os dados e confirme em “Cadastrar”. Depois, use a busca para encontrar um paciente e o ícone de olho para abrir o prontuário.",
+    title: "Pacientes / Prontuários",
+    body: "Para cadastrar alguém: clique em “Novo Paciente”, preencha os dados e confirme. Depois, use a busca e o ícone de olho para abrir o prontuário — anamnese, evolução das sessões, documentos e TCLE.",
+  },
+  {
+    path: "/mensagens",
+    icon: MessageSquare,
+    title: "Mensagens",
+    body: "Converse por texto com os seus pacientes e troque arquivos, a qualquer hora. As mensagens novas aparecem com um número aqui no menu — e é o mesmo chat que abre dentro da videochamada.",
   },
   {
     path: "/appointments",
     icon: Calendar,
     title: "Agendamentos",
-    body: "Para marcar: clique em “Nova Consulta”, escolha o paciente, a data, a duração e o valor. Na lista, clique em “Pago / Pagamento pendente” para trocar o pagamento, e use os ícones para editar, entrar na sala ou cancelar.",
+    body: "Para marcar: “Nova Consulta” → paciente, data, duração (em minutos) e valor. A lista traz as próximas primeiro, com o selo “Próxima”, e você pode buscar pelo nome. Clique no pagamento para alternar pago/pendente, e use os botões para editar, marcar “Realizada”, entrar na sala ou cancelar.",
   },
   {
     path: "/financeiro",
@@ -58,13 +64,13 @@ const therapistSteps: Step[] = [
     path: "/luma",
     icon: null,
     title: "Falar comigo",
-    body: "Escolha o paciente no topo e me peça em português mesmo: “marque a Ana quinta às 14h”. Eu preparo a ação e você confirma no botão — nada acontece sem o seu “sim”.",
+    body: "Escolha o paciente no topo e me peça em português mesmo: “marque a Ana quinta às 14h”. Eu preparo a ação e você confirma no botão — nada acontece sem o seu “sim”. Eu também sigo o seu modelo de prontuário (enviado nas Configurações).",
   },
   {
     path: "/configuracoes",
     icon: Settings,
     title: "Configurações da conta",
-    body: "Aqui você troca o e-mail de acesso, a senha e o telefone de contato. Para trocar e-mail ou senha, peço a sua senha atual — é o que impede alguém de tomar sua conta num computador destravado.",
+    body: "Aqui você troca o e-mail (com um código de verificação enviado por e-mail), a senha e o telefone. É também onde ficam os seus modelos de anotação e o modelo de prontuário que eu sigo.",
   },
   {
     path: "/ajuda",
@@ -85,7 +91,13 @@ const patientSteps: Step[] = [
     path: "/consultas",
     icon: Calendar,
     title: "Minhas Consultas",
-    body: "Aqui ficam as suas consultas. Use “Confirmar presença” para avisar que vai comparecer e, no horário marcado, clique em “Entrar na sala” para abrir a videochamada.",
+    body: "Aqui ficam as suas consultas. Use “Confirmar presença” para avisar que vai comparecer e, no horário marcado, clique em “Entrar na sala” para abrir a videochamada. Dentro da chamada, o botão “Mensagens” abre o chat com o seu profissional.",
+  },
+  {
+    path: "/mensagens",
+    icon: MessageSquare,
+    title: "Mensagens",
+    body: "Fale por texto com o seu profissional e troque arquivos, a qualquer hora. As mensagens novas aparecem com um número aqui no menu.",
   },
   {
     path: "/psicologa",
@@ -103,7 +115,7 @@ const patientSteps: Step[] = [
     path: "/configuracoes",
     icon: Settings,
     title: "Configurações da conta",
-    body: "Aqui fica tudo da sua conta: seus dados de cadastro (nome, telefone, nascimento, endereço e foto) e o acesso — e-mail e senha. Para trocar e-mail ou senha, peço a sua senha atual, assim ninguém muda seus dados sem ser você.",
+    body: "Aqui fica tudo da sua conta: seus dados de cadastro (nome, telefone, nascimento, endereço e foto) e o acesso — e-mail e senha. Para trocar o e-mail, você recebe um código de verificação por e-mail; para a senha, peço a senha atual — assim ninguém muda seus dados sem ser você.",
   },
   {
     path: "/ajuda",
