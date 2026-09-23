@@ -8,6 +8,7 @@ export type SiteHelpTopic =
   | "payments"
   | "profile"
   | "video"
+  | "mensagens"
   | "luma"
   | "privacy"
   | "general";
@@ -98,7 +99,16 @@ export function answerSiteHelp(question: string): SiteHelpResponse {
     };
   }
 
-  if (/(luma|chat|assistente|coruja)/.test(normalized)) {
+  if (/(mensagem|mensagens|chat|conversar por texto|falar por escrito|mandar recado|trocar arquivo|enviar arquivo)/.test(normalized)) {
+    return {
+      model: "site-help-local",
+      topic: "mensagens",
+      content:
+        "Para trocar mensagens por texto com o seu profissional (e enviar arquivos), abra “Mensagens” no menu. O mesmo chat também aparece dentro da videochamada, no botão “Mensagens”.",
+    };
+  }
+
+  if (/(luma|assistente|coruja)/.test(normalized)) {
     return {
       model: "site-help-local",
       topic: "luma",
@@ -120,6 +130,6 @@ export function answerSiteHelp(question: string): SiteHelpResponse {
     model: "site-help-local",
     topic: "general",
     content:
-      "Posso te ajudar a encontrar: Minhas Consultas, Configurações da conta, Minha Psicóloga, a sala de videochamada ou a página da Luma. Me diga qual área você quer abrir.",
+      "Posso te ajudar a encontrar: Minhas Consultas, Mensagens, Configurações da conta, Minha Psicóloga ou a sala de videochamada. Me diga qual área você quer abrir.",
   };
 }
