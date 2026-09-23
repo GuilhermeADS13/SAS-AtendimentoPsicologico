@@ -274,6 +274,7 @@ function DashboardLayoutContent({
                       isActive={isActive}
                       onClick={() => irPara(item.path)}
                       tooltip={item.label}
+                      data-tour-path={item.path}
                       className={`h-10 transition-all font-normal`}
                     >
                       <item.icon

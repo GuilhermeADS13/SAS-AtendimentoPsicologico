@@ -27,7 +27,9 @@ export const OPEN_ONBOARDING_EVENT = "luma:onboarding";
 const STEP_PREFIX = "luma-onboarding-step:";
 
 type Role = "therapist" | "patient";
-type Step = { path: string; icon: LucideIcon | null; title: string; body: string };
+// `target`: seletor CSS do elemento a destacar (holofote). Sem ele, destaca o
+// item do menu da própria rota (`[data-tour-path="<path>"]`).
+type Step = { path: string; icon: LucideIcon | null; title: string; body: string; target?: string };
 
 const therapistSteps: Step[] = [
   {
@@ -131,6 +133,9 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
   const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
+  // Retângulo (coords da viewport) do elemento destacado pelo holofote. null =
+  // não achou / escondido (ex.: menu recolhido no celular) → escurece tudo.
+  const [alvoRect, setAlvoRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
 
   const utils = trpc.useUtils();
   // `retry: false` + tratar erro como "já viu": se o servidor falhar, o certo é
@@ -210,6 +215,53 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
     return () => window.removeEventListener(OPEN_ONBOARDING_EVENT, abrir);
   }, [irPara]);
 
+  // Holofote: mede o elemento do passo atual (por padrão, o item de menu da rota)
+  // e mantém o retângulo em dia — a página monta depois da navegação, e scroll/
+  // resize mexem na posição. O render escurece tudo, menos esse retângulo.
+  useEffect(() => {
+    if (!open) {
+      setAlvoRect(null);
+      return;
+    }
+    const passo = steps[index];
+    const sel = passo?.target ?? (passo?.path ? `[data-tour-path="${passo.path}"]` : null);
+    if (!sel) {
+      setAlvoRect(null);
+      return;
+    }
+    let primeira = true;
+    const medir = () => {
+      const el = document.querySelector(sel) as HTMLElement | null;
+      const r = el?.getBoundingClientRect();
+      // Sem elemento, invisível (0x0) ou fora da tela (ex.: menu recolhido no
+      // celular): sem holofote — o card explica e o fundo fica escuro.
+      if (
+        !el || !r || r.width === 0 || r.height === 0 ||
+        r.right < 0 || r.bottom < 0 || r.left > window.innerWidth || r.top > window.innerHeight
+      ) {
+        setAlvoRect(null);
+        return;
+      }
+      if (primeira) {
+        el.scrollIntoView({ block: "nearest", inline: "nearest" });
+        primeira = false;
+      }
+      setAlvoRect({ left: r.left, top: r.top, width: r.width, height: r.height });
+    };
+    medir();
+    const intervalo = window.setInterval(medir, 300);
+    const parar = window.setTimeout(() => window.clearInterval(intervalo), 3000);
+    const aoMover = () => medir();
+    window.addEventListener("scroll", aoMover, true);
+    window.addEventListener("resize", aoMover);
+    return () => {
+      window.clearInterval(intervalo);
+      window.clearTimeout(parar);
+      window.removeEventListener("scroll", aoMover, true);
+      window.removeEventListener("resize", aoMover);
+    };
+  }, [open, index, steps]);
+
   const encerrar = () => {
     marcarVisto();
     limparPasso();
@@ -236,11 +288,30 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
          "Próximo" virava inclicável logo após o cadastro, que é justamente
          quando o tour abre. Um aviso transitório não pode bloquear um fluxo
          interativo; enquanto o tour está aberto, ele fica na frente. */
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-[1000000000] p-3 sm:p-4"
+      className="pointer-events-none fixed inset-0 z-[1000000000]"
       role="region"
       aria-live="polite"
       aria-label="Tour de boas-vindas da Luma"
     >
+      {/* Holofote: recorte iluminado no elemento do passo (o resto escurece pelo
+          box-shadow gigante). Sem alvo (ex.: menu recolhido no celular), escurece
+          tudo por igual. É só visual (pointer-events-none) — não trava a tela. */}
+      {alvoRect ? (
+        <div
+          className="pointer-events-none absolute rounded-xl ring-2 ring-primary/80 transition-all duration-200"
+          style={{
+            left: alvoRect.left - 6,
+            top: alvoRect.top - 6,
+            width: alvoRect.width + 12,
+            height: alvoRect.height + 12,
+            boxShadow: "0 0 0 9999px rgba(0,0,0,0.72)",
+          }}
+        />
+      ) : (
+        <div className="pointer-events-none absolute inset-0 bg-black/60" />
+      )}
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 p-3 sm:p-4">
       <div className="pointer-events-auto mx-auto w-full max-w-md rounded-2xl border border-border bg-card p-4 shadow-2xl">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -292,6 +363,7 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
             </Button>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
