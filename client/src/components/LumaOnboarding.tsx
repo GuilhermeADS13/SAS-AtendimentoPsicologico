@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
+import { useSidebar } from "@/components/ui/sidebar";
 import { LumaOwlIcon } from "./Logo";
 import { Calendar, CircleHelp, MessageSquare, Settings, Stethoscope, Users, Wallet, X, type LucideIcon } from "lucide-react";
 
@@ -131,6 +132,9 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
   const stepKey = userId != null ? `${STEP_PREFIX}${userId}` : null;
   const steps = role === "therapist" ? therapistSteps : patientSteps;
   const [, setLocation] = useLocation();
+  // No celular o menu lateral fica recolhido (um Sheet). Durante o tour, abrimos
+  // ele para o item do passo ficar visível e o holofote poder destacá-lo.
+  const { isMobile, setOpenMobile } = useSidebar();
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
   // Retângulo (coords da viewport) do elemento destacado pelo holofote. null =
@@ -262,10 +266,17 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
     };
   }, [open, index, steps]);
 
+  // Celular: mantém o menu lateral (Sheet) aberto enquanto o tour está ativo, para
+  // o holofote conseguir destacar o item do passo. No desktop o menu já é fixo.
+  useEffect(() => {
+    if (open && isMobile) setOpenMobile(true);
+  }, [open, index, isMobile, setOpenMobile]);
+
   const encerrar = () => {
     marcarVisto();
     limparPasso();
     setOpen(false);
+    if (isMobile) setOpenMobile(false);
   };
   const proximo = () => {
     if (index < steps.length - 1) irPara(index + 1);
@@ -293,9 +304,14 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
       aria-live="polite"
       aria-label="Tour de boas-vindas da Luma"
     >
+      {/* Fundo modal (estilo tutorial de jogo): captura os toques para o tour
+          guiar pelo botão "Próximo" — e, no celular, para tocar no escuro não
+          fechar o menu aberto. Os botões do card ficam por cima e clicáveis. */}
+      <div className="pointer-events-auto absolute inset-0" aria-hidden="true" />
+
       {/* Holofote: recorte iluminado no elemento do passo (o resto escurece pelo
           box-shadow gigante). Sem alvo (ex.: menu recolhido no celular), escurece
-          tudo por igual. É só visual (pointer-events-none) — não trava a tela. */}
+          tudo por igual. */}
       {alvoRect ? (
         <div
           className="pointer-events-none absolute rounded-xl ring-2 ring-primary/80 transition-all duration-200"
