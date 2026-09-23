@@ -338,33 +338,36 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
       )}
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 p-3 sm:p-4">
-      <div className="pointer-events-auto mx-auto w-full max-w-md rounded-2xl border border-border bg-card p-4 shadow-2xl">
+      <div className="pointer-events-auto mx-auto w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl">
+        {/* Cabeçalho: ícone + rótulo do passo + título (cada um em sua linha, para
+            o texto não ficar apertado) + fechar. */}
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            {Icone ? <Icone className="h-5 w-5" /> : <LumaOwlIcon className="h-6 w-6" />}
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            {Icone ? <Icone className="h-5 w-5" /> : <LumaOwlIcon className="h-7 w-7" />}
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="font-semibold text-foreground">{step.title}</h2>
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {index + 1} de {steps.length}
-              </span>
-            </div>
-            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
+          <div className="min-w-0 flex-1 pt-0.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">
+              Passo {index + 1} de {steps.length}
+            </p>
+            <h2 className="mt-0.5 text-lg font-semibold leading-snug text-foreground">{step.title}</h2>
           </div>
           <button
             onClick={encerrar}
             aria-label="Fechar tour"
             /* Alvo de toque: com p-1 o botão media 24x24, pequeno para dedo. */
-            className="-mr-1 -mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="-mr-1.5 -mt-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
+        {/* Corpo em largura total, com bastante respiro — antes ficava espremido
+            ao lado do ícone e o texto ficava "junto". */}
+        <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">{step.body}</p>
+
         {/* flex-wrap: em telas estreitas as bolinhas + "Pular/Anterior/Próximo"
             passam da largura do card; sem isso, os botões saíam para fora. */}
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
           <div className="flex items-center gap-1.5" aria-hidden="true">
             {steps.map((_, i) => (
               <span
