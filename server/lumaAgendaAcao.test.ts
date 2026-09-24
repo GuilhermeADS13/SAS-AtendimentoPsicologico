@@ -48,6 +48,9 @@ describe("pareceNavegacao", () => {
     "como acesso os pagamentos",
     "como entro na videochamada",
     "como cadastro um paciente aqui",
+    "como coloco meu prontuário aqui?",
+    "como envio o meu modelo de prontuário",
+    "como anexo um documento",
   ])("reconhece navegação: %s", (msg) => {
     expect(pareceNavegacao(msg)).toBe(true);
   });
