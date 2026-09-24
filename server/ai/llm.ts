@@ -231,7 +231,7 @@ export function pareceAcaoDeAgenda(mensagem: string): boolean {
  * responde com o mapa do menu (ver clinicalSystemPrompt).
  */
 export function pareceNavegacao(mensagem: string): boolean {
-  return /\bonde\b|\bcomo\s+(?:eu\s+)?(?:faço|faco|vejo|acho|encontro|acesso|entro|abro|uso|mudo|troco|altero|cadastr|configur|edito|atualizo)/i.test(
+  return /\bonde\b|\bcomo\s+(?:eu\s+)?(?:faço|faco|vejo|acho|encontro|acesso|entro|abro|uso|mudo|troco|altero|cadastr|configur|edito|atualizo|coloc|envi|mand|adicion|anex|carreg|upload|sub|cri)/i.test(
     mensagem,
   );
 }
