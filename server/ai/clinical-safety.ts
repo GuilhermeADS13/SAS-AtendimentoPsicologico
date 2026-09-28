@@ -69,7 +69,8 @@ export function buildCrisisSafeResponse(): string {
     "Sinto muito que você esteja passando por isso. Você não precisa enfrentar este momento sozinho(a).",
     "Não posso fornecer métodos ou instruções de autoagressão.",
     "Se houver risco imediato, procure agora o serviço de emergência local ou vá a um pronto atendimento.",
-    "No Brasil, você pode ligar para o SAMU (192) ou para o CVV (188). Se conseguir, avise uma pessoa de confiança e peça que fique com você.",
+    "No Brasil, você pode ligar para o SAMU (192) ou para o CVV (188), que atende 24h e de graça. Você também pode procurar o CAPS (Centro de Atenção Psicossocial) mais próximo, que é o serviço público de saúde mental e atende sem agendamento.",
+    "Se conseguir, avise uma pessoa de confiança e peça que fique com você.",
     "A Luma não substitui atendimento de emergência nem a psicóloga responsável.",
   ].join(" ");
 }

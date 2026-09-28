@@ -85,8 +85,11 @@ services:
         value: openai/gpt-oss-120b
       - key: LLM_API_KEY
         sync: false
+      # 0 = determinístico. A Luma responde ancorada em registros e no mapa do
+      # menu; variação criativa só fazia a mesma pergunta render respostas
+      # diferentes sobre o mesmo prontuário.
       - key: LLM_TEMPERATURE
-        value: "0.2"
+        value: "0"
       - key: LLM_MAX_TOKENS
         value: "800"
       # FAILOVER: quando o Groq principal estoura o rate limit (8000 TPM no free),

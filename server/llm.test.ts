@@ -7,7 +7,10 @@ describe("configuração do LLM open source", () => {
       baseUrl: "http://localhost:11434/v1",
       apiKey: "ollama",
       model: "qwen3:8b",
-      temperature: 0.2,
+      // 0, não 0.2: a Luma responde ancorada em registros e no mapa do menu, então
+      // variação criativa só fazia a mesma pergunta render respostas diferentes
+      // sobre o mesmo prontuário.
+      temperature: 0,
       maxTokens: 800,
     });
   });

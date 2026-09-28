@@ -42,7 +42,10 @@ export function getOpenSourceLlmConfig(env: NodeJS.ProcessEnv = process.env): Op
     baseUrl: clean(env.LLM_BASE_URL) || "http://localhost:11434/v1",
     apiKey: clean(env.LLM_API_KEY) || "ollama",
     model: clean(env.LLM_MODEL) || "qwen3:8b",
-    temperature: Number(clean(env.LLM_TEMPERATURE) ?? "0.2"),
+    // 0 (determinístico): a Luma responde ANCORADA em registros e no mapa do menu,
+    // então variação criativa não traz ganho nenhum — só faz a mesma pergunta sobre
+    // o mesmo prontuário render respostas diferentes. Era 0.2.
+    temperature: Number(clean(env.LLM_TEMPERATURE) ?? "0"),
     maxTokens: Number(clean(env.LLM_MAX_TOKENS) ?? "800"),
   };
 }
@@ -68,7 +71,7 @@ export function getLlmProviders(env: NodeJS.ProcessEnv = process.env): OpenSourc
         baseUrl,
         apiKey,
         model,
-        temperature: Number(clean(env[`LLM_FALLBACK_${i}_TEMPERATURE`]) ?? clean(env.LLM_TEMPERATURE) ?? "0.2"),
+        temperature: Number(clean(env[`LLM_FALLBACK_${i}_TEMPERATURE`]) ?? clean(env.LLM_TEMPERATURE) ?? "0"),
         maxTokens: Number(clean(env[`LLM_FALLBACK_${i}_MAX_TOKENS`]) ?? clean(env.LLM_MAX_TOKENS) ?? "800"),
       });
     }

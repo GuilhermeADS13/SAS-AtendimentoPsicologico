@@ -28,6 +28,15 @@ describe("política determinística de segurança clínica da Luma", () => {
     expect(response.toLowerCase()).not.toContain("como fazer");
   });
 
+  // Faltava o CAPS: é a rede PÚBLICA de saúde mental e atende sem agendamento —
+  // para quem não está em risco iminente (caso do SAMU) mas precisa de cuidado
+  // agora, é o encaminhamento mais adequado numa plataforma de psicologia.
+  it("encaminha também para o CAPS, não só SAMU e CVV", () => {
+    const response = buildCrisisSafeResponse();
+    expect(response).toContain("CAPS");
+    expect(response).toMatch(/Centro de Aten[çc][ãa]o Psicossocial/i);
+  });
+
   it("classifica pedidos de diagnóstico e prescrição para tratamento seguro pelo prompt", () => {
     expect(classifyClinicalSafetyIntent("Luma, qual é o meu diagnóstico?")).toBe("diagnosis_request");
     expect(classifyClinicalSafetyIntent("qual remédio devo tomar para dormir?")).toBe("prescription_request");
