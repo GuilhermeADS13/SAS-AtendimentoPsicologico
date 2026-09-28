@@ -87,12 +87,28 @@ describe("pareceLeituraDeAgenda", () => {
     expect(pareceLeituraDeAgenda(msg)).toBe(true);
   });
 
+  // Gestão da prática — também não depende de registro clínico.
+  it.each([
+    "quem ainda não confirmou?",
+    "quem está sumido?",
+    "quem não vem há mais de um mês?",
+    "quem está devendo?",
+    "quanto eu tenho a receber?",
+    "pagamentos pendentes",
+  ])("reconhece gestão da prática: %s", (msg) => {
+    expect(pareceLeituraDeAgenda(msg)).toBe(true);
+  });
+
   it.each([
     "resumir os últimos registros autorizados",
+    // "reSUMIr" contém "sumir": sem \b no padrão de "sumido", um pedido de LEITURA
+    // clínica era tratado como gestão da prática e escapava do atalho.
+    "resumir a última sessão",
     "como está a evolução do paciente?",
     "quanto é 1 + 1",
     "onde vejo meus pacientes?",
-  ])("NÃO confunde leitura clínica/navegação/fora de escopo: %s", (msg) => {
+    "agende uma consulta para amanhã",
+  ])("NÃO confunde leitura clínica/navegação/ação/fora de escopo: %s", (msg) => {
     expect(pareceLeituraDeAgenda(msg)).toBe(false);
   });
 });

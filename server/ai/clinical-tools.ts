@@ -206,6 +206,7 @@ export async function readTherapistAgenda(ctx: AiAccessContext, dbOverride?: Db)
     scheduledAt: appointments.scheduledAt,
     duration: appointments.duration,
     status: appointments.status,
+    confirmedAt: appointments.confirmedAt,
     price: appointments.price,
     paid: appointments.paid,
     patientId: patients.id,
@@ -221,18 +222,118 @@ export async function readTherapistAgenda(ctx: AiAccessContext, dbOverride?: Db)
     .orderBy(appointments.scheduledAt)
     .limit(15);
 
-  const consultas = rows.map(({ price, paid, firstName, lastName, ...rest }) => ({
+  const consultas = rows.map(({ price, paid, firstName, lastName, confirmedAt, ...rest }) => ({
     ...rest,
     paciente: `${firstName} ${lastName}`.trim(),
     valor: price != null ? formatarBRL(price) : "não definido",
     pago: paid,
+    // Presença confirmada pelo paciente. Deixa a Luma responder "quem ainda não
+    // confirmou" sem a profissional ter que abrir a tela e conferir uma a uma.
+    confirmadaPeloPaciente: confirmedAt != null,
   }));
 
   return {
     agora: agora.toISOString(),
     proximaConsulta: consultas[0] ?? null,
     totalProximas: consultas.length,
+    naoConfirmadas: consultas.filter(c => !c.confirmadaPeloPaciente).length,
     consultas,
+  };
+}
+
+/**
+ * Pacientes ATIVOS sem consulta há um tempo (padrão: 30 dias) e sem nenhuma
+ * agendada. É o "quem sumiu": some no dia a dia e tem peso clínico — abandono de
+ * tratamento passa despercebido quando a agenda está cheia.
+ *
+ * Só nomes e datas; nenhum conteúdo clínico. Escopo travado no therapistId de quem
+ * pergunta.
+ */
+export async function readPacientesSemRetorno(ctx: AiAccessContext, diasSemContato = 30, dbOverride?: Db) {
+  if (ctx.role !== "therapist" || ctx.therapistId == null) {
+    throw new Error("Disponível apenas para terapeuta autenticado");
+  }
+  const db = dbOverride ?? await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const ativos = await db.select({
+    id: patients.id,
+    firstName: patients.firstName,
+    lastName: patients.lastName,
+  }).from(patients).where(and(eq(patients.therapistId, ctx.therapistId), eq(patients.status, "active")));
+  if (!ativos.length) return { diasSemContato, pacientes: [], total: 0 };
+
+  const consultas = await db.select({
+    patientId: appointments.patientId,
+    scheduledAt: appointments.scheduledAt,
+    status: appointments.status,
+  }).from(appointments).where(and(
+    eq(appointments.therapistId, ctx.therapistId),
+    inArray(appointments.patientId, ativos.map(p => p.id)),
+  ));
+
+  const agora = Date.now();
+  const corte = agora - diasSemContato * 24 * 60 * 60 * 1000;
+  const semRetorno = ativos.flatMap(paciente => {
+    const doPaciente = consultas.filter(c => c.patientId === paciente.id);
+    // Uma consulta marcada no futuro significa que o vínculo está ativo — não é "sumiço".
+    const temFutura = doPaciente.some(c => c.status === "scheduled" && c.scheduledAt.getTime() >= agora);
+    if (temFutura) return [];
+    const ultima = doPaciente
+      .filter(c => c.scheduledAt.getTime() < agora)
+      .sort((a, b) => b.scheduledAt.getTime() - a.scheduledAt.getTime())[0];
+    if (ultima && ultima.scheduledAt.getTime() >= corte) return [];
+    return [{
+      paciente: `${paciente.firstName} ${paciente.lastName}`.trim(),
+      patientId: paciente.id,
+      ultimaConsulta: ultima?.scheduledAt.toISOString() ?? null,
+      diasSemConsulta: ultima ? Math.floor((agora - ultima.scheduledAt.getTime()) / 86400000) : null,
+    }];
+  }).sort((a, b) => (b.diasSemConsulta ?? Infinity) - (a.diasSemConsulta ?? Infinity));
+
+  return { diasSemContato, total: semRetorno.length, pacientes: semRetorno };
+}
+
+/**
+ * Consultas JÁ REALIZADAS e ainda não pagas. Responde "quem está devendo" sem a
+ * profissional ter que varrer o financeiro. Consulta sem valor definido entra
+ * separada, porque ali não há dívida a cobrar — falta definir o preço.
+ */
+export async function readPendenciasFinanceiras(ctx: AiAccessContext, dbOverride?: Db) {
+  if (ctx.role !== "therapist" || ctx.therapistId == null) {
+    throw new Error("Disponível apenas para terapeuta autenticado");
+  }
+  const db = dbOverride ?? await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const rows = await db.select({
+    id: appointments.id,
+    scheduledAt: appointments.scheduledAt,
+    price: appointments.price,
+    firstName: patients.firstName,
+    lastName: patients.lastName,
+  }).from(appointments)
+    .innerJoin(patients, eq(patients.id, appointments.patientId))
+    .where(and(
+      eq(appointments.therapistId, ctx.therapistId),
+      eq(appointments.status, "completed"),
+      eq(appointments.paid, false),
+    ))
+    .orderBy(appointments.scheduledAt)
+    .limit(50);
+
+  const comValor = rows.filter(r => r.price != null);
+  const totalCentavos = comValor.reduce((soma, r) => soma + (r.price ?? 0), 0);
+
+  return {
+    total: rows.length,
+    totalAReceber: formatarBRL(totalCentavos),
+    semValorDefinido: rows.length - comValor.length,
+    consultas: rows.map(({ price, firstName, lastName, ...rest }) => ({
+      ...rest,
+      paciente: `${firstName} ${lastName}`.trim(),
+      valor: price != null ? formatarBRL(price) : "não definido",
+    })),
   };
 }
 
@@ -641,7 +742,20 @@ export function createClinicalTools(
   const agendaDoProfissional = ctx.role === "therapist" ? [
     tool(async () => JSON.stringify(await readTherapistAgenda(ctx, db)), {
       name: "get_minha_agenda",
-      description: "Consulta somente leitura a agenda do PRÓPRIO profissional, atravessando todos os pacientes dele. Use para 'qual é o meu próximo paciente/atendimento', 'o que tenho hoje/amanhã', 'como está minha semana'. NÃO exige patientId e NÃO precisa de paciente selecionado. Retorna 'proximaConsulta' (a mais perto de acontecer) e 'consultas' (próximas, em ordem), cada uma com o nome do paciente, horário, duração, valor e se está paga.",
+      description: "Consulta somente leitura a agenda do PRÓPRIO profissional, atravessando todos os pacientes dele. Use para 'qual é o meu próximo paciente/atendimento', 'o que tenho hoje/amanhã', 'como está minha semana', 'quem ainda não confirmou'. NÃO exige patientId e NÃO precisa de paciente selecionado. Retorna 'proximaConsulta', 'naoConfirmadas' (quantas sem confirmação de presença) e 'consultas' (próximas, em ordem), cada uma com nome do paciente, horário, duração, valor, se está paga e 'confirmadaPeloPaciente'.",
+      schema: z.object({}),
+    }),
+    tool(async ({ diasSemContato }) => JSON.stringify(await readPacientesSemRetorno(ctx, diasSemContato ?? 30, db)), {
+      name: "get_pacientes_sem_retorno",
+      description: "Consulta somente leitura os pacientes ATIVOS que estão há um tempo sem consulta e sem nenhuma agendada — o 'quem sumiu'. Use para 'quem está sumido', 'quem não vem há tempo', 'quem parou de vir'. NÃO exige paciente selecionado. Retorna nome, data da última consulta e há quantos dias. Não traz nenhum conteúdo clínico.",
+      schema: z.object({
+        diasSemContato: z.number().int().positive().max(365).optional()
+          .describe("Quantos dias sem consulta para considerar sumido (padrão 30)"),
+      }),
+    }),
+    tool(async () => JSON.stringify(await readPendenciasFinanceiras(ctx, db)), {
+      name: "get_pendencias_financeiras",
+      description: "Consulta somente leitura as consultas JÁ REALIZADAS e ainda não pagas — o 'quem está devendo'. Use para 'quem está devendo', 'o que tenho a receber', 'pagamentos pendentes'. NÃO exige paciente selecionado. Retorna o total a receber, quantas estão sem valor definido e a lista com nome do paciente, data e valor.",
       schema: z.object({}),
     }),
   ] : [];

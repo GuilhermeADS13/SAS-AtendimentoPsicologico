@@ -176,7 +176,7 @@ export function clinicalSystemPrompt(ctx: AiAccessContext, requestedPatientId?: 
       ? "Ao afirmar algo baseado em um registro, cite a fonte de forma legível — pela DATA da sessão ou pelo NOME do documento (ex.: 'na sessão de 24/07' ou 'no documento exame.pdf'), nunca por número ou ID interno; em respostas longas, organize com títulos ou tabela para facilitar a leitura, sem inventar dados que não estejam nos registros."
       : "",
     toolsEnabled
-      ? "Suas capacidades: resumir e buscar registros autorizados (sessões e documentos), consultar a agenda, ver a SUA PRÓPRIA agenda (próximo paciente, o que tem hoje/amanhã/na semana, atravessando todos os pacientes), e — com confirmação — agendar (inclusive semanal recorrente), remarcar, cancelar consultas e registrar pagamento. Se perguntarem o que você pode fazer, liste isso de forma breve, clara e em LINGUAGEM NATURAL. NUNCA cite nomes técnicos de ferramentas ou funções, nomes de campos, esquemas ou identificadores internos — descreva o que você faz, nunca o nome técnico por trás."
+      ? "Suas capacidades: resumir e buscar registros autorizados (sessões e documentos), consultar a agenda, ver a SUA PRÓPRIA agenda (próximo paciente, o que tem hoje/amanhã/na semana, quem ainda não confirmou presença), apontar pacientes ATIVOS que sumiram (sem consulta há tempo e sem nenhuma marcada) e listar pagamentos pendentes de consultas já realizadas, e — com confirmação — agendar (inclusive semanal recorrente), remarcar, cancelar consultas e registrar pagamento. Se perguntarem o que você pode fazer, liste isso de forma breve, clara e em LINGUAGEM NATURAL. NUNCA cite nomes técnicos de ferramentas ou funções, nomes de campos, esquemas ou identificadores internos — descreva o que você faz, nunca o nome técnico por trás."
       : "",
     toolsEnabled
       ? "Fale com o(a) profissional em linguagem natural e simples. Refira-se ao paciente sempre pelo NOME, nunca pelo número ou 'ID'. Ao coletar dados para agendar/remarcar, pergunte de forma humana (ex.: 'Para qual dia e horário? Qual a duração?') — NUNCA peça formato ISO 8601, nem exponha nomes de ferramentas/funções, campos técnicos, esquemas ou IDs internos. Você mesma traduz a resposta para o formato das ferramentas."
@@ -203,7 +203,7 @@ export function clinicalSystemPrompt(ctx: AiAccessContext, requestedPatientId?: 
               ? `Para esta conversa, o paciente no escopo é ${patientName}. Use patientId ${requestedPatientId} internamente nas ferramentas, mas ao falar refira-se sempre por ${patientName}, nunca pelo número.`
               : `Para esta conversa, use patientId ${requestedPatientId} como escopo solicitado e valide-o antes de qualquer leitura; ao falar, refira-se ao paciente pelo nome (obtido nas ferramentas), nunca pelo ID.`)
           : `A conversa está no escopo do patientId ${requestedPatientId}, mas sem acesso a registros: não invente dados desse paciente.`)
-      : "NENHUM paciente está selecionado nesta conversa. Perguntas de USO DO SISTEMA e de navegação você responde normalmente, sem exigir um paciente. Perguntas sobre a AGENDA DA PRÓPRIA PROFISSIONAL ('qual é o meu próximo paciente/atendimento', 'o que eu tenho hoje', 'como está minha semana') também NÃO exigem paciente selecionado: consulte a sua agenda e responda com o nome do paciente e o horário. Só para consultar os REGISTROS de um paciente específico (sessões, documentos) ou agir na agenda dele é que você precisa pedir, gentilmente, que a profissional escolha o paciente no seletor 'Paciente no escopo da conversa', no topo — sem isso você não tem acesso a esses dados e NÃO deve inventá-los.",
+      : "NENHUM paciente está selecionado nesta conversa. Perguntas de USO DO SISTEMA e de navegação você responde normalmente, sem exigir um paciente. Perguntas sobre a AGENDA DA PRÓPRIA PROFISSIONAL ('qual é o meu próximo paciente/atendimento', 'o que eu tenho hoje', 'como está minha semana', 'quem não confirmou'), sobre PACIENTES SUMIDOS ('quem está sumido', 'quem não vem há tempo') e sobre PAGAMENTOS PENDENTES ('quem está devendo', 'o que tenho a receber') também NÃO exigem paciente selecionado: use a ferramenta correspondente e responda com nomes, datas e valores. Só para consultar os REGISTROS de um paciente específico (sessões, documentos) ou agir na agenda dele é que você precisa pedir, gentilmente, que a profissional escolha o paciente no seletor 'Paciente no escopo da conversa', no topo — sem isso você não tem acesso a esses dados e NÃO deve inventá-los.",
   ].filter(Boolean).join(" ");
 }
 
@@ -248,7 +248,20 @@ export function pareceNavegacao(mensagem: string): boolean {
  * que é falso.
  */
 export function pareceLeituraDeAgenda(mensagem: string): boolean {
-  return /pr[óo]xim[oa]s?\s+(?:paciente|atendimento|consulta|sess[ãa]o|agendamento)|(?:minha|a)\s+agenda|quem\s+(?:eu\s+)?(?:atendo|vou atender)|o que\s+(?:eu\s+)?tenho\s+(?:hoje|amanh[ãa]|essa semana|nesta semana|na semana)|(?:tenho|h[áa])\s+(?:consulta|atendimento|paciente)s?\s+(?:hoje|amanh[ãa])|agenda\s+(?:de\s+)?(?:hoje|amanh[ãa]|da semana)/i.test(
+  return /pr[óo]xim[oa]s?\s+(?:paciente|atendimento|consulta|sess[ãa]o|agendamento)|(?:minha|a)\s+agenda|quem\s+(?:eu\s+)?(?:atendo|vou atender)|o que\s+(?:eu\s+)?tenho\s+(?:hoje|amanh[ãa]|essa semana|nesta semana|na semana)|(?:tenho|h[áa])\s+(?:consulta|atendimento|paciente)s?\s+(?:hoje|amanh[ãa])|agenda\s+(?:de\s+)?(?:hoje|amanh[ãa]|da semana)|quem\s+(?:ainda\s+)?n[ãa]o\s+confirmou|n[ãa]o\s+confirmaram/i.test(
+    mensagem,
+  ) || pareceGestaoDaPratica(mensagem);
+}
+
+/**
+ * Perguntas de GESTÃO da prática que não dependem de registro clínico: quem sumiu
+ * (paciente ativo sem consulta há tempo) e quem está devendo (consulta realizada e
+ * não paga). Como a agenda, não podem cair no atalho de "sem registros clínicos".
+ */
+export function pareceGestaoDaPratica(mensagem: string): boolean {
+  // \b em "sumi": sem ele, "reSUMIr os últimos registros" — pedido de LEITURA
+  // clínica — era tratado como gestão da prática e escapava do atalho.
+  return /quem\s+(?:est[áa]\s+)?(?:sumi|desapareceu|parou de vir|abandonou)|\bsumi[dr]|n[ãa]o\s+(?:vem|voltou|apareceu)\s+h[áa]|sem\s+(?:consulta|retorno|vir)\s+h[áa]|quem\s+(?:est[áa]\s+)?(?:devendo|em d[ée]bito|inadimplente)|(?:pagamentos?|valores?)\s+(?:pendentes?|em aberto)|(?:o que|quanto)\s+(?:eu\s+)?tenho\s+(?:a|para)\s+receber|a\s+receber/i.test(
     mensagem,
   );
 }
