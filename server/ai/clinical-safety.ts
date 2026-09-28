@@ -21,6 +21,23 @@ const CRISIS_PATTERNS = [
 const DIAGNOSIS_PATTERNS = [
   /(?:você|voce|luma).*(?:me|ele|ela).*(?:diagnostica|tem transtorno|é bipolar|e bipolar)/i,
   /qual é o meu diagnóstico|qual e o meu diagnostico/i,
+  // Pedir que a Luma PRODUZA um diagnóstico. Os padrões exigem um verbo de PRODUZIR
+  // (dar/dizer/fazer/diagnosticar) junto da palavra, e isso é de propósito: a
+  // psicóloga pode legitimamente pedir "resuma o diagnóstico registrado no
+  // prontuário", que é LEITURA de registro autorizado. Detectar o radical "diagn"
+  // solto barraria esse uso profissional.
+  /\bme\s+diagnostic/i,
+  /\bme\s+(?:d[áaê]|da|dar|diga|diz|fala|fale|informa|informe|passa|passe)\w*\s[^?]{0,40}diagn[óo]stic/i,
+  /(?:voc[êe]|vc|luma)\b[^?]{0,40}\b(?:d[áa]|dar|faz|fazer|fa[çc]a|diz|dizer|diagnostica|diagnosticar)\b[^?]{0,40}diagn[óo]stic/i,
+  // "eu tenho depressão?" / "será que eu tenho TDAH?" — pedido de diagnóstico sem a
+  // palavra "diagnóstico". Exigimos o enquadramento de PERGUNTA (interrogativa
+  // explícita ou "?") porque relato não pode ser barrado: "eu tenho ansiedade antes
+  // das sessões." é desabafo, e responder "não faço diagnóstico" seria fechar a
+  // porta na cara de quem se abriu.
+  /(?:ser[áa] que|acha que)\s+eu\s+tenho\s+(?:algum[a]?\s+)?(?:transtorno|depress|ansiedade|p[âa]nico|tdah|bipolar|borderline|autismo|esquizofren|toc\b|burnout)/i,
+  /\beu\s+tenho\s+(?:algum[a]?\s+)?(?:transtorno|depress|ansiedade|p[âa]nico|tdah|bipolar|borderline|autismo|esquizofren|toc\b|burnout)[^?]{0,30}\?/i,
+  /\b(?:o que|oque)\s+(?:eu\s+)?tenho\s*\?/i,
+  /\bisso\s+(?:é|e)\s+(?:algum[a]?\s+)?(?:transtorno|depress|ansiedade|p[âa]nico|tdah|bipolar|borderline|autismo|esquizofren|toc\b|burnout)/i,
 ];
 
 const PRESCRIPTION_PATTERNS = [
