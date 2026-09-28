@@ -181,6 +181,61 @@ export async function fetchConversationMemory(
   return out.trim();
 }
 
+/**
+ * Agenda da PROFISSIONAL, atravessando todos os pacientes dela.
+ *
+ * As demais leituras são por paciente (exigem patientId), então não havia como
+ * responder "qual é o meu próximo paciente?" — a Luma acabava dizendo que o sistema
+ * não tem essa visão e mandava abrir Agendamentos, o que é falso: o dado existe.
+ *
+ * O escopo é a trava: filtra por `appointments.therapistId = ctx.therapistId`, ou
+ * seja só a agenda de quem perguntou. Nomes de paciente aparecem porque são os
+ * pacientes dela — nenhum dado clínico (sessão, documento, prontuário) é exposto
+ * aqui, só horário, duração, status e valor.
+ */
+export async function readTherapistAgenda(ctx: AiAccessContext, dbOverride?: Db) {
+  if (ctx.role !== "therapist" || ctx.therapistId == null) {
+    throw new Error("Agenda do profissional disponível apenas para terapeuta autenticado");
+  }
+  const db = dbOverride ?? await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const agora = new Date();
+  const rows = await db.select({
+    id: appointments.id,
+    scheduledAt: appointments.scheduledAt,
+    duration: appointments.duration,
+    status: appointments.status,
+    price: appointments.price,
+    paid: appointments.paid,
+    patientId: patients.id,
+    firstName: patients.firstName,
+    lastName: patients.lastName,
+  }).from(appointments)
+    .innerJoin(patients, eq(patients.id, appointments.patientId))
+    .where(and(
+      eq(appointments.therapistId, ctx.therapistId),
+      eq(appointments.status, "scheduled"),
+      gte(appointments.scheduledAt, agora),
+    ))
+    .orderBy(appointments.scheduledAt)
+    .limit(15);
+
+  const consultas = rows.map(({ price, paid, firstName, lastName, ...rest }) => ({
+    ...rest,
+    paciente: `${firstName} ${lastName}`.trim(),
+    valor: price != null ? formatarBRL(price) : "não definido",
+    pago: paid,
+  }));
+
+  return {
+    agora: agora.toISOString(),
+    proximaConsulta: consultas[0] ?? null,
+    totalProximas: consultas.length,
+    consultas,
+  };
+}
+
 export async function readPatientAppointments(
   ctx: AiAccessContext,
   requestedPatientId?: number,
@@ -581,7 +636,18 @@ export function createClinicalTools(
     }),
   ] : [];
 
+  // Agenda da própria profissional (todos os pacientes). Só faz sentido — e só é
+  // autorizada — no papel de terapeuta; o paciente usa get_my_appointments.
+  const agendaDoProfissional = ctx.role === "therapist" ? [
+    tool(async () => JSON.stringify(await readTherapistAgenda(ctx, db)), {
+      name: "get_minha_agenda",
+      description: "Consulta somente leitura a agenda do PRÓPRIO profissional, atravessando todos os pacientes dele. Use para 'qual é o meu próximo paciente/atendimento', 'o que tenho hoje/amanhã', 'como está minha semana'. NÃO exige patientId e NÃO precisa de paciente selecionado. Retorna 'proximaConsulta' (a mais perto de acontecer) e 'consultas' (próximas, em ordem), cada uma com o nome do paciente, horário, duração, valor e se está paga.",
+      schema: z.object({}),
+    }),
+  ] : [];
+
   return [
+    ...agendaDoProfissional,
     tool(async ({ patientId }) => JSON.stringify(await readPatientAppointments(ctx, patientId, db)), {
       name: ctx.role === "therapist" ? "get_patient_appointments" : "get_my_appointments",
       description: "Consulta somente leitura os agendamentos autorizados. Retorna 'psicologoResponsavel' (nome do profissional vinculado ao paciente) e 'consultas' — cada uma com 'valor' (em reais quando definido, ou a orientação de confirmar com o responsável, já nomeado, quando não houver) e 'pago'. É a ÚNICA fonte para preço/pagamento — nunca estime um valor. Para terapeuta, informe patientId.",

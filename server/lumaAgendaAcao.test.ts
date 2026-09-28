@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { forcarPropostaDeAgenda, pareceAcaoDeAgenda, pareceNavegacao, type LumaPendingAction } from "./ai/llm";
+import { forcarPropostaDeAgenda, pareceAcaoDeAgenda, pareceLeituraDeAgenda, pareceNavegacao, type LumaPendingAction } from "./ai/llm";
 
 /**
  * Regressão: a Luma clínica curto-circuitava com "Não encontrei registros" quando
@@ -62,6 +62,38 @@ describe("pareceNavegacao", () => {
     "quanto é 1 + 1",
   ])("NÃO confunde leitura/ação/fora de escopo com navegação: %s", (msg) => {
     expect(pareceNavegacao(msg)).toBe(false);
+  });
+});
+
+/**
+ * Regressão: perguntada "qual é o meu próximo paciente?", a Luma respondia que "o
+ * sistema não dispõe de uma visualização direta dos próximos atendimentos" e mandava
+ * abrir Agendamentos — falso, o dado existe. Faltavam duas coisas: uma ferramenta que
+ * lesse a agenda da PRÓPRIA profissional (as outras leituras exigem patientId) e este
+ * detector, para a pergunta não morrer no atalho de "sem registros clínicos" quando o
+ * paciente selecionado ainda não tem sessão lançada.
+ */
+describe("pareceLeituraDeAgenda", () => {
+  it.each([
+    "qual é o meu próximo paciente?",
+    "quem é o próximo atendimento?",
+    "qual a próxima consulta?",
+    "o que eu tenho hoje?",
+    "o que tenho amanhã?",
+    "como está a minha agenda?",
+    "tenho consultas hoje?",
+    "agenda de hoje",
+  ])("reconhece leitura de agenda: %s", (msg) => {
+    expect(pareceLeituraDeAgenda(msg)).toBe(true);
+  });
+
+  it.each([
+    "resumir os últimos registros autorizados",
+    "como está a evolução do paciente?",
+    "quanto é 1 + 1",
+    "onde vejo meus pacientes?",
+  ])("NÃO confunde leitura clínica/navegação/fora de escopo: %s", (msg) => {
+    expect(pareceLeituraDeAgenda(msg)).toBe(false);
   });
 });
 

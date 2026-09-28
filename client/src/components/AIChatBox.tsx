@@ -3,7 +3,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { LumaOwlIcon } from "@/components/Logo";
-import { Loader2, Send, User, Sparkles, ThumbsUp, ThumbsDown, RotateCcw, CalendarClock, Check, X } from "lucide-react";
+import { Loader2, Send, User, Sparkles, ThumbsUp, ThumbsDown, RotateCcw, CalendarClock, Check, ChevronRight, X } from "lucide-react";
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Streamdown } from "streamdown";
 
@@ -398,8 +398,11 @@ export function AIChatBox({
               {displayMessages.map((message, index) => {
                 // Apply min-height to last message only if NOT loading (when loading, the loading indicator gets it)
                 const isLastMessage = index === displayMessages.length - 1;
-                const shouldApplyMinHeight =
-                  isLastMessage && !isLoading && minHeightForLastMessage > 0;
+                // O espaço que deixa a última resposta subir para o topo da tela NÃO
+                // fica mais na própria mensagem: ali ele empurrava o menu "E agora?"
+                // uma tela inteira para baixo, longe da resposta. Virou um espaçador
+                // DEPOIS do menu (no fim da lista) — a resposta continua subindo e o
+                // menu fica logo abaixo dela.
 
                 return (
                   <div
@@ -413,11 +416,6 @@ export function AIChatBox({
                         ? "justify-end items-start"
                         : "justify-start items-start"
                     )}
-                    style={
-                      shouldApplyMinHeight
-                        ? { minHeight: `${minHeightForLastMessage}px` }
-                        : undefined
-                    }
                   >
                     {message.role === "assistant" && (
                       <div className="size-8 shrink-0 mt-1 rounded-full bg-primary/10 flex items-center justify-center">
@@ -517,9 +515,14 @@ export function AIChatBox({
                   em "pronto, agendei" e a pessoa ficava sem saber o próximo passo;
                   e "Voltar ao início" ficava solto no topo da página, longe daqui. */}
               {((followUpMenu && followUpMenu.length > 0) || (followUpPrompts && followUpPrompts.length > 0) || (onRestart && displayMessages.length > 0)) && !isLoading && (
-                <div className="ml-11 space-y-2">
+                <div className="ml-11 space-y-2.5">
                   {((followUpMenu && followUpMenu.length > 0) || (followUpPrompts && followUpPrompts.length > 0)) && (
-                    <p className="text-xs font-medium text-muted-foreground">E agora?</p>
+                    // Rótulo com um fio ao lado: separa o menu da resposta sem
+                    // precisar de espaço vazio, que era o que afastava os dois.
+                    <div className="flex max-w-xl items-center gap-2.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">E agora?</p>
+                      <span className="h-px flex-1 bg-border" />
+                    </div>
                   )}
                   {followUpMenu && followUpMenu.length > 0 ? (
                     <div className="grid max-w-xl grid-cols-1 gap-2 sm:grid-cols-2">
@@ -528,19 +531,22 @@ export function AIChatBox({
                           key={item.label}
                           type="button"
                           onClick={() => onSendMessage(item.label)}
-                          className="flex items-start gap-3 rounded-xl border border-border bg-card px-3 py-2.5 text-left transition-colors hover:border-primary/40 hover:bg-accent"
+                          className="group flex items-center gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5 text-left transition-all hover:border-primary/50 hover:bg-accent hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           {item.icon && (
-                            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/15">
                               {item.icon}
                             </span>
                           )}
-                          <span className="min-w-0">
-                            <span className="block text-sm font-medium text-foreground">{item.label}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-foreground">{item.label}</span>
                             {item.hint && (
-                              <span className="mt-0.5 block text-xs text-muted-foreground">{item.hint}</span>
+                              <span className="mt-0.5 block truncate text-xs text-muted-foreground">{item.hint}</span>
                             )}
                           </span>
+                          {/* Seta só no hover: mostra que o cartão é clicável sem
+                              poluir a leitura quando parado. */}
+                          <ChevronRight className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                         </button>
                       ))}
                     </div>
@@ -569,6 +575,13 @@ export function AIChatBox({
                     </button>
                   )}
                 </div>
+              )}
+
+              {/* Espaço que permite a última resposta subir para o topo da tela.
+                  Fica DEPOIS do menu de propósito: quando estava na própria mensagem,
+                  abria um vão de uma tela entre a resposta e o "E agora?". */}
+              {!isLoading && displayMessages.length > 0 && minHeightForLastMessage > 0 && (
+                <div aria-hidden className="shrink-0" style={{ height: `${minHeightForLastMessage}px` }} />
               )}
             </div>
           </ScrollArea>
