@@ -8,6 +8,15 @@ import App from "./App";
 import { getAccessToken } from "./lib/supabase";
 import "./index.css";
 
+// Limpeza de dado legado: a chave "manus-runtime-user-info" guardava o usuário
+// inteiro (id, nome, e-mail) no localStorage para o runtime de edição do Manus, que
+// não vai mais no build. Ninguém no app lia, e o useAuth parou de escrevê-la — mas
+// quem já abriu o site continua com o dado gravado no navegador. Fica aqui, e não no
+// useAuth, porque precisa rodar em QUALQUER rota: /login não monta o useAuth.
+try {
+  localStorage.removeItem("manus-runtime-user-info");
+} catch {}
+
 const queryClient = new QueryClient();
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
