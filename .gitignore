@@ -29,9 +29,6 @@ dist
 .env.local
 .env.*.local
 
-# Logs de runtime do Manus
-.manus-logs
-
 # Sondas temporárias de diagnóstico (não versionar)
 .poll*.mjs
 
