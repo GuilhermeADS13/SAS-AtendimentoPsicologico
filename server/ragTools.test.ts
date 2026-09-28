@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clinicalSystemPrompt } from "./ai/llm";
-import { formatRagContext, type RagSource } from "./ai/rag";
+import { escolherCandidatos, formatRagContext, type RagSource } from "./ai/rag";
 
 const therapistContext = {
   userId: 10,
@@ -106,5 +106,48 @@ describe("RAG e ferramentas clínicas", () => {
 
   it("não produz contexto quando o retriever não encontra fontes", () => {
     expect(formatRagContext([])).toBe("");
+  });
+});
+
+/**
+ * Antes, a busca trazia os registros com `.limit(100)` por DATA. Dois problemas: o
+ * que estivesse além dos 100 mais recentes era INVISÍVEL para a Luma (com terapia
+ * semanal, cerca de 2 anos de histórico, enquanto o prontuário tem guarda de 5
+ * anos), e ainda assim os 100 inteiros iam para o índice — sem cache de embedding,
+ * cada um custa uma chamada ao provedor por pergunta.
+ */
+describe("escolha de candidatos para o índice (alcance x custo)", () => {
+  // 300 sessões, da mais nova para a mais antiga, como vem do banco.
+  const sessoes = Array.from({ length: 300 }, (_, i) => ({
+    id: i,
+    texto: i === 250 ? "Paciente relata crises de pânico no trabalho" : `Sessão comum número ${i}`,
+  }));
+  const textoDe = (s: { texto: string }) => s.texto;
+  const limites = { recentes: 40, porTexto: 30 };
+
+  it("acha um registro ANTIGO que casa com a pergunta (o ponto cego do limit por data)", () => {
+    const escolhidos = escolherCandidatos(sessoes, textoDe, "quando começaram as crises de pânico?", limites);
+    // A sessão 250 está muito além dos 100 mais recentes: antes, invisível.
+    expect(escolhidos.map(s => s.id)).toContain(250);
+  });
+
+  it("mantém os mais recentes sempre, mesmo quando não casam com a pergunta", () => {
+    const escolhidos = escolherCandidatos(sessoes, textoDe, "crises de pânico", limites);
+    for (const esperado of [0, 1, 39]) expect(escolhidos.map(s => s.id)).toContain(esperado);
+  });
+
+  it("respeita o teto por pista (custo de embedding por pergunta)", () => {
+    const escolhidos = escolherCandidatos(sessoes, textoDe, "sessão comum", limites);
+    expect(escolhidos.length).toBeLessThanOrEqual(limites.recentes + limites.porTexto);
+  });
+
+  it("devolve tudo quando o histórico é menor que os tetos (caso comum)", () => {
+    const poucas = sessoes.slice(0, 12);
+    expect(escolherCandidatos(poucas, textoDe, "qualquer coisa", limites)).toHaveLength(12);
+  });
+
+  it("sem palavra útil na pergunta, cai só nos recentes (não devolve histórico inteiro)", () => {
+    const escolhidos = escolherCandidatos(sessoes, textoDe, "e?", limites);
+    expect(escolhidos).toHaveLength(limites.recentes);
   });
 });

@@ -3,7 +3,66 @@ import { and, asc, desc, eq } from "drizzle-orm";
 import { documents, patients, sessions, type Patient, type Session, type Document as ClinicalDocument } from "../../drizzle/schema";
 import { getDb } from "../db";
 import type { AiAccessContext } from "./access";
-import { rerankClinicalSources } from "./rerank";
+import { rerankClinicalSources, tokenize } from "./rerank";
+
+/**
+ * Teto de linhas trazidas do banco por tipo. Não é o limite do que a Luma "vê" (a
+ * escolha de candidatos abaixo cobre o histórico inteiro): é só uma trava para um
+ * prontuário patológico não puxar memória sem limite.
+ */
+const TETO_LINHAS = 2000;
+
+/** Quantos registros no máximo vão para o índice vetorial, por pista. */
+const CANDIDATOS = {
+  sessoes: { recentes: 40, porTexto: 30 },
+  documentos: { recentes: 20, porTexto: 20 },
+};
+
+/**
+ * Escolhe quais registros entram no índice vetorial, em duas pistas:
+ *  - RECENTES: os N mais novos entram sempre. Na clínica, as últimas sessões são
+ *    quase sempre o que se procura.
+ *  - POR TEXTO: dos demais, os que mais casam com as palavras da pergunta — de
+ *    QUALQUER época. É isso que faz uma sessão de três anos atrás aparecer quando
+ *    ela é a relevante.
+ *
+ * Antes havia um `.limit(100)` por DATA, com dois problemas: registro além dos 100
+ * mais recentes era INVISÍVEL para a Luma (com terapia semanal, ~2 anos de
+ * histórico), e mesmo assim os 100 inteiros iam para o índice — e como não há cache
+ * de embedding, cada um custa uma chamada ao provedor a CADA pergunta. Agora o
+ * alcance é o histórico todo e o custo por pergunta caiu (≤70 sessões + ≤40
+ * documentos, contra 100 + 100).
+ *
+ * `linhas` precisa vir ordenada do mais novo para o mais antigo.
+ */
+export function escolherCandidatos<T>(
+  linhas: T[],
+  textoDe: (linha: T) => string,
+  query: string,
+  limites: { recentes: number; porTexto: number },
+): T[] {
+  if (linhas.length <= limites.recentes + limites.porTexto) return linhas;
+
+  const recentes = linhas.slice(0, limites.recentes);
+  const termos = tokenize(query);
+  if (!termos.size) return recentes;
+
+  const porTexto = linhas
+    .slice(limites.recentes)
+    .map((linha, index) => {
+      const tokens = tokenize(textoDe(linha));
+      const casados = Array.from(termos).filter(termo => tokens.has(termo)).length;
+      return { linha, casados, index };
+    })
+    .filter(item => item.casados > 0)
+    // Empate volta para a ordem original, que é a cronológica: entre dois registros
+    // igualmente relevantes, o mais recente vem primeiro.
+    .sort((esquerda, direita) => direita.casados - esquerda.casados || esquerda.index - direita.index)
+    .slice(0, limites.porTexto)
+    .map(item => item.linha);
+
+  return [...recentes, ...porTexto];
+}
 
 export type ScopedClinicalQuery = {
   query: string;
@@ -169,13 +228,18 @@ export async function retrieveScopedClinicalContext(
       eq(sessions.patientId, patientIds[0]),
       eq(sessions.therapistId, authorizedPatient.therapistId),
     ),
-  ).orderBy(desc(sessions.startedAt)).limit(100);
+  ).orderBy(desc(sessions.startedAt)).limit(TETO_LINHAS);
   const documentRows = await db.select().from(documents).where(
     and(
       eq(documents.patientId, patientIds[0]),
       eq(documents.therapistId, authorizedPatient.therapistId),
     ),
-  ).orderBy(desc(documents.createdAt)).limit(100);
+  ).orderBy(desc(documents.createdAt)).limit(TETO_LINHAS);
+
+  // Estreita por relevância ANTES de indexar: o histórico inteiro fica alcançável e
+  // ainda assim cada pergunta embeda menos registros do que antes. Ver escolherCandidatos.
+  const sessoesEscolhidas = escolherCandidatos(sessionRows, sessionText, query, CANDIDATOS.sessoes);
+  const documentosEscolhidos = escolherCandidatos(documentRows, documentText, query, CANDIDATOS.documentos);
 
   const sourceById = new Map<string, RagSource>();
   const llamaDocuments = [
@@ -185,13 +249,13 @@ export async function retrieveScopedClinicalContext(
       sourceById.set(`patient:${patient.id}`, source);
       return new Document({ text, metadata: { sourceType: source.sourceType, sourceId: patient.id, patientId: patient.id } });
     }),
-    ...sessionRows.map(session => {
+    ...sessoesEscolhidas.map(session => {
       const text = sessionText(session);
       const source = { sourceType: "session" as const, sourceId: session.id, patientId: session.patientId, text, requiresReview: false };
       sourceById.set(`session:${session.id}`, source);
       return new Document({ text, metadata: { sourceType: source.sourceType, sourceId: session.id, patientId: session.patientId } });
     }),
-    ...documentRows.map(document => {
+    ...documentosEscolhidos.map(document => {
       const text = documentText(document);
       const source = { sourceType: "document" as const, sourceId: document.id, patientId: document.patientId, text, requiresReview: false };
       sourceById.set(`document:${document.id}`, source);

@@ -6,7 +6,7 @@ const SOURCE_WEIGHT: Record<RagSource["sourceType"], number> = {
   patient: 0.92,
 };
 
-function tokenize(text: string): Set<string> {
+export function tokenize(text: string): Set<string> {
   return new Set(
     text.toLocaleLowerCase("pt-BR")
       .normalize("NFD")
