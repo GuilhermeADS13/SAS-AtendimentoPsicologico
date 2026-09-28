@@ -7,6 +7,7 @@ export type SiteHelpTopic =
   | "reschedule"
   | "payments"
   | "profile"
+  | "therapist"
   | "video"
   | "mensagens"
   | "luma"
@@ -63,7 +64,9 @@ export function answerSiteHelp(question: string): SiteHelpResponse {
     };
   }
 
-  if (/(pagamento|pagar|cobranca|valor|preco|boleto|pix|nota fiscal)/.test(normalized)) {
+  // "pago"/"paguei"/"custa" ficavam de fora ("pagar" não casa com "pago"), então
+  // pergunta de preço caía no tópico de agenda. O `paga\b` evita casar com "página".
+  if (/(pagamento|pagar|pago|paguei|paga\b|cobranca|valor|preco|custa|custo|boleto|pix|nota fiscal|honorario|mensalidade)/.test(normalized)) {
     return {
       model: "site-help-local",
       topic: "payments",
@@ -72,25 +75,21 @@ export function answerSiteHelp(question: string): SiteHelpResponse {
     };
   }
 
-  if (/(consulta|agendamento|horario|marcar|psicolog|sessao|atendimento)/.test(normalized)) {
+  // ATENÇÃO À ORDEM: daqui até o fim, os tópicos ESPECÍFICOS vêm antes do tópico
+  // genérico de agenda, que casa com "consulta|psicolog|sessao" e engolia todos eles
+  // (era por isso que "onde fica minha psicóloga?" e "como entro na consulta?"
+  // respondiam sobre horários).
+
+  if (/(minha psicolog|meu psicolog|minha terapeuta|meu terapeuta|perfil (?:da|do) (?:psicolog|terapeuta)|quem (?:e|é) (?:a |o )?(?:minha |meu )?(?:psicolog|terapeuta)|sobre (?:a|o) (?:minha |meu )?(?:psicolog|terapeuta)|contato (?:da|do) (?:psicolog|terapeuta)|\bcrp\b)/.test(normalized)) {
     return {
       model: "site-help-local",
-      topic: "appointments",
+      topic: "therapist",
       content:
-        "Para consultar ou acompanhar seus horários, abra “Minhas Consultas” no menu. Quando a psicóloga criar um agendamento, ele aparece nessa área.",
+        "Para ver quem é a sua psicóloga, o registro no CRP e os dados de contato, abra “Minha Psicóloga” no menu.",
     };
   }
 
-  if (/(cadastro|perfil|telefone|endereco|email|e-mail|senha|foto|meus dados)/.test(normalized)) {
-    return {
-      model: "site-help-local",
-      topic: "profile",
-      content:
-        "Para atualizar seus dados (nome, telefone, endereço) ou trocar o e-mail e a senha, abra “Configurações da conta” no menu — está tudo lá, na mesma tela. Altere o que precisar e salve ao finalizar.",
-    };
-  }
-
-  if (/(video|sala|chamada|entrar na consulta|camera|microfone|compartilhar)/.test(normalized)) {
+  if (/(video|sala|chamada|entr(?:ar|o|a)\s+na\s+(?:consulta|sala|sessao|chamada)|acessar a consulta|camera|microfone|compartilhar)/.test(normalized)) {
     return {
       model: "site-help-local",
       topic: "video",
@@ -117,12 +116,34 @@ export function answerSiteHelp(question: string): SiteHelpResponse {
     };
   }
 
-  if (/(privacidade|seguranca|dados|prontuario|registro|lgpd)/.test(normalized)) {
+  // Privacidade vem ANTES do cadastro: "meus dados estão seguros?" é pergunta de
+  // sigilo e respondia "altere seus dados e salve". Note que "dados" sozinho NÃO
+  // está aqui de propósito — é ambíguo, e "como mudo meus dados" tem que continuar
+  // caindo em cadastro; o que traz para cá é a moldura de sigilo/segurança.
+  if (/(privacidade|lgpd|sigilo|confidencial|segur(?:o|a|os|as|anca)|prontuario|quem (?:ve|pode ver|acessa)|compartilham|vendem)/.test(normalized)) {
     return {
       model: "site-help-local",
       topic: "privacy",
       content:
         "As áreas do sistema são protegidas pelo seu perfil. O modo de apoio ao site não acessa prontuários, sessões ou documentos clínicos. Veja a Política de Privacidade em “Privacidade”.",
+    };
+  }
+
+  if (/(cadastro|perfil|telefone|endereco|email|e-mail|senha|foto|meus dados)/.test(normalized)) {
+    return {
+      model: "site-help-local",
+      topic: "profile",
+      content:
+        "Para atualizar seus dados (nome, telefone, endereço) ou trocar a senha, abra “Configurações da conta” no menu: altere o que precisar e salve. A troca de e-mail tem um passo a mais, por segurança — enviamos um código de verificação para o seu e-mail, e a mudança só vale depois que você digitar esse código.",
+    };
+  }
+
+  if (/(consulta|agendamento|horario|marcar|psicolog|sessao|atendimento)/.test(normalized)) {
+    return {
+      model: "site-help-local",
+      topic: "appointments",
+      content:
+        "Para consultar ou acompanhar seus horários, abra “Minhas Consultas” no menu. Quando a psicóloga criar um agendamento, ele aparece nessa área.",
     };
   }
 

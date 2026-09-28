@@ -20,6 +20,45 @@ describe("separação de papéis da Luma", () => {
     expect(response.content).not.toMatch(/prontu[aá]rio|diagn[oó]stico/i);
   });
 
+  /**
+   * Regressão de ROTEAMENTO: o tópico de agenda casa com "consulta|psicolog|sessao"
+   * e estava ANTES dos específicos, então engolia vídeo e a página da psicóloga
+   * ("onde fica minha psicóloga?" respondia sobre horários, e a alternativa
+   * "entrar na consulta" do tópico de vídeo era código inalcançável). Pagamento
+   * também não pegava "pago"/"custa" ("pagar" não casa com "pago"). Aqui fixamos a
+   * tabela: específicos primeiro, genérico de agenda por último.
+   */
+  it.each([
+    ["quanto custa a consulta?", "payments"],
+    ["como pago a sessao?", "payments"],
+    ["onde fica minha psicologa?", "therapist"],
+    ["quem e a minha psicologa?", "therapist"],
+    ["qual o CRP dela?", "therapist"],
+    ["como entro na consulta?", "video"],
+    ["como entro na videochamada?", "video"],
+    ["meus dados estao seguros?", "privacy"],
+    // os que já funcionavam e não podem regredir com a reordenação
+    ["onde vejo minhas consultas?", "appointments"],
+    ["quero marcar uma consulta", "appointments"],
+    ["quero remarcar minha consulta", "reschedule"],
+    ["onde vejo minhas mensagens?", "mensagens"],
+    ["como mudo meus dados?", "profile"],
+    ["como troco minha senha?", "profile"],
+    ["quem ve meu prontuario?", "privacy"],
+    // "página" não pode virar "pagamento"
+    ["em qual pagina eu vejo isso?", "general"],
+  ])("roteia %s para o tópico %s", (pergunta, topico) => {
+    expect(answerSiteHelp(pergunta).topic).toBe(topico);
+  });
+
+  // A troca de e-mail passou a exigir CÓDIGO de verificação; o texto do paciente
+  // dizia "altere e salve", contradizendo a tela e a página de Ajuda.
+  it("explica que a troca de e-mail exige código de verificação", () => {
+    const response = answerSiteHelp("como troco meu e-mail?");
+    expect(response.topic).toBe("profile");
+    expect(response.content).toMatch(/c[óo]digo de verifica/i);
+  });
+
   // A Luma do paciente (navegação, sem LLM) também precisa acolher crise: é ela
   // que o paciente tem à mão. Uma fala de risco não pode cair no menu de ajuda.
   it("intercepta crise no modo paciente com acolhimento e CVV/SAMU", () => {
