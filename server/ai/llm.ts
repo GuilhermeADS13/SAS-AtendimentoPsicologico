@@ -70,6 +70,15 @@ export function getLlmProviders(env: NodeJS.ProcessEnv = process.env): OpenSourc
     // descartado EM SILENCIO, sem erro nem log, dando a impressao de estar ligado.
     const apiKey = clean(env[`LLM_FALLBACK_${i}_API_KEY`]) || clean(env[`LLM_FALLBACK_${i}`]);
     const model = clean(env[`LLM_FALLBACK_${i}_MODEL`]);
+    // Avisa quando o trio veio pela metade. Antes o provedor era descartado em
+    // SILÊNCIO: a chave aparecia no painel, tudo parecia ligado, e ele simplesmente
+    // não existia na cadeia. Nunca imprime a chave — só quais peças faltaram.
+    const parcial = !(baseUrl && apiKey && model) && (baseUrl || apiKey || model);
+    if (parcial) {
+      const faltando = [!baseUrl && "BASE_URL", !apiKey && "API_KEY (ou o nome curto)", !model && "MODEL"]
+        .filter(Boolean).join(", ");
+      console.warn(`[luma] LLM_FALLBACK_${i} ignorado: falta ${faltando}`);
+    }
     if (baseUrl && apiKey && model) {
       providers.push({
         baseUrl,
@@ -102,6 +111,11 @@ export function createOpenSourceChatModel(config = getOpenSourceLlmConfig()) {
   // reasoning_effort (low|medium|high) para modelos de raciocínio como o gpt-oss,
   // opcional via LLM_REASONING_EFFORT. O raciocínio consome o orçamento de tokens,
   // então garantimos um teto mínimo para a resposta não sair vazia quando ligado.
+  //
+  // ⚠️ CUSTO: ligar esta variável SOBRESCREVE o LLM_MAX_TOKENS para 2048 — de 800,
+  // são 2,5× de saída em TODA resposta. No plano free da Groq (8000 tokens/min) isso
+  // derruba a capacidade por minuto. Hoje ela está VAZIA em produção (não aparece no
+  // render.yaml), e é assim que deve ficar enquanto o teto por minuto importar.
   const reasoningEffort = process.env.LLM_REASONING_EFFORT?.trim();
   const maxTokens = reasoningEffort && config.maxTokens < 2048 ? 2048 : config.maxTokens;
   return new ChatOpenAI({
