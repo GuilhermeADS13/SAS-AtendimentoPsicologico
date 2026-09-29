@@ -95,6 +95,10 @@ describe("pareceLeituraDeAgenda", () => {
     "quem está devendo?",
     "quanto eu tenho a receber?",
     "pagamentos pendentes",
+    "quais prontuários estão incompletos?",
+    "tem prontuário incompleto?",
+    "o que falta preencher?",
+    "estou em dia com o CRP?",
   ])("reconhece gestão da prática: %s", (msg) => {
     expect(pareceLeituraDeAgenda(msg)).toBe(true);
   });

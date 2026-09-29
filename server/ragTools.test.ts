@@ -116,6 +116,50 @@ describe("RAG e ferramentas clínicas", () => {
  * anos), e ainda assim os 100 inteiros iam para o índice — sem cache de embedding,
  * cada um custa uma chamada ao provedor por pergunta.
  */
+/**
+ * Prontuário: o gargalo não é campo faltando (a Resolução CFP 001/2009 já está
+ * coberta pelo schema), é a fricção de digitar. A Luma ajuda a RASCUNHAR no formato
+ * da própria profissional — mas nunca salva, e nunca completa o que ela não disse.
+ */
+describe("apoio ao prontuário (rascunho e encerramento)", () => {
+  const prompt = (role: "therapist" | "patient") =>
+    clinicalSystemPrompt(
+      role === "therapist"
+        ? therapistContext
+        : { userId: 20, role: "patient" as const, patientId: 3 },
+      role === "therapist" ? undefined : 3,
+      true,
+    );
+
+  it("orienta a devolver rascunho no formato DA PROFISSIONAL, com SOAP só de reserva", () => {
+    const p = prompt("therapist");
+    expect(p).toContain("RASCUNHO DE PRONTUÁRIO");
+    expect(p).toContain("formato DELA");
+    expect(p).toMatch(/só use SOAP/i);
+  });
+
+  it("proíbe a Luma de completar o que a profissional não disse e de salvar sozinha", () => {
+    const p = prompt("therapist");
+    expect(p).toMatch(/não complete, não interprete/i);
+    expect(p).toContain("você NÃO salva prontuário");
+  });
+
+  it("oferece registrar o encerramento de quem sumiu (exigência do CFP)", () => {
+    const p = prompt("therapist");
+    expect(p).toContain("ENCERRAMENTO:");
+    expect(p).toContain("encerramentoRegistrado");
+    expect(p).toMatch(/quem salva é ela/i);
+  });
+
+  // O paciente não tem prontuário para rascunhar nem pacientes para encerrar: essas
+  // regras são só ruído (e confusão de papel) no modo dele.
+  it("não vaza as regras de prontuário para o modo paciente", () => {
+    const p = prompt("patient");
+    expect(p).not.toContain("RASCUNHO DE PRONTUÁRIO");
+    expect(p).not.toContain("ENCERRAMENTO:");
+  });
+});
+
 describe("escolha de candidatos para o índice (alcance x custo)", () => {
   // 300 sessões, da mais nova para a mais antiga, como vem do banco.
   const sessoes = Array.from({ length: 300 }, (_, i) => ({

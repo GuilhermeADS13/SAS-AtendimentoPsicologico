@@ -260,6 +260,8 @@ export async function readPacientesSemRetorno(ctx: AiAccessContext, diasSemConta
     id: patients.id,
     firstName: patients.firstName,
     lastName: patients.lastName,
+    dischargeSummary: patients.dischargeSummary,
+    dischargedAt: patients.dischargedAt,
   }).from(patients).where(and(eq(patients.therapistId, ctx.therapistId), eq(patients.status, "active")));
   if (!ativos.length) return { diasSemContato, pacientes: [], total: 0 };
 
@@ -288,6 +290,10 @@ export async function readPacientesSemRetorno(ctx: AiAccessContext, diasSemConta
       patientId: paciente.id,
       ultimaConsulta: ultima?.scheduledAt.toISOString() ?? null,
       diasSemConsulta: ultima ? Math.floor((agora - ultima.scheduledAt.getTime()) / 86400000) : null,
+      // Paciente sumido e ainda ATIVO, sem encerramento registrado, e a lacuna que a
+      // Resolucao CFP 001/2009 cobra (registro de encaminhamento ou encerramento).
+      // A Luma usa isso para OFERECER o registro -- quem escreve e a profissional.
+      encerramentoRegistrado: Boolean(paciente.dischargedAt || paciente.dischargeSummary?.trim()),
     }];
   }).sort((a, b) => (b.diasSemConsulta ?? Infinity) - (a.diasSemConsulta ?? Infinity));
 
@@ -334,6 +340,111 @@ export async function readPendenciasFinanceiras(ctx: AiAccessContext, dbOverride
       paciente: `${firstName} ${lastName}`.trim(),
       valor: price != null ? formatarBRL(price) : "não definido",
     })),
+  };
+}
+
+/**
+ * Tudo que ajuda a PREPARAR o próximo atendimento de um paciente, numa leitura só:
+ * a demanda inicial, os objetivos terapêuticos e os "próximos passos" combinados nas
+ * últimas sessões. Hoje isso exige abrir o prontuário e rolar sessão por sessão.
+ *
+ * É LEITURA de registro já autorizado — passa pelo mesmo authorizedPatient das
+ * demais, então o escopo continua travado.
+ */
+export async function readPreparoDaSessao(ctx: AiAccessContext, requestedPatientId?: number, dbOverride?: Db) {
+  const db = dbOverride ?? await getDb();
+  if (!db) throw new Error("Database not available");
+  const patient = await authorizedPatient(db, ctx, requestedPatientId);
+
+  const ultimas = await db.select({
+    startedAt: sessions.startedAt,
+    nextSteps: sessions.nextSteps,
+    plan: sessions.plan,
+    mood: sessions.mood,
+  }).from(sessions)
+    .where(and(eq(sessions.patientId, patient.id), eq(sessions.therapistId, patient.therapistId)))
+    .orderBy(desc(sessions.startedAt)).limit(3);
+
+  const proxima = await db.select({
+    id: appointments.id,
+    scheduledAt: appointments.scheduledAt,
+    duration: appointments.duration,
+  }).from(appointments)
+    .where(and(
+      eq(appointments.patientId, patient.id),
+      eq(appointments.therapistId, patient.therapistId),
+      eq(appointments.status, "scheduled"),
+      gte(appointments.scheduledAt, new Date()),
+    ))
+    .orderBy(appointments.scheduledAt).limit(1);
+
+  return {
+    paciente: `${patient.firstName} ${patient.lastName}`.trim(),
+    proximaConsulta: proxima[0] ?? null,
+    demandaInicial: patient.initialDemand ?? null,
+    objetivosTerapeuticos: patient.therapeuticGoals ?? null,
+    // Os "próximos passos" combinados são o fio da meada entre uma sessão e a
+    // seguinte — é o que costuma se perder entre um atendimento e outro.
+    ultimasSessoes: ultimas.map(s => ({
+      data: s.startedAt.toISOString(),
+      humor: s.mood ?? null,
+      proximosPassosCombinados: s.nextSteps ?? null,
+      plano: s.plan ?? null,
+    })),
+  };
+}
+
+/**
+ * Pacientes ATIVOS com prontuário incompleto frente à Resolução CFP nº 001/2009,
+ * que exige: identificação, avaliação da demanda, objetivos do trabalho, registro da
+ * evolução e registro de encaminhamento/encerramento.
+ *
+ * Aqui olhamos os dois que costumam ficar em branco na correria e são exatamente o
+ * que uma fiscalização do CRP aponta: demanda inicial e objetivos terapêuticos.
+ * TCLE e anamnese entram como aviso porque sustentam o consentimento.
+ *
+ * Só diz O QUE falta — nunca o conteúdo clínico de ninguém.
+ */
+export async function readProntuariosIncompletos(ctx: AiAccessContext, dbOverride?: Db) {
+  if (ctx.role !== "therapist" || ctx.therapistId == null) {
+    throw new Error("Disponível apenas para terapeuta autenticado");
+  }
+  const db = dbOverride ?? await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const rows = await db.select({
+    id: patients.id,
+    firstName: patients.firstName,
+    lastName: patients.lastName,
+    initialDemand: patients.initialDemand,
+    therapeuticGoals: patients.therapeuticGoals,
+    tcleSignedAt: patients.tcleSignedAt,
+    anamnesis: patients.anamnesis,
+    createdAt: patients.createdAt,
+  }).from(patients)
+    .where(and(eq(patients.therapistId, ctx.therapistId), eq(patients.status, "active")));
+
+  const vazio = (texto: string | null) => !texto || !texto.trim();
+  const incompletos = rows.flatMap(p => {
+    const faltando: string[] = [];
+    if (vazio(p.initialDemand)) faltando.push("avaliação da demanda inicial");
+    if (vazio(p.therapeuticGoals)) faltando.push("objetivos terapêuticos");
+    if (!p.tcleSignedAt) faltando.push("TCLE assinado");
+    if (!p.anamnesis) faltando.push("ficha de anamnese");
+    if (!faltando.length) return [];
+    return [{
+      patientId: p.id,
+      paciente: `${p.firstName} ${p.lastName}`.trim(),
+      cadastradoEm: p.createdAt.toISOString(),
+      faltando,
+    }];
+  }).sort((a, b) => b.faltando.length - a.faltando.length);
+
+  return {
+    total: incompletos.length,
+    totalAtivos: rows.length,
+    exigencia: "Resolução CFP nº 001/2009",
+    pacientes: incompletos,
   };
 }
 
@@ -753,6 +864,11 @@ export function createClinicalTools(
           .describe("Quantos dias sem consulta para considerar sumido (padrão 30)"),
       }),
     }),
+    tool(async () => JSON.stringify(await readProntuariosIncompletos(ctx, db)), {
+      name: "get_prontuarios_incompletos",
+      description: "Consulta somente leitura os pacientes ATIVOS cujo prontuario esta incompleto frente a Resolucao CFP 001/2009 (sem avaliacao da demanda inicial, sem objetivos terapeuticos, sem TCLE assinado ou sem ficha de anamnese). Use para 'quais prontuarios estao incompletos', 'o que falta preencher', 'estou em dia com o CRP'. NAO exige paciente selecionado. Diz apenas O QUE falta em cada um -- nunca conteudo clinico.",
+      schema: z.object({}),
+    }),
     tool(async () => JSON.stringify(await readPendenciasFinanceiras(ctx, db)), {
       name: "get_pendencias_financeiras",
       description: "Consulta somente leitura as consultas JÁ REALIZADAS e ainda não pagas — o 'quem está devendo'. Use para 'quem está devendo', 'o que tenho a receber', 'pagamentos pendentes'. NÃO exige paciente selecionado. Retorna o total a receber, quantas estão sem valor definido e a lista com nome do paciente, data e valor.",
@@ -765,6 +881,11 @@ export function createClinicalTools(
     tool(async ({ patientId }) => JSON.stringify(await readPatientAppointments(ctx, patientId, db)), {
       name: ctx.role === "therapist" ? "get_patient_appointments" : "get_my_appointments",
       description: "Consulta somente leitura os agendamentos autorizados. Retorna 'psicologoResponsavel' (nome do profissional vinculado ao paciente) e 'consultas' — cada uma com 'valor' (em reais quando definido, ou a orientação de confirmar com o responsável, já nomeado, quando não houver) e 'pago'. É a ÚNICA fonte para preço/pagamento — nunca estime um valor. Para terapeuta, informe patientId.",
+      schema: patientIdSchema,
+    }),
+    tool(async ({ patientId }) => JSON.stringify(await readPreparoDaSessao(ctx, patientId, db)), {
+      name: ctx.role === "therapist" ? "get_preparo_da_sessao" : "get_meu_preparo",
+      description: "Consulta somente leitura o que ajuda a PREPARAR o proximo atendimento deste paciente, tudo de uma vez: demanda inicial, objetivos terapeuticos, os proximos passos combinados nas ultimas 3 sessoes e a proxima consulta marcada. Use para 'me prepara para a proxima sessao', 'o que combinamos da ultima vez', 'onde paramos'. Para terapeuta, informe patientId.",
       schema: patientIdSchema,
     }),
     tool(async ({ patientId }) => JSON.stringify(await readPatientSessions(ctx, patientId, db)), {
