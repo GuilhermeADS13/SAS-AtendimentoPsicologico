@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { clinicalSystemPrompt } from "./ai/llm";
 import { escolherCandidatos, formatRagContext, type RagSource } from "./ai/rag";
+import { avaliarSumico } from "./ai/clinical-tools";
 
 const therapistContext = {
   userId: 10,
@@ -128,6 +129,52 @@ describe("RAG e ferramentas clínicas", () => {
  * do menu com passo a passo, protocolo de escrita na agenda, regra de encerramento)
  * agora so entram quando a pergunta e daquele tipo.
  */
+/**
+ * "Quem sumiu" tem peso clinico: abandono de tratamento passa despercebido quando a
+ * agenda esta cheia. Mas alarme falso desgasta a confianca na ferramenta -- por isso
+ * o caso do paciente recem-cadastrado importa tanto quanto o do que sumiu de vdd.
+ */
+describe("avaliarSumico", () => {
+  const DIA = 86400000;
+  const agora = Date.parse("2026-09-29T12:00:00Z");
+  const corte = agora - 30 * DIA; // 30 dias sem consulta
+  const dias = (n: number) => new Date(agora - n * DIA);
+
+  it("sumiu: ultima consulta muito antiga e nada marcado", () => {
+    const r = avaliarSumico([{ scheduledAt: dias(90), status: "completed" }], dias(200), agora, corte);
+    expect(r.sumiu).toBe(true);
+    expect(r.nuncaTeveConsulta).toBe(false);
+  });
+
+  it("NAO sumiu: tem consulta futura marcada (o vinculo está ativo)", () => {
+    const r = avaliarSumico(
+      [{ scheduledAt: dias(90), status: "completed" }, { scheduledAt: dias(-3), status: "scheduled" }],
+      dias(200), agora, corte,
+    );
+    expect(r.sumiu).toBe(false);
+  });
+
+  it("NAO sumiu: veio faz pouco tempo", () => {
+    expect(avaliarSumico([{ scheduledAt: dias(5), status: "completed" }], dias(200), agora, corte).sumiu).toBe(false);
+  });
+
+  /**
+   * O falso positivo que a validacao em producao revelou: sem nenhuma consulta, a
+   * regra caia direto no "sumiu" e marcava quem tinha acabado de ser cadastrado.
+   */
+  it("NAO sumiu: cadastrado agora e ainda sem a primeira consulta marcada", () => {
+    const r = avaliarSumico([], dias(1), agora, corte);
+    expect(r.sumiu).toBe(false);
+    expect(r.nuncaTeveConsulta).toBe(true);
+  });
+
+  it("sumiu: cadastrado ha muito tempo e NUNCA marcou a primeira consulta", () => {
+    const r = avaliarSumico([], dias(120), agora, corte);
+    expect(r.sumiu).toBe(true);
+    expect(r.nuncaTeveConsulta).toBe(true);
+  });
+});
+
 describe("foco do prompt (custo por pergunta)", () => {
   const prompt = (foco?: Parameters<typeof clinicalSystemPrompt>[4]) =>
     clinicalSystemPrompt(therapistContext, 5, true, "Fulana", foco);

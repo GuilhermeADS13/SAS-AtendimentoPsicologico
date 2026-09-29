@@ -249,6 +249,33 @@ export async function readTherapistAgenda(ctx: AiAccessContext, dbOverride?: Db)
  * Só nomes e datas; nenhum conteúdo clínico. Escopo travado no therapistId de quem
  * pergunta.
  */
+/**
+ * Decide se um paciente ATIVO "sumiu". Pura de proposito: e a regra que erra facil e
+ * precisa de teste, e testa-la pelo banco exigiria producao.
+ *
+ * Tres casos, nesta ordem:
+ *  - tem consulta FUTURA marcada -> o vinculo esta ativo, nao sumiu;
+ *  - teve consulta e ela e recente (dentro do corte) -> nao sumiu;
+ *  - NUNCA teve consulta -> a referencia vira a data de CADASTRO. Sem isso, quem
+ *    acabou de ser cadastrado e ainda nao marcou a primeira sessao aparecia como
+ *    sumido: alarme falso bem no comeco do vinculo.
+ */
+export function avaliarSumico(
+  consultasDoPaciente: Array<{ scheduledAt: Date; status: string }>,
+  cadastradoEm: Date,
+  agora: number,
+  corte: number,
+): { sumiu: boolean; ultima?: { scheduledAt: Date }; nuncaTeveConsulta: boolean } {
+  const temFutura = consultasDoPaciente.some(c => c.status === "scheduled" && c.scheduledAt.getTime() >= agora);
+  const ultima = consultasDoPaciente
+    .filter(c => c.scheduledAt.getTime() < agora)
+    .sort((a, b) => b.scheduledAt.getTime() - a.scheduledAt.getTime())[0];
+  const nuncaTeveConsulta = !ultima;
+  if (temFutura) return { sumiu: false, ultima, nuncaTeveConsulta };
+  if (ultima) return { sumiu: ultima.scheduledAt.getTime() < corte, ultima, nuncaTeveConsulta };
+  return { sumiu: cadastradoEm.getTime() < corte, nuncaTeveConsulta };
+}
+
 export async function readPacientesSemRetorno(ctx: AiAccessContext, diasSemContato = 30, dbOverride?: Db) {
   if (ctx.role !== "therapist" || ctx.therapistId == null) {
     throw new Error("Disponível apenas para terapeuta autenticado");
@@ -262,6 +289,7 @@ export async function readPacientesSemRetorno(ctx: AiAccessContext, diasSemConta
     lastName: patients.lastName,
     dischargeSummary: patients.dischargeSummary,
     dischargedAt: patients.dischargedAt,
+    createdAt: patients.createdAt,
   }).from(patients).where(and(eq(patients.therapistId, ctx.therapistId), eq(patients.status, "active")));
   if (!ativos.length) return { diasSemContato, pacientes: [], total: 0 };
 
@@ -277,19 +305,22 @@ export async function readPacientesSemRetorno(ctx: AiAccessContext, diasSemConta
   const agora = Date.now();
   const corte = agora - diasSemContato * 24 * 60 * 60 * 1000;
   const semRetorno = ativos.flatMap(paciente => {
-    const doPaciente = consultas.filter(c => c.patientId === paciente.id);
-    // Uma consulta marcada no futuro significa que o vínculo está ativo — não é "sumiço".
-    const temFutura = doPaciente.some(c => c.status === "scheduled" && c.scheduledAt.getTime() >= agora);
-    if (temFutura) return [];
-    const ultima = doPaciente
-      .filter(c => c.scheduledAt.getTime() < agora)
-      .sort((a, b) => b.scheduledAt.getTime() - a.scheduledAt.getTime())[0];
-    if (ultima && ultima.scheduledAt.getTime() >= corte) return [];
+    const avaliacao = avaliarSumico(
+      consultas.filter(c => c.patientId === paciente.id),
+      paciente.createdAt,
+      agora,
+      corte,
+    );
+    if (!avaliacao.sumiu) return [];
+    const ultima = avaliacao.ultima;
     return [{
       paciente: `${paciente.firstName} ${paciente.lastName}`.trim(),
       patientId: paciente.id,
       ultimaConsulta: ultima?.scheduledAt.toISOString() ?? null,
       diasSemConsulta: ultima ? Math.floor((agora - ultima.scheduledAt.getTime()) / 86400000) : null,
+      // Distingue "parou de vir" de "nunca chegou a marcar a primeira": a conversa
+      // com o paciente e outra, e a Luma precisa saber a diferenca.
+      nuncaTeveConsulta: avaliacao.nuncaTeveConsulta,
       // Paciente sumido e ainda ATIVO, sem encerramento registrado, e a lacuna que a
       // Resolucao CFP 001/2009 cobra (registro de encaminhamento ou encerramento).
       // A Luma usa isso para OFERECER o registro -- quem escreve e a profissional.
