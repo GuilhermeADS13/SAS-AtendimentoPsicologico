@@ -156,7 +156,15 @@ export function prepareMessagesForAgent(
 ): OpenSourceChatMessage[] {
   const maxMessages = Math.max(2, Number(env.AI_AGENT_MAX_HISTORY_MESSAGES ?? 8));
   const maxMessageChars = Math.max(500, Number(env.AI_AGENT_MAX_MESSAGE_CHARS ?? 4_000));
-  const maxContextChars = Math.max(2_000, Number(env.AI_AGENT_MAX_CONTEXT_CHARS ?? 12_000));
+  const maxContextChars = Math.max(2_000, Number(env.AI_AGENT_MAX_CONTEXT_CHARS ?? 6_000));
+  /**
+   * Quantas mensagens do fim vão INTEIRAS. É o que sustenta o fluxo de confirmação:
+   * depois de "cancele a consulta de sexta" ela responde só "sim", e a proposta
+   * precisa estar legível no histórico. As anteriores viram um trecho curto.
+   */
+  const janelaInteira = Math.max(2, Number(env.AI_AGENT_FULL_RECENT_MESSAGES ?? 4));
+  /** Teto das mensagens ANTIGAS. Elas servem de contexto, não de transcrição. */
+  const maxAntigasChars = Math.max(80, Number(env.AI_AGENT_OLDER_MESSAGE_CHARS ?? 220));
   const normalized = messages
     .filter(message => message.role === "user" || message.role === "assistant")
     .map(message => ({ ...message, content: message.content.trim().slice(0, maxMessageChars) }))
@@ -164,9 +172,17 @@ export function prepareMessagesForAgent(
   const firstUser = normalized.find(message => message.role === "user");
   const recent = normalized.slice(-maxMessages);
   const selected = firstUser && !recent.includes(firstUser) ? [firstUser, ...recent] : recent;
+  // Compacta as ANTIGAS. Feito sem LLM de propósito: mandar o histórico para um
+  // modelo resumir custaria outra requisição e anularia a economia que é o objetivo.
+  const inicioDaJanela = Math.max(0, selected.length - janelaInteira);
+  const compactadas = selected.map((message, index) =>
+    index >= inicioDaJanela || message.content.length <= maxAntigasChars
+      ? message
+      : { ...message, content: `${message.content.slice(0, maxAntigasChars).trimEnd()}…` },
+  );
   const result: OpenSourceChatMessage[] = [];
   let totalChars = 0;
-  for (const message of selected.reverse()) {
+  for (const message of compactadas.reverse()) {
     if (totalChars + message.content.length > maxContextChars && result.length > 0) continue;
     result.unshift(message);
     totalChars += message.content.length;
