@@ -309,6 +309,20 @@ export function pareceGestaoDaPratica(mensagem: string): boolean {
   );
 }
 
+/**
+ * A mensagem PEDE UM RASCUNHO a partir de anotacoes que a propria profissional esta
+ * entregando? Entao nao depende de registro nenhum -- o conteudo vem na mensagem.
+ *
+ * Sem isto, o pedido caia no atalho de "nao encontrei registros clinicos" quando o
+ * paciente ainda nao tinha sessao lancada. E o pior caso possivel: e exatamente na
+ * PRIMEIRA sessao, quando nao ha registro algum, que ela precisa escrever o primeiro.
+ */
+export function pareceRascunhoDeProntuario(mensagem: string): boolean {
+  return /\brascunho\b|(?:minhas?|est[ae]s?|essas?)\s+(?:anota[çc][õo]es|notas)\b|anota[çc][õo]es\s+d[ao]\s+(?:sess[ãa]o|atendimento)|(?:organiz|estrutur|formata|transform)\w*\s+[^?]{0,40}(?:anota[çc][õo]es|notas|em soap)|(?:escrever|redigir|montar|preencher)\s+[^?]{0,20}(?:a\s+)?(?:evolu[çc][ãa]o|prontu[áa]rio|registro d[ao] sess[ãa]o)/i.test(
+    mensagem,
+  );
+}
+
 export function buildNoClinicalDataResponse(userMessage: string): string {
   const asksForActivities = /atividad|evoluç|próxim|acompanh/i.test(userMessage);
   if (asksForActivities) {
@@ -438,6 +452,7 @@ export async function runOpenSourceAgent(
     !pareceAcaoDeAgenda(latestUserMessage?.content ?? "") &&
     !pareceNavegacao(latestUserMessage?.content ?? "") &&
     !pareceLeituraDeAgenda(latestUserMessage?.content ?? "") &&
+    !pareceRascunhoDeProntuario(latestUserMessage?.content ?? "") &&
     !(await hasAuthorizedClinicalData(ctx, scopedPatientId, db))
   ) {
     recordAgentRequest(Date.now() - startedAt, "success");

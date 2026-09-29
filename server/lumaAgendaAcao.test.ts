@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { forcarPropostaDeAgenda, pareceAcaoDeAgenda, pareceLeituraDeAgenda, pareceNavegacao, type LumaPendingAction } from "./ai/llm";
+import { readFileSync } from "node:fs";
+import { forcarPropostaDeAgenda, pareceAcaoDeAgenda, pareceLeituraDeAgenda, pareceNavegacao, pareceRascunhoDeProntuario, type LumaPendingAction } from "./ai/llm";
 
 /**
  * Regressão: a Luma clínica curto-circuitava com "Não encontrei registros" quando
@@ -114,6 +115,49 @@ describe("pareceLeituraDeAgenda", () => {
     "agende uma consulta para amanhã",
   ])("NÃO confunde leitura clínica/navegação/ação/fora de escopo: %s", (msg) => {
     expect(pareceLeituraDeAgenda(msg)).toBe(false);
+  });
+});
+
+/**
+ * Regressao: pedir "organize estas anotacoes em rascunho" caia no atalho de "nao
+ * encontrei registros clinicos". Mas o rascunho NAO depende de registro -- o texto
+ * vem na propria mensagem. E o pior caso possivel: quebrava justamente na PRIMEIRA
+ * sessao, quando nao ha registro algum e ela precisa escrever o primeiro.
+ */
+describe("pareceRascunhoDeProntuario", () => {
+  it.each([
+    "organize estas minhas anotações da sessão em rascunho: paciente chegou atrasada",
+    "faz um rascunho pra mim",
+    "me ajuda a montar o prontuário dessa sessão",
+    "transforma minhas notas em SOAP",
+    "pode estruturar essas anotações?",
+    "preciso escrever a evolução da sessão de hoje",
+  ])("reconhece pedido de rascunho: %s", (msg) => {
+    expect(pareceRascunhoDeProntuario(msg)).toBe(true);
+  });
+
+  it.each([
+    "resumir os últimos registros autorizados",
+    "como está a evolução do paciente?",
+    "me dê o resumo da última sessão",
+    "quanto é 1 + 1",
+    "agende uma consulta para amanhã",
+  ])("NÃO confunde leitura clínica/ação/fora de escopo: %s", (msg) => {
+    expect(pareceRascunhoDeProntuario(msg)).toBe(false);
+  });
+
+  /**
+   * Trava contra um erro que ja aconteceu: ao editar por script, um `` virou o
+   * caractere BACKSPACE (codepoint 8) dentro da regex. Compilou, passou no
+   * typecheck e simplesmente nunca casava -- e o caractere e INVISIVEL no editor.
+   */
+  it("o fonte não contém caracteres de controle invisíveis", () => {
+    const fonte = readFileSync(new URL("./ai/llm.ts", import.meta.url), "utf8");
+    const controle = [...fonte].filter((c) => {
+      const cp = c.charCodeAt(0);
+      return cp < 32 && cp !== 9 && cp !== 10 && cp !== 13;
+    });
+    expect(controle).toHaveLength(0);
   });
 });
 
