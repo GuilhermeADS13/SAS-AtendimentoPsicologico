@@ -723,6 +723,18 @@ export function createClinicalTools(
   turnKey = "",
   /** Entrega a ação pendente à interface, que renderiza o botão de confirmação. */
   onPendingAction?: (pending: { code: string; toolName: string; resumo: string }) => void,
+  /**
+   * A mensagem pede uma ACAO na agenda? As 4 ferramentas de ESCRITA tem os maiores
+   * schemas do conjunto (varios parametros cada) e vao em TODA requisicao junto do
+   * prompt -- num plano com teto de tokens por minuto, isso pesa. Quando a pergunta
+   * nao e de escrita, elas ficam de fora.
+   *
+   * Usa o MESMO sinal (pareceAcaoDeAgenda) de que o forcarPropostaDeAgenda ja
+   * depende: se o detector errar, a escrita ja degradava antes desta mudanca, entao
+   * nao estamos criando um ponto de falha novo. O padrao  mantem o
+   * comportamento antigo para quem chamar sem informar.
+   */
+  incluirEscrita = true,
 ) {
   const patientIdSchema = z.object({ patientId: z.number().int().positive().optional() });
 
@@ -759,7 +771,7 @@ export function createClinicalTools(
   // propõem, esperam a confirmação e só então chamam executarAcaoAgenda — o
   // único ponto do módulo que escreve na agenda. Nenhuma toca em prontuário,
   // sessão ou documento (esses seguem somente leitura).
-  const schedulingTools = ctx.role === "therapist" ? [
+  const schedulingTools = ctx.role === "therapist" && incluirEscrita ? [
     // AGENDAR (com recorrência semanal opcional)
     tool(async ({ patientId, scheduledAt, durationMinutes, notes, repetirSemanas, codigoConfirmacao }) => {
       const patient = await authorizedPatient(db, ctx, patientId);
@@ -884,12 +896,12 @@ export function createClinicalTools(
   const agendaDoProfissional = ctx.role === "therapist" ? [
     tool(async () => JSON.stringify(await readTherapistAgenda(ctx, db)), {
       name: "get_minha_agenda",
-      description: "Consulta somente leitura a agenda do PRÓPRIO profissional, atravessando todos os pacientes dele. Use para 'qual é o meu próximo paciente/atendimento', 'o que tenho hoje/amanhã', 'como está minha semana', 'quem ainda não confirmou'. NÃO exige patientId e NÃO precisa de paciente selecionado. Retorna 'proximaConsulta', 'naoConfirmadas' (quantas sem confirmação de presença) e 'consultas' (próximas, em ordem), cada uma com nome do paciente, horário, duração, valor, se está paga e 'confirmadaPeloPaciente'.",
+      description: "Agenda do PRÓPRIO profissional, todos os pacientes. Para 'meu próximo paciente', 'o que tenho hoje/amanhã/na semana', 'quem não confirmou'. Sem patientId. Retorna proximaConsulta, naoConfirmadas e as próximas consultas (paciente, horário, duração, valor, pago, confirmadaPeloPaciente).",
       schema: z.object({}),
     }),
     tool(async ({ diasSemContato }) => JSON.stringify(await readPacientesSemRetorno(ctx, diasSemContato ?? 30, db)), {
       name: "get_pacientes_sem_retorno",
-      description: "Consulta somente leitura os pacientes ATIVOS que estão há um tempo sem consulta e sem nenhuma agendada — o 'quem sumiu'. Use para 'quem está sumido', 'quem não vem há tempo', 'quem parou de vir'. NÃO exige paciente selecionado. Retorna nome, data da última consulta e há quantos dias. Não traz nenhum conteúdo clínico.",
+      description: "Pacientes ATIVOS sem consulta há N dias (padrão 30) e sem nenhuma marcada — o 'quem sumiu'. Sem patientId. Retorna nome, última consulta, dias sem consulta, nuncaTeveConsulta e encerramentoRegistrado. Sem conteúdo clínico.",
       schema: z.object({
         diasSemContato: z.number().int().positive().max(365).optional()
           .describe("Quantos dias sem consulta para considerar sumido (padrão 30)"),
@@ -897,12 +909,12 @@ export function createClinicalTools(
     }),
     tool(async () => JSON.stringify(await readProntuariosIncompletos(ctx, db)), {
       name: "get_prontuarios_incompletos",
-      description: "Consulta somente leitura os pacientes ATIVOS cujo prontuario esta incompleto frente a Resolucao CFP 001/2009 (sem avaliacao da demanda inicial, sem objetivos terapeuticos, sem TCLE assinado ou sem ficha de anamnese). Use para 'quais prontuarios estao incompletos', 'o que falta preencher', 'estou em dia com o CRP'. NAO exige paciente selecionado. Diz apenas O QUE falta em cada um -- nunca conteudo clinico.",
+      description: "Pacientes ATIVOS com prontuario incompleto pela Resolucao CFP 001/2009 (falta demanda inicial, objetivos, TCLE ou anamnese). Para 'o que falta preencher', 'estou em dia com o CRP'. Sem patientId. Diz so O QUE falta, nunca conteudo clinico.",
       schema: z.object({}),
     }),
     tool(async () => JSON.stringify(await readPendenciasFinanceiras(ctx, db)), {
       name: "get_pendencias_financeiras",
-      description: "Consulta somente leitura as consultas JÁ REALIZADAS e ainda não pagas — o 'quem está devendo'. Use para 'quem está devendo', 'o que tenho a receber', 'pagamentos pendentes'. NÃO exige paciente selecionado. Retorna o total a receber, quantas estão sem valor definido e a lista com nome do paciente, data e valor.",
+      description: "Consultas JÁ REALIZADAS e não pagas — 'quem está devendo', 'o que tenho a receber'. Sem patientId. Retorna totalAReceber, semValorDefinido e a lista (paciente, data, valor).",
       schema: z.object({}),
     }),
   ] : [];
@@ -916,7 +928,7 @@ export function createClinicalTools(
     }),
     tool(async ({ patientId }) => JSON.stringify(await readPreparoDaSessao(ctx, patientId, db)), {
       name: ctx.role === "therapist" ? "get_preparo_da_sessao" : "get_meu_preparo",
-      description: "Consulta somente leitura o que ajuda a PREPARAR o proximo atendimento deste paciente, tudo de uma vez: demanda inicial, objetivos terapeuticos, os proximos passos combinados nas ultimas 3 sessoes e a proxima consulta marcada. Use para 'me prepara para a proxima sessao', 'o que combinamos da ultima vez', 'onde paramos'. Para terapeuta, informe patientId.",
+      description: "Prepara o proximo atendimento deste paciente: demanda inicial, objetivos, os proximos passos das ultimas 3 sessoes e a proxima consulta. Para 'me prepara para a proxima', 'onde paramos'. Terapeuta: informe patientId.",
       schema: patientIdSchema,
     }),
     tool(async ({ patientId }) => JSON.stringify(await readPatientSessions(ctx, patientId, db)), {

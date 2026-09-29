@@ -496,12 +496,15 @@ export async function runOpenSourceAgent(
   // menu continua sempre presente, entao mesmo um detector que falhe nao deixa a
   // Luma sem saber nomear a tela.
   const mensagemAtual = latestUserMessage?.content ?? "";
+  // Olha as ULTIMAS mensagens: depois de "cancele a consulta" ela costuma responder
+  // so "sim", e as ferramentas de escrita ainda precisam estar disponiveis.
+  const querEscritaNaAgenda = preparedMessages.slice(-4).some(m => m.role === "user" && pareceAcaoDeAgenda(m.content));
   let systemPrompt = clinicalSystemPrompt(ctx, requestedPatientId, toolsEnabled, patientName, {
     navegacao: pareceNavegacao(mensagemAtual),
     // Olha as ULTIMAS mensagens, nao so a atual: depois de "cancele a consulta" ela
     // costuma responder so "sim", e ai o protocolo de confirmacao ainda precisa estar
     // no prompt -- senao a Luma nao sabe reusar o codigo e a acao trava.
-    acaoDeAgenda: preparedMessages.slice(-4).some(m => m.role === "user" && pareceAcaoDeAgenda(m.content)),
+    acaoDeAgenda: querEscritaNaAgenda,
     gestao: pareceLeituraDeAgenda(mensagemAtual),
   });
   // Memória: dá continuidade usando conversas anteriores da terapeuta com a Luma
@@ -537,7 +540,9 @@ export async function runOpenSourceAgent(
     const chatModel = createOpenSourceChatModel(prov);
     try {
       if (toolsEnabled) {
-        const clinicalTools = createClinicalTools(ctx, db, collectSources, turnKey, pending => { pendingAction = pending; });
+        // As ferramentas de ESCRITA so entram quando a mensagem pede acao na agenda:
+        // sao as de maior schema e iam em toda pergunta, inclusive nas de leitura.
+        const clinicalTools = createClinicalTools(ctx, db, collectSources, turnKey, pending => { pendingAction = pending; }, querEscritaNaAgenda);
         const agent = createAgent({
           model: chatModel,
           tools: clinicalTools,

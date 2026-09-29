@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { clinicalSystemPrompt } from "./ai/llm";
 import { escolherCandidatos, formatRagContext, type RagSource } from "./ai/rag";
-import { avaliarSumico } from "./ai/clinical-tools";
+import { avaliarSumico, createClinicalTools } from "./ai/clinical-tools";
 
 const therapistContext = {
   userId: 10,
@@ -288,5 +288,51 @@ describe("escolha de candidatos para o índice (alcance x custo)", () => {
   it("sem palavra útil na pergunta, cai só nos recentes (não devolve histórico inteiro)", () => {
     const escolhidos = escolherCandidatos(sessoes, textoDe, "e?", limites);
     expect(escolhidos).toHaveLength(limites.recentes);
+  });
+});
+
+/**
+ * Custo das FERRAMENTAS. Com function calling, o schema de todas elas vai junto em
+ * TODA requisicao, somado ao prompt. As 4 de escrita tem os maiores schemas do
+ * conjunto (e repetem o texto do codigoConfirmacao em cada uma): medindo, custavam
+ * mais que as 9 de leitura juntas. Numa pergunta de leitura elas nao servem para
+ * nada, e no plano free da Groq (8000 tokens/min) isso e a diferenca entre caber
+ * uma ou duas perguntas por minuto.
+ */
+describe("ferramentas enviadas por pergunta", () => {
+  const ctx = { userId: 1, role: "therapist" as const, therapistId: 7 };
+  const db = {} as never;
+  const nomes = (incluirEscrita: boolean) =>
+    (createClinicalTools(ctx, db, undefined, "t", undefined, incluirEscrita) as Array<{ name: string }>)
+      .map((t) => t.name);
+
+  const ESCRITA = ["agendar_consulta", "remarcar_consulta", "cancelar_consulta", "registrar_pagamento"];
+
+  it("pergunta de LEITURA nao carrega as ferramentas de escrita", () => {
+    const enviadas = nomes(false);
+    for (const escrita of ESCRITA) expect(enviadas).not.toContain(escrita);
+  });
+
+  it("pedido de ACAO na agenda carrega as de escrita", () => {
+    const enviadas = nomes(true);
+    for (const escrita of ESCRITA) expect(enviadas).toContain(escrita);
+  });
+
+  /**
+   * O que NAO pode sumir junto: sem as leituras, a Luma nao responde nada util --
+   * seria trocar custo por uma assistente muda.
+   */
+  it("as leituras continuam em qualquer caso", () => {
+    for (const incluirEscrita of [true, false]) {
+      const enviadas = nomes(incluirEscrita);
+      expect(enviadas).toContain("get_minha_agenda");
+      expect(enviadas).toContain("get_patient_sessions");
+      expect(enviadas).toContain("search_patient_records");
+    }
+  });
+
+  it("por padrao (sem informar) manda tudo, como antes", () => {
+    const padrao = (createClinicalTools(ctx, db, undefined, "t") as Array<{ name: string }>).map((t) => t.name);
+    for (const escrita of ESCRITA) expect(padrao).toContain(escrita);
   });
 });
