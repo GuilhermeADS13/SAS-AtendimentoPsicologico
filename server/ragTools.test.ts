@@ -121,6 +121,54 @@ describe("RAG e ferramentas clínicas", () => {
  * coberta pelo schema), é a fricção de digitar. A Luma ajuda a RASCUNHAR no formato
  * da própria profissional — mas nunca salva, e nunca completa o que ela não disse.
  */
+/**
+ * Custo do prompt: cada pergunta reenvia o prompt INTEIRO, e o plano free da Groq da
+ * 8000 tokens/minuto. Com o prompt cheio (~2900 tokens) a segunda pergunta do minuto
+ * voltava 429 -- foi o que bloqueou a validacao em producao. Os blocos pesados (mapa
+ * do menu com passo a passo, protocolo de escrita na agenda, regra de encerramento)
+ * agora so entram quando a pergunta e daquele tipo.
+ */
+describe("foco do prompt (custo por pergunta)", () => {
+  const prompt = (foco?: Parameters<typeof clinicalSystemPrompt>[4]) =>
+    clinicalSystemPrompt(therapistContext, 5, true, "Fulana", foco);
+  const semNada = { navegacao: false, acaoDeAgenda: false, gestao: false };
+
+  it("sem foco declarado manda tudo (nenhum chamador antigo perde instrução)", () => {
+    const completo = prompt();
+    expect(completo).toContain("codigoConfirmacao");
+    expect(completo).toContain("ENCERRAMENTO:");
+  });
+
+  it("pergunta comum fica bem menor que o prompt completo", () => {
+    expect(prompt(semNada).length).toBeLessThan(prompt().length * 0.7);
+  });
+
+  it("só manda o passo a passo do menu em pergunta de navegação", () => {
+    expect(prompt(semNada)).not.toContain("Novo Paciente' > preencher");
+    expect(prompt({ navegacao: true })).toContain("Novo Paciente' > preencher");
+  });
+
+  it("só manda o protocolo de escrita quando há ação de agenda", () => {
+    expect(prompt(semNada)).not.toContain("codigoConfirmacao");
+    expect(prompt({ acaoDeAgenda: true })).toContain("codigoConfirmacao");
+  });
+
+  /**
+   * A parte que NAO pode encolher. O mapa curto fica sempre porque o detector de
+   * navegacao ja nos escapou duas vezes ("como coloco meu prontuario", "quais
+   * prontuarios estao incompletos") -- se ele falhar, a Luma ainda sabe nomear a
+   * tela em vez de recusar ou dizer que nao encontrou registros.
+   */
+  it("nunca corta segurança, escopo nem o mapa curto do menu", () => {
+    const minimo = prompt(semNada);
+    expect(minimo).toContain("Menu da profissional:");
+    expect(minimo).toContain("navegação não depende do prontuário");
+    expect(minimo).toContain("CVV 188");
+    expect(minimo).toContain("ESCOPO TRANCADO");
+    expect(minimo).toContain("Não faça diagnóstico");
+  });
+});
+
 describe("apoio ao prontuário (rascunho e encerramento)", () => {
   const prompt = (role: "therapist" | "patient") =>
     clinicalSystemPrompt(
