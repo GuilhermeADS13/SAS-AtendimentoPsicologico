@@ -105,13 +105,14 @@ services:
         sync: false
       # TERCEIRA conta Groq. O provedor so entra na cadeia se as TRES variaveis
       # existirem (ver getLlmProviders): faltando qualquer uma ele e ignorado em
-      # silencio, sem erro nenhum. Por isso BASE_URL e MODEL ficam aqui, versionados
-      # — no painel basta a chave, com o nome EXATO LLM_FALLBACK_2_API_KEY.
+      # silencio, sem erro nenhum. Por isso BASE_URL e MODEL ficam aqui, versionados.
       - key: LLM_FALLBACK_2_BASE_URL
         value: https://api.groq.com/openai/v1
       - key: LLM_FALLBACK_2_MODEL
         value: openai/gpt-oss-120b
-      - key: LLM_FALLBACK_2_API_KEY # chave de uma TERCEIRA conta Groq — SEGREDO
+      # A chave usa o nome CURTO (sem _API_KEY), que e o que esta no painel. O codigo
+      # aceita os dois; se um dia padronizar, LLM_FALLBACK_2_API_KEY tem precedencia.
+      - key: LLM_FALLBACK_2 # chave de uma TERCEIRA conta Groq — SEGREDO
         sync: false
       - key: AI_AGENT_ENABLED # false = desliga a Luma na hora (kill switch)
         value: "true"

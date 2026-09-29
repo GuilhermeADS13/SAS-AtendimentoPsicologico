@@ -64,7 +64,11 @@ export function getLlmProviders(env: NodeJS.ProcessEnv = process.env): OpenSourc
   const providers = [getOpenSourceLlmConfig(env)];
   for (let i = 1; i <= 5; i++) {
     const baseUrl = clean(env[`LLM_FALLBACK_${i}_BASE_URL`]);
-    const apiKey = clean(env[`LLM_FALLBACK_${i}_API_KEY`]);
+    // Aceita os dois nomes para a chave: LLM_FALLBACK_2_API_KEY (padrao, igual aos
+    // outros trios) e LLM_FALLBACK_2 (curto). O curto existe porque e facil criar a
+    // variavel assim no painel sem perceber — e, faltando a chave, o provedor era
+    // descartado EM SILENCIO, sem erro nem log, dando a impressao de estar ligado.
+    const apiKey = clean(env[`LLM_FALLBACK_${i}_API_KEY`]) || clean(env[`LLM_FALLBACK_${i}`]);
     const model = clean(env[`LLM_FALLBACK_${i}_MODEL`]);
     if (baseUrl && apiKey && model) {
       providers.push({

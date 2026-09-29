@@ -7,6 +7,44 @@ import { getLlmProviders, deveTentarProximoProvedor } from "./ai/llm";
  * montada certo e que só falhas "de provedor" (rate limit, 5xx, conexão) acionam
  * o próximo — um 400/401 (problema da nossa requisição) não.
  */
+/**
+ * O provedor so entra na cadeia com BASE_URL + chave + MODEL. Faltando qualquer uma,
+ * ele e descartado EM SILENCIO — sem erro, sem log — e tudo parece configurado. Foi
+ * o que aconteceu em 2026-09-29: a chave existia no painel do Render com o nome
+ * curto (LLM_FALLBACK_2) e o failover simplesmente nao tinha aquele provedor.
+ */
+describe("nome da variavel da chave de fallback", () => {
+  const trio = {
+    LLM_FALLBACK_1_BASE_URL: "https://api.groq.com/openai/v1",
+    LLM_FALLBACK_1_MODEL: "openai/gpt-oss-120b",
+  };
+
+  it("aceita o nome padrao LLM_FALLBACK_1_API_KEY", () => {
+    const p = getLlmProviders({ ...trio, LLM_FALLBACK_1_API_KEY: "chave-padrao" } as NodeJS.ProcessEnv);
+    expect(p).toHaveLength(2);
+    expect(p[1].apiKey).toBe("chave-padrao");
+  });
+
+  it("aceita tambem o nome curto LLM_FALLBACK_1", () => {
+    const p = getLlmProviders({ ...trio, LLM_FALLBACK_1: "chave-curta" } as NodeJS.ProcessEnv);
+    expect(p).toHaveLength(2);
+    expect(p[1].apiKey).toBe("chave-curta");
+  });
+
+  it("o nome padrao vence quando os dois existem", () => {
+    const p = getLlmProviders({ ...trio, LLM_FALLBACK_1_API_KEY: "padrao", LLM_FALLBACK_1: "curta" } as NodeJS.ProcessEnv);
+    expect(p[1].apiKey).toBe("padrao");
+  });
+
+  it("sem BASE_URL ou sem MODEL o provedor NAO entra (mesmo com a chave)", () => {
+    expect(getLlmProviders({ LLM_FALLBACK_1: "so-a-chave" } as NodeJS.ProcessEnv)).toHaveLength(1);
+    expect(getLlmProviders({
+      LLM_FALLBACK_1_BASE_URL: trio.LLM_FALLBACK_1_BASE_URL,
+      LLM_FALLBACK_1: "sem-modelo",
+    } as NodeJS.ProcessEnv)).toHaveLength(1);
+  });
+});
+
 describe("getLlmProviders", () => {
   const principal = {
     LLM_BASE_URL: "https://api.groq.com/openai/v1",
