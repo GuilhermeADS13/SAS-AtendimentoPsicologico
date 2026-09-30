@@ -214,6 +214,8 @@ export default function WebRTCCall({
   const [selfViewHidden, setSelfViewHidden] = useState(() => readLS(LS.selfView) === "1");
   const [compartilhando, setCompartilhando] = useState(false);
   const [telaCheia, setTelaCheia] = useState(false);
+  /** Tela cheia simulada por CSS — o caminho do iPhone, que nao tem a API nativa. */
+  const [telaCheiaPorCss, setTelaCheiaPorCss] = useState(false);
   const [fundoAtual, setFundoAtual] = useState<string | null>(null);
   const [fundoCarregando, setFundoCarregando] = useState(false);
   const [canalPronto, setCanalPronto] = useState(false);
@@ -769,16 +771,82 @@ export default function WebRTCCall({
     }
   };
 
-  const alternarTelaCheia = () => {
-    if (document.fullscreenElement) void document.exitFullscreen();
-    else void containerRef.current?.requestFullscreen?.();
+  /**
+   * Tela cheia. O iPhone (Safari) NÃO implementa requestFullscreen em elemento que
+   * não seja <video> — e o `?.()` que estava aqui transformava isso num no-op
+   * SILENCIOSO: a pessoa tocava no botão e não acontecia nada, sem erro nenhum.
+   *
+   * Não dá para usar `video.webkitEnterFullscreen()` (o único caminho nativo no
+   * iPhone): ele abre o player NATIVO do iOS por cima, escondendo nossos controles.
+   * Numa consulta, ficar sem o botão de desligar o microfone ou encerrar a chamada é
+   * pior do que não ter tela cheia.
+   *
+   * Então: tenta a API real (com o prefixo webkit para navegadores mais antigos) e,
+   * quando ela não existe, cai para uma tela cheia por CSS — que funciona em
+   * qualquer navegador e preserva a barra de controles.
+   */
+  // Um estado so para a UI: o botao nao precisa saber QUAL mecanismo esta em uso.
+  const emTelaCheia = telaCheia || telaCheiaPorCss;
+
+  const alternarTelaCheia = async () => {
+    const elemento = containerRef.current;
+    if (!elemento) return;
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => Promise<void> | void;
+    };
+
+    if (document.fullscreenElement ?? doc.webkitFullscreenElement) {
+      await (document.exitFullscreen?.() ?? doc.webkitExitFullscreen?.());
+      return;
+    }
+    if (telaCheiaPorCss) {
+      setTelaCheiaPorCss(false);
+      return;
+    }
+
+    const pedirNativo =
+      elemento.requestFullscreen ??
+      (elemento as HTMLDivElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen;
+    if (pedirNativo) {
+      try {
+        await pedirNativo.call(elemento);
+        return;
+      } catch {
+        // Alguns navegadores expõem a função e mesmo assim recusam (permissão,
+        // iframe sem allow="fullscreen"). Cai para o CSS em vez de não fazer nada.
+      }
+    }
+    setTelaCheiaPorCss(true);
   };
 
   useEffect(() => {
-    const aoMudar = () => setTelaCheia(Boolean(document.fullscreenElement));
+    const doc = document as Document & { webkitFullscreenElement?: Element | null };
+    const aoMudar = () => setTelaCheia(Boolean(document.fullscreenElement ?? doc.webkitFullscreenElement));
     document.addEventListener("fullscreenchange", aoMudar);
-    return () => document.removeEventListener("fullscreenchange", aoMudar);
+    document.addEventListener("webkitfullscreenchange", aoMudar);
+    return () => {
+      document.removeEventListener("fullscreenchange", aoMudar);
+      document.removeEventListener("webkitfullscreenchange", aoMudar);
+    };
   }, []);
+
+  // Na tela cheia por CSS não existe o "sair" do navegador: travamos a rolagem do
+  // fundo (senão a página corre atrás do vídeo) e ouvimos o Esc, que a pessoa
+  // espera que funcione por ser o atalho da tela cheia de verdade.
+  useEffect(() => {
+    if (!telaCheiaPorCss) return;
+    const overflowAnterior = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const aoTeclar = (evento: KeyboardEvent) => {
+      if (evento.key === "Escape") setTelaCheiaPorCss(false);
+    };
+    document.addEventListener("keydown", aoTeclar);
+    return () => {
+      document.body.style.overflow = overflowAnterior;
+      document.removeEventListener("keydown", aoTeclar);
+    };
+  }, [telaCheiaPorCss]);
 
   // Detector de fala: mede o nível de áudio de cada lado e acende o brilho verde
   // de quem está falando. Só depois de conectar (aí a trilha remota existe).
@@ -832,7 +900,17 @@ export default function WebRTCCall({
   }, [connected]);
 
   return (
-    <div ref={containerRef} className="relative h-full w-full overflow-hidden rounded-lg bg-black">
+    <div
+      ref={containerRef}
+      className={cn(
+        "relative h-full w-full overflow-hidden rounded-lg bg-black",
+        // z-[60] fica acima dos painéis de chat (z-50): na tela cheia NATIVA eles
+        // ficariam de fora, então a versão por CSS cobre também, para o botão se
+        // comportar igual nos dois caminhos. 100dvh (e não 100vh) por causa da barra
+        // do navegador no celular, que no 100vh corta o rodapé com os controles.
+        telaCheiaPorCss && "fixed inset-0 z-[60] h-[100dvh] w-screen rounded-none",
+      )}
+    >
       {/* Vídeo do outro lado ocupa a tela toda. */}
       <video
         ref={remoteVideoRef}
@@ -1110,12 +1188,12 @@ export default function WebRTCCall({
         <Button
           variant="secondary"
           size="icon"
-          onClick={alternarTelaCheia}
+          onClick={() => void alternarTelaCheia()}
           className="rounded-full"
-          aria-label={telaCheia ? "Sair da tela cheia" : "Tela cheia"}
-          title={telaCheia ? "Sair da tela cheia" : "Tela cheia"}
+          aria-label={emTelaCheia ? "Sair da tela cheia" : "Tela cheia"}
+          title={emTelaCheia ? "Sair da tela cheia" : "Tela cheia"}
         >
-          {telaCheia ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+          {emTelaCheia ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
         </Button>
         {onEndCall && (
           <Button
