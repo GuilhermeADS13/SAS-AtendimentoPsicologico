@@ -244,6 +244,14 @@ export default function WebRTCCall({
     typeof navigator !== "undefined" &&
     typeof navigator.mediaDevices?.getDisplayMedia === "function";
 
+  // Trocar o ALTO-FALANTE depende de setSinkId, que o Safari não implementa (nem no
+  // Mac nem no iPhone) — são ~47% de suporte global. Sem esta checagem o seletor
+  // aparecia lá, a pessoa escolhia um dispositivo e nada acontecia, em silêncio: o
+  // código fazia `if (!el?.setSinkId) return;`. Mesmo problema do botão de tela
+  // cheia, e a mesma solução que já usamos no compartilhar tela.
+  const podeTrocarAltoFalante =
+    typeof HTMLMediaElement !== "undefined" && "setSinkId" in HTMLMediaElement.prototype;
+
   useEffect(() => {
     let disposed = false;
     const onErr = onError;
@@ -269,6 +277,20 @@ export default function WebRTCCall({
       // 1) Mídia local, com os dispositivos escolhidos no lobby (se houver).
       const micId = readLS(LS.mic);
       const camId = readLS(LS.cam);
+
+      // `navigator.mediaDevices` NÃO EXISTE fora de contexto seguro e em vários
+      // navegadores embutidos de aplicativo (o do WhatsApp, Instagram, Facebook).
+      // Sem esta checagem o TypeError caía no catch abaixo e a pessoa lia "verifique
+      // as permissões" — ela ia conferir permissões que já estavam certas e travava,
+      // sem saber que o problema era o navegador. É o caso do paciente que abre o
+      // link da consulta direto do WhatsApp.
+      if (!navigator.mediaDevices?.getUserMedia) {
+        onErr?.(
+          "Este navegador não permite usar câmera e microfone. Se você abriu o link dentro de outro aplicativo (WhatsApp, Instagram), toque em 'Abrir no navegador' e use o Chrome ou o Safari.",
+        );
+        return;
+      }
+
       let stream: MediaStream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -1074,13 +1096,15 @@ export default function WebRTCCall({
               </p>
             </PopoverContent>
           </Popover>
-          <BadgeConfig
-            titulo="Alto-falante"
-            valor={spkAtual}
-            lista={dispositivos.spks}
-            aoTrocar={(id) => void aplicarAltoFalante(id)}
-            aoAbrir={() => void atualizarDispositivos()}
-          />
+          {podeTrocarAltoFalante && (
+            <BadgeConfig
+              titulo="Alto-falante"
+              valor={spkAtual}
+              lista={dispositivos.spks}
+              aoTrocar={(id) => void aplicarAltoFalante(id)}
+              aoAbrir={() => void atualizarDispositivos()}
+            />
+          )}
         </div>
         <div className="relative">
           <Button

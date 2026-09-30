@@ -50,7 +50,10 @@ export default function VideoCallLobby({
   const audioCtxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef<number>(0);
 
-  const [status, setStatus] = useState<"loading" | "ok" | "denied">("loading");
+  // "unsupported" e diferente de "denied": navegador embutido de aplicativo (WhatsApp,
+  // Instagram) e contexto inseguro nao tem navigator.mediaDevices, e dizer "verifique
+  // as permissoes" manda a pessoa conferir algo que ja esta certo.
+  const [status, setStatus] = useState<"loading" | "ok" | "denied" | "unsupported">("loading");
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [micId, setMicId] = useState<string>(() => readLS(LS.mic));
   const [camId, setCamId] = useState<string>(() => readLS(LS.cam));
@@ -93,6 +96,10 @@ export default function VideoCallLobby({
   const start = useCallback(
     async (mic: string, cam: string) => {
       streamRef.current?.getTracks().forEach((t) => t.stop());
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setStatus("unsupported");
+        return;
+      }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: cam ? { deviceId: { exact: cam } } : true,
@@ -213,6 +220,16 @@ export default function VideoCallLobby({
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center text-sm text-white">
             <AlertCircle className="h-6 w-6" />
             Não foi possível acessar câmera/microfone. Verifique as permissões do navegador — você ainda pode entrar.
+          </div>
+        )}
+        {status === "unsupported" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center text-sm text-white">
+            <AlertCircle className="h-6 w-6" />
+            <p>Este navegador não permite usar câmera e microfone.</p>
+            <p className="text-white/80">
+              Se você abriu o link dentro de outro aplicativo (WhatsApp, Instagram), toque em{" "}
+              <strong>Abrir no navegador</strong> e use o Chrome ou o Safari.
+            </p>
           </div>
         )}
         {status === "ok" && !camOn && (
