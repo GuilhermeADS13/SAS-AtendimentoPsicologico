@@ -55,6 +55,15 @@ export default function Luma() {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   // Sugestões de "e agora?" (em cartões) mostradas só depois de concluir uma ação.
   const [sugestoesPosAcao, setSugestoesPosAcao] = useState<{ label: string; hint?: string; icon?: ReactNode }[]>([]);
+  // Sugestão clicada no Dashboard (/luma?pergunta=...): chega já escrita no campo,
+  // e quem envia é a profissional. A URL é limpa para um F5 não repetir o texto.
+  const [perguntaInicial] = useState(() => {
+    if (typeof window === "undefined") return "";
+    const params = new URLSearchParams(window.location.search);
+    const pergunta = params.get("pergunta")?.trim().slice(0, 500) ?? "";
+    if (pergunta) window.history.replaceState(null, "", window.location.pathname);
+    return pergunta;
+  });
 
   const patientsQuery = trpc.patients.list.useQuery(undefined, {
     enabled: isClinicalUser,
@@ -344,6 +353,7 @@ export default function Luma() {
             onConfirmAction={handleConfirmAction}
             onDismissAction={handleDismissAction}
             isConfirmingAction={confirmActionMutation.isPending}
+            initialInput={perguntaInicial}
             height="min(620px, calc(100dvh - 220px))"
           />
         </section>

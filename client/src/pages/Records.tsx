@@ -50,7 +50,8 @@ export default function Records() {
   const utils = trpc.useUtils();
   const { data: patients = [], isLoading } = trpc.patients.list.useQuery();
   const [searchTerm, setSearchTerm] = useState("");
-  const [isOpen, setIsOpen] = useState(false);
+  // "Novo paciente" no Dashboard chega com ?novo=1: abre o cadastro direto.
+  const [isOpen, setIsOpen] = useState(() => abrirPeloLink());
   const [modelosOpen, setModelosOpen] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
 
@@ -351,4 +352,15 @@ export default function Records() {
       </AlertDialog>
     </DashboardLayout>
   );
+}
+
+/** Lê e consome o ?novo=1 (sai da URL para um F5 não reabrir o formulário). */
+function abrirPeloLink(): boolean {
+  if (typeof window === "undefined") return false;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("novo") !== "1") return false;
+  params.delete("novo");
+  const resto = params.toString();
+  window.history.replaceState(null, "", `${window.location.pathname}${resto ? `?${resto}` : ""}`);
+  return true;
 }
