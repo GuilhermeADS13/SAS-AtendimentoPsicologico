@@ -1,7 +1,8 @@
-import { buildCrisisSafeResponse, classifyClinicalSafetyIntent } from "./clinical-safety";
+import { buildApoioResponse, buildCrisisSafeResponse, classifyClinicalSafetyIntent, detectaSofrimento } from "./clinical-safety";
 
 export type SiteHelpTopic =
   | "crisis"
+  | "support"
   | "boundary"
   | "appointments"
   | "reschedule"
@@ -51,6 +52,14 @@ export function answerSiteHelp(question: string): SiteHelpResponse {
       content:
         "Eu não indico nem ajusto medicação — isso é com um(a) profissional. Posso te ajudar a navegar no sistema (consultas, cadastro, videochamada).",
     };
+  }
+
+  // Sofrimento sem sinal explícito de risco ("estou muito mal", "não aguento
+  // mais"): antes caía no menu genérico do site. Vem antes do roteamento por
+  // palavra-chave porque "estou mal, como falo com a psicóloga?" tem de ser
+  // acolhido primeiro — e a resposta já aponta Mensagens.
+  if (detectaSofrimento(question)) {
+    return { model: "site-help-local", topic: "support", content: buildApoioResponse() };
   }
 
   const normalized = normalize(question);

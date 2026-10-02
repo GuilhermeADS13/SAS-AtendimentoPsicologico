@@ -34,6 +34,7 @@ import {
 // compartilhados com a sinalização e a presença do vídeo (mesma barreira nos dois
 // lugares). `normalizarEmail`/`pacienteDoUsuario` seguem usados aqui como antes.
 import { normalizarEmail, pacienteDoUsuario, resolverAcessoSala } from "./roomAccess";
+import { chavePertenceAoUsuario } from "./storageKeys";
 
 /**
  * Corre uma promessa contra um timeout e SEMPRE limpa o timer. O `Promise.race`
@@ -143,6 +144,32 @@ async function notifyNewChatMessage(
     `<p>Você recebeu uma nova mensagem de ${escHtml(nome)} no VozInterior.</p>
      <p><a href="${link}">Abrir mensagens</a></p>`,
   );
+}
+
+/** Quantas mensagens persistidas a Luma relê por pergunta (o agente ainda compacta as antigas). */
+const LUMA_HISTORICO_MAX = 40;
+
+/**
+ * Converte as mensagens persistidas da conversa no histórico do agente: só
+ * user/assistant, começando por uma fala do usuário, e com falas seguidas do
+ * mesmo papel juntadas (ex.: a proposta da Luma seguida do resultado do botão
+ * "Confirmar", que também é gravado como assistant) — provedores estritos recusam
+ * dois turnos seguidos do mesmo papel.
+ */
+export function montarHistoricoDoBanco(
+  linhas: Array<{ role: string; content: string }>,
+): Array<{ role: "user" | "assistant"; content: string }> {
+  const historico: Array<{ role: "user" | "assistant"; content: string }> = [];
+  for (const linha of linhas) {
+    if (linha.role !== "user" && linha.role !== "assistant") continue;
+    const content = linha.content.trim();
+    if (!content) continue;
+    if (!historico.length && linha.role !== "user") continue;
+    const anterior = historico[historico.length - 1];
+    if (anterior && anterior.role === linha.role) anterior.content = `${anterior.content}\n\n${content}`;
+    else historico.push({ role: linha.role, content });
+  }
+  return historico;
 }
 
 export const appRouter = router({
@@ -265,8 +292,15 @@ export const appRouter = router({
         return { ...siteResponse, conversationId, messageId: persistedAssistant.id, persisted: true };
       }),
 
-    chat: protectedProcedure
+    // SÓ a psicóloga. A Luma do paciente é a de navegação (ai.siteHelp), sem LLM e
+    // sem acesso a prontuário. Antes isto era protectedProcedure e a separação
+    // ficava só na interface: um paciente logado que chamasse ai.chat direto pela
+    // API recebia as ferramentas de leitura do próprio prontuário — notas
+    // clínicas, avaliação SOAP, demanda e objetivos escritos pela psicóloga.
+    chat: therapistProcedure
       .input(z.object({
+        // Por compatibilidade o cliente ainda manda a conversa inteira, mas só a
+        // ÚLTIMA mensagem do usuário é usada: o histórico vem do banco (ver abaixo).
         messages: z.array(z.object({
           role: z.enum(["user", "assistant"]),
           content: z.string().trim().min(1).max(8000),
@@ -292,6 +326,7 @@ export const appRouter = router({
 
         // Conversa já existente: valida o escopo e faz REPLAY idempotente se esta
         // mesma requisição já tem resposta persistida (retry após resposta perdida).
+        let historicoDoBanco: Array<{ role: "user" | "assistant"; content: string }> = [];
         if (input.conversationId) {
           const existingConversation = await db.select({ id: aiConversations.id }).from(aiConversations).where(and(
             eq(aiConversations.id, input.conversationId),
@@ -312,14 +347,28 @@ export const appRouter = router({
             messageId: replay[0].id,
             persisted: true,
           };
+          // HISTÓRICO VEM DO BANCO, nunca do cliente. Antes o agente recebia o array
+          // `messages` que o navegador mandava — inclusive falas com role
+          // "assistant", que qualquer um podia forjar para a Luma "lembrar" de ter
+          // dito algo que nunca disse. Do cliente só vale a mensagem nova.
+          const persistidas = await db.select({ role: aiMessages.role, content: aiMessages.content })
+            .from(aiMessages)
+            .where(eq(aiMessages.conversationId, input.conversationId))
+            .orderBy(desc(aiMessages.createdAt), desc(aiMessages.id))
+            .limit(LUMA_HISTORICO_MAX);
+          historicoDoBanco = montarHistoricoDoBanco(persistidas.reverse());
         }
+        const mensagensDoAgente = montarHistoricoDoBanco([
+          ...historicoDoBanco,
+          { role: "user", content: latestUserMessage.content },
+        ]);
 
         // Chama o agente ANTES de qualquer escrita. Se der timeout/erro, o mutation
         // lança e NADA é persistido — sem conversa órfã nem mensagem de usuário
         // pendurada (era o que acumulava lixo a cada retry quando a IA demorava).
         // withTimeout limpa o próprio timer (ver helper).
         const response = await withTimeout(
-          runOpenSourceAgent(input.messages, accessContext, db, undefined, input.patientId, input.conversationId),
+          runOpenSourceAgent(mensagensDoAgente, accessContext, db, undefined, input.patientId, input.conversationId),
           35_000,
           "AI response timeout",
         );
@@ -2093,8 +2142,7 @@ export const appRouter = router({
         // (fura a RLS do bucket). Aceita SÓ um arquivo no próprio prefixo do
         // usuário (`<uid>/modelo/...`, o mesmo que uploadModelFile gera); sem
         // isso, daria para ler/apagar arquivo de outro escopo (IDOR).
-        const uid = ctx.user.openId.startsWith("sb:") ? ctx.user.openId.slice(3) : null;
-        if (!uid || !input.fileKey.startsWith(`${uid}/modelo/`)) {
+        if (!chavePertenceAoUsuario(input.fileKey, ctx.user.openId, "modelo")) {
           throw new Error("Arquivo inválido.");
         }
 
@@ -2194,6 +2242,14 @@ export const appRouter = router({
           .limit(1);
 
         if (!patient.length) throw new Error("Patient not found for this therapist");
+
+        // O fileKey vem do cliente, e o worker de indexação baixa o arquivo com a
+        // service role (fura a RLS do bucket). Só aceita arquivo na pasta que o
+        // próprio upload gera: `<uid>/<patientId>/<arquivo>`. Sem isso, registrar o
+        // caminho de um arquivo de outra pessoa o colocava no RAG desta psicóloga.
+        if (!chavePertenceAoUsuario(input.fileKey, ctx.user.openId, String(input.patientId))) {
+          throw new Error("Arquivo inválido.");
+        }
 
         const inserted = await db.insert(documents).values({
           patientId: input.patientId,
@@ -2621,6 +2677,13 @@ export const appRouter = router({
         const part = await resolverParticipanteChat(db, ctx.user, input.patientId);
         if (!part) throw new Error("Conversa não disponível.");
         if (!input.content && !input.fileKey) throw new Error("Mensagem vazia.");
+        // Anexo: só um arquivo que o PRÓPRIO remetente subiu (`<uid>/chat/...`, o
+        // caminho do uploadChatFile). O outro lado baixa por URL assinada com a
+        // service role (chat.attachmentUrl), então um fileKey de terceiro aqui virava
+        // download do arquivo de outra pessoa.
+        if (input.fileKey && !chavePertenceAoUsuario(input.fileKey, ctx.user.openId, "chat")) {
+          throw new Error("Arquivo inválido.");
+        }
         const inserted = await db
           .insert(chatMessages)
           .values({
@@ -2751,8 +2814,9 @@ export const appRouter = router({
         const part = await resolverParticipanteChat(db, ctx.user, input.patientId);
         if (!part) return { url: null };
         const rows = await db
-          .select({ fileKey: chatMessages.fileKey })
+          .select({ fileKey: chatMessages.fileKey, remetenteOpenId: users.openId })
           .from(chatMessages)
+          .innerJoin(users, eq(users.id, chatMessages.senderUserId))
           .where(
             and(
               eq(chatMessages.id, input.messageId),
@@ -2763,6 +2827,12 @@ export const appRouter = router({
           .limit(1);
         const fileKey = rows[0]?.fileKey;
         if (!fileKey) return { url: null };
+        // Segunda barreira (vale para mensagens gravadas antes da checagem no
+        // chat.send): só assina arquivo que está na pasta de chat de QUEM enviou.
+        if (!chavePertenceAoUsuario(fileKey, rows[0].remetenteOpenId, "chat")) {
+          console.warn(`[chat] anexo da mensagem ${input.messageId} fora da pasta do remetente; URL não assinada`);
+          return { url: null };
+        }
         return { url: await signDocumentUrl(fileKey) };
       }),
   }),
