@@ -145,6 +145,12 @@ export type AIChatBoxProps = {
 
   /** Confirmação em andamento. */
   isConfirmingAction?: boolean;
+
+  /**
+   * Texto já digitado no campo ao abrir (ex.: uma sugestão clicada no Dashboard).
+   * Só preenche: quem envia é a pessoa, para conferir antes.
+   */
+  initialInput?: string;
 };
 
 /**
@@ -221,8 +227,9 @@ export function AIChatBox({
   onConfirmAction,
   onDismissAction,
   isConfirmingAction = false,
+  initialInput = "",
 }: AIChatBoxProps) {
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(initialInput);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputAreaRef = useRef<HTMLFormElement>(null);

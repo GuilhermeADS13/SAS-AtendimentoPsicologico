@@ -82,7 +82,8 @@ export default function Appointments() {
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [highlightId, appointments.length]);
 
-  const [isOpen, setIsOpen] = useState(false);
+  // "Nova consulta" no Dashboard chega com ?novo=1: abre o formulário direto.
+  const [isOpen, setIsOpen] = useState(() => abrirPeloLink());
   const [formData, setFormData] = useState(emptyForm);
   const [vista, setVista] = useState<"tabela" | "calendario">("tabela");
   const [filtroPagamento, setFiltroPagamento] = useState<"todos" | "pendentes" | "pagos">("todos");
@@ -1108,4 +1109,15 @@ export default function Appointments() {
       </AlertDialog>
     </DashboardLayout>
   );
+}
+
+/** Lê e consome o ?novo=1 (sai da URL para um F5 não reabrir o formulário). */
+function abrirPeloLink(): boolean {
+  if (typeof window === "undefined") return false;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("novo") !== "1") return false;
+  params.delete("novo");
+  const resto = params.toString();
+  window.history.replaceState(null, "", `${window.location.pathname}${resto ? `?${resto}` : ""}`);
+  return true;
 }
