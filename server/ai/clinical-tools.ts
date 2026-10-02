@@ -919,13 +919,22 @@ export function createClinicalTools(
     }),
   ] : [];
 
+  const consultaDeAgendamentos = tool(async ({ patientId }) => JSON.stringify(await readPatientAppointments(ctx, patientId, db)), {
+    name: ctx.role === "therapist" ? "get_patient_appointments" : "get_my_appointments",
+    description: "Consulta somente leitura os agendamentos autorizados. Retorna 'psicologoResponsavel' (nome do profissional vinculado ao paciente) e 'consultas' — cada uma com 'valor' (em reais quando definido, ou a orientação de confirmar com o responsável, já nomeado, quando não houver) e 'pago'. É a ÚNICA fonte para preço/pagamento — nunca estime um valor. Para terapeuta, informe patientId.",
+    schema: patientIdSchema,
+  });
+
+  // Fora do papel de terapeuta, só a agenda. Prontuário (sessões, preparo,
+  // documentos, busca clínica) é escrito PELA psicóloga e não é entregue ao
+  // paciente por um chatbot — decisão de produto ("Paciente não enxerga
+  // prontuário"). O ai.chat já é só da psicóloga; isto é a segunda barreira, para
+  // um chamador futuro que monte as ferramentas com outro papel.
+  if (ctx.role !== "therapist") return [consultaDeAgendamentos];
+
   return [
     ...agendaDoProfissional,
-    tool(async ({ patientId }) => JSON.stringify(await readPatientAppointments(ctx, patientId, db)), {
-      name: ctx.role === "therapist" ? "get_patient_appointments" : "get_my_appointments",
-      description: "Consulta somente leitura os agendamentos autorizados. Retorna 'psicologoResponsavel' (nome do profissional vinculado ao paciente) e 'consultas' — cada uma com 'valor' (em reais quando definido, ou a orientação de confirmar com o responsável, já nomeado, quando não houver) e 'pago'. É a ÚNICA fonte para preço/pagamento — nunca estime um valor. Para terapeuta, informe patientId.",
-      schema: patientIdSchema,
-    }),
+    consultaDeAgendamentos,
     tool(async ({ patientId }) => JSON.stringify(await readPreparoDaSessao(ctx, patientId, db)), {
       name: ctx.role === "therapist" ? "get_preparo_da_sessao" : "get_meu_preparo",
       description: "Prepara o proximo atendimento deste paciente: demanda inicial, objetivos, os proximos passos das ultimas 3 sessoes e a proxima consulta. Para 'me prepara para a proxima', 'onde paramos'. Terapeuta: informe patientId.",

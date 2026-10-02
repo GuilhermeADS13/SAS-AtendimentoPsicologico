@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildApoioResponse,
   buildCrisisSafeResponse,
   buildSafetyRedirect,
   classifyClinicalSafetyIntent,
+  detectaSofrimento,
+  pareceRegistroClinico,
 } from "./ai/clinical-safety";
+import { answerSiteHelp } from "./ai/site-help";
 
 describe("política determinística de segurança clínica da Luma", () => {
   it.each([
@@ -111,5 +115,116 @@ describe("política determinística de segurança clínica da Luma", () => {
   it("trata entrada vazia como conversa neutra", () => {
     expect(classifyClinicalSafetyIntent("")).toBe("none");
     expect(classifyClinicalSafetyIntent("   ")).toBe("none");
+  });
+
+  /**
+   * Corpus de desabafo REAL. Antes da ampliação, 10 destas 12 primeiras passavam
+   * como "none" — e na Luma do paciente (sem LLM) a pessoa recebia o menu do site.
+   */
+  it.each([
+    "quero morrer",
+    "eu queria morrer",
+    "to pensando em me matar",
+    "estou pensando em suicídio",
+    "vou acabar com tudo",
+    "vou acabar com a minha vida",
+    "não vejo mais sentido em viver",
+    "queria sumir pra sempre",
+    "tenho vontade de me matar",
+    "vou me matar",
+    "quero me matar",
+    "n quero mais viver",
+    "seria melhor se eu morresse",
+    "todo mundo ficaria melhor sem mim",
+    "tomei uma caixa de remédio",
+    "voltei a me cortar",
+    "minha irmã disse que vai se matar",
+    "a vida não vale a pena",
+    "não aguento mais viver",
+    "Tô pensando em me matar.",
+  ])("corpus de crise: %s", (fala) => {
+    expect(classifyClinicalSafetyIntent(fala)).toBe("crisis");
+  });
+
+  /**
+   * "matar" sem o "me" é expressão corriqueira. O padrão original deixava o "me"
+   * OPCIONAL, então estas três caíam na resposta de crise — e receber CVV/SAMU
+   * depois de escrever que quer matar a saudade da filha assusta à toa.
+   */
+  it.each([
+    "quero matar a saudade",
+    "quero matar a saudade da minha filha",
+    "vou matar o tempo",
+    "quero matar a charada",
+    "vou matar a fome",
+  ])("expressão com 'matar' sem 'me' não é crise: %s", (fala) => {
+    expect(classifyClinicalSafetyIntent(fala)).toBe("none");
+  });
+
+  it.each([
+    "quero me matar",
+    "vou me matar",
+    "pensei em me matar",
+    "quero me suicidar",
+    "vou tirar a minha vida",
+  ])("mas a forma de risco continua disparando: %s", (fala) => {
+    expect(classifyClinicalSafetyIntent(fala)).toBe("crisis");
+  });
+
+  /** Força de expressão e pedidos do dia a dia NÃO são crise. */
+  it.each([
+    "estou morrendo de rir",
+    "quero morrer de rir com esse vídeo",
+    "minha mãe vai me matar se eu chegar tarde",
+    "meu chefe ia me matar",
+    "ele vai se matar de trabalhar",
+    "quero marcar uma consulta",
+    "vou cancelar a consulta",
+    "não aguento mais esperar o link",
+    "quero acabar com a ansiedade",
+    "tenho que tomar o remédio às 8h",
+  ])("não é crise: %s", (fala) => {
+    expect(classifyClinicalSafetyIntent(fala)).toBe("none");
+  });
+
+  it.each([
+    "estou muito mal hoje",
+    "não aguento mais",
+    "queria sumir",
+    "me sinto sozinha",
+    "tô tendo uma crise de ansiedade",
+    "preciso falar com alguém",
+  ])("reconhece sofrimento sem sinal de risco: %s", (fala) => {
+    expect(detectaSofrimento(fala)).toBe(true);
+  });
+
+  it.each([
+    "como entro na videochamada?",
+    "quero remarcar",
+    "não aguento mais esperar o link, como entro?",
+  ])("não confunde pedido de navegação com sofrimento: %s", (fala) => {
+    expect(detectaSofrimento(fala)).toBe(false);
+  });
+
+  it("a Luma do paciente acolhe crise e sofrimento em vez de mostrar o menu", () => {
+    expect(answerSiteHelp("quero morrer").topic).toBe("crisis");
+    expect(answerSiteHelp("to pensando em me matar").content).toContain("188");
+    const apoio = answerSiteHelp("estou muito mal hoje");
+    expect(apoio.topic).toBe("support");
+    expect(apoio.content).toContain("188");
+    expect(apoio.content).toContain("Mensagens");
+    expect(buildApoioResponse()).toContain("192");
+  });
+
+  /**
+   * A psicóloga DOCUMENTANDO risco não pode receber o CVV como resposta (era o que
+   * acontecia com "paciente relatou ideação suicida"). Já a primeira pessoa sem
+   * marcador de registro continua sendo tratada como crise.
+   */
+  it("separa registro clínico de fala em primeira pessoa", () => {
+    expect(pareceRegistroClinico("organize essas anotações: paciente relatou ideação suicida passiva")).toBe(true);
+    expect(pareceRegistroClinico("a paciente disse que o pai falou 'vou me matar'")).toBe(true);
+    expect(pareceRegistroClinico("eu quero morrer")).toBe(false);
+    expect(pareceRegistroClinico("não aguento mais esse trabalho, quero morrer")).toBe(false);
   });
 });

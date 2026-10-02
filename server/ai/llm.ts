@@ -6,7 +6,7 @@ import { createClinicalTools, fetchConversationMemory, fetchTherapistFormat, get
 import type { AiAccessContext } from "./access";
 import { buildAgentCacheKey, getCachedAgentResponse, setCachedAgentResponse } from "./response-cache";
 import { recordAgentCacheMiss, recordAgentKillSwitch, recordAgentRequest, recordAgentSafetyIntercept } from "./runtime-metrics";
-import { buildCrisisSafeResponse, buildSafetyRedirect, classifyClinicalSafetyIntent } from "./clinical-safety";
+import { buildCrisisSafeResponse, buildSafetyRedirect, classifyClinicalSafetyIntent, pareceRegistroClinico } from "./clinical-safety";
 import { aiMaintenanceMessage, areClinicalToolsEnabled, isAiAgentEnabled, isAiRagEnabled } from "./runtime-config";
 
 /** Ação de escrita proposta pela Luma, aguardando o clique da terapeuta. */
@@ -222,6 +222,9 @@ export function clinicalSystemPrompt(ctx: AiAccessContext, requestedPatientId?: 
     "Use metáforas de coruja apenas de forma leve e ocasional; nunca infantilize, assuste ou transforme uma situação de saúde em brincadeira.",
     "Adapte a linguagem: seja acolhedora e acessível com pacientes; seja objetiva, técnica e organizada com profissionais.",
     "SEGURANÇA (crise) — se a pessoa expressar sofrimento grave, ideia de se machucar ou de tirar a própria vida (ou risco para outra pessoa), NÃO forneça métodos nem análise de risco: acolha em uma frase, oriente a buscar ajuda imediata AGORA — no Brasil, CVV 188 e emergência/SAMU 192 — e a falar com o(a) profissional responsável ou ir a um pronto atendimento. Você não substitui atendimento de emergência.",
+    ctx.role === "therapist"
+      ? "REGISTRO DE RISCO — quando a PROFISSIONAL descrever risco de um paciente (ideação suicida, autolesão, ameaça a terceiros) para registrar ou organizar, isso é conteúdo clínico, não uma crise dela: organize com fidelidade, sem minimizar nem acrescentar, e não faça avaliação de risco — a avaliação e a conduta de proteção são dela. Se for ela mesma quem expressa sofrimento, aplique a regra de SEGURANÇA acima."
+      : "",
     "ESCOPO TRANCADO — você é EXCLUSIVAMENTE a assistente do sistema VozInterior. Só trata de: (1) a agenda e as consultas; (2) registros clínicos autorizados do paciente em escopo; (3) como usar o próprio sistema (telas, agendar, pagamentos, videochamada, cadastro); (4) apoio ao acompanhamento dentro do sistema — organizar pontos das sessões e sugerir tópicos/atividades para a profissional revisar (nunca como diagnóstico). QUALQUER outro assunto está FORA do escopo — conhecimento geral, matemática ou contas (ex.: 'quanto é 1+1'), programação, história, geografia, notícias, clima, receitas, tradução, piadas, opinião pessoal ou conversa fiada. Nesses casos NÃO responda à pergunta, nem 'só desta vez': recuse em uma frase gentil e reconduza ao que você faz.",
     "Exemplo de recusa fora de escopo: 'Sou a assistente do VozInterior e só ajudo com a agenda, os registros e o uso do sistema. Posso te ajudar com uma dessas coisas?' (Use isso APENAS para assuntos realmente de fora, como os do parágrafo acima — nunca para dúvidas de uso do sistema.)",
     // Mapa CURTO: entra sempre. Mesmo que o detector de navegacao falhe, a Luma
@@ -444,7 +447,16 @@ export async function runOpenSourceAgent(
 
   // Crises não passam pelo cache, RAG ou LLM: a resposta segura é determinística,
   // auditável e não contém métodos de autoagressão.
-  if (safetyIntent === "crisis") {
+  //
+  // EXCEÇÃO: a psicóloga DOCUMENTANDO risco de um paciente ("paciente relatou
+  // ideação suicida, organize as anotações"). Responder com o CVV para ela
+  // bloqueava justamente o registro que mais precisa ser feito. Nesse caso a
+  // mensagem segue para o modelo, que tem a regra de segurança no prompt. Se a
+  // fala da terapeuta NÃO tem cara de registro (primeira pessoa, sem paciente,
+  // sessão ou anotação), ela recebe a resposta de crise como qualquer pessoa.
+  const psicologaRegistrandoRisco =
+    ctx.role === "therapist" && pareceRegistroClinico(latestUserMessage?.content ?? "");
+  if (safetyIntent === "crisis" && !psicologaRegistrandoRisco) {
     recordAgentSafetyIntercept();
     recordAgentRequest(Date.now() - startedAt, "success");
     return { content: buildCrisisSafeResponse(), model: "clinical-safety-policy", sources: [] };
