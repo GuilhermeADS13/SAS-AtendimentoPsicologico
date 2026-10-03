@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { formatarData, formatarHora, formatarMesAno } from "@shared/datas";
@@ -84,7 +84,18 @@ export default function Appointments() {
 
   // "Nova consulta" no Dashboard chega com ?novo=1: abre o formulário direto.
   const [isOpen, setIsOpen] = useState(() => abrirPeloLink());
-  const [formData, setFormData] = useState(emptyForm);
+  // "Agendar consulta" na lista de pacientes chega com ?paciente=<id>: o
+  // formulário já abre com o paciente escolhido.
+  const [formData, setFormData] = useState(() => ({ ...emptyForm, patientId: pacienteDoLink() }));
+  // Aberto por link (?novo=1), o Dialog não passa pelo onOpenChange, que é quem
+  // preenche o valor com o preço padrão. Este ref faz esse preenchimento uma vez,
+  // quando o perfil da psicóloga (com o preço) chegar.
+  const precoPendente = useRef(isOpen);
+  useEffect(() => {
+    if (!precoPendente.current || !therapist) return;
+    precoPendente.current = false;
+    setFormData((f) => ({ ...f, valor: f.valor || centavosParaInput(therapist.sessionPrice) }));
+  }, [therapist]);
   const [vista, setVista] = useState<"tabela" | "calendario">("tabela");
   const [filtroPagamento, setFiltroPagamento] = useState<"todos" | "pendentes" | "pagos">("todos");
   // "aConfirmar" não é um status do banco: é uma consulta agendada cujo paciente
@@ -1120,4 +1131,16 @@ function abrirPeloLink(): boolean {
   const resto = params.toString();
   window.history.replaceState(null, "", `${window.location.pathname}${resto ? `?${resto}` : ""}`);
   return true;
+}
+
+/** Lê e consome o ?paciente=<id> (só um número; qualquer outra coisa é ignorada). */
+function pacienteDoLink(): string {
+  if (typeof window === "undefined") return "";
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get("paciente");
+  if (id === null) return "";
+  params.delete("paciente");
+  const resto = params.toString();
+  window.history.replaceState(null, "", `${window.location.pathname}${resto ? `?${resto}` : ""}`);
+  return /^\d+$/.test(id) ? id : "";
 }

@@ -145,3 +145,24 @@ export const SOAP_CAMPOS = [
   { chave: "assessment", rotulo: "A — Avaliação", grupo: "SOAP", multilinha: true, ajuda: "Análise técnica da sessão e das técnicas aplicadas." },
   { chave: "plan", rotulo: "P — Plano", grupo: "SOAP", multilinha: true, ajuda: "Intervenções futuras, tarefas, ajustes no plano." },
 ] as const satisfies readonly CampoProntuario[];
+
+/**
+ * O que falta no prontuário frente à Resolução CFP nº 001/2009: avaliação da
+ * demanda, objetivos do trabalho, TCLE e anamnese. É a MESMA regra que a Luma usa
+ * para "o que falta preencher" (server/ai/clinical-tools.ts) e que a lista de
+ * pacientes mostra — um lugar só, para as duas nunca discordarem.
+ */
+export function pendenciasDoProntuario(p: {
+  initialDemand?: string | null;
+  therapeuticGoals?: string | null;
+  tcleSignedAt?: Date | string | null;
+  anamnesis?: unknown;
+}): string[] {
+  const vazio = (texto: string | null | undefined) => !texto || !texto.trim();
+  const faltando: string[] = [];
+  if (vazio(p.initialDemand)) faltando.push("avaliação da demanda inicial");
+  if (vazio(p.therapeuticGoals)) faltando.push("objetivos terapêuticos");
+  if (!p.tcleSignedAt) faltando.push("TCLE assinado");
+  if (!p.anamnesis) faltando.push("ficha de anamnese");
+  return faltando;
+}

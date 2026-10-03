@@ -10,6 +10,7 @@ import { searchIndexedDocumentChunks } from "./document-ingestion";
 import { wrapUntrustedClinicalContext } from "./content-safety";
 import { consumePendingAction, issuePendingAction, type PendingActionParams } from "./action-confirmation";
 import { formatarBRL } from "../../shared/dinheiro";
+import { pendenciasDoProntuario } from "../../shared/prontuario";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
@@ -455,13 +456,8 @@ export async function readProntuariosIncompletos(ctx: AiAccessContext, dbOverrid
   }).from(patients)
     .where(and(eq(patients.therapistId, ctx.therapistId), eq(patients.status, "active")));
 
-  const vazio = (texto: string | null) => !texto || !texto.trim();
   const incompletos = rows.flatMap(p => {
-    const faltando: string[] = [];
-    if (vazio(p.initialDemand)) faltando.push("avaliação da demanda inicial");
-    if (vazio(p.therapeuticGoals)) faltando.push("objetivos terapêuticos");
-    if (!p.tcleSignedAt) faltando.push("TCLE assinado");
-    if (!p.anamnesis) faltando.push("ficha de anamnese");
+    const faltando = pendenciasDoProntuario(p);
     if (!faltando.length) return [];
     return [{
       patientId: p.id,
