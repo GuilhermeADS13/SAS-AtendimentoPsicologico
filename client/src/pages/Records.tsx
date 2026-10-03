@@ -537,9 +537,18 @@ export default function Records() {
                             </span>
                           )}
                         </div>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {[p.email, p.phone].filter(Boolean).join(" · ")}
-                        </p>
+                        {/* E-mail e telefone eram um texto só, separados por "·":
+                            ficavam colados e o truncate cortava o telefone junto.
+                            Agora o corte é só no e-mail e o número fica inteiro. */}
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                          <span className="truncate">{p.email}</span>
+                          {p.phone && (
+                            <>
+                              <span aria-hidden className="text-muted-foreground/40">·</span>
+                              <span className="whitespace-nowrap tabular-nums">{p.phone}</span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
 
