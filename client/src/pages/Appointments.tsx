@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { urlDaSala } from "@/lib/sala";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { formatarData, formatarHora, formatarMesAno } from "@shared/datas";
@@ -49,15 +50,9 @@ import { reaisParaCentavos, centavosParaInput, formatarBRL } from "@shared/dinhe
 
 type Status = "scheduled" | "completed" | "cancelled" | "no_show";
 
-// Nome da sala = apt<id>-<roomToken>. O token aleatório torna o link impossível
-// de adivinhar (o modelo Zoom/Meet); antes era sala-apt<id>, sequencial. Os ids
-// vão na query (?apt=&pat=), que a VideoCallDynamic usa para o auto-save das
-// anotações. Consultas antigas sem token caem no formato legado (só a sala nova
-// é segura).
-const roomNameFor = (appointmentId: number, roomToken: string | null) =>
-  roomToken ? `apt${appointmentId}-${roomToken}` : `sala-apt${appointmentId}`;
-const roomUrlFor = (appointmentId: number, patientId: number, roomToken: string | null) =>
-  `/videocall/${roomNameFor(appointmentId, roomToken)}?apt=${appointmentId}&pat=${patientId}`;
+// O formato da sala vive em client/src/lib/sala.ts: o Dashboard monta o mesmo
+// link, e duas cópias divergiriam em silêncio.
+const roomUrlFor = urlDaSala;
 
 const emptyForm = { patientId: "", date: "", time: "", duration: "60", repetir: "1", valor: "" };
 

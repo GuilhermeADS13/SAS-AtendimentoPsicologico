@@ -56,6 +56,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import NoteTemplatesManager from "@/components/NoteTemplatesManager";
+import { useAgora } from "@/hooks/useAgora";
 import { iniciais } from "@/lib/iniciais";
 import { cn } from "@/lib/utils";
 import { FUSO_BR, formatarData, formatarHora } from "@shared/datas";
@@ -128,6 +129,9 @@ export default function Records() {
   const [modelosOpen, setModelosOpen] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
   const [tentouEnviar, setTentouEnviar] = useState(false);
+  // Avanca sozinho: sem isto, "ha 3 semanas" e a classificacao ultima/proxima
+  // congelam no momento em que a aba abriu. O Dashboard ja fazia assim.
+  const relogio = useAgora();
 
   const createPatient = trpc.patients.create.useMutation({
     onSuccess: () => {
@@ -160,7 +164,7 @@ export default function Records() {
   const naGrade = useMemo(() => patients.filter((p) => p.status !== "archived"), [patients]);
 
   const linhas = useMemo(() => {
-    const agora = Date.now();
+    const agora = relogio.getTime();
     const porPaciente = new Map<number, { ultima?: Date; proxima?: Date }>();
     for (const c of consultas) {
       if (c.status === "cancelled") continue;
@@ -182,7 +186,7 @@ export default function Records() {
       // Mesma regra da Luma (CFP 001/2009). Só cobra de quem está em atendimento.
       pendencias: p.status === "active" ? pendenciasDoProntuario(p) : [],
     }));
-  }, [naGrade, consultas]);
+  }, [naGrade, consultas, relogio]);
 
   const contagem = useMemo(
     () => ({
@@ -215,7 +219,7 @@ export default function Records() {
       return a.nome.localeCompare(b.nome, "pt-BR");
     });
 
-  const agora = Date.now();
+  const agora = relogio.getTime();
 
   // Validação do cadastro: mostra o erro do campo só depois da 1ª tentativa.
   const erros = {
@@ -568,7 +572,7 @@ export default function Records() {
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="size-8" aria-label={`Mais ações para ${p.nome}`}>
+                          <Button variant="ghost" size="icon" className="size-9 sm:size-8" aria-label={`Mais ações para ${p.nome}`}>
                             <MoreHorizontal className="size-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -633,7 +637,8 @@ export default function Records() {
                             e.stopPropagation();
                             setLocation(`/appointments?novo=1&paciente=${p.id}`);
                           }}
-                          className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary"
+                          // -my-2/py-2: cresce a area de toque no celular sem empurrar a linha.
+                          className="-my-2 inline-flex min-h-9 items-center gap-1 py-2 text-muted-foreground hover:text-primary lg:my-0 lg:min-h-0 lg:py-0"
                         >
                           <Plus className="size-3.5" />
                           Agendar

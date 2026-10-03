@@ -98,7 +98,7 @@ const mesmoFormulario = (a: Formulario, b: Formulario) =>
 /** Perfil profissional da psicóloga (CRP, especialidades, bio). */
 function TherapistProfile() {
   const { user } = useAuth();
-  const { data: therapist, isLoading } = trpc.therapists.me.useQuery();
+  const { data: therapist, isLoading, isError, refetch } = trpc.therapists.me.useQuery();
 
   const [form, setForm] = useState<Formulario>(VAZIO);
   /** Última versão salva: base do "alterações não salvas" e do "Descartar". */
@@ -113,6 +113,11 @@ function TherapistProfile() {
   const carregado = useRef(false);
   useEffect(() => {
     if (carregado.current || isLoading) return;
+    // Falha de rede: NAO carregar o formulario vazio. `therapist` vem undefined no
+    // erro, e tratar isso como "perfil em branco" fazia o Salvar gravar vazio por
+    // cima do perfil real. Sem marcar `carregado`, um refetch bem-sucedido ainda
+    // preenche a tela.
+    if (isError) return;
     carregado.current = true;
     const inicial: Formulario = therapist
       ? {
@@ -127,7 +132,7 @@ function TherapistProfile() {
       : VAZIO;
     setForm(inicial);
     setSalvo(inicial);
-  }, [therapist, isLoading]);
+  }, [therapist, isLoading, isError]);
 
   useEffect(() => {
     let ativo = true;
@@ -295,7 +300,17 @@ function TherapistProfile() {
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start">
           {/* ---- Formulário ---- */}
           <div className="space-y-5">
-            {carregando ? (
+            {isError ? (
+              <div className="flex flex-col items-center rounded-2xl border bg-card px-6 py-12 text-center">
+                <p className="font-medium text-foreground">Não foi possível carregar o seu perfil</p>
+                <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                  Verifique a conexão e tente de novo. Nada foi alterado.
+                </p>
+                <Button className="mt-5" onClick={() => refetch()}>
+                  Tentar de novo
+                </Button>
+              </div>
+            ) : carregando ? (
               [0, 1, 2].map((i) => <Skeleton key={i} className="h-56 w-full rounded-2xl" />)
             ) : (
               <>

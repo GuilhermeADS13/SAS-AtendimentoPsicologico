@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
+import { useMemo, type ComponentType, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import {
   ArrowUpRight,
@@ -23,6 +23,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LumaOwlIcon } from "@/components/Logo";
 import { isLumaTestAccount } from "@/lib/lumaAccess";
 import { useRole } from "@/hooks/useRole";
+import { useAgora } from "@/hooks/useAgora";
+import { urlDaSala } from "@/lib/sala";
 import { cn } from "@/lib/utils";
 import { FUSO_BR, formatarHora } from "@shared/datas";
 import { formatarBRL } from "@shared/dinheiro";
@@ -54,20 +56,6 @@ function rotuloDoDia(d: Date, agora: Date): string {
   const dia = d.toLocaleDateString("pt-BR", { timeZone: FUSO_BR, day: "2-digit", month: "2-digit" });
   return `${capitalizar(semana)}, ${dia}`;
 }
-
-/** Re-renderiza a cada minuto: o botão "Entrar" acende sozinho 15 min antes. */
-function useAgora(intervaloMs = 60_000): Date {
-  const [agora, setAgora] = useState(() => new Date());
-  useEffect(() => {
-    const id = setInterval(() => setAgora(new Date()), intervaloMs);
-    return () => clearInterval(id);
-  }, [intervaloMs]);
-  return agora;
-}
-
-/** Mesmo formato da tela de Agendamentos: apt<id>-<token> (o token torna o link impossível de adivinhar). */
-const urlDaSala = (id: number, patientId: number, roomToken: string | null) =>
-  `/videocall/${roomToken ? `apt${id}-${roomToken}` : `sala-apt${id}`}?apt=${id}&pat=${patientId}`;
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
