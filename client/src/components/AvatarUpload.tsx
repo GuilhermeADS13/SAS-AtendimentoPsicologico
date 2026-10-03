@@ -12,6 +12,11 @@ type Props = {
   onChange: (photoKey: string) => void;
   /** Iniciais mostradas enquanto não há foto. */
   fallback?: string;
+  /**
+   * Aviso depois do upload. `null` não mostra nada — para quem chama salvar a
+   * foto na hora e avisar por conta própria (ex.: Perfil Profissional).
+   */
+  avisoAoEnviar?: string | null;
 };
 
 /**
@@ -20,7 +25,12 @@ type Props = {
  * O componente NÃO salva no banco — quem chama decide quando persistir o path,
  * junto do resto do formulário.
  */
-export function AvatarUpload({ value, onChange, fallback }: Props) {
+export function AvatarUpload({
+  value,
+  onChange,
+  fallback,
+  avisoAoEnviar = "Foto enviada! Salve o cadastro para confirmar.",
+}: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -48,7 +58,7 @@ export function AvatarUpload({ value, onChange, fallback }: Props) {
     try {
       const path = await uploadAvatarFile(file);
       onChange(path);
-      toast.success("Foto enviada! Salve o cadastro para confirmar.");
+      if (avisoAoEnviar) toast.success(avisoAoEnviar);
     } catch (e) {
       setPreviewUrl(null);
       toast.error(e instanceof Error ? e.message : "Falha ao enviar a foto");
