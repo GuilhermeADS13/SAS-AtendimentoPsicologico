@@ -21,6 +21,10 @@ export type SiteHelpResponse = {
   topic: SiteHelpTopic;
 };
 
+/** Linha curta de acolhimento quando a pessoa está sofrendo MAS também pediu algo. */
+const ACOLHIMENTO_BREVE =
+  "Sinto muito que esteja difícil agora. Se quiser falar com a sua psicóloga, é só abrir “Mensagens” no menu — e, se apertar, o CVV atende 24h no 188.";
+
 function normalize(text: string): string {
   return text
     .normalize("NFD")
@@ -54,16 +58,28 @@ export function answerSiteHelp(question: string): SiteHelpResponse {
     };
   }
 
+  const roteada = rotearPorPalavraChave(normalize(question));
+
   // Sofrimento sem sinal explícito de risco ("estou muito mal", "não aguento
-  // mais"): antes caía no menu genérico do site. Vem antes do roteamento por
-  // palavra-chave porque "estou mal, como falo com a psicóloga?" tem de ser
-  // acolhido primeiro — e a resposta já aponta Mensagens.
+  // mais"): sozinho, cairia no menu genérico do site.
+  //
+  // Mas acolher não pode ENGOLIR o pedido. Esta checagem vinha ANTES do
+  // roteamento, e aí "estou angustiado com o valor, quanto custa a consulta?"
+  // recebia o acolhimento no lugar do preço — o espelho do bug que ela veio
+  // corrigir. Agora o acolhimento só SUBSTITUI a resposta quando não há tópico
+  // nenhum; havendo, a pessoa recebe as duas coisas, com o acolhimento primeiro.
   if (detectaSofrimento(question)) {
-    return { model: "site-help-local", topic: "support", content: buildApoioResponse() };
+    if (roteada.topic === "general") {
+      return { model: "site-help-local", topic: "support", content: buildApoioResponse() };
+    }
+    return { ...roteada, content: `${ACOLHIMENTO_BREVE}\n\n${roteada.content}` };
   }
 
-  const normalized = normalize(question);
+  return roteada;
+}
 
+/** Roteamento por palavra-chave. A ORDEM importa: específicos antes do genérico. */
+function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
   if (/(remarcar|desmarcar|cancelar|mudar de horario|trocar de horario|adiar)/.test(normalized)) {
     return {
       model: "site-help-local",

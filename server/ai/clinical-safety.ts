@@ -87,7 +87,18 @@ const CRISIS_PATTERNS_NORMALIZADOS = [
  * bloqueava justamente o registro de risco — o que mais precisa ser documentado.
  */
 export function pareceRegistroClinico(text: string): boolean {
-  return /\b(?:paciente|pcte|pct|relat\w*|refer\w*|verbaliz\w*|sess[aã]o|atendimento|anota[cç]\w*|prontu[aá]rio|evolu[cç][aã]o|registr\w*|rascunho|soap|hist[oó]rico|anamnese|ele|ela|dele|dela|disse que|contou que)\b/i.test(
+  // Só marcadores de DOCUMENTAÇÃO clínica. Os pronomes soltos (ele/ela/dele/dela)
+  // e a fala indireta pura (disse que/contou que) estavam aqui e abriam um buraco
+  // sério: "ela me deixou e eu não aguento mais, quero morrer" é crise em primeira
+  // pessoa, mas casava com "ela" e a psicóloga PERDIA a resposta determinística
+  // com CVV/SAMU — justamente o caso que esta função deveria proteger. Pronome é a
+  // palavra mais comum num desabafo; só o contexto clínico distingue registro de
+  // sofrimento. Na dúvida, erra para o lado do acolhimento.
+  // `anota[cç]\w*` NÃO casava com "anotações" nem "anotação": `\w` é [A-Za-z0-9_],
+  // então "ç"/"õ" ficam de fora e a borda `\b` não fecha depois do "ç". A palavra
+  // mais natural para registro clínico passava batido. `anot\w*` cobre anotação,
+  // anotações, anotar, anotei e anotou.
+  return /\b(?:paciente|pcte|pct|relat\w*|refer\w*|verbaliz\w*|sess[aã]o|atendimento|anot\w*|prontu[aá]rio|evolu[cç][aã]o|registr\w*|rascunho|soap|hist[oó]rico|anamnese)\b/i.test(
     text,
   );
 }

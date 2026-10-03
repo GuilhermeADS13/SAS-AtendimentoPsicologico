@@ -217,6 +217,31 @@ describe("política determinística de segurança clínica da Luma", () => {
   });
 
   /**
+   * REGRESSÃO (achado de revisão): o acolhimento rodava ANTES do roteamento e
+   * engolia o pedido — quem escrevesse "estou angustiado com o valor, quanto custa
+   * a consulta?" recebia CVV/SAMU em vez do preço. Agora recebe as DUAS coisas.
+   */
+  it.each([
+    ["estou desesperado para remarcar minha consulta", "reschedule"],
+    ["estou angustiado com o valor, quanto custa a consulta?", "payments"],
+    ["minha psicóloga parece triste, como falo com ela?", "therapist"],
+    ["fiquei deprimido com o horário, dá pra trocar?", "appointments"],
+  ] as const)("sofrimento NÃO engole o pedido: %s", (fala, topico) => {
+    const r = answerSiteHelp(fala);
+    expect(r.topic).toBe(topico);
+    // O acolhimento vem junto, antes da resposta.
+    expect(r.content).toMatch(/^Sinto muito que esteja difícil/);
+    expect(r.content).toContain("188");
+  });
+
+  /** Sem pedido nenhum, o acolhimento continua sendo a resposta inteira. */
+  it("desabafo puro continua recebendo só o acolhimento", () => {
+    const r = answerSiteHelp("não aguento mais");
+    expect(r.topic).toBe("support");
+    expect(r.content).toBe(buildApoioResponse());
+  });
+
+  /**
    * A psicóloga DOCUMENTANDO risco não pode receber o CVV como resposta (era o que
    * acontecia com "paciente relatou ideação suicida"). Já a primeira pessoa sem
    * marcador de registro continua sendo tratada como crise.
@@ -226,5 +251,33 @@ describe("política determinística de segurança clínica da Luma", () => {
     expect(pareceRegistroClinico("a paciente disse que o pai falou 'vou me matar'")).toBe(true);
     expect(pareceRegistroClinico("eu quero morrer")).toBe(false);
     expect(pareceRegistroClinico("não aguento mais esse trabalho, quero morrer")).toBe(false);
+  });
+
+  /**
+   * REGRESSÃO (achado de revisão): os pronomes soltos "ele/ela/dele/dela" e a fala
+   * indireta "disse que/contou que" contavam como marcador de registro clínico.
+   * Como `runOpenSourceAgent` PULA a resposta de crise quando isto dá positivo, a
+   * psicóloga que desabafasse citando alguém — o jeito mais natural de falar — não
+   * recebia CVV/SAMU. Pronome não é contexto clínico.
+   */
+  it.each([
+    "ela me deixou e eu não aguento mais, quero morrer",
+    "ele terminou comigo, quero me matar",
+    "briguei com ela hoje e pensei em me matar",
+    "meu pai morreu e eu não quero mais viver, sinto falta dela",
+    "minha mãe disse que eu deveria morrer",
+  ])("pronome/fala indireta NÃO transforma desabafo em registro: %s", (fala) => {
+    expect(classifyClinicalSafetyIntent(fala)).toBe("crisis");
+    expect(pareceRegistroClinico(fala)).toBe(false);
+  });
+
+  /** E o registro de verdade continua sendo reconhecido, com ou sem pronome. */
+  it.each([
+    "paciente relatou ideação suicida passiva",
+    "ela verbalizou ideação suicida na sessão de ontem",
+    "organize as anotações: risco de autolesão",
+    "registrar no prontuário que houve ideação",
+  ])("registro clínico continua reconhecido: %s", (fala) => {
+    expect(pareceRegistroClinico(fala)).toBe(true);
   });
 });
