@@ -49,6 +49,13 @@ jobs:
       - name: Typecheck
         run: pnpm check
 
+      # Caractere de controle invisível (o `\b` que vira BACKSPACE num regex).
+      # O hook de pre-commit já barra na máquina de quem commita; este passo cobre
+      # quem usou --no-verify ou clonou sem rodar o install que instala o hook.
+      # Passo próprio para a falha dizer o que é, em vez de sumir no meio da suíte.
+      - name: Caractere invisível
+        run: pnpm lint:invisivel
+
       # Sem DATABASE_URL: exercita o comportamento sem banco (procedures retornam
       # vazio / rejeitam). O teste de integração fica SKIPPED aqui.
       - name: Testes unitários

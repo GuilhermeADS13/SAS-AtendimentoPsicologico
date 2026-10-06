@@ -1,27 +1,20 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { RAIZ, acharCaracteresDeControle, varrer } from "../scripts/caractereInvisivel";
 
 /**
- * Nenhum arquivo-fonte pode conter caractere de controle.
+ * Segunda barreira contra o caractere invisível. A primeira é o hook de
+ * pre-commit (.githooks/pre-commit), que impede o commit; esta aqui pega o que
+ * passou por `--no-verify`, veio de outra máquina sem o hook instalado, ou entrou
+ * antes de tudo isso existir — e roda no CI.
  *
- * Isto já aconteceu DUAS vezes neste projeto, as duas com a mesma mecânica: um
- * script gerando código escreveu `\b` dentro de uma expressão regular e o que foi
- * parar no arquivo não foi a borda de palavra, e sim o caractere BACKSPACE
- * (codepoint 8). O arquivo compila, o typecheck passa, o editor não mostra nada —
- * e a expressão simplesmente nunca casa com o que deveria.
- *
- * Da primeira vez a proteção cobriu só `ai/llm.ts`, o arquivo da ocorrência. Na
- * segunda o caractere caiu em `_core/index.ts` e passou batido. Por isso aqui a
- * varredura é da árvore inteira: a defesa não pode ficar presa ao local do último
- * acidente.
- *
- * Tab (9), LF (10) e CR (13) são legítimos.
+ * Usa o MESMO varredor do hook de propósito: duas implementações da mesma regra
+ * divergem com o tempo, e aí uma barreira passa a dizer que está tudo bem
+ * enquanto a outra reprova.
  */
-const RAIZ = fileURLToPath(new URL("..", import.meta.url));
-const PASTAS = ["server", "shared", "client/src"];
-const EXTENSOES = [".ts", ".tsx", ".js", ".jsx", ".css"];
+const PASTAS = ["server", "shared", "client/src", "scripts"];
+const EXTENSOES = [".ts", ".tsx", ".js", ".jsx", ".css", ".sql", ".yml", ".md"];
 
 function arquivosFonte(pasta: string): string[] {
   const encontrados: string[] = [];
@@ -37,6 +30,29 @@ function arquivosFonte(pasta: string): string[] {
   return encontrados;
 }
 
+describe("o varredor de caractere invisível", () => {
+  it("acha o BACKSPACE que um \\b vira quando escrito por heredoc", () => {
+    const comArmadilha = `const padrao = /\\${String.fromCharCode(8)}teste/;`;
+    const achados = acharCaracteresDeControle(comArmadilha, "exemplo.ts");
+    expect(achados).toHaveLength(1);
+    expect(achados[0].codigo).toBe(8);
+    expect(achados[0].linha).toBe(1);
+  });
+
+  it("aponta a linha certa quando o caractere está no meio do arquivo", () => {
+    const conteudo = ["linha boa", "outra linha", `regex /${String.fromCharCode(8)}ai/`].join("\n");
+    expect(acharCaracteresDeControle(conteudo)[0].linha).toBe(3);
+  });
+
+  it("não reclama de tab, LF nem CR, que são legítimos", () => {
+    expect(acharCaracteresDeControle("a\tb\r\nc\nd")).toEqual([]);
+  });
+
+  it("aceita acento e emoji sem falso positivo", () => {
+    expect(acharCaracteresDeControle("avaliação — ansiedade 🦉 João")).toEqual([]);
+  });
+});
+
 describe("nenhum caractere invisível no código-fonte", () => {
   const arquivos = PASTAS.flatMap(arquivosFonte);
 
@@ -45,20 +61,7 @@ describe("nenhum caractere invisível no código-fonte", () => {
   });
 
   it("não há caractere de controle em nenhum arquivo", () => {
-    const culpados: string[] = [];
-    for (const arquivo of arquivos) {
-      const fonte = readFileSync(arquivo, "utf8");
-      const linhas = fonte.split("\n");
-      linhas.forEach((linha, i) => {
-        for (const c of linha) {
-          const cp = c.charCodeAt(0);
-          if (cp < 32 && cp !== 9 && cp !== 13) {
-            culpados.push(`${arquivo.slice(RAIZ.length)}:${i + 1} tem o caractere ${cp}`);
-            break;
-          }
-        }
-      });
-    }
-    expect(culpados).toEqual([]);
+    const achados = varrer(arquivos).map(a => `${a.arquivo}:${a.linha}:${a.coluna} (codepoint ${a.codigo})`);
+    expect(achados).toEqual([]);
   });
 });

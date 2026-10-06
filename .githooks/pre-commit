@@ -1,0 +1,11 @@
+#!/bin/sh
+# Barra caractere de controle invisível ANTES do commit.
+#
+# Já escapou três vezes neste projeto: um `\b` escrito por heredoc vira o byte
+# BACKSPACE dentro de uma expressão regular. Compila, passa no typecheck, é
+# invisível no editor — e a expressão nunca casa. O teste do vitest também pega,
+# mas só quando alguém roda a suíte; aqui o commit nem acontece.
+#
+# Olha só os arquivos em staging, então é rápido o bastante para todo commit.
+# Para pular num caso legítimo: git commit --no-verify
+exec npx tsx scripts/caractereInvisivel.ts --staged
