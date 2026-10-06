@@ -107,6 +107,14 @@ const CSP_RELATORIO = [
   // servidores STUN/TURN da videochamada.
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co wss: stun: turn: turns:",
   "worker-src 'self' blob:",
+  // O arquivo compartilhado DENTRO da chamada é exibido num <iframe src="blob:">
+  // (WebRTCCall.tsx). Sem esta linha, frame-src herdaria default-src 'self' e o
+  // visualizador de documento morreria no meio do atendimento — achado por leitura
+  // de código, não pelo relatório: a tela não foi aberta na verificação.
+  "frame-src 'self' blob:",
+  // Para onde o navegador manda o que BLOQUEARIA. Sem isto, "modo relatório" não
+  // produz evidência nenhuma: o aviso fica no console de quem navegou e some.
+  "report-uri /api/csp-report",
 ].join("; ");
 
 /**

@@ -56,6 +56,36 @@ async function startServer() {
   });
   app.use(cabecalhosDeSeguranca);
 
+  /**
+   * Para onde a CSP em modo relatório manda o que BLOQUEARIA.
+   *
+   * Enquanto a política não bloqueia de verdade, este log é a única evidência de
+   * que ela está pronta para ser promovida: alguns dias de uso real sem nenhuma
+   * linha `[csp]` aqui valem mais do que qualquer passeio meu pelas telas — eu não
+   * consigo exercitar todo caminho (anexo de chat, exportação de PDF, a sala com
+   * duas pessoas de verdade).
+   *
+   * O parser aceita qualquer content-type porque o navegador manda
+   * `application/csp-report`, que o express.json padrão ignoraria. 16 KB:
+   * relatório é pequeno, e esta rota fica ANTES de qualquer autenticação.
+   */
+  app.post(
+    "/api/csp-report",
+    express.json({ type: "*/*", limit: "16kb" }),
+    (req, res) => {
+      const relato = (req.body?.["csp-report"] ?? req.body ?? {}) as Record<string, unknown>;
+      console.warn(
+        "[csp] violacao:",
+        JSON.stringify({
+          diretiva: relato["effective-directive"] ?? relato["violated-directive"],
+          bloqueado: String(relato["blocked-uri"] ?? "").slice(0, 200),
+          pagina: String(relato["document-uri"] ?? "").slice(0, 200),
+        }),
+      );
+      res.status(204).end();
+    },
+  );
+
   // 1 MB, nao 50 MB. Arquivo NAO passa por aqui: o navegador envia direto para o
   // Storage do Supabase e o servidor so recebe o caminho. A maior entrada aceita
   // em todo o roteador e uma string de 8 KB (a mensagem da Luma), entao 50 MB nao

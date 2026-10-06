@@ -141,6 +141,24 @@ describe("cabeçalhos de segurança", () => {
     expect(cabecalhos["Content-Security-Policy-Report-Only"]).toContain("default-src 'self'");
   });
 
+  /**
+   * O arquivo compartilhado DENTRO da chamada aparece num <iframe src="blob:">.
+   * Sem frame-src, ele herdaria default-src 'self' e o visualizador morreria no
+   * meio do atendimento — e, em modo relatorio, sem ninguem perceber.
+   */
+  it("a CSP permite o iframe blob: do arquivo compartilhado na chamada", () => {
+    const { res, cabecalhos } = resposta();
+    cabecalhosDeSeguranca(pedido({}), res, vi.fn() as unknown as NextFunction);
+    expect(cabecalhos["Content-Security-Policy-Report-Only"]).toContain("frame-src 'self' blob:");
+  });
+
+  /** Modo relatorio sem coleta nao produz evidencia nenhuma. */
+  it("a CSP aponta para onde enviar as violacoes", () => {
+    const { res, cabecalhos } = resposta();
+    cabecalhosDeSeguranca(pedido({}), res, vi.fn() as unknown as NextFunction);
+    expect(cabecalhos["Content-Security-Policy-Report-Only"]).toContain("report-uri /api/csp-report");
+  });
+
   /** Sem estes, some o Supabase e a sinalizacao da sala. */
   it("a CSP permite o Supabase e os WebSockets da chamada", () => {
     const { res, cabecalhos } = resposta();
