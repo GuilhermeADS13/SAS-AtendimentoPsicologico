@@ -1,26 +1,48 @@
+import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
-import Dashboard from "@/pages/Dashboard";
-import VideoCallDynamic from "@/pages/VideoCallDynamic";
-import Records from "@/pages/Records";
-import Mensagens from "@/pages/Mensagens";
-import Appointments from "@/pages/Appointments";
-import PatientDetail from "@/pages/PatientDetail";
-import Profile from "@/pages/Profile";
-import Configuracoes from "@/pages/Configuracoes";
-import MyAppointments from "@/pages/MyAppointments";
-import MyTherapist from "@/pages/MyTherapist";
-import TherapistRequests from "@/pages/TherapistRequests";
+import { Route, Switch } from "wouter";
+
+// Carregadas junto do bundle: são o primeiro contato e precisam pintar na hora.
+import Home from "@/pages/Home";
 import Login from "@/pages/Login";
 import ResetPassword from "@/pages/ResetPassword";
-import Home from "@/pages/Home";
-import Ajuda from "@/pages/Ajuda";
-import Privacidade from "@/pages/Privacidade";
-import E2EAgentChat from "@/pages/E2EAgentChat";
-import Luma from "@/pages/Luma";
-import Financeiro from "@/pages/Financeiro";
-import { Route, Switch } from "wouter";
+import NotFound from "@/pages/NotFound";
+
+/**
+ * O resto entra sob demanda.
+ *
+ * Antes as 20 páginas vinham num arquivo só de 2,1 MB (606 KB comprimido): quem
+ * abria apenas o login baixava junto a sala de videochamada, o gerador de PDF e
+ * todas as telas da psicóloga. Num celular em rede lenta isso é vários segundos
+ * olhando para uma tela branca — e o paciente que clica no link da consulta no
+ * horário marcado é exatamente quem menos pode esperar.
+ */
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const VideoCallDynamic = lazy(() => import("@/pages/VideoCallDynamic"));
+const Records = lazy(() => import("@/pages/Records"));
+const Mensagens = lazy(() => import("@/pages/Mensagens"));
+const Appointments = lazy(() => import("@/pages/Appointments"));
+const PatientDetail = lazy(() => import("@/pages/PatientDetail"));
+const Profile = lazy(() => import("@/pages/Profile"));
+const Configuracoes = lazy(() => import("@/pages/Configuracoes"));
+const MyAppointments = lazy(() => import("@/pages/MyAppointments"));
+const MyTherapist = lazy(() => import("@/pages/MyTherapist"));
+const TherapistRequests = lazy(() => import("@/pages/TherapistRequests"));
+const Ajuda = lazy(() => import("@/pages/Ajuda"));
+const Privacidade = lazy(() => import("@/pages/Privacidade"));
+const E2EAgentChat = lazy(() => import("@/pages/E2EAgentChat"));
+const Luma = lazy(() => import("@/pages/Luma"));
+const Financeiro = lazy(() => import("@/pages/Financeiro"));
+
+/** Enquanto o pedaço da rota chega. Discreto: na maioria das vezes dura um piscar. */
+function CarregandoRota() {
+  return (
+    <div className="flex min-h-screen items-center justify-center" role="status" aria-label="Carregando">
+      <div className="size-10 animate-spin rounded-full border-2 border-muted border-b-primary" />
+    </div>
+  );
+}
 import ErrorBoundary from "./components/ErrorBoundary";
 import { TherapistOnly } from "./components/TherapistOnly";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -29,6 +51,7 @@ function Router() {
   // Rotas clínicas ficam atrás do TherapistOnly; o paciente só acessa /profile
   // (seu cadastro) e /videocall (o atendimento).
   return (
+    <Suspense fallback={<CarregandoRota />}>
     <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/login"} component={Login} />
@@ -99,6 +122,7 @@ function Router() {
       {/* Final fallback route */}
       <Route component={NotFound} />
     </Switch>
+    </Suspense>
   );
 }
 
