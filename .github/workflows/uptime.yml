@@ -1,15 +1,30 @@
 name: uptime
 
-# Duas funções num ping só, a cada 10 minutos:
-# 1. MONITORAMENTO: se o site não responder, o job falha e o GitHub avisa o dono
-#    por e-mail (Settings > Notifications já cobre workflow failure).
-# 2. KEEP-ALIVE: o Render free hiberna após 15 min sem tráfego — e a primeira
-#    visita do dia levava ~1 min acordando o serviço. O ping impede a hibernação.
-#    Cabe no limite: 24/7 ≈ 720h/mês, e o free do Render dá 750h.
+# MONITORAMENTO. Se o site não responder, o job falha e o GitHub avisa o dono por
+# e-mail (Settings > Notifications já cobre workflow failure).
 #
-# Em repositório público, os minutos de Actions são gratuitos. O cron do GitHub
-# pode atrasar alguns minutos sob carga; se um ping atrasar além dos 15 min, o
-# serviço hiberna e o ping seguinte o acorda — o efeito líquido continua bom.
+# ATENÇÃO — isto NÃO é keep-alive, por mais que o cron peça 10 minutos.
+#
+# O comentário anterior dizia que este ping impedia a hibernação do Render. Medido
+# em 2026-10-06 pelo histórico real de execuções (`gh run list`), o GitHub dispara
+# este agendamento a cada 4 a 9 HORAS, não a cada 10 minutos:
+#
+#   06/10 16:01 · 06/10 09:16 · 06/10 02:25 · 05/10 22:25 · 05/10 15:56 · 05/10 07:00
+#
+# Agendamento de workflow é a fila de menor prioridade do GitHub e é descartada sob
+# carga; `*/10` é um pedido, não uma garantia. Como o Render free hiberna com 15
+# minutos sem tráfego, o serviço passa a maior parte do dia dormindo e a primeira
+# visita espera ~40s na tela "Application loading" — inclusive o paciente clicando
+# no link da consulta no horário marcado.
+#
+# PARA RESOLVER DE VERDADE, uma das duas (nenhuma dá para fazer pelo repositório):
+#   1. Um pinger externo gratuito — cron-job.org ou UptimeRobot — apontando para
+#      https://sas-atendimento-psicologico.onrender.com/ a cada 5 minutos. Esses
+#      serviços executam no horário, diferente do cron do GitHub.
+#   2. O plano pago do Render, que não hiberna.
+#
+# Aumentar a frequência do cron aqui não adianta: o gargalo é o GitHub não
+# disparar, não o intervalo pedido.
 
 on:
   schedule:
@@ -23,8 +38,12 @@ jobs:
       - name: Ping no site
         # --retry 3: um soluço de rede não pode virar alarme falso; só falha
         # (e só avisa) se o site ficar fora de verdade.
+        #
+        # --max-time 90, não 30: se o serviço estiver hibernado, acordar leva ~40s
+        # e o limite de 30s transformava a hibernação — que é esperada hoje — em
+        # alarme de site fora do ar.
         run: |
           curl --fail --silent --show-error --output /dev/null \
-            --max-time 30 --retry 3 --retry-delay 10 \
+            --max-time 90 --retry 3 --retry-delay 10 \
             https://sas-atendimento-psicologico.onrender.com/
           echo "no ar"

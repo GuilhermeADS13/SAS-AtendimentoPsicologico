@@ -35,6 +35,7 @@ import {
 // lugares). `normalizarEmail`/`pacienteDoUsuario` seguem usados aqui como antes.
 import { normalizarEmail, pacienteDoUsuario, resolverAcessoSala } from "./roomAccess";
 import { chavePertenceAoUsuario } from "./storageKeys";
+import { pendenciasDoProntuario } from "../shared/prontuario";
 
 /**
  * Corre uma promessa contra um timeout e SEMPRE limpa o timer. O `Promise.race`
@@ -1327,7 +1328,19 @@ export const appRouter = router({
   }),
 
   patients: router({
-    /** Pacientes da psicóloga logada. */
+    /**
+     * Pacientes da psicóloga logada — só o que as listas usam.
+     *
+     * Era `db.select()` sem argumentos, ou seja `SELECT *`: para montar uma lista
+     * de nomes, o navegador recebia a anamnese, o histórico de saúde, a demanda
+     * inicial e os objetivos terapêuticos de TODOS os pacientes. Não era vazamento
+     * (a psicóloga é a dona dos dados), mas é prontuário trafegando e ficando no
+     * cache do navegador sem necessidade — e nenhuma das cinco telas que chamam
+     * isto lia esses campos.
+     *
+     * O selo "faltam N itens" continua funcionando porque a conferência do CFP
+     * passou a ser feita AQUI: a lista precisa saber o que falta, não o conteúdo.
+     */
     list: therapistProcedure.query(async ({ ctx }) => {
       const db = await getDb();
       if (!db) return [];
@@ -1341,10 +1354,32 @@ export const appRouter = router({
 
       if (!therapist.length) return [];
 
-      return db
-        .select()
+      const linhas = await db
+        .select({
+          id: patients.id,
+          firstName: patients.firstName,
+          lastName: patients.lastName,
+          email: patients.email,
+          phone: patients.phone,
+          status: patients.status,
+          createdAt: patients.createdAt,
+          // Entram só para a conferência abaixo e NÃO vão para o cliente.
+          initialDemand: patients.initialDemand,
+          therapeuticGoals: patients.therapeuticGoals,
+          tcleSignedAt: patients.tcleSignedAt,
+          anamnesis: patients.anamnesis,
+        })
         .from(patients)
         .where(eq(patients.therapistId, therapist[0].id));
+
+      return linhas.map(({ initialDemand, therapeuticGoals, tcleSignedAt, anamnesis, ...paciente }) => ({
+        ...paciente,
+        // Mesma regra da Luma (CFP 001/2009). Só cobra de quem está em atendimento.
+        pendencias:
+          paciente.status === "active"
+            ? pendenciasDoProntuario({ initialDemand, therapeuticGoals, tcleSignedAt, anamnesis })
+            : [],
+      }));
     }),
 
     create: therapistProcedure

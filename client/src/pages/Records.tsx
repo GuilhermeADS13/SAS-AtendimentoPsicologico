@@ -60,7 +60,6 @@ import { useAgora } from "@/hooks/useAgora";
 import { iniciais } from "@/lib/iniciais";
 import { cn } from "@/lib/utils";
 import { FUSO_BR, formatarData, formatarHora } from "@shared/datas";
-import { pendenciasDoProntuario } from "@shared/prontuario";
 
 const emptyForm = {
   firstName: "",
@@ -183,8 +182,8 @@ export default function Records() {
       ...p,
       nome: `${p.firstName} ${p.lastName}`.trim(),
       ...porPaciente.get(p.id),
-      // Mesma regra da Luma (CFP 001/2009). Só cobra de quem está em atendimento.
-      pendencias: p.status === "active" ? pendenciasDoProntuario(p) : [],
+      // `pendencias` vem pronto do servidor (CFP 001/2009): a tela precisa saber o
+      // que falta, e o conteúdo do prontuário não precisa trafegar para isso.
     }));
   }, [naGrade, consultas, relogio]);
 
