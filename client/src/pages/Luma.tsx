@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import {
   CalendarClock,
@@ -55,8 +55,8 @@ export default function Luma() {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   // Sugestões de "e agora?" (em cartões) mostradas só depois de concluir uma ação.
   const [sugestoesPosAcao, setSugestoesPosAcao] = useState<{ label: string; hint?: string; icon?: ReactNode }[]>([]);
-  // Sugestão clicada no Dashboard (/luma?pergunta=...): chega já escrita no campo,
-  // e quem envia é a profissional. A URL é limpa para um F5 não repetir o texto.
+  // Sugestão clicada no Dashboard (/luma?pergunta=...). A URL é limpa para um F5
+  // não repetir a pergunta.
   const [perguntaInicial] = useState(() => {
     if (typeof window === "undefined") return "";
     const params = new URLSearchParams(window.location.search);
@@ -109,6 +109,46 @@ export default function Luma() {
     });
     setMessages(restoredMessages);
   }, [historyQuery.data]);
+
+  /**
+   * A pergunta clicada no Dashboard é ENVIADA, não só escrita no campo.
+   *
+   * Antes ela só preenchia o input: quem clicava em "Quem eu atendo hoje?" caía na
+   * tela de chat com o texto parado e precisava apertar enviar — parecia que o
+   * botão não tinha feito nada.
+   *
+   * Os três `return` são obrigatórios, não cautela à toa:
+   * - sem o papel carregado, `isClinicalUser` ainda é falso e a pergunta da
+   *   psicóloga iria para a Luma de navegação, que não lê agenda nem financeiro;
+   * - a lista de pacientes auto-seleciona quando há só um, e isso LIGA o histórico;
+   * - o efeito do histórico faz `setMessages(restoredMessages)` e apagaria a
+   *   pergunta recém-enviada se ela chegasse antes.
+   */
+  const perguntaInicialEnviada = useRef(false);
+  // O histórico só é buscado nestas condições (mesma regra do `enabled` acima).
+  const historicoHabilitado = (!isClinicalUser || !!selectedPatientId) && (!isAdmin || isTestSiteSupport);
+  // Há um paciente único prestes a ser auto-selecionado: isso vai LIGAR o
+  // histórico, então ainda não dá para enviar.
+  const vaiAutoSelecionarPaciente = isClinicalUser && !selectedPatientId && patients.length === 1;
+  useEffect(() => {
+    if (perguntaInicialEnviada.current || !perguntaInicial) return;
+    if (roleLoading) return;
+    if (isClinicalUser && patientsQuery.isLoading) return;
+    if (vaiAutoSelecionarPaciente) return;
+    if (historicoHabilitado && !historyQuery.isFetched) return;
+    perguntaInicialEnviada.current = true;
+    void handleSend(perguntaInicial);
+    // handleSend é estável (declaração de função) e só deve disparar uma vez.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    perguntaInicial,
+    roleLoading,
+    isClinicalUser,
+    patientsQuery.isLoading,
+    vaiAutoSelecionarPaciente,
+    historicoHabilitado,
+    historyQuery.isFetched,
+  ]);
 
   function changePatient(value: string) {
     setSelectedPatientId(value);
@@ -353,7 +393,6 @@ export default function Luma() {
             onConfirmAction={handleConfirmAction}
             onDismissAction={handleDismissAction}
             isConfirmingAction={confirmActionMutation.isPending}
-            initialInput={perguntaInicial}
             height="min(620px, calc(100dvh - 220px))"
           />
         </section>

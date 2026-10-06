@@ -1,4 +1,4 @@
-import { useMemo, type ComponentType, type ReactNode } from "react";
+import { useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import {
   ArrowUpRight,
@@ -28,6 +28,7 @@ import { urlDaSala } from "@/lib/sala";
 import { cn } from "@/lib/utils";
 import { FUSO_BR, formatarHora } from "@shared/datas";
 import { formatarBRL } from "@shared/dinheiro";
+import { sugestoesDaVez } from "@shared/sugestoesLuma";
 
 // ── Datas no fuso de Brasília ──────────────────────────────────────────────
 // Tudo aqui compara pelo fuso da clínica, não pelo do navegador: com o isToday
@@ -59,7 +60,22 @@ function rotuloDoDia(d: Date, agora: Date): string {
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
-const SUGESTOES_LUMA = ["Quem eu atendo hoje?", "Quem está sumido?", "O que tenho a receber?"];
+/**
+ * Conta as entradas no Dashboard para girar as sugestões da Luma. Fica no
+ * localStorage porque é conveniencia por navegador, nao estado que alguem precise
+ * ler de volta — e se o armazenamento estiver bloqueado (aba anonima), cai no 0 e
+ * o cartao so mostra sempre o primeiro trio, sem quebrar nada.
+ */
+function proximaVisitaAoPainel(): number {
+  const CHAVE = "luma-sugestoes-visita";
+  try {
+    const atual = Number(localStorage.getItem(CHAVE)) || 0;
+    localStorage.setItem(CHAVE, String(atual + 1));
+    return atual;
+  } catch {
+    return 0;
+  }
+}
 
 // O atalho "Entrar" aparece a partir de 15 min antes do horário (até o fim da
 // consulta). A sala em si não tem trava de horário — pela Agenda dá para entrar
@@ -71,6 +87,8 @@ export default function Dashboard() {
   const { isTherapist } = useRole();
   const [, setLocation] = useLocation();
   const agora = useAgora();
+  // Uma vez por montagem: a cada entrada no painel, outro trio de perguntas.
+  const [sugestoesLuma] = useState(() => sugestoesDaVez(proximaVisitaAoPainel()));
 
   const pacientesQuery = trpc.patients.list.useQuery();
   const consultasQuery = trpc.appointments.list.useQuery();
@@ -373,7 +391,7 @@ export default function Dashboard() {
                   Ela consulta só o que você autoriza e, para mexer na agenda, propõe e espera o seu clique.
                 </p>
                 <div className="relative mt-4 space-y-2">
-                  {SUGESTOES_LUMA.map((pergunta) => (
+                  {sugestoesLuma.map((pergunta) => (
                     <button
                       key={pergunta}
                       type="button"
