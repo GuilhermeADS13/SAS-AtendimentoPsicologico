@@ -79,15 +79,49 @@ export function limitarRequisicoes(opcoes: { janelaMs: number; maximo: number; m
 }
 
 /**
+ * Content-Security-Policy, por enquanto em modo RELATÓRIO.
+ *
+ * CSP errada quebra a aplicação sem erro visível — some um estilo, uma chamada
+ * falha, e nada aparece para o usuário além da tela torta. Por isso ela entra
+ * primeiro como `-Report-Only`: o navegador NÃO bloqueia nada, só anota no console
+ * o que teria bloqueado. Com essa lista na mão dá para apertar o que falta e só
+ * então promover para o cabeçalho que bloqueia de verdade.
+ *
+ * `frame-ancestors 'none'` repete o X-Frame-Options porque navegador moderno já
+ * prefere a CSP; os dois juntos cobrem o antigo e o novo.
+ */
+const CSP_RELATORIO = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  // blob:/data: são usados pela prévia de foto e pelo vídeo local.
+  "img-src 'self' data: blob: https:",
+  "media-src 'self' blob:",
+  "font-src 'self' data:",
+  // O Tailwind compila para arquivo, mas React injeta style inline em componente.
+  "style-src 'self' 'unsafe-inline'",
+  "script-src 'self'",
+  // Supabase (API, Storage, Realtime), os WebSockets da própria sala e os
+  // servidores STUN/TURN da videochamada.
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co wss: stun: turn: turns:",
+  "worker-src 'self' blob:",
+].join("; ");
+
+/**
  * Cabeçalhos de segurança.
  *
- * NÃO inclui Content-Security-Policy nem Permissions-Policy, e isso é decisão, não
- * esquecimento: uma CSP errada quebra a aplicação em produção sem erro visível, e
- * uma Permissions-Policy errada derruba a câmera e o microfone da videochamada —
- * que é justamente o núcleo do produto. Os dois merecem uma passagem própria, com
- * teste de chamada real. Os quatro abaixo não têm esse risco.
+ * A Permissions-Policy declara `self` para câmera, microfone e captura de tela:
+ * sem essas três, a videochamada — o núcleo do produto — para de funcionar. O
+ * efeito prático é barrar iframe de terceiro de pedir esses recursos.
  */
 export function cabecalhosDeSeguranca(_req: Request, res: Response, next: NextFunction) {
+  res.setHeader("Content-Security-Policy-Report-Only", CSP_RELATORIO);
+  res.setHeader(
+    "Permissions-Policy",
+    "camera=(self), microphone=(self), display-capture=(self), geolocation=(), payment=(), usb=()",
+  );
   // Só HTTPS por um ano (o serviço não atende em HTTP).
   res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   // Impede o navegador de "adivinhar" o tipo de um arquivo servido.

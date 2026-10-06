@@ -116,15 +116,37 @@ describe("cabeçalhos de segurança", () => {
   });
 
   /**
-   * Decisão consciente: CSP e Permissions-Policy ficam de fora. Uma CSP errada
-   * quebra a aplicação sem erro visível, e uma Permissions-Policy errada derruba a
-   * câmera e o microfone da videochamada — o núcleo do produto. Se alguém
-   * adicionar, que seja com teste de chamada real, não de raspão.
+   * A videochamada e o nucleo do produto: sem camera, microfone e captura de tela
+   * liberados para a propria origem, ela simplesmente para de funcionar. Este
+   * teste existe para que ninguem "aperte" a politica sem perceber o que derruba.
    */
-  it("não manda CSP nem Permissions-Policy por enquanto", () => {
+  it("a Permissions-Policy libera camera, microfone e captura de tela para a propria origem", () => {
+    const { res, cabecalhos } = resposta();
+    cabecalhosDeSeguranca(pedido({}), res, vi.fn() as unknown as NextFunction);
+    const politica = cabecalhos["Permissions-Policy"];
+    expect(politica).toContain("camera=(self)");
+    expect(politica).toContain("microphone=(self)");
+    expect(politica).toContain("display-capture=(self)");
+  });
+
+  /**
+   * A CSP entra em modo RELATORIO primeiro: o navegador nao bloqueia nada, so
+   * anota o que teria bloqueado. Promover para o cabecalho que bloqueia de verdade
+   * e um passo deliberado, depois de ler os relatos em producao.
+   */
+  it("a CSP esta em modo relatorio, nao bloqueando", () => {
     const { res, cabecalhos } = resposta();
     cabecalhosDeSeguranca(pedido({}), res, vi.fn() as unknown as NextFunction);
     expect(cabecalhos["Content-Security-Policy"]).toBeUndefined();
-    expect(cabecalhos["Permissions-Policy"]).toBeUndefined();
+    expect(cabecalhos["Content-Security-Policy-Report-Only"]).toContain("default-src 'self'");
+  });
+
+  /** Sem estes, some o Supabase e a sinalizacao da sala. */
+  it("a CSP permite o Supabase e os WebSockets da chamada", () => {
+    const { res, cabecalhos } = resposta();
+    cabecalhosDeSeguranca(pedido({}), res, vi.fn() as unknown as NextFunction);
+    const csp = cabecalhos["Content-Security-Policy-Report-Only"];
+    expect(csp).toContain("https://*.supabase.co");
+    expect(csp).toContain("wss:");
   });
 });
