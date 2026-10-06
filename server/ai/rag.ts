@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { BaseEmbedding, Document, Settings, VectorStoreIndex } from "llamaindex";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { documents, patients, sessions, type Patient, type Session, type Document as ClinicalDocument } from "../../drizzle/schema";
@@ -79,6 +80,40 @@ export type RagSource = {
   requiresReview: boolean;
 };
 
+/**
+ * Cache de embeddings, em memória.
+ *
+ * Fica no processo de propósito, sem tabela nova: o serviço roda numa instância
+ * só, e guardar vetor de texto clínico em disco pediria uma decisão de retenção
+ * que não cabe numa otimização. Perder o cache num deploy é barato — a primeira
+ * pergunta depois reconstrói.
+ *
+ * A chave inclui o MODELO: trocar o modelo de embedding (ex.: para um
+ * multilíngue) invalida tudo sozinho, sem risco de comparar vetor novo com
+ * vetor velho, que daria resultado silenciosamente errado.
+ */
+const cacheDeEmbeddings = new Map<string, number[]>();
+
+/** ~6 KB por vetor de 768 dimensões; 1500 ≈ 9 MB, que cabe na instância free. */
+const TETO_DO_CACHE = Math.max(100, Number(process.env.AI_EMBEDDING_CACHE_MAX) || 1500);
+
+const chaveDeCache = (modelo: string, texto: string) =>
+  createHash("sha256").update(`${modelo}\u0000${texto}`).digest("hex");
+
+function guardarNoCache(chave: string, vetor: number[]) {
+  if (cacheDeEmbeddings.size >= TETO_DO_CACHE) {
+    // Descarta o mais antigo (primeira chave do Map).
+    const maisAntiga = cacheDeEmbeddings.keys().next().value;
+    if (maisAntiga !== undefined) cacheDeEmbeddings.delete(maisAntiga);
+  }
+  cacheDeEmbeddings.set(chave, vetor);
+}
+
+/** Só para teste: o cache é global ao processo e vazaria entre casos. */
+export function limparCacheDeEmbeddings() {
+  cacheDeEmbeddings.clear();
+}
+
 class OpenAICompatibleEmbedding extends BaseEmbedding {
   private readonly baseUrl: string;
   private readonly apiKey: string;
@@ -96,6 +131,20 @@ class OpenAICompatibleEmbedding extends BaseEmbedding {
 
   async getTextEmbedding(text: string): Promise<number[]> {
     if (this.problemaDeConfig) throw new Error(this.problemaDeConfig);
+
+    // O índice é remontado a CADA pergunta, e `escolherCandidatos` traz até 70
+    // sessões e 40 documentos — ou seja, ~110 chamadas ao provedor por pergunta,
+    // reenviando o mesmo texto clínico toda vez. O texto de uma sessão só muda
+    // quando a psicóloga a edita, então o vetor pode ser reaproveitado.
+    const chave = chaveDeCache(this.model, text);
+    const emCache = cacheDeEmbeddings.get(chave);
+    if (emCache) {
+      // LRU: reinserir move para o fim da ordem de inserção do Map.
+      cacheDeEmbeddings.delete(chave);
+      cacheDeEmbeddings.set(chave, emCache);
+      return emCache;
+    }
+
     const response = await fetch(`${this.baseUrl}/embeddings`, {
       method: "POST",
       headers: {
@@ -118,6 +167,7 @@ class OpenAICompatibleEmbedding extends BaseEmbedding {
     };
     const embedding = payload.data?.[0]?.embedding;
     if (!embedding?.length) throw new Error("Embedding provider não retornou vetor");
+    guardarNoCache(chave, embedding);
     return embedding;
   }
 }
@@ -161,13 +211,21 @@ function patientText(patient: Patient): string {
   ].filter(Boolean).join("\n");
 }
 
-function sessionText(session: Session): string {
+/** Exportada para teste: é o que decide quais campos da sessão a busca alcança. */
+export function sessionText(session: Session): string {
   return [
     `Sessão realizada em ${session.startedAt.toISOString()}`,
     session.mood ? `Humor registrado: ${session.mood}` : "",
     session.clinicalNotes ? `Notas clínicas: ${session.clinicalNotes}` : "",
     session.treatment ? `Tratamento registrado: ${session.treatment}` : "",
     session.nextSteps ? `Próximos passos registrados: ${session.nextSteps}` : "",
+    // A evolução SOAP ficava INTEIRA de fora da busca. É onde a psicóloga escreve
+    // a análise da sessão, então perguntar "o que eu avaliei sobre o sono dele?"
+    // não encontrava nada — mesmo com a resposta registrada em Avaliação.
+    session.subjective ? `S — Subjetivo: ${session.subjective}` : "",
+    session.objective ? `O — Objetivo: ${session.objective}` : "",
+    session.assessment ? `A — Avaliação: ${session.assessment}` : "",
+    session.plan ? `P — Plano: ${session.plan}` : "",
   ].filter(Boolean).join("\n");
 }
 

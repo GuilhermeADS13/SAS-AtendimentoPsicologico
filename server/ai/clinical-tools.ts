@@ -1002,22 +1002,45 @@ export function createClinicalTools(
           });
         }
       }
-      if (structuredSources.length) onSources?.(structuredSources);
       const documentContext = trechos.join("\n\n");
-      if (documentContext) return wrapUntrustedClinicalContext(documentContext);
-      const sources = await retrieveScopedClinicalContext(ctx, {
-        query,
-        patientId: alvo,
-        topK: Number(process.env.AI_RAG_TOP_K ?? 6),
-      }, db);
-      onSources?.(sources.map(source => ({
-        sourceType: source.sourceType,
-        sourceId: source.sourceId,
-        patientId: source.patientId,
-        requiresReview: source.requiresReview,
-      })));
-      const formatted = formatRagContext(sources);
-      return formatted ? wrapUntrustedClinicalContext(formatted) : "Nenhum registro autorizado foi encontrado.";
+
+      /**
+       * As SESSÕES são buscadas sempre, não só quando nenhum documento casa.
+       *
+       * Antes havia um `return` aqui: bastava UM trecho de documento casar para a
+       * busca devolver só documentos e nunca olhar as sessões. Na prática, assim
+       * que a psicóloga anexava um PDF ao prontuário, perguntar sobre o que ela
+       * mesma escreveu nas sessões parava de funcionar — e sem nenhum sinal de que
+       * metade do prontuário tinha saído do alcance.
+       *
+       * O orçamento de caracteres é compartilhado: o que os documentos já usaram
+       * desconta do que as sessões podem usar, então o contexto final não cresce.
+       */
+      const orcamentoRestante = maxContextChars - usados;
+      let contextoDeSessoes = "";
+      if (orcamentoRestante > 500) {
+        const sources = await retrieveScopedClinicalContext(ctx, {
+          query,
+          patientId: alvo,
+          topK: Number(process.env.AI_RAG_TOP_K ?? 6),
+        }, db);
+        if (sources.length) {
+          structuredSources.push(...sources.map(source => ({
+            sourceType: source.sourceType,
+            sourceId: source.sourceId,
+            patientId: source.patientId,
+            requiresReview: source.requiresReview,
+          })));
+          contextoDeSessoes = formatRagContext(sources).slice(0, orcamentoRestante);
+        }
+      }
+
+      if (structuredSources.length) onSources?.(structuredSources);
+
+      const contextoCompleto = [documentContext, contextoDeSessoes].filter(Boolean).join("\n\n");
+      return contextoCompleto
+        ? wrapUntrustedClinicalContext(contextoCompleto)
+        : "Nenhum registro autorizado foi encontrado.";
       } catch (error) {
         // O motivo real (ex.: LLM_EMBEDDING_BASE_URL ausente) fica no log do
         // servidor; para o modelo vai só a instrução do que fazer agora.
