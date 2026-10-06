@@ -147,7 +147,7 @@ describe("pareceRascunhoDeProntuario", () => {
   });
 
   /**
-   * Trava contra um erro que ja aconteceu: ao editar por script, um `` virou o
+   * Trava contra um erro que ja aconteceu: ao editar por script, um `\b` virou o
    * caractere BACKSPACE (codepoint 8) dentro da regex. Compilou, passou no
    * typecheck e simplesmente nunca casava -- e o caractere e INVISIVEL no editor.
    */
