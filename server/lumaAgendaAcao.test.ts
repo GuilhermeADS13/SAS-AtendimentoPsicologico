@@ -224,3 +224,41 @@ describe("forcarPropostaDeAgenda", () => {
     expect(texto).toBeUndefined();
   });
 });
+
+/**
+ * REGRESSAO: `\bmar(?:c|qu)` e `\bpag` casavam com o PREFIXO, nao com o verbo.
+ * Todo paciente chamado Marcos, Marcela, Marcia ou Marcio virava "acao na agenda"
+ * — inclusive em pedido de leitura pura — e a Luma respondia propondo mexer na
+ * agenda. O mesmo valia para "pagina" escrito sem acento.
+ */
+describe("nome proprio e substantivo nao sao acao de agenda", () => {
+  it.each([
+    "Como esta o Marcos?",
+    "Resuma a ultima sessao da Marcela",
+    "O Marcos faltou ontem",
+    "Quais as queixas da Marcia?",
+    "Marcio relatou ansiedade",
+    "Marcelo melhorou desde o inicio",
+    "em qual pagina vejo isso",
+    "essa pagina nao abre",
+  ])("NAO e acao de agenda: %s", (fala) => {
+    expect(pareceAcaoDeAgenda(fala)).toBe(false);
+  });
+
+  /** E o verbo de verdade continua sendo reconhecido, em varias conjugacoes. */
+  it.each([
+    "marcar consulta para quinta",
+    "quero marcar com o Marcos",
+    "marque uma consulta",
+    "marquei errado, pode corrigir?",
+    "ja marcou a proxima?",
+    "remarcar a consulta de sexta",
+    "desmarque a de amanha",
+    "registrar pagamento da consulta",
+    "o paciente pagou ontem",
+    "quero pagar agora",
+    "marcado para as 10h",
+  ])("E acao de agenda: %s", (fala) => {
+    expect(pareceAcaoDeAgenda(fala)).toBe(true);
+  });
+});

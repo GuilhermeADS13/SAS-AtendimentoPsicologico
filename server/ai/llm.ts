@@ -294,12 +294,32 @@ export function buildGeneralActivityResponse(): string {
  * precisa poder marcar a PRIMEIRA consulta dele. Usada para NÃO curto-circuitar
  * esses pedidos no atalho de "escopo sem dados".
  */
+/**
+ * Formas de "marcar" e "pagar", escritas por extenso.
+ *
+ * Antes eram os prefixos `\bmar(?:c|qu)` e `\bpag`, e isso pegava palavra que não
+ * é verbo nenhum: TODO paciente chamado Marcos, Marcela, Márcia ou Márcio virava
+ * "ação na agenda" — até em "resuma a última sessão da Marcela", que é leitura
+ * pura — e a Luma respondia propondo mexer na agenda. O `\bpag` tinha o mesmo
+ * defeito com "pagina" (quem digita sem acento), transformando pergunta de
+ * navegação em pedido de pagamento.
+ *
+ * Por extenso é mais verboso, mas é a única forma de separar o verbo do nome
+ * próprio: "marcos" e "marcar" compartilham o prefixo, não a conjugação.
+ */
+const FORMAS_DE_MARCAR =
+  "marcar|marcarei|marcará|marcaria|marcaríamos|marcariamos|marcamos|marcaram|marcando|marcados|marcadas|marcado|marcada|marcava|marcavam|marcam|marca|marcou|marco|marque|marquem|marquei";
+const FORMAS_DE_PAGAR =
+  "pagar|pagarei|pagará|pagaria|pagamos|pagaram|pagando|pagamentos|pagamento|pagos|pagas|pago|paga|pagam|pagou|paguei|pague|paguem";
+
 export function pareceAcaoDeAgenda(mensagem: string): boolean {
-  // "marcar" conjuga com C (marcar/marcou) e com QU (marque/marquei) — daí o
-  // (?:c|qu). Idem remarcar/desmarcar. agendar/cancelar/pagar não têm essa troca.
-  return /(agend|remar(?:c|qu)|reagend|desmar(?:c|qu)|\bmar(?:c|qu)|cancel|\bpag|cobran|(criar|nova|abrir|registrar)\W+(?:\w+\W+){0,3}?(consulta|agendament|pagament|sess))/i.test(
-    mensagem,
+  // remarcar/desmarcar/reagendar não colidem com nome próprio, então seguem por
+  // prefixo. "marcar" e "pagar" precisam das formas inteiras (ver acima).
+  const padrao = new RegExp(
+    `(agend|remar(?:c|qu)|reagend|desmar(?:c|qu)|\\b(?:${FORMAS_DE_MARCAR})\\b|cancel|\\b(?:${FORMAS_DE_PAGAR})\\b|cobran|(criar|nova|abrir|registrar)\\W+(?:\\w+\\W+){0,3}?(consulta|agendament|pagament|sess))`,
+    "i",
   );
+  return padrao.test(mensagem);
 }
 
 /**

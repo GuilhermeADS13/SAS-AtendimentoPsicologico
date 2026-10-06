@@ -10,7 +10,8 @@ import { ArrowLeft } from "lucide-react";
  *
  * Precisa refletir a arquitetura REAL: a videochamada é WebRTC próprio (com TURN
  * da Metered como relay quando a conexão direta falha), e a assistente Luma envia
- * dados a um provedor de IA (Groq, EUA). Declarar esses operadores e a
+ * dados a provedores de IA nos EUA (Groq, para as respostas; Cloudflare, para os
+ * embeddings da busca em documentos). Declarar esses operadores e a
  * transferência internacional é o que a lei exige — não é opcional.
  */
 export default function Privacidade() {
@@ -121,6 +122,12 @@ export default function Privacidade() {
                 <strong>EUA</strong>) que processa as mensagens da assistente Luma. Ver a
                 seção 5.
               </li>
+              <li>
+                <strong>Cloudflare</strong> — provedor de inteligência artificial (
+                <strong>EUA</strong>) que converte textos em representações numéricas,
+                usadas para a Luma localizar o trecho certo de um documento. Recebe o
+                trecho do documento e o texto da busca. Ver a seção 5.
+              </li>
             </ul>
             <p>
               <strong>Não vendemos nem compartilhamos seus dados</strong> com terceiros
@@ -135,6 +142,13 @@ export default function Privacidade() {
               e a consultar informações do seu próprio atendimento. Para responder, ela
               envia o texto da conversa e os dados estritamente necessários a um provedor
               de IA (<strong>Groq</strong>, nos EUA), que processa e devolve a resposta.
+            </p>
+            <p>
+              Quando a busca precisa encontrar um trecho dentro de um documento do
+              atendimento, esse trecho e o texto da busca também são enviados a um segundo
+              provedor (<strong>Cloudflare</strong>, nos EUA), que os converte em
+              representações numéricas usadas para comparar semelhança. É uma
+              <strong> transferência internacional</strong>, como a da Groq.
             </p>
             <ul className="list-disc pl-5 space-y-1">
               <li>
