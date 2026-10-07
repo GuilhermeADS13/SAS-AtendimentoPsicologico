@@ -1,6 +1,6 @@
 /**
  * Iniciais do nome, para o fallback do avatar quando não há foto.
- * "Lucemy Chagas" -> "LC". Nome só de uma palavra devolve uma letra.
+ 
  */
 export function iniciais(nome?: string | null): string {
   const partes = (nome || "").trim().split(/\s+/).filter(Boolean);
