@@ -118,6 +118,11 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
     retry: false,
   });
   const chatNaoLidas = chatUnread.data ?? 0;
+  // Nome da psicóloga no cabeçalho do chat do paciente (em vez de "Minha psicóloga").
+  const psicologa = trpc.me.therapist.useQuery(undefined, {
+    enabled: allowed && !isTherapist,
+    retry: false,
+  });
 
   // Carrega as anotações já salvas para este agendamento.
   const savedNotes = trpc.sessionNotes.getByAppointment.useQuery(
@@ -442,7 +447,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
               >
                 <ChatConversa
                   patientId={isTherapist ? patientId : undefined}
-                  titulo={isTherapist ? (patient ? `${patient.firstName} ${patient.lastName}` : "Mensagens") : "Minha psicóloga"}
+                  titulo={isTherapist ? (patient ? `${patient.firstName} ${patient.lastName}` : "Mensagens") : psicologa.data?.nome?.trim() || "Minha psicóloga"}
                   onClose={() => setShowChat(false)}
                   ativo={showChat}
                 />
