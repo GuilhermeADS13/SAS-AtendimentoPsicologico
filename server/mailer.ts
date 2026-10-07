@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
 
 /**
  * Envio de e-mail, com dois caminhos.
@@ -24,9 +24,11 @@ export function pickProvider(env: NodeJS.ProcessEnv = process.env): EmailProvide
   return "dry-run";
 }
 
-let transporter: nodemailer.Transporter | null = null;
+// A partir do nodemailer 10 o tipo é exportado pelo nome, não mais pendurado no
+// objeto padrão (`nodemailer.Transporter` deixou de existir).
+let transporter: Transporter | null = null;
 
-function getTransporter(): nodemailer.Transporter | null {
+function getTransporter(): Transporter | null {
   if (transporter) return transporter;
   const host = process.env.SMTP_HOST;
   const user = process.env.SMTP_USER;
