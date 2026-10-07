@@ -104,10 +104,10 @@ describe("separação de papéis da Luma", () => {
 
     expect(source).toContain("siteHelpMutation.mutateAsync");
     expect(source).toContain("if (!isClinicalUser)");
-    expect(source).toContain("if (isAdmin && !isTestSiteSupport)");
-    expect(source).toContain("Acesso clínico restrito");
-    expect(source).toContain("isTestSiteSupport");
-    expect(source).toContain("siteHelpMutation.mutateAsync");
+    // Admin entra no modo clínico (decisão de 2026-10-07): o servidor o trata como
+    // psicóloga só se tiver perfil, no escopo dos próprios pacientes — ver
+    // aiAcessoAdmin.test.ts. Paciente continua fora, pelo isClinicalUser acima.
+    expect(source).toContain("const isClinicalUser = isTherapist;");
     expect(source).not.toContain("chatMutation.mutateAsync({ messages: nextMessages");
     // Texto encurtado para caber no campo de uma linha no celular; o que importa
     // aqui é o placeholder CLÍNICO existir, provando o modo separado.

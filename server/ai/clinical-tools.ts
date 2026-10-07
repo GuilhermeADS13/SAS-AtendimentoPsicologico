@@ -20,6 +20,14 @@ export async function resolveAiAccessContext(
   user: { id: number; role: AiAccessContext["role"] },
 ): Promise<AiAccessContext> {
   if (user.role === "admin") {
+    // Admin que TAMBÉM atende (tem perfil de psicóloga) usa a Luma clínica como
+    // psicóloga — com o PRÓPRIO therapistId, então todas as travas de escopo
+    // continuam valendo: só os pacientes dele, nunca os de outra profissional.
+    // Admin sem perfil de psicóloga segue sem acesso clínico (decisão do
+    // Guilherme em 2026-10-07; antes todo admin era barrado).
+    const perfil = await db.select({ id: therapists.id }).from(therapists)
+      .where(eq(therapists.userId, user.id)).limit(1);
+    if (perfil[0]) return { userId: user.id, role: "therapist", therapistId: perfil[0].id };
     return { userId: user.id, role: user.role };
   }
   if (user.role === "therapist") {

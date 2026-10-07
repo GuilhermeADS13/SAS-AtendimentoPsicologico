@@ -24,11 +24,9 @@ import {
 import DashboardLayout from "@/components/DashboardLayout";
 import { AIChatBox, type LumaFeedback, type Message, type PendingAction } from "@/components/AIChatBox";
 import { useRole } from "@/hooks/useRole";
-import { isLumaTestAccount } from "@/lib/lumaAccess";
 import { iniciais } from "@/lib/iniciais";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -74,9 +72,11 @@ const ATALHOS_PACIENTE: { icone: LucideIcon; rotulo: string; destino: string }[]
 
 export default function Luma() {
   const [, setLocation] = useLocation();
-  const { user, isTherapist, isAdmin, loading: roleLoading } = useRole();
-  const isTestSiteSupport = isAdmin && isLumaTestAccount(user?.email);
-  const isClinicalUser = isTherapist && !isAdmin;
+  const { isTherapist, loading: roleLoading } = useRole();
+  // Admin conta como psicóloga (isTherapist inclui admin): o servidor libera a
+  // Luma clínica para o admin que tem perfil de psicóloga, no escopo dos próprios
+  // pacientes (ver resolveAiAccessContext). Antes o admin caía no modo de apoio.
+  const isClinicalUser = isTherapist;
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversationId, setConversationId] = useState<number | undefined>();
   const [selectedPatientId, setSelectedPatientId] = useState<string>("");
@@ -108,7 +108,7 @@ export default function Luma() {
   const historyQuery = trpc.ai.history.useQuery(
     isClinicalUser && selectedPatientId ? { patientId: Number(selectedPatientId) } : undefined,
     {
-      enabled: !roleLoading && (!isClinicalUser || !!selectedPatientId) && (!isAdmin || isTestSiteSupport),
+      enabled: !roleLoading && (!isClinicalUser || !!selectedPatientId),
       retry: false,
     },
   );
@@ -155,7 +155,7 @@ export default function Luma() {
    */
   const perguntaInicialEnviada = useRef(false);
   // O histórico só é buscado nestas condições (mesma regra do `enabled` acima).
-  const historicoHabilitado = (!isClinicalUser || !!selectedPatientId) && (!isAdmin || isTestSiteSupport);
+  const historicoHabilitado = !isClinicalUser || !!selectedPatientId;
   // Há um paciente único prestes a ser auto-selecionado: isso vai LIGAR o
   // histórico, então ainda não dá para enviar.
   const vaiAutoSelecionarPaciente = isClinicalUser && !selectedPatientId && patients.length === 1;
@@ -202,10 +202,6 @@ export default function Luma() {
     // As sugestões de "e agora?" valem para o momento logo após a ação; assim que
     // a conversa segue, elas saem de cena.
     setSugestoesPosAcao([]);
-    if (isAdmin && !isTestSiteSupport) {
-      toast.error("A Luma não está disponível para acesso clínico administrativo.");
-      return;
-    }
     // Sem paciente selecionado a conversa segue: perguntas de navegação/uso do
     // sistema não dependem de um paciente. Se a pergunta for sobre REGISTROS, a
     // própria Luma pede para selecionar o paciente (ver clinicalSystemPrompt).
@@ -380,19 +376,6 @@ export default function Luma() {
     );
   }
 
-  if (isAdmin && !isTestSiteSupport) {
-    return (
-      <DashboardLayout>
-        <Card className="mx-auto max-w-2xl border-amber-300 bg-amber-50">
-          <CardHeader><CardTitle>Acesso clínico restrito</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">A Luma clínica não consulta prontuários em contas administrativas. Use uma conta de terapeuta ou paciente autorizada.</p>
-            <Button onClick={() => setLocation("/dashboard")}>Voltar ao dashboard</Button>
-          </CardContent>
-        </Card>
-      </DashboardLayout>
-    );
-  }
 
   const nomeDoPaciente = selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName}`.trim() : "";
   const capacidades = isClinicalUser ? CAPACIDADES_CLINICAS : CAPACIDADES_PACIENTE;
