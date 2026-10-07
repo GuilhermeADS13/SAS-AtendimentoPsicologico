@@ -702,8 +702,12 @@ export default function Appointments() {
                 }
               />
             ) : (
-            <>
-            <div className="grid gap-3 2xl:hidden">
+            // A troca cartões → tabela mede o espaço DESTA área (container query),
+            // não a tela. Era `2xl` (tela ≥ 1536px), mas a tabela precisa de 1450px
+            // só para ela: com o menu lateral e as margens, entre ~1536 e ~1830px de
+            // tela ela não cabia, rolava para o lado e as colunas se sobrepunham.
+            <div className="@container">
+            <div className="grid gap-3 @min-[1460px]:hidden">
               {appointments.length === 0 ? (
                 <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
                   Nenhuma consulta agendada.
@@ -805,14 +809,13 @@ export default function Appointments() {
                 })
               )}
             </div>
-            <div className="hidden overflow-x-auto 2xl:block">
+            <div className="hidden overflow-x-auto @min-[1460px]:block">
               {/* min-w = SOMA das larguras das colunas abaixo (180+130+100+100+
-                  150+170+300+240 = 1370). Estava 1120: com table-fixed, quando a
-                  largura disponível caía entre 1120 e 1370 as colunas encolhiam
-                  abaixo do declarado e os botões (whitespace-nowrap) vazavam por
-                  cima das colunas vizinhas, cortando "Ações". Com a soma correta,
-                  o overflow-x-auto do container assume e vira rolagem lateral. */}
-              <Table className="min-w-[1370px] table-fixed">
+                  150+210+340+240 = 1450). Com table-fixed, coluna mais estreita que
+                  o conteúdo deixa os itens (whitespace-nowrap) vazarem por cima da
+                  vizinha: Pagamento tinha 170px para o selo "Pagamento pendente ·
+                  alterar" (~200px) e Sala 300px para os dois botões (~330px). */}
+              <Table className="min-w-[1450px] table-fixed">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[180px]">Paciente</TableHead>
@@ -820,8 +823,8 @@ export default function Appointments() {
                     <TableHead className="w-[100px]">Hora</TableHead>
                     <TableHead className="w-[100px]">Duração</TableHead>
                     <TableHead className="w-[150px]">Status</TableHead>
-                    <TableHead className="w-[170px]">Pagamento</TableHead>
-                    <TableHead className="w-[300px]">Sala</TableHead>
+                    <TableHead className="w-[210px]">Pagamento</TableHead>
+                    <TableHead className="w-[340px]">Sala</TableHead>
                     <TableHead className="w-[240px] text-left">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1058,7 +1061,7 @@ export default function Appointments() {
                 </TableBody>
               </Table>
             </div>
-            </>
+            </div>
             )}
           </CardContent>
         </Card>

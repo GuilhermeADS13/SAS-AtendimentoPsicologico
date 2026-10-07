@@ -13,7 +13,7 @@ import {
   MessageCircle,
   MessageSquare,
   Receipt,
-  RotateCcw,
+  MessageCirclePlus,
   Settings,
   ShieldCheck,
   UserRound,
@@ -417,7 +417,7 @@ export default function Luma() {
           </div>
           {messages.length > 0 && (
             <Button variant="outline" className="bg-card md:shrink-0" onClick={resetConversation}>
-              <RotateCcw className="size-4" />
+              <MessageCirclePlus className="size-4" />
               Nova conversa
             </Button>
           )}
