@@ -129,13 +129,21 @@ services:
       # empilha jobs que ninguém processa. Ligado junto com o RAG.
       - key: AI_WORKER_INLINE
         value: "true"
-      # Embeddings 768d GRÁTIS: Cloudflare Workers AI (bge-base). O BASE_URL contém
-      # o seu ACCOUNT_ID (preencha no painel: .../accounts/<ACCOUNT_ID>/ai/v1) e a
-      # chave é SEGREDO. Ver "OPÇÃO B" no .env.example para outras opções (Google).
+      # Embeddings 768d GRÁTIS: Cloudflare Workers AI. O BASE_URL contém o seu
+      # ACCOUNT_ID (preencha no painel: .../accounts/<ACCOUNT_ID>/ai/v1) e a chave é
+      # SEGREDO. Ver "OPÇÃO B" no .env.example para outras opções (Google).
+      #
+      # EmbeddingGemma, multilíngue. Era o bge-base-en-v1.5, que só entende inglês:
+      # num teste com anotações clínicas em português ele acertava 3 de 8 buscas; o
+      # EmbeddingGemma, com os prefixos de tarefa (ver prefixosDoModelo em rag.ts),
+      # acertou 8 de 8. Mesmas 768 dimensões, então a coluna do banco serve.
+      # ATENÇÃO: trocar este modelo invalida os vetores já gravados em
+      # aiDocumentChunks — é preciso reindexar os documentos. Na troca para o
+      # Gemma havia ZERO documentos indexados, então não houve o que refazer.
       - key: LLM_EMBEDDING_BASE_URL
         sync: false
       - key: LLM_EMBEDDING_MODEL
-        value: "@cf/baai/bge-base-en-v1.5"
+        value: "@cf/google/embeddinggemma-300m"
       - key: LLM_EMBEDDING_API_KEY
         sync: false
       # SEGREDO. Necessário com o RAG ligado: o worker usa a service_role para

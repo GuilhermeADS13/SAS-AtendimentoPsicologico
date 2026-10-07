@@ -109,6 +109,25 @@ function guardarNoCache(chave: string, vetor: number[]) {
   cacheDeEmbeddings.set(chave, vetor);
 }
 
+/**
+ * Prefixos de tarefa do modelo de embedding — busca e documento são diferentes.
+ *
+ * O EmbeddingGemma foi TREINADO com estes prefixos (cartão do modelo, Google). Num
+ * teste com anotações clínicas fictícias em português, ele acertou 7 de 8 buscas
+ * sem prefixo e 8 de 8 com — e a que errava sem prefixo era "risco de autolesão",
+ * justamente a mais importante para a segurança do paciente (ia para o 3º lugar).
+ * O modelo anterior, bge-base-en (só inglês), acertava 3 de 8.
+ *
+ * Para qualquer outro modelo, sem prefixo: aplicar o do EmbeddingGemma num modelo
+ * que não o espera só acrescentaria ruído ao texto.
+ */
+export function prefixosDoModelo(modelo: string): { busca: string; documento: string } {
+  if (/embeddinggemma/i.test(modelo)) {
+    return { busca: "task: search result | query: ", documento: "title: none | text: " };
+  }
+  return { busca: "", documento: "" };
+}
+
 /** Só para teste: o cache é global ao processo e vazaria entre casos. */
 export function limparCacheDeEmbeddings() {
   cacheDeEmbeddings.clear();
@@ -129,7 +148,25 @@ class OpenAICompatibleEmbedding extends BaseEmbedding {
     this.problemaDeConfig = options.problemaDeConfig ?? null;
   }
 
+  /** DOCUMENTO (sessão, trecho de arquivo): recebe o prefixo de documento do modelo. */
   async getTextEmbedding(text: string): Promise<number[]> {
+    return this.embedar(prefixosDoModelo(this.model).documento + text);
+  }
+
+  /**
+   * BUSCA (a pergunta da psicóloga): recebe o prefixo de busca do modelo.
+   *
+   * A implementação padrão da LlamaIndex mandava a busca pelo mesmo caminho do
+   * documento, sem distinção. Para o EmbeddingGemma isso importa: ele foi treinado
+   * com prefixos diferentes para cada lado.
+   */
+  async getQueryEmbedding(query: Parameters<BaseEmbedding["getQueryEmbedding"]>[0]): Promise<number[] | null> {
+    // Mesma extração de texto da LlamaIndex (extractSingleText).
+    if (query.type !== "text") return null;
+    return this.embedar(prefixosDoModelo(this.model).busca + query.text);
+  }
+
+  private async embedar(text: string): Promise<number[]> {
     if (this.problemaDeConfig) throw new Error(this.problemaDeConfig);
 
     // O índice é remontado a CADA pergunta, e `escolherCandidatos` traz até 70

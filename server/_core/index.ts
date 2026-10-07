@@ -160,6 +160,11 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    // O modelo de embedding vem de variável de ambiente, e o Render só aplica o
+    // render.yaml em serviço gerenciado por Blueprint. Este log é o jeito de saber
+    // qual modelo a produção está REALMENTE usando — trocar sem reindexar os
+    // documentos já gravados deixa a busca quebrada sem erro nenhum.
+    console.log(`[rag] modelo de embedding: ${process.env.LLM_EMBEDDING_MODEL?.trim() || "(não configurado)"}`);
   });
 
   // Agendador de lembretes/notificações (opt-in). Enfileira e envia os e-mails

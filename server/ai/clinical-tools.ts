@@ -962,7 +962,10 @@ export function createClinicalTools(
       if (!(await hasAuthorizedClinicalData(ctx, alvo, db))) {
         return "Nenhum registro clínico autorizado foi encontrado para este paciente. Não invente informações; informe isso claramente e ofereça apenas ajuda geral que não dependa de prontuários.";
       }
-      const queryEmbedding = await embeddingForCurrentEnvironment().getTextEmbedding(query);
+      // É a PERGUNTA: vai pelo caminho de busca (prefixo de busca do modelo), não
+      // pelo de documento — o EmbeddingGemma trata os dois lados de forma diferente.
+      const queryEmbedding = await embeddingForCurrentEnvironment().getQueryEmbedding({ type: "text", text: query });
+      if (!queryEmbedding) throw new Error("Não foi possível gerar o vetor da busca.");
       const indexedChunks = await searchIndexedDocumentChunks(
         ctx,
         queryEmbedding,
