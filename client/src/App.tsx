@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Route, Switch } from "wouter";
@@ -17,23 +17,28 @@ import NotFound from "@/pages/NotFound";
  * todas as telas da psicóloga. Num celular em rede lenta isso é vários segundos
  * olhando para uma tela branca — e o paciente que clica no link da consulta no
  * horário marcado é exatamente quem menos pode esperar.
+ *
+ * Depois do login, o DashboardLayout pré-carrega as telas do papel da pessoa em
+ * segundo plano (ver paginas.tsx), para a primeira entrada em cada uma não esperar.
  */
-const Dashboard = lazy(() => import("@/pages/Dashboard"));
-const VideoCallDynamic = lazy(() => import("@/pages/VideoCallDynamic"));
-const Records = lazy(() => import("@/pages/Records"));
-const Mensagens = lazy(() => import("@/pages/Mensagens"));
-const Appointments = lazy(() => import("@/pages/Appointments"));
-const PatientDetail = lazy(() => import("@/pages/PatientDetail"));
-const Profile = lazy(() => import("@/pages/Profile"));
-const Configuracoes = lazy(() => import("@/pages/Configuracoes"));
-const MyAppointments = lazy(() => import("@/pages/MyAppointments"));
-const MyTherapist = lazy(() => import("@/pages/MyTherapist"));
-const TherapistRequests = lazy(() => import("@/pages/TherapistRequests"));
-const Ajuda = lazy(() => import("@/pages/Ajuda"));
-const Privacidade = lazy(() => import("@/pages/Privacidade"));
-const E2EAgentChat = lazy(() => import("@/pages/E2EAgentChat"));
-const Luma = lazy(() => import("@/pages/Luma"));
-const Financeiro = lazy(() => import("@/pages/Financeiro"));
+import {
+  Ajuda,
+  Appointments,
+  Configuracoes,
+  Dashboard,
+  E2EAgentChat,
+  Financeiro,
+  Luma,
+  Mensagens,
+  MyAppointments,
+  MyTherapist,
+  PatientDetail,
+  Privacidade,
+  Profile,
+  Records,
+  TherapistRequests,
+  VideoCallDynamic,
+} from "@/paginas";
 
 /** Enquanto o pedaço da rota chega. Discreto: na maioria das vezes dura um piscar. */
 function CarregandoRota() {

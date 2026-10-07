@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { preCarregarPaginas } from "@/paginas";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -101,6 +102,14 @@ export default function DashboardLayout({
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
+
+  // Logado: baixa as outras telas em segundo plano, para a primeira entrada em
+  // cada uma abrir na hora (ver paginas.tsx).
+  const papel = user?.role;
+  useEffect(() => {
+    if (!papel) return;
+    return preCarregarPaginas(papel === "admin" || papel === "therapist");
+  }, [papel]);
 
   if (loading) {
     return <DashboardLayoutSkeleton />
