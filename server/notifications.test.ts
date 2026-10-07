@@ -11,9 +11,9 @@ const QUANDO = new Date("2026-07-24T18:00:00Z");
 const base = {
   scheduledAt: QUANDO,
   duration: 50,
-  patientFirstName: "Lucemy",
+  patientFirstName: "Paciente",
   patientLastName: "Souza",
-  therapistName: "Beatriz Chagas",
+  therapistName: "Psicóloga Exemplo",
 };
 
 function notificacao(
@@ -45,7 +45,7 @@ describe("e-mail de notificação: diz QUAL consulta", () => {
    */
   it("põe nome e horário no assunto do cancelamento (psicóloga)", () => {
     const { subject } = composeEmail(notificacao("appointment_cancelled", "therapist"));
-    expect(subject).toContain("Lucemy Souza");
+    expect(subject).toContain("Paciente Souza");
     expect(subject).toContain("24/07");
     expect(subject).toContain("15:00");
   });
@@ -57,11 +57,11 @@ describe("e-mail de notificação: diz QUAL consulta", () => {
    */
   it("mostra a psicóloga ao paciente, e o paciente à psicóloga", () => {
     const psi = composeEmail(notificacao("appointment_cancelled", "therapist"));
-    expect(psi.html).toContain("Lucemy Souza");
+    expect(psi.html).toContain("Paciente Souza");
     expect(psi.html).toContain("Paciente:");
 
     const pac = composeEmail(notificacao("appointment_cancelled", "patient"));
-    expect(pac.html).toContain("Beatriz Chagas");
+    expect(pac.html).toContain("Psicóloga Exemplo");
     expect(pac.html).toContain("Psicóloga:");
   });
 
@@ -77,7 +77,7 @@ describe("e-mail de notificação: diz QUAL consulta", () => {
       notificacao("appointment_confirmation", "therapist"),
     );
     expect(subject).toContain("Presença confirmada");
-    expect(html).toContain("Lucemy Souza");
+    expect(html).toContain("Paciente Souza");
   });
 
   /**

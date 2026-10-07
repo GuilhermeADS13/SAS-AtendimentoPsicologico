@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { formatarDataHora, formatarHora, formatarMesAno } from "@shared/datas";
+import { formatarData, formatarDataHora, formatarHora, formatarMesAno } from "@shared/datas";
 
 /**
  * Data e hora da consulta — e, quando o aparelho está em outro fuso, a hora local.
@@ -15,13 +15,19 @@ import { formatarDataHora, formatarHora, formatarMesAno } from "@shared/datas";
 function HorarioDaConsulta({ quando }: { quando: Date | string }) {
   const d = new Date(quando);
   const horaLocal = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  const difere = horaLocal !== formatarHora(d);
+  // Longe o bastante (Europa, Ásia), a consulta cai em OUTRO dia no horário local:
+  // aí só a hora enganaria, então a data local vai junto.
+  const mesmoDia = d.toLocaleDateString("pt-BR") === formatarData(d);
+  const difere = !mesmoDia || horaLocal !== formatarHora(d);
+  const local = mesmoDia
+    ? horaLocal
+    : `${d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} às ${horaLocal}`;
   return (
     <>
       {formatarDataHora(d)}
       {difere && (
         <span className="ml-1 text-xs text-muted-foreground">
-          (Brasília · {horaLocal} no seu horário)
+          (Brasília · {local} no seu horário)
         </span>
       )}
     </>
