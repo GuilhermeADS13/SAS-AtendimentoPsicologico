@@ -8,7 +8,6 @@ import {
   ChevronRight,
   FileText,
   HeartHandshake,
-  LifeBuoy,
   ListChecks,
   LockKeyhole,
   MessageCircle,
@@ -232,7 +231,7 @@ export default function Luma() {
         // O paciente não executa "ações" (a Luma dele é navegação), então o menu
         // "E agora?" nunca aparecia. Depois de cada resposta, ofereço os próximos
         // passos do dia a dia dele — para não deixar a conversa parada.
-        setSugestoesPosAcao(proximosPassosPaciente());
+        setSugestoesPosAcao(proximosPassosPaciente(content));
         return;
       }
 
@@ -268,7 +267,7 @@ export default function Luma() {
       // para a conversa não parar depois de cada resposta (como já acontece com o
       // paciente). Com proposta pendente, o foco é confirmar/descartar, então não
       // polui com sugestões.
-      if (!result.pendingAction) setSugestoesPosAcao(proximosPassosTerapeuta());
+      if (!result.pendingAction) setSugestoesPosAcao(proximosPassosTerapeuta(content));
     } catch (err) {
       // Rate limit do provedor de IA (429/TPM do plano) é temporário e não é
       // "falha do sistema": a mensagem genérica assustava ("informe a equipe")
@@ -286,22 +285,34 @@ export default function Luma() {
     }
   }
 
+  /**
+   * As 3 primeiras sugestões que NÃO são a pergunta que a pessoa acabou de fazer.
+   * Sem isso, quem clicava em "Ver minhas consultas" recebia a resposta e, logo
+   * abaixo, "Ver minhas consultas" de novo como próximo passo.
+   */
+  function semARepetida(opcoes: { label: string; icon: ReactNode }[], perguntaFeita: string) {
+    const normalizar = (texto: string) => texto.trim().toLocaleLowerCase("pt-BR").replace(/[?!.]+$/, "");
+    return opcoes.filter(opcao => normalizar(opcao.label) !== normalizar(perguntaFeita)).slice(0, 3);
+  }
+
   /** Próximos passos do PACIENTE — o "e agora?" dele, no contexto de navegação. */
-  function proximosPassosPaciente(): { label: string; icon: ReactNode }[] {
-    return [
+  function proximosPassosPaciente(perguntaFeita: string): { label: string; icon: ReactNode }[] {
+    return semARepetida([
       { label: "Ver minhas consultas", icon: <CalendarDays className="size-5" /> },
       { label: "Como entro na videochamada?", icon: <Video className="size-5" /> },
       { label: "Atualizar meus dados", icon: <Settings className="size-5" /> },
-    ];
+      { label: "Encontrar minha psicóloga", icon: <HeartHandshake className="size-5" /> },
+    ], perguntaFeita);
   }
 
   /** "E agora?" geral da terapeuta — depois de uma resposta normal (sem proposta). */
-  function proximosPassosTerapeuta(): { label: string; icon: ReactNode }[] {
-    return [
+  function proximosPassosTerapeuta(perguntaFeita: string): { label: string; icon: ReactNode }[] {
+    return semARepetida([
       { label: "Ver os próximos agendamentos", icon: <CalendarDays className="size-5" /> },
       { label: "Agendar uma consulta", icon: <CalendarPlus className="size-5" /> },
       { label: "Registrar um pagamento", icon: <Receipt className="size-5" /> },
-    ];
+      { label: "Resumir os últimos registros autorizados", icon: <FileText className="size-5" /> },
+    ], perguntaFeita);
   }
 
   /** O que costuma vir depois de cada ação — o "e agora?" da terapeuta. */
@@ -540,7 +551,6 @@ export default function Luma() {
           </section>
 
           {!isClinicalUser && (
-            <>
               <section
                 aria-labelledby="luma-atalhos"
                 className="rounded-2xl border bg-card p-5 shadow-[0_1px_2px_rgb(0_0_0/0.04)]"
@@ -564,18 +574,6 @@ export default function Luma() {
                   ))}
                 </ul>
               </section>
-
-              {/* A Luma de apoio não é canal de crise; quem precisar, precisa saber AGORA. */}
-              <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
-                <p className="flex items-center gap-2 text-sm font-semibold">
-                  <LifeBuoy className="size-4 shrink-0" />
-                  Precisa de ajuda agora?
-                </p>
-                <p className="mt-1.5 text-sm leading-relaxed">
-                  Em uma crise, ligue <strong>188</strong> (CVV, 24 horas e gratuito) ou <strong>192</strong> (SAMU).
-                </p>
-              </section>
-            </>
           )}
         </aside>
         </div>

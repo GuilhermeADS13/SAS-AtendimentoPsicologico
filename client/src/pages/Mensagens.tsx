@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, CalendarDays, LifeBuoy, LockKeyhole, MessageSquare, Search, UserPlus, UserRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, LockKeyhole, MessageSquare, Search, UserPlus, UserRound } from "lucide-react";
 
 const chaveDoDia = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: FUSO_BR });
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
@@ -313,8 +313,8 @@ function MensagensPaciente() {
           <ChatConversa titulo={nome} subtitulo={psi?.crp ? `Psicóloga · CRP ${psi.crp}` : "Sua psicóloga"} fotoUrl={fotoUrl} />
         </div>
 
-        <aside className="space-y-4" aria-label="Sobre esta conversa">
-          <section className="hidden rounded-2xl border bg-card p-5 shadow-[0_1px_2px_rgb(0_0_0/0.04)] lg:block">
+        <aside className="hidden lg:block" aria-label="Sobre esta conversa">
+          <section className="rounded-2xl border bg-card p-5 shadow-[0_1px_2px_rgb(0_0_0/0.04)]">
             <div className="flex items-center gap-3">
               <Avatar className="size-12">
                 {fotoUrl && <AvatarImage src={fotoUrl} alt="" className="object-cover" />}
@@ -341,19 +341,6 @@ function MensagensPaciente() {
                 Minhas consultas
               </Button>
             </div>
-          </section>
-
-          {/* Mensagem não é plantão: quem está em crise precisa saber onde buscar ajuda
-              AGORA, não esperar a psicóloga ler. */}
-          <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
-            <p className="flex items-center gap-2 text-sm font-semibold">
-              <LifeBuoy className="size-4 shrink-0" />
-              Precisa de ajuda agora?
-            </p>
-            <p className="mt-1.5 text-sm leading-relaxed">
-              As mensagens não são acompanhadas em tempo real. Em uma crise, ligue <strong>188</strong> (CVV, 24 horas e
-              gratuito) ou <strong>192</strong> (SAMU).
-            </p>
           </section>
         </aside>
       </div>
