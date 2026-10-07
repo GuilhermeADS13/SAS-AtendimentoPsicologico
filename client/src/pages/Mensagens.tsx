@@ -40,7 +40,7 @@ function quandoNaLista(d: Date | null, agora: Date): string {
 
 function Cabecalho({ resumo, carregando, className }: { resumo: string; carregando?: boolean; className?: string }) {
   return (
-    <header data-tour="mensagens" className={cn("min-w-0 space-y-1.5", className)}>
+    <header className={cn("min-w-0 space-y-1.5", className)}>
       <p className="text-sm font-medium text-primary">Conversas privadas</p>
       <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Mensagens</h1>
       {carregando ? (
@@ -100,7 +100,8 @@ function MensagensTerapeuta() {
       >
         {/* Lista de conversas */}
         <section aria-label="Conversas" className={cn("min-h-0 flex-col border-r", sel ? "hidden lg:flex" : "flex")}>
-          <div className="space-y-3 border-b p-3">
+          {/* Alvo do tour: a busca e o filtro de não lidas são o que muda o uso. */}
+          <div className="space-y-3 border-b p-3" data-tour="mensagens">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -309,7 +310,7 @@ function MensagensPaciente() {
       />
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
-        <div className="h-[calc(100dvh-14rem)] min-h-[28rem] overflow-hidden rounded-2xl border bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04)] lg:h-[calc(100dvh-13rem)]">
+        <div data-tour="mensagens" className="h-[calc(100dvh-14rem)] min-h-[28rem] overflow-hidden rounded-2xl border bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04)] lg:h-[calc(100dvh-13rem)]">
           <ChatConversa titulo={nome} subtitulo={psi?.crp ? `Psicóloga · CRP ${psi.crp}` : "Sua psicóloga"} fotoUrl={fotoUrl} />
         </div>
 

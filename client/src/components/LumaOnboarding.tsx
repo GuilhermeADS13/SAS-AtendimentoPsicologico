@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,13 @@ const therapistSteps: Step[] = [
     body: "Vou passar por cada tela e destacar, na hora, onde fica cada coisa e o que fazer ali. É rápido — e você pode pular quando quiser.",
   },
   {
+    path: "/dashboard",
+    icon: null,
+    title: "Perguntas prontas no painel",
+    body: "Aqui no painel eu deixo perguntas do dia a dia, como “Quem eu atendo hoje?”. Um toque e eu já respondo — e as sugestões mudam a cada visita.",
+    target: '[data-tour="luma-painel"]',
+  },
+  {
     path: "/records",
     icon: Users,
     title: "Cadastrar pacientes",
@@ -56,7 +63,7 @@ const therapistSteps: Step[] = [
     path: "/mensagens",
     icon: MessageSquare,
     title: "Mensagens",
-    body: "Converse por texto com seus pacientes e troque arquivos por aqui. É o mesmo chat que abre dentro da videochamada.",
+    body: "Converse com seus pacientes e troque arquivos. Busque pelo nome, filtre as não lidas e veja ✓✓ quando a pessoa já leu. É o mesmo chat que abre dentro da videochamada.",
     target: '[data-tour="mensagens"]',
   },
   {
@@ -77,7 +84,7 @@ const therapistSteps: Step[] = [
     path: "/luma",
     icon: null,
     title: "Falar comigo",
-    body: "Escolha o paciente e me peça em português (ex.: “marque a Ana quinta às 14h”). Eu monto a ação; ela só acontece quando você clicar em Confirmar.",
+    body: "Escolha o paciente e me peça em português (ex.: “marque a Ana quinta às 14h”) ou toque numa sugestão. Eu monto a ação; ela só acontece quando você clicar em Confirmar. Para recomeçar, use “Nova conversa”.",
     target: '[data-tour="luma-composer"]',
   },
   {
@@ -107,14 +114,14 @@ const patientSteps: Step[] = [
     path: "/consultas",
     icon: Calendar,
     title: "Minhas Consultas",
-    body: "Suas consultas ficam aqui. Toque em “Confirmar presença” e, no horário, em “Entrar na sala” para a videochamada. Na chamada, o botão “Mensagens” abre o chat.",
+    body: "Suas consultas ficam aqui. Toque em “Confirmar presença” e, no horário, em “Entrar na sala” para a videochamada. O horário é o de Brasília — se você estiver em outro fuso, mostro também o seu.",
     target: '[data-tour="minhas-consultas"]',
   },
   {
     path: "/mensagens",
     icon: MessageSquare,
     title: "Mensagens",
-    body: "Fale por texto com o seu profissional e troque arquivos, a qualquer hora.",
+    body: "Fale com a sua psicóloga e troque arquivos, a qualquer hora. O ✓✓ mostra quando ela já leu. Na videochamada, o botão “Mensagens” abre esta mesma conversa.",
     target: '[data-tour="mensagens"]',
   },
   {
@@ -128,7 +135,7 @@ const patientSteps: Step[] = [
     path: "/luma",
     icon: null,
     title: "Falar comigo",
-    body: "Ficou com dúvida de como usar o sistema? É só me perguntar aqui, quando quiser.",
+    body: "Ficou com dúvida de como usar o sistema? Toque numa sugestão ou escreva aqui. Depois de cada resposta, eu sugiro o próximo passo.",
     target: '[data-tour="luma-composer"]',
   },
   {
@@ -156,6 +163,20 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
   // Retângulo (coords da viewport) do elemento destacado pelo holofote. null =
   // não achou / escondido (ex.: menu recolhido no celular) → escurece tudo.
   const [alvoRect, setAlvoRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  // O card do tour, para saber quanto do rodapé ele cobre (no celular, ~320px).
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Enquanto o tour está aberto, a página ganha folga no fim: sem ela, um alvo que
+  // é o ÚLTIMO item da página (o cartão da Luma no painel, no celular) não tinha
+  // para onde rolar e ficava atrás do card do tour.
+  useEffect(() => {
+    if (!open) return;
+    const anterior = document.body.style.paddingBottom;
+    document.body.style.paddingBottom = "50vh";
+    return () => {
+      document.body.style.paddingBottom = anterior;
+    };
+  }, [open]);
 
   const utils = trpc.useUtils();
   // `retry: false` + tratar erro como "já viu": se o servidor falhar, o certo é
@@ -253,7 +274,31 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
     let primeira = true;
     const medir = () => {
       const el = document.querySelector(sel) as HTMLElement | null;
-      const r = el?.getBoundingClientRect();
+      let r = el?.getBoundingClientRect();
+      // Rola até o elemento ANTES de checar se está na tela. Antes a checagem vinha
+      // primeiro: um alvo abaixo da dobra (no celular, o cartão da Luma no painel)
+      // era dado como "fora da tela" e o tour nunca rolava até ele. "center" para
+      // ele não ficar escondido atrás do card do tour, que fica no rodapé.
+      if (el && r && r.width > 0 && r.height > 0 && primeira) {
+        primeira = false;
+        // Faixa livre: abaixo da barra do topo (~72px) e acima do card do tour.
+        // Rola quando o alvo está fora da tela, ou quando CABE na faixa mas está
+        // atrás do card (no celular, o cartão da Luma no painel ficava com as
+        // perguntas escondidas). Alvo maior que a faixa e já com o topo visível:
+        // não mexe — rolar não o mostraria inteiro mesmo.
+        const topoLivre = 72;
+        const alturaCard = (cardRef.current?.getBoundingClientRect().height ?? 220) + 24;
+        const fundoLivre = window.innerHeight - alturaCard;
+        const foraDaTela = r.top < 0 || r.top > fundoLivre;
+        const cabe = r.height <= fundoLivre - topoLivre;
+        if (foraDaTela || (cabe && r.bottom > fundoLivre)) {
+          const margemAnterior = el.style.scrollMarginTop;
+          el.style.scrollMarginTop = `${topoLivre}px`;
+          el.scrollIntoView({ block: "start", inline: "nearest" });
+          el.style.scrollMarginTop = margemAnterior;
+          r = el.getBoundingClientRect();
+        }
+      }
       // Sem elemento, invisível (0x0) ou fora da tela (ex.: menu recolhido no
       // celular): sem holofote — o card explica e o fundo fica escuro.
       if (
@@ -262,10 +307,6 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
       ) {
         setAlvoRect(null);
         return;
-      }
-      if (primeira) {
-        el.scrollIntoView({ block: "nearest", inline: "nearest" });
-        primeira = false;
       }
       setAlvoRect({ left: r.left, top: r.top, width: r.width, height: r.height });
     };
@@ -338,7 +379,7 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
       )}
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 p-3 sm:p-4">
-      <div className="pointer-events-auto mx-auto w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl">
+      <div ref={cardRef} className="pointer-events-auto mx-auto w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl">
         {/* Cabeçalho: ícone + rótulo do passo + título (cada um em sua linha, para
             o texto não ficar apertado) + fechar. */}
         <div className="flex items-start gap-3">

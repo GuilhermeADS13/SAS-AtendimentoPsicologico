@@ -372,6 +372,7 @@ export default function Dashboard() {
             {showLumaShortcut && (
               <section
                 aria-labelledby="luma-titulo"
+                data-tour="luma-painel"
                 className="relative overflow-hidden rounded-2xl bg-primary p-5 text-primary-foreground shadow-sm"
               >
                 <span aria-hidden className="pointer-events-none absolute -right-12 -top-12 size-40 rounded-full bg-white/[0.07]" />
