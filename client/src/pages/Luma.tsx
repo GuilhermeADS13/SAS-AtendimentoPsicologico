@@ -360,9 +360,9 @@ export default function Luma() {
             <Skeleton className="h-9 w-56" />
             <Skeleton className="h-5 w-full max-w-xl" />
           </div>
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
             <Skeleton className="h-[max(420px,min(620px,calc(100dvh-280px)))] rounded-2xl" />
-            <Skeleton className="hidden h-64 rounded-2xl lg:block" />
+            <Skeleton className="hidden h-64 rounded-2xl xl:block" />
           </div>
         </div>
       </DashboardLayout>
@@ -412,7 +412,9 @@ export default function Luma() {
           )}
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+        {/* Lateral só a partir do xl: com o menu lateral aberto, em 1024px sobravam
+            ~370px para o chat — o seletor quebrava uma palavra por linha. */}
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
         <section className="min-w-0 space-y-4" aria-labelledby="luma-title" data-tour="luma-composer">
           {isClinicalUser && (
             <div className="flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-[0_1px_2px_rgb(0_0_0/0.04)] sm:flex-row sm:items-center">

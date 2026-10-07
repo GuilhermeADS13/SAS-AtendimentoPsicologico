@@ -123,7 +123,8 @@ function MensagensTerapeuta() {
                   disabled={f.valor && naoLidas === 0}
                   onClick={() => setSoNaoLidas(f.valor)}
                   className={cn(
-                    "rounded-full px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+                    // 32px de altura (36px em tela de toque): com 24px era fácil errar o dedo.
+                    "h-8 rounded-full px-3 text-xs font-medium transition-colors pointer-coarse:h-9 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
                     f.ativo ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground",
                   )}
                 >

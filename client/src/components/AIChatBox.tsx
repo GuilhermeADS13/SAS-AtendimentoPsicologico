@@ -326,15 +326,18 @@ export function AIChatBox({
       {/* Messages Area */}
       <div ref={scrollAreaRef} className="flex-1 overflow-hidden">
         {displayMessages.length === 0 ? (
-          <div className="flex h-full flex-col p-4">
-            <div className="flex flex-1 flex-col items-center justify-center gap-6 text-muted-foreground">
-              <div className="flex max-w-full flex-col items-center gap-3 text-center">
+          // Rola quando não cabe (celular pequeno, chat baixo) e só centraliza quando
+          // sobra espaço: com `justify-center` simples, o conteúdo maior que a área
+          // transbordava e os cartões de sugestão ficavam POR CIMA do texto.
+          <div className="flex h-full flex-col overflow-y-auto p-4">
+            <div className="flex flex-1 flex-col items-center justify-center-safe gap-6 text-muted-foreground">
+              <div className="flex max-w-full shrink-0 flex-col items-center gap-3 text-center">
                 <LumaOwlIcon className="size-16 opacity-85" />
                 <p className="max-w-2xl break-words text-sm">{emptyStateMessage}</p>
               </div>
 
               {suggestedMenu && suggestedMenu.length > 0 ? (
-                <div className="grid w-full max-w-xl grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <div className="grid w-full max-w-xl shrink-0 grid-cols-1 gap-2.5 sm:grid-cols-2">
                   {suggestedMenu.map((item) => (
                     <button
                       key={item.label}
@@ -358,7 +361,7 @@ export function AIChatBox({
                   ))}
                 </div>
               ) : suggestedPrompts && suggestedPrompts.length > 0 ? (
-                <div className="flex w-full max-w-2xl flex-wrap justify-center gap-2">
+                <div className="flex w-full max-w-2xl shrink-0 flex-wrap justify-center gap-2">
                   {suggestedPrompts.map((prompt) => (
                     <button
                       key={prompt}
