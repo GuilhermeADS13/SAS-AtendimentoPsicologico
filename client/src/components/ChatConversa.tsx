@@ -30,6 +30,18 @@ function rotuloDoDia(d: Date, agora: Date): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
+/** Agrupa as mensagens (já em ordem cronológica) por dia de Brasília. */
+function agruparPorDia<T extends { createdAt: Date | string }>(itens: T[]): Array<{ chave: string; itens: T[] }> {
+  const dias: Array<{ chave: string; itens: T[] }> = [];
+  for (const item of itens) {
+    const chave = chaveDoDia(new Date(item.createdAt));
+    const ultimo = dias[dias.length - 1];
+    if (ultimo && ultimo.chave === chave) ultimo.itens.push(item);
+    else dias.push({ chave, itens: [item] });
+  }
+  return dias;
+}
+
 /**
  * Conversa de UM thread do chat. É o mesmo componente usado na página Mensagens e
  * dentro da videochamada (painel estilo Meet) — as duas leem/gravam no mesmo
@@ -269,26 +281,29 @@ export default function ChatConversa({
             </p>
           </div>
         ) : (
-          <ol className="flex flex-col">
-            {mensagens.map((m, i) => {
+          <div className="flex flex-col">
+            {/* Um bloco por dia: o rótulo gruda no topo só enquanto o SEU dia está
+                visível e é empurrado pelo do dia seguinte. Numa lista única, todos
+                grudavam no mesmo lugar e ficavam empilhados um sobre o outro. */}
+            {agruparPorDia(mensagens).map(({ chave, itens }) => (
+              <section key={chave} className="pb-2">
+                <div className="sticky top-0 z-10 flex justify-center py-1.5" aria-hidden>
+                  <span className="rounded-full border bg-card/95 px-3 py-0.5 text-[11px] font-medium text-muted-foreground shadow-sm backdrop-blur">
+                    {rotuloDoDia(new Date(itens[0].createdAt), agora)}
+                  </span>
+                </div>
+                <ol className="flex flex-col">
+            {itens.map((m, i) => {
               const minha = m.senderRole === role;
               const quando = new Date(m.createdAt);
-              const anterior = mensagens[i - 1];
-              const novoDia = !anterior || chaveDoDia(new Date(anterior.createdAt)) !== chaveDoDia(quando);
+              const anterior = itens[i - 1];
               const mesmoBloco =
-                !novoDia &&
+                !!anterior &&
                 anterior.senderRole === m.senderRole &&
                 quando.getTime() - new Date(anterior.createdAt).getTime() < JANELA_DO_BLOCO_MS;
               return (
                 <Fragment key={m.id}>
-                  {novoDia && (
-                    <li className="sticky top-0 z-10 flex justify-center py-2 first:pt-0" aria-hidden>
-                      <span className="rounded-full border bg-card/95 px-3 py-0.5 text-[11px] font-medium text-muted-foreground shadow-sm backdrop-blur">
-                        {rotuloDoDia(quando, agora)}
-                      </span>
-                    </li>
-                  )}
-                  <li className={cn("flex", minha ? "justify-end" : "justify-start", mesmoBloco ? "mt-0.5" : "mt-3")}>
+                  <li className={cn("flex", minha ? "justify-end" : "justify-start", mesmoBloco ? "mt-0.5" : i === 0 ? "mt-1" : "mt-3")}>
                     <div
                       className={cn(
                         "max-w-[85%] rounded-2xl px-3.5 py-2 text-sm shadow-[0_1px_2px_rgb(0_0_0/0.06)] sm:max-w-[75%]",
@@ -346,8 +361,11 @@ export default function ChatConversa({
                 </Fragment>
               );
             })}
+                </ol>
+              </section>
+            ))}
             {outroDigitando && !buscaAtiva && (
-              <li className="mt-3 flex justify-start" aria-label={`${nome} está digitando`}>
+              <div className="mt-1 flex justify-start" aria-label={`${nome} está digitando`}>
                 <span className="flex items-center gap-1 rounded-2xl rounded-tl-md border bg-card px-3.5 py-3 shadow-[0_1px_2px_rgb(0_0_0/0.06)]">
                   {[0, 150, 300].map((atraso) => (
                     <span
@@ -357,9 +375,9 @@ export default function ChatConversa({
                     />
                   ))}
                 </span>
-              </li>
+              </div>
             )}
-          </ol>
+          </div>
         )}
         <div ref={fimRef} />
       </div>
