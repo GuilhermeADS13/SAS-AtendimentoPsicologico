@@ -148,54 +148,25 @@ export type AIChatBoxProps = {
 };
 
 /**
- * A ready-to-use AI chat box component that integrates with the LLM system.
+ * A caixa de conversa da Luma.
  *
- * Features:
- * - Matches server-side Message interface for seamless integration
- * - Markdown rendering with Streamdown
- * - Auto-scrolls to latest message
- * - Loading states
- * - Uses global theme colors from index.css
+ * Só desenha: quem chama a API e guarda as mensagens é a página (ver Luma.tsx).
+ * Renderiza markdown com Streamdown, rola até a última mensagem, mostra as
+ * fontes autorizadas de cada resposta, o "Foi útil?", o menu "E agora?" depois
+ * de uma ação e o cartão de confirmação quando a Luma propõe mexer na agenda —
+ * a ação só acontece no clique em "Confirmar", nunca pelo modelo.
  *
  * @example
  * ```tsx
- * const ChatPage = () => {
- *   const [messages, setMessages] = useState<Message[]>([
- *     { role: "system", content: "You are a helpful assistant." }
- *   ]);
- *
- *   const chatMutation = trpc.ai.chat.useMutation({
- *     onSuccess: (response) => {
- *       // Assuming your tRPC endpoint returns the AI response as a string
- *       setMessages(prev => [...prev, {
- *         role: "assistant",
- *         content: response
- *       }]);
- *     },
- *     onError: (error) => {
- *       console.error("Chat error:", error);
- *       // Optionally show error message to user
- *     }
- *   });
- *
- *   const handleSend = (content: string) => {
- *     const newMessages = [...messages, { role: "user", content }];
- *     setMessages(newMessages);
- *     chatMutation.mutate({ messages: newMessages });
- *   };
- *
- *   return (
- *     <AIChatBox
- *       messages={messages}
- *       onSendMessage={handleSend}
- *       isLoading={chatMutation.isPending}
- *       suggestedPrompts={[
- *         "Explain quantum computing",
- *         "Write a hello world in Python"
- *       ]}
- *     />
- *   );
- * };
+ * <AIChatBox
+ *   messages={messages}
+ *   onSendMessage={handleSend}          // a página chama ai.chat ou ai.siteHelp
+ *   isLoading={chatMutation.isPending}
+ *   suggestedMenu={[{ label: "Quem eu atendo hoje?", hint: "Agenda do dia" }]}
+ *   pendingAction={pendingAction}       // proposta aguardando confirmação
+ *   onConfirmAction={handleConfirm}     // ai.confirmAction, executa no servidor
+ *   onDismissAction={() => setPendingAction(null)}
+ * />
  * ```
  */
 export function AIChatBox({
@@ -235,21 +206,32 @@ export function AIChatBox({
   // Calculate min-height for last assistant message to push user message to top
   const [minHeightForLastMessage, setMinHeightForLastMessage] = useState(0);
 
+  // Recalcula quando o chat muda de tamanho. Antes media uma vez só, ao abrir:
+  // girar o tablet ou redimensionar a janela no meio da conversa deixava o
+  // espaço com a medida antiga (sobrando ou faltando vão sob a última resposta).
+  // O textarea também cresce ao digitar várias linhas, e isso muda a conta.
   useEffect(() => {
-    if (containerRef.current && inputAreaRef.current) {
-      const containerHeight = containerRef.current.offsetHeight;
-      const inputHeight = inputAreaRef.current.offsetHeight;
-      const scrollAreaHeight = containerHeight - inputHeight;
+    const container = containerRef.current;
+    const inputArea = inputAreaRef.current;
+    if (!container || !inputArea) return;
 
+    const medir = () => {
+      const scrollAreaHeight = container.offsetHeight - inputArea.offsetHeight;
       // Reserve space for:
       // - padding (p-4 = 32px top+bottom)
       // - user message: 40px (item height) + 16px (margin-top from space-y-4) = 56px
       // Note: margin-bottom is not counted because it naturally pushes the assistant message down
       const userMessageReservedHeight = 56;
-      const calculatedHeight = scrollAreaHeight - 32 - userMessageReservedHeight;
+      setMinHeightForLastMessage(Math.max(0, scrollAreaHeight - 32 - userMessageReservedHeight));
+    };
 
-      setMinHeightForLastMessage(Math.max(0, calculatedHeight));
-    }
+    medir();
+    // Navegador antigo sem ResizeObserver fica com a medida inicial, como antes.
+    if (typeof ResizeObserver === "undefined") return;
+    const observador = new ResizeObserver(medir);
+    observador.observe(container);
+    observador.observe(inputArea);
+    return () => observador.disconnect();
   }, []);
 
   // Scroll to bottom helper function with smooth animation
