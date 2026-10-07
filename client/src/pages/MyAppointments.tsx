@@ -1,5 +1,32 @@
 import { useState } from "react";
-import { formatarDataHora, formatarMesAno } from "@shared/datas";
+import { formatarDataHora, formatarHora, formatarMesAno } from "@shared/datas";
+
+/**
+ * Data e hora da consulta — e, quando o aparelho está em outro fuso, a hora local.
+ *
+ * Toda a agenda é exibida no horário de Brasília. Para quem está em outro fuso
+ * (Manaus, Rio Branco, ou viajando), "15:00" sem contexto é lido como horário
+ * local, e a pessoa entra na consulta uma hora antes ou depois. Antes esta tela
+ * não dizia em lugar nenhum que o horário era o de Brasília.
+ *
+ * Mostra os dois só quando diferem: para a maioria, que já está em Brasília, não
+ * acrescenta ruído nenhum.
+ */
+function HorarioDaConsulta({ quando }: { quando: Date | string }) {
+  const d = new Date(quando);
+  const horaLocal = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const difere = horaLocal !== formatarHora(d);
+  return (
+    <>
+      {formatarDataHora(d)}
+      {difere && (
+        <span className="ml-1 text-xs text-muted-foreground">
+          (Brasília · {horaLocal} no seu horário)
+        </span>
+      )}
+    </>
+  );
+}
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -170,7 +197,7 @@ export default function MyAppointments() {
                           ) : null}
                         </p>
                         <p className="text-sm text-foreground/80">
-                          {formatarDataHora(a.scheduledAt)}
+                          <HorarioDaConsulta quando={a.scheduledAt} />
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {a.duration} min
@@ -232,7 +259,7 @@ export default function MyAppointments() {
                           {a.therapistName || "Sua psicóloga"}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {formatarDataHora(a.scheduledAt)}
+                          <HorarioDaConsulta quando={a.scheduledAt} />
                         </p>
                       </div>
                       <span className="text-xs text-muted-foreground">

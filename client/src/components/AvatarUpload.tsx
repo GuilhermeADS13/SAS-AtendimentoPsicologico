@@ -75,9 +75,11 @@ export function AvatarUpload({
     setPreviewUrl(null);
     try {
       await removeAvatarFile(anterior);
-    } catch {
+    } catch (e) {
       // O arquivo órfão no bucket não quebra nada: o cadastro já não aponta
-      // para ele. Não vale incomodar o usuário com isso.
+      // para ele. Não vale incomodar o usuário com isso — mas fica registrado,
+      // porque antes este catch nunca disparava (o remove() não lançava).
+      console.warn("[foto] arquivo antigo não foi apagado do Storage:", e);
     }
   };
 

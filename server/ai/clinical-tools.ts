@@ -10,6 +10,7 @@ import { searchIndexedDocumentChunks } from "./document-ingestion";
 import { wrapUntrustedClinicalContext } from "./content-safety";
 import { consumePendingAction, issuePendingAction, type PendingActionParams } from "./action-confirmation";
 import { formatarBRL } from "../../shared/dinheiro";
+import { DESLOCAMENTO_BR } from "../../shared/datas";
 import { pendenciasDoProntuario } from "../../shared/prontuario";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -57,10 +58,11 @@ async function authorizedPatient(
   return rows[0];
 }
 
-// Brasil não tem horário de verão desde 2019: um horário sem fuso é America/Sao_Paulo (-03:00).
+// Um horário sem fuso é de Brasília. DESLOCAMENTO_BR é a mesma constante que a tela
+// de Agendamentos usa, para a Luma e a psicóloga nunca gravarem em fusos diferentes.
 function parseHorarioSP(raw: string): Date | null {
   const s = raw.trim();
-  const iso = /[zZ]|[+-]\d{2}:?\d{2}$/.test(s) ? s : `${s}-03:00`;
+  const iso = /[zZ]|[+-]\d{2}:?\d{2}$/.test(s) ? s : `${s}${DESLOCAMENTO_BR}`;
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? null : d;
 }

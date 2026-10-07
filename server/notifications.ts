@@ -55,7 +55,10 @@ function formatarQuando(d: Date | null): string | null {
     hour: "2-digit",
     minute: "2-digit",
   }).format(d);
-  return `${data} às ${hora}`;
+  // O fuso vai ESCRITO: o servidor não sabe onde o paciente está, e "às 15:00" sem
+  // contexto é lido como horário local — quem está em Manaus entraria uma hora
+  // atrasado.
+  return `${data} às ${hora} (horário de Brasília)`;
 }
 
 /** "24/07 às 15:00" — versão curta, que cabe no assunto do e-mail. */

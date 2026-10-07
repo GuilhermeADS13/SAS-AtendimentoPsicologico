@@ -29,6 +29,53 @@ export function formatarNascimento(
  */
 export const FUSO_BR = "America/Sao_Paulo";
 
+/**
+ * O deslocamento de Brasília em relação ao UTC. O Brasil não tem horário de verão
+ * desde 2019, então é fixo. Fica numa constante só porque o servidor (a Luma
+ * agendando) e o cliente (a tela de Agendamentos) precisam da MESMA regra — se o
+ * horário de verão voltar, muda aqui e vale para os dois.
+ */
+export const DESLOCAMENTO_BR = "-03:00";
+
+/**
+ * "2026-10-10" + "14:00" → o instante das 14h DE BRASÍLIA.
+ *
+ * Existe porque `new Date("2026-10-10T14:00")` — data e hora sem fuso — é lida no
+ * fuso DO APARELHO. A tela de Agendamentos fazia isso, enquanto todo o resto do
+ * sistema exibe em Brasília: num computador fora de UTC-3 (outro estado, viagem,
+ * relógio mal configurado) a consulta era gravada deslocada, e o paciente via um
+ * horário diferente do que a psicóloga marcou.
+ */
+export function instanteEmBrasilia(data: string, hora: string): Date {
+  return new Date(`${data}T${hora}:00${DESLOCAMENTO_BR}`);
+}
+
+/**
+ * O caminho inverso: um instante → { data: "2026-10-10", hora: "14:00" } em
+ * Brasília, para preencher <input type="date"> e <input type="time">.
+ *
+ * Sem isto, o formulário de EDIÇÃO usava getHours()/getDate(), que também são do
+ * fuso do aparelho: a lista mostrava 15:00 e o formulário 14:00 para a mesma
+ * consulta.
+ */
+export function partesEmBrasilia(instante: Date | string | number): { data: string; hora: string } {
+  const d = new Date(instante);
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: FUSO_BR,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(d);
+  const valor = (tipo: Intl.DateTimeFormatPartTypes) => partes.find(p => p.type === tipo)?.value ?? "00";
+  return {
+    data: `${valor("year")}-${valor("month")}-${valor("day")}`,
+    hora: `${valor("hour")}:${valor("minute")}`,
+  };
+}
+
 function paraData(valor: Date | string | number | null | undefined): Date | null {
   if (valor === null || valor === undefined) return null;
   const d = new Date(valor);

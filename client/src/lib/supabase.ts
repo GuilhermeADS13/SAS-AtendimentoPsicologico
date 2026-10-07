@@ -40,10 +40,18 @@ export async function getDocumentSignedUrl(path: string): Promise<string | null>
   return data?.signedUrl ?? null;
 }
 
-/** Remove o arquivo do Storage. */
+/**
+ * Remove o arquivo do Storage — e LANÇA se não conseguir.
+ *
+ * O `remove()` do Supabase não lança quando falha: ele DEVOLVE `{ error }`. Antes
+ * esse retorno era ignorado, então uma exclusão que falhava passava como sucesso e
+ * o arquivo clínico ficava no bucket sem ninguém saber. Para documento de
+ * prontuário isso é LGPD (direito à eliminação), não detalhe.
+ */
 export async function removeDocumentFile(path: string): Promise<void> {
   if (!supabase) return;
-  await supabase.storage.from(DOCS_BUCKET).remove([path]);
+  const { error } = await supabase.storage.from(DOCS_BUCKET).remove([path]);
+  if (error) throw new Error(`Não foi possível apagar o arquivo: ${error.message}`);
 }
 
 /**
@@ -123,7 +131,9 @@ export async function getAvatarSignedUrl(path: string): Promise<string | null> {
   return data?.signedUrl ?? null;
 }
 
+/** Lança se não conseguir apagar — ver removeDocumentFile (o `remove()` não lança sozinho). */
 export async function removeAvatarFile(path: string): Promise<void> {
   if (!supabase || !path) return;
-  await supabase.storage.from(AVATARS_BUCKET).remove([path]);
+  const { error } = await supabase.storage.from(AVATARS_BUCKET).remove([path]);
+  if (error) throw new Error(`Não foi possível apagar a foto: ${error.message}`);
 }

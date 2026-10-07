@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { urlDaSala } from "@/lib/sala";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
-import { formatarData, formatarHora, formatarMesAno } from "@shared/datas";
+import { formatarData, formatarHora, formatarMesAno, instanteEmBrasilia, partesEmBrasilia } from "@shared/datas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -259,7 +259,8 @@ export default function Appointments() {
       toast.error("Informe uma duração entre 5 e 480 minutos.");
       return;
     }
-    const scheduledAt = new Date(`${formData.date}T${formData.time}`).toISOString();
+    // Em Brasília: `new Date("2026-10-10T14:00")` leria no fuso do aparelho.
+    const scheduledAt = instanteEmBrasilia(formData.date, formData.time).toISOString();
     createAppt.mutate({
       patientId: Number(formData.patientId),
       scheduledAt,
@@ -271,12 +272,12 @@ export default function Appointments() {
 
   // Abre o mesmo dialog em modo de edição, pré-preenchido com a consulta.
   const startEdit = (appointment: (typeof appointments)[number]) => {
-    const d = new Date(appointment.scheduledAt);
-    const pad = (n: number) => String(n).padStart(2, "0");
+    // Em Brasília, como o resto da tela (antes era o fuso do aparelho).
+    const { data, hora } = partesEmBrasilia(appointment.scheduledAt);
     setFormData({
       patientId: String(appointment.patientId),
-      date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-      time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+      date: data,
+      time: hora,
       duration: String(appointment.duration ?? 60),
       repetir: "1",
       valor: centavosParaInput(appointment.price),
@@ -296,7 +297,8 @@ export default function Appointments() {
       toast.error("Informe uma duração entre 5 e 480 minutos.");
       return;
     }
-    const scheduledAt = new Date(`${formData.date}T${formData.time}`).toISOString();
+    // Em Brasília: `new Date("2026-10-10T14:00")` leria no fuso do aparelho.
+    const scheduledAt = instanteEmBrasilia(formData.date, formData.time).toISOString();
     editarAppt.mutate({
       id: editingId,
       scheduledAt,

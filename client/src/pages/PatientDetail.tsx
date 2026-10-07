@@ -343,10 +343,17 @@ export default function PatientDetail() {
       });
       if (created.documentId) {
         try {
-          const indexed = await indexDocument.mutateAsync({ documentId: created.documentId });
-          toast.success(`Documento enviado para indexação (${indexed.status}).`);
-        } catch {
-          toast.success("Documento enviado; a indexação foi colocada na fila para processamento.");
+          await indexDocument.mutateAsync({ documentId: created.documentId });
+          toast.success("Documento enviado. Em instantes a Luma já consegue consultá-lo.");
+        } catch (e) {
+          // O documento FOI salvo — só não entrou na fila da busca. Antes este ramo
+          // mostrava um toast de SUCESSO dizendo que "a indexação foi colocada na
+          // fila", o que era falso: se indexContent falhou, nada foi enfileirado, o
+          // documento nunca ficaria pesquisável e a psicóloga não saberia.
+          console.error("[documentos] falha ao enfileirar a indexação:", e);
+          toast.warning(
+            "Documento salvo, mas a Luma ainda não consegue consultá-lo. Remova e envie de novo para tentar outra vez.",
+          );
         }
       } else {
         toast.success("Documento enviado!");
@@ -366,16 +373,23 @@ export default function PatientDetail() {
     else toast.error("Não foi possível gerar o link do documento.");
   };
 
+  /**
+   * Apaga o ARQUIVO primeiro, o registro depois.
+   *
+   * Era o contrário: o registro sumia e o arquivo era "melhor-esforço", com um
+   * comentário prometendo que o órfão "some depois" — não existe rotina nenhuma
+   * que faça isso. E como o remove() não lançava, a falha nem chegava ao aviso.
+   * Resultado: um documento clínico que a psicóloga apagou podia ficar no bucket
+   * para sempre, sem rastro.
+   *
+   * Nesta ordem, o pior caso se inverte: se algo falhar no meio, quem sobra é o
+   * REGISTRO (visível na lista, dá para tentar de novo), nunca o arquivo clínico
+   * escondido no bucket.
+   */
   const handleDeleteDoc = async (id: number, fileKey: string) => {
     try {
+      await removeDocumentFile(fileKey);
       await deleteDocument.mutateAsync({ id });
-      // O metadado é a fonte da verdade — apagado ele, o documento já sumiu do
-      // prontuário. Remover o arquivo do Storage é melhor-esforço: se falhar,
-      // sobra um órfão (some depois), mas não é motivo para mostrar erro nem
-      // deixar a lista inconsistente com um "Falha" sobre algo que já foi feito.
-      await removeDocumentFile(fileKey).catch((e) =>
-        console.warn("Arquivo órfão no Storage (metadado já removido):", e),
-      );
       await documentsQuery.refetch();
       toast.success("Documento removido.");
     } catch (e) {
