@@ -203,9 +203,14 @@ export default function VideoCallLobby({
   const nome = (d: MediaDeviceInfo, i: number, pref: string) => d.label || `${pref} ${i + 1}`;
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-col gap-4 py-4 sm:py-8">
+    /* Celular DEITADO (tela com ~390px de altura): em uma coluna só, título +
+       prévia 16:9 + seletores + botão passavam de 900px, e era preciso rolar às
+       cegas para achar "Entrar na chamada". Abaixo de 560px de altura vira duas
+       colunas — prévia de um lado, ajustes e o botão do outro. */
+    <div className="mx-auto flex w-full max-w-lg flex-col gap-4 py-4 sm:py-8 [@media(max-height:560px)]:max-w-4xl [@media(max-height:560px)]:flex-row [@media(max-height:560px)]:items-start [@media(max-height:560px)]:gap-5 [@media(max-height:560px)]:py-3">
+      <div className="flex min-w-0 flex-col gap-4 [@media(max-height:560px)]:flex-1">
       <div className="text-center">
-        <h1 className="text-2xl font-bold text-foreground">{title}</h1>
+        <h1 className="text-2xl font-bold text-foreground [@media(max-height:560px)]:text-xl">{title}</h1>
         {subtitle && <p className="mt-1 text-muted-foreground">{subtitle}</p>}
       </div>
 
@@ -248,7 +253,9 @@ export default function VideoCallLobby({
           {camOn ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
         </Button>
       </div>
+      </div>
 
+      <div className="flex min-w-0 flex-col gap-4 [@media(max-height:560px)]:flex-1">
       {/* Seleção de dispositivos */}
       <div className="space-y-3 rounded-lg border border-border bg-card p-4">
         {/* Microfone + medidor de nível */}
@@ -311,6 +318,7 @@ export default function VideoCallLobby({
       <p className="text-center text-xs text-muted-foreground">
         Dentro da chamada você também pode trocar câmera/microfone nas configurações.
       </p>
+      </div>
     </div>
   );
 }

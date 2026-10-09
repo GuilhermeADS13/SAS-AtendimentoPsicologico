@@ -450,7 +450,9 @@ export default function Luma() {
             agentSubtitle={isClinicalUser ? "Coruja de apoio à leitura clínica autorizada" : "Ajuda para navegar no VozInterior"}
             processingLabel={isClinicalUser ? "Luma está consultando somente registros autorizados..." : "Luma está localizando essa área no site..."}
             placeholder={isClinicalUser
-              ? (selectedPatientId ? "Pergunte sobre os registros deste paciente" : "Selecione um paciente acima")
+              // Curto de propósito: o texto longo quebrava em duas linhas no celular
+              // e a segunda ficava cortada pela altura do campo.
+              ? (selectedPatientId ? "Pergunte sobre este paciente" : "Selecione um paciente acima")
               : "Pergunte sobre o uso do site"}
             emptyStateMessage={isClinicalUser ? "Olá! Eu sou a Luma, sua coruja de apoio clínico. Consulto os registros autorizados (sessões e documentos) e cuido da agenda do paciente: agendar, remarcar, cancelar e registrar pagamento. Toda alteração na agenda aparece como uma proposta, e só acontece quando você clicar em Confirmar. Selecione um paciente e uma sugestão abaixo para começar." : "Olá! Eu sou a Luma, sua coruja de apoio no VozInterior. Escolha uma sugestão para aprender a usar o sistema."}
             followUpMenu={sugestoesPosAcao}

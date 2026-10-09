@@ -272,6 +272,7 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
       return;
     }
     let primeira = true;
+    let achou = false;
     const medir = () => {
       const el = document.querySelector(sel) as HTMLElement | null;
       let r = el?.getBoundingClientRect();
@@ -299,26 +300,51 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
           r = el.getBoundingClientRect();
         }
       }
-      // Sem elemento, invisível (0x0) ou fora da tela (ex.: menu recolhido no
-      // celular): sem holofote — o card explica e o fundo fica escuro.
-      if (
-        !el || !r || r.width === 0 || r.height === 0 ||
-        r.right < 0 || r.bottom < 0 || r.left > window.innerWidth || r.top > window.innerHeight
-      ) {
+      // Sem elemento ou invisível (0x0, ex.: menu recolhido no celular): sem
+      // holofote — o card explica e o fundo fica escuro.
+      //
+      // Fora da tela NÃO zera mais o holofote: ele continua grudado no elemento e
+      // acompanha a rolagem. Antes, rolar a página um pouco fazia o destaque
+      // desaparecer de vez e a tela inteira escurecia.
+      if (!el || !r || r.width === 0 || r.height === 0) {
         setAlvoRect(null);
         return;
       }
+      achou = true;
       setAlvoRect({ left: r.left, top: r.top, width: r.width, height: r.height });
     };
     medir();
-    const intervalo = window.setInterval(medir, 300);
-    const parar = window.setTimeout(() => window.clearInterval(intervalo), 3000);
-    const aoMover = () => medir();
+    /**
+     * Procura o alvo ATÉ ACHAR (12s), não por 3s fixos.
+     *
+     * A tela do passo é carregada sob demanda e ainda espera os dados do servidor;
+     * no plano free, que hiberna, isso passa fácil de 3 segundos. Quando o elemento
+     * aparecia depois disso, a procura já tinha parado e aquele passo ficava sem
+     * destaque nenhum — era o "alguns trechos não estão pegando".
+     *
+     * Depois de achar, o intervalo para e quem mantém o retângulo em dia são o
+     * scroll e o resize (com rAF, para não medir a cada pixel rolado).
+     */
+    const intervalo = window.setInterval(() => {
+      medir();
+      if (achou) window.clearInterval(intervalo);
+    }, 250);
+    const parar = window.setTimeout(() => window.clearInterval(intervalo), 12_000);
+
+    let agendado = 0;
+    const aoMover = () => {
+      if (agendado) return;
+      agendado = requestAnimationFrame(() => {
+        agendado = 0;
+        medir();
+      });
+    };
     window.addEventListener("scroll", aoMover, true);
     window.addEventListener("resize", aoMover);
     return () => {
       window.clearInterval(intervalo);
       window.clearTimeout(parar);
+      if (agendado) cancelAnimationFrame(agendado);
       window.removeEventListener("scroll", aoMover, true);
       window.removeEventListener("resize", aoMover);
     };

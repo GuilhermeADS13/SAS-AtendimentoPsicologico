@@ -199,6 +199,7 @@ export function AIChatBox({
   const inputAreaRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const ultimaMensagemRef = useRef<HTMLDivElement>(null);
+  const espacadorRef = useRef<HTMLDivElement>(null);
 
   // Filter out system messages
   const displayMessages = messages.filter((msg) => msg.role !== "system");
@@ -233,6 +234,42 @@ export function AIChatBox({
     observador.observe(inputArea);
     return () => observador.disconnect();
   }, []);
+
+  /**
+   * O espaço no fim da conversa é SÓ o que falta para a última pergunta alcançar o
+   * topo — nem um pixel a mais.
+   *
+   * Antes ele era sempre a área visível inteira: com uma resposta curta sobrava
+   * quase uma tela em branco entre o "E agora?" e o campo de escrever, e o chat
+   * parecia quebrado (mais visível no celular, onde a caixa é baixa).
+   *
+   * Medida: do topo da última pergunta até onde o conteúdo real termina (o próprio
+   * espaçador). Como ele é o último elemento, a altura dele não entra na conta —
+   * não há laço de medir/crescer.
+   */
+  const [espacoFinal, setEspacoFinal] = useState(0);
+  useEffect(() => {
+    const container = containerRef.current;
+    const inputArea = inputAreaRef.current;
+    if (!container || !inputArea) return;
+    const medir = () => {
+      const ultima = ultimaMensagemRef.current;
+      const espacador = espacadorRef.current;
+      if (!ultima || !espacador) {
+        setEspacoFinal(0);
+        return;
+      }
+      const areaVisivel = container.offsetHeight - inputArea.offsetHeight - 32; // p-4
+      const alturaDoFinal = espacador.offsetTop - ultima.offsetTop;
+      setEspacoFinal(Math.max(0, areaVisivel - alturaDoFinal));
+    };
+    medir();
+    if (typeof ResizeObserver === "undefined") return;
+    const observador = new ResizeObserver(medir);
+    observador.observe(container);
+    observador.observe(inputArea);
+    return () => observador.disconnect();
+  }, [displayMessages.length, isLoading, followUpMenu, followUpPrompts, pendingAction]);
 
   // Scroll to bottom helper function with smooth animation
   const scrollToBottom = () => {
@@ -283,6 +320,9 @@ export function AIChatBox({
 
     onSendMessage(trimmedInput);
     setInput("");
+    // Volta à altura de uma linha: sem isto o campo ficava alto depois de enviar
+    // um texto longo, com o espaço em branco sobrando embaixo do cursor.
+    if (textareaRef.current) textareaRef.current.style.height = "";
 
     // Scroll immediately after sending
     scrollToBottom();
@@ -565,8 +605,13 @@ export function AIChatBox({
               {/* Espaço que permite a última resposta subir para o topo da tela.
                   Fica DEPOIS do menu de propósito: quando estava na própria mensagem,
                   abria um vão de uma tela entre a resposta e o "E agora?". */}
-              {!isLoading && displayMessages.length > 0 && minHeightForLastMessage > 0 && (
-                <div aria-hidden className="shrink-0" style={{ height: `${minHeightForLastMessage}px` }} />
+              {displayMessages.length > 0 && (
+                <div
+                  ref={espacadorRef}
+                  aria-hidden
+                  className="shrink-0"
+                  style={{ height: isLoading ? 0 : `${espacoFinal}px` }}
+                />
               )}
             </div>
           </ScrollArea>
@@ -625,6 +670,13 @@ export function AIChatBox({
           data-testid="ai-chat-input"
           className="min-h-9 min-w-0 max-h-32 flex-1 resize-none"
           rows={1}
+          /* Cresce com o texto (até 128px, aí rola por dentro). Com a altura presa
+             em uma linha, quem escrevia duas não enxergava o que tinha digitado. */
+          onInput={(e) => {
+            const campo = e.currentTarget;
+            campo.style.height = "auto";
+            campo.style.height = `${Math.min(campo.scrollHeight, 128)}px`;
+          }}
         />
         <Button
           type="submit"

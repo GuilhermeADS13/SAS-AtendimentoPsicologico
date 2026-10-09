@@ -347,15 +347,20 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4 h-full flex flex-col">
+      {/* Celular DEITADO (~390px de altura): o título grande, a linha do horário e
+          os botões ocupavam a tela inteira e o VÍDEO — que é o motivo da página —
+          começava abaixo da dobra. Abaixo de 560px de altura, o cabeçalho encolhe
+          para uma linha: o nome do paciente basta (a barra do topo já diz
+          "Videochamada") e a data sai, porque a consulta é agora. */}
+      <div className="space-y-4 h-full flex flex-col [@media(max-height:560px)]:space-y-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 space-y-1">
-            <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Videochamada</h1>
-            <p className="truncate text-muted-foreground">
+            <h1 className="text-2xl font-bold text-foreground sm:text-3xl [@media(max-height:560px)]:hidden">Videochamada</h1>
+            <p className="truncate font-medium text-muted-foreground [@media(max-height:560px)]:text-sm">
               {patient ? `Consulta com ${patient.firstName} ${patient.lastName}` : "Consulta em tempo real"}
             </p>
             {scheduledAt && (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground [@media(max-height:560px)]:hidden">
                 {new Date(scheduledAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
                 {durationMin ? ` · ${durationMin} min` : ""}
               </p>
@@ -412,7 +417,9 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
         {/* Main Content — empilha no mobile, lado a lado no desktop */}
         <div className="flex-1 flex flex-col gap-4 min-h-0 lg:flex-row">
           {/* Vídeo (WebRTC P2P) */}
-          <div className="relative flex-1 min-h-[55vh] bg-black rounded-lg overflow-hidden flex flex-col lg:min-h-0">
+          {/* Deitado, 55vh = ~215px e ainda sobrava página para rolar; aí o vídeo
+              usa a altura que restou na tela, sem empurrar nada para baixo. */}
+          <div className="relative flex-1 min-h-[55vh] bg-black rounded-lg overflow-hidden flex flex-col lg:min-h-0 [@media(max-height:560px)]:min-h-0">
             {isTherapist && !patientPresent && !error && (
               <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-xs font-medium text-white shadow">
                 Aguardando o paciente entrar…
