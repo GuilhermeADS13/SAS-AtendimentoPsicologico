@@ -83,24 +83,45 @@ export async function iniciarFundoVirtual(
     });
   }
 
-  const w = video.videoWidth || 640;
-  const h = video.videoHeight || 480;
+  // `let`: a câmera TROCA de tamanho quando o celular gira (480x640 vira 640x480).
+  let w = video.videoWidth || 640;
+  let h = video.videoHeight || 480;
 
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d")!;
 
-  // Canvas do frame da câmera (lido a cada quadro) e da pessoa recortada.
-  const frameCanvas = document.createElement("canvas");
-  frameCanvas.width = w;
-  frameCanvas.height = h;
-  const frameCtx = frameCanvas.getContext("2d", { willReadFrequently: true })!;
-
   const pessoaCanvas = document.createElement("canvas");
   pessoaCanvas.width = w;
   pessoaCanvas.height = h;
   const pessoaCtx = pessoaCanvas.getContext("2d")!;
+
+  // Canvas da máscara, no tamanho em que ela vem; é esticado para o frame na hora
+  // de recortar, então mascara e vídeo não precisam ter o mesmo tamanho.
+  const mascaraCanvas = document.createElement("canvas");
+  const mascaraCtx = mascaraCanvas.getContext("2d")!;
+  let mascaraImg: ImageData | null = null;
+
+  /**
+   * Acompanha a mudança de tamanho da câmera.
+   *
+   * Era fixo, medido uma vez na abertura. Ao girar o celular a câmera devolve o
+   * quadro deitado, a máscara vem no tamanho NOVO e os canvas continuavam no
+   * antigo — escrever a máscara por índice embaralhava a imagem em faixas
+   * horizontais (o "filtro bugado no modo horizontal").
+   */
+  const ajustarTamanho = () => {
+    const nw = video.videoWidth || w;
+    const nh = video.videoHeight || h;
+    if (nw === w && nh === h) return;
+    w = nw;
+    h = nh;
+    canvas.width = w;
+    canvas.height = h;
+    pessoaCanvas.width = w;
+    pessoaCanvas.height = h;
+  };
 
   let imagem = imagemInicial;
   let parado = false;
@@ -116,16 +137,36 @@ export async function iniciarFundoVirtual(
 
   const aoSegmentar = (resultado: ImageSegmenterResult) => {
     if (parado) return;
-    const mascara = resultado.confidenceMasks?.[0]?.getAsFloat32Array();
-    if (!mascara) return;
-    // Recorta a pessoa: usa a confiança como canal alpha do frame da câmera.
-    frameCtx.drawImage(video, 0, 0, w, h);
-    const frame = frameCtx.getImageData(0, 0, w, h);
-    const dados = frame.data;
-    for (let i = 0; i < mascara.length; i++) {
-      dados[i * 4 + 3] = mascara[i] * 255;
+    const mascara = resultado.confidenceMasks?.[0];
+    const confianca = mascara?.getAsFloat32Array();
+    if (!mascara || !confianca) return;
+    ajustarTamanho();
+
+    // A máscara vira o ALPHA de um canvas do tamanho dela.
+    const mw = mascara.width;
+    const mh = mascara.height;
+    if (mascaraCanvas.width !== mw || mascaraCanvas.height !== mh || !mascaraImg) {
+      mascaraCanvas.width = mw;
+      mascaraCanvas.height = mh;
+      mascaraImg = mascaraCtx.createImageData(mw, mh);
     }
-    pessoaCtx.putImageData(frame, 0, 0);
+    const alpha = mascaraImg.data;
+    for (let i = 0; i < confianca.length; i++) {
+      alpha[i * 4 + 3] = confianca[i] * 255;
+    }
+    mascaraCtx.putImageData(mascaraImg, 0, 0);
+
+    // Recorta a pessoa: desenha o quadro e apaga o que a máscara não cobre. O
+    // `drawImage` ESTICA a máscara para o tamanho do quadro — por isso os dois
+    // podem ter tamanhos diferentes sem embaralhar nada. Também é mais leve que
+    // ler o quadro inteiro com getImageData a cada frame, como era antes.
+    pessoaCtx.globalCompositeOperation = "source-over";
+    pessoaCtx.clearRect(0, 0, w, h);
+    pessoaCtx.drawImage(video, 0, 0, w, h);
+    pessoaCtx.globalCompositeOperation = "destination-in";
+    pessoaCtx.drawImage(mascaraCanvas, 0, 0, w, h);
+    pessoaCtx.globalCompositeOperation = "source-over";
+
     // Compõe: fundo por baixo, pessoa por cima.
     ctx.clearRect(0, 0, w, h);
     desenharFundo(imagem);
