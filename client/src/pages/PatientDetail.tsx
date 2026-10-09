@@ -9,6 +9,7 @@ import {
 } from "@/lib/supabase";
 import { exportProntuarioPDF, exportProntuarioDOCX, exportTclePDF } from "@/lib/prontuario-export";
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
+import EditorDeAnotacao from "@/components/EditorDeAnotacao";
 import {
   ANAMNESE_CAMPOS,
   TCLE_CAMPOS,
@@ -288,11 +289,6 @@ export default function PatientDetail() {
   // da sessão (os modelos são texto livre; o SOAP tem os campos próprios).
   const noteTemplatesQuery = trpc.noteTemplates.list.useQuery();
   const noteTemplates = noteTemplatesQuery.data ?? [];
-  const inserirModeloSessao = (corpo: string) =>
-    setSessionForm((f) => ({
-      ...f,
-      clinicalNotes: (f.clinicalNotes.trim() ? f.clinicalNotes.replace(/\s*$/, "") + "\n\n" : "") + corpo,
-    }));
 
   // Documentos reais (metadados no banco + arquivo no Supabase Storage).
   const documentsQuery = trpc.documents.getByPatient.useQuery(
@@ -1149,26 +1145,16 @@ export default function PatientDetail() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="clinicalNotes">Resumo / observações (opcional)</Label>
-              {/* Modelos: inserem no resumo (internos + os do psicólogo). */}
-              <div className="flex flex-wrap items-center gap-1">
-                <span className="text-xs text-muted-foreground mr-1">Modelos:</span>
-                {MODELOS_INTERNOS.map((m) => (
-                  <Button key={m.nome} type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => inserirModeloSessao(m.corpo)}>
-                    {m.nome}
-                  </Button>
-                ))}
-                {noteTemplates.map((t) => (
-                  <Button key={t.id} type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => inserirModeloSessao(t.corpo)}>
-                    {t.nome}
-                  </Button>
-                ))}
-              </div>
-              <Textarea
+              {/* O MESMO editor da aba "Anotações" da videochamada: aqui só havia
+                  os modelos, sem negrito/lista nem pré-visualização — e é esta a
+                  tela onde a sessão é registrada de fato. */}
+              <EditorDeAnotacao
                 id="clinicalNotes"
-                rows={4}
-                value={sessionForm.clinicalNotes}
-                onChange={(e) => setSessionForm({ ...sessionForm, clinicalNotes: e.target.value })}
-                placeholder="Um resumo livre da sessão, ou use um modelo acima."
+                valor={sessionForm.clinicalNotes}
+                aoMudar={(texto) => setSessionForm((f) => ({ ...f, clinicalNotes: texto }))}
+                modelos={[...MODELOS_INTERNOS, ...noteTemplates.map((t) => ({ nome: t.nome, corpo: t.corpo }))]}
+                minAltura="min-h-[160px]"
+                placeholder="Um resumo livre da sessão, ou comece por um modelo acima."
               />
             </div>
             <Button

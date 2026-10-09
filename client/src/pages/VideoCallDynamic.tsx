@@ -19,13 +19,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { AlertCircle, ChevronUp, CheckCircle2, Copy, ShieldAlert, Loader2, Bold, Italic, List, Eye, ClipboardList, MessageSquare } from "lucide-react";
+import { AlertCircle, ChevronUp, CheckCircle2, Copy, ShieldAlert, Loader2, MessageSquare } from "lucide-react";
 import { useLocation } from "wouter";
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
-import { Streamdown } from "streamdown";
 import { MODELOS_INTERNOS } from "@shared/prontuario";
+import EditorDeAnotacao from "@/components/EditorDeAnotacao";
 import ChatConversa from "@/components/ChatConversa";
 
 interface VideoCallDynamicProps {
@@ -44,43 +43,12 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   // do window.confirm).
   const [confirmarEncerrar, setConfirmarEncerrar] = useState(false);
   const [perguntarRealizada, setPerguntarRealizada] = useState(false);
+  const [salvarNoProntuario, setSalvarNoProntuario] = useState(true);
   const [patientPresent, setPatientPresent] = useState(false);
   const [sessionNotes, setSessionNotes] = useState("");
-  const [showPreview, setShowPreview] = useState(false);
-  const notesRef = useRef<HTMLTextAreaElement>(null);
 
   // Edição de markdown no textarea controlado: aplica a transformação e restaura
   // o cursor (senão o caret pula para o fim a cada clique da barra).
-  const editarNotas = (
-    transform: (ctx: { value: string; start: number; end: number }) => { value: string; caret: number },
-  ) => {
-    const ta = notesRef.current;
-    const start = ta?.selectionStart ?? sessionNotes.length;
-    const end = ta?.selectionEnd ?? sessionNotes.length;
-    const { value, caret } = transform({ value: sessionNotes, start, end });
-    setSessionNotes(value);
-    requestAnimationFrame(() => {
-      ta?.focus();
-      ta?.setSelectionRange(caret, caret);
-    });
-  };
-  const envolver = (marca: string) =>
-    editarNotas(({ value, start, end }) => {
-      const sel = value.slice(start, end) || "texto";
-      const novo = value.slice(0, start) + marca + sel + marca + value.slice(end);
-      return { value: novo, caret: start + marca.length + sel.length + marca.length };
-    });
-  const inserirLista = () =>
-    editarNotas(({ value, start, end }) => {
-      const inicioLinha = value.lastIndexOf("\n", start - 1) + 1;
-      const novo = value.slice(0, inicioLinha) + "- " + value.slice(inicioLinha);
-      return { value: novo, caret: end + 2 };
-    });
-  const inserirModelo = (tpl: string) =>
-    editarNotas(({ value }) => {
-      const base = value.trim() ? value.replace(/\s*$/, "") + "\n\n" : "";
-      return { value: base + tpl, caret: base.length + tpl.length };
-    });
   // Só entra na chamada depois de passar pela tela de preparação.
   const [joined, setJoined] = useState(false);
   const [nowTs, setNowTs] = useState(() => Date.now());
@@ -173,6 +141,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const startCall = trpc.videoCalls.start.useMutation();
   const finishCall = trpc.videoCalls.finish.useMutation();
   const markStatus = trpc.appointments.updateStatus.useMutation();
+  const criarSessao = trpc.sessions.create.useMutation();
   const recordings = trpc.videoCalls.getByPatient.useQuery(
     { patientId },
     { enabled: notesEnabled },
@@ -239,6 +208,17 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
     { enabled: isTherapist && patientId > 0 },
   );
   const lastSession = patientSessions[0];
+
+  /**
+   * Dá para virar sessão do prontuário? Precisa de anotação escrita, de consulta
+   * vinculada e de NÃO existir já uma sessão desta mesma consulta — senão
+   * encerrar a chamada duas vezes gravaria o registro repetido.
+   */
+  const jaTemSessaoDesteAtendimento = patientSessions.some(
+    (s) => (s as { appointmentId?: number }).appointmentId === appointmentId,
+  );
+  const podeRegistrarSessao =
+    notesEnabled && appointmentId > 0 && sessionNotes.trim().length > 0 && !jaTemSessaoDesteAtendimento;
 
   // Sala fechada. Quem não está logado já foi barrado pelo DashboardLayout
   // (tela "Entre para continuar"). Aqui tratamos o usuário logado: enquanto o
@@ -321,6 +301,17 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   // então qualquer escolha leva embora — igual ao fluxo anterior).
   const marcarRealizadaESair = async (marcar: boolean) => {
     setPerguntarRealizada(false);
+    // Primeiro o registro clínico: se algo falhar, é o que a psicóloga menos
+    // pode perder (o status da consulta ela corrige em dois cliques na agenda).
+    if (podeRegistrarSessao && salvarNoProntuario) {
+      try {
+        await criarSessao.mutateAsync({ appointmentId, patientId, clinicalNotes: sessionNotes.trim() });
+        toast.success("Anotação registrada no prontuário.");
+      } catch (err) {
+        console.error("Falha ao registrar a sessão no prontuário:", err);
+        toast.error("Não consegui registrar no prontuário. A anotação continua salva nesta consulta.");
+      }
+    }
     if (marcar && appointmentId > 0) {
       try {
         await markStatus.mutateAsync({ id: appointmentId, status: "completed" });
@@ -547,67 +538,37 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                   </TabsContent>
 
                   {/* Notes Tab — SOAP/markdown, modelos e auto-save */}
-                  <TabsContent value="notes" className="p-4 space-y-3">
-                        {/* Modelos + formatação */}
-                        <div className="flex flex-wrap items-center gap-1">
-                          {MODELOS_INTERNOS.map((m, i) => (
-                            <Button key={m.nome} type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" title={`Inserir modelo ${m.nome}`} onClick={() => inserirModelo(m.corpo)}>
-                              {i === 0 && <ClipboardList className="w-3.5 h-3.5 mr-1" />}
-                              {m.nome}
-                            </Button>
-                          ))}
-                          {templates.map((t) => (
-                            <Button key={t.id} type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" title={`Inserir modelo ${t.nome}`} onClick={() => inserirModelo(t.corpo)}>
-                              {t.nome}
-                            </Button>
-                          ))}
-                          <span className="mx-1 h-4 w-px bg-border" />
-                          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="Negrito" onClick={() => envolver("**")}>
-                            <Bold className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="Itálico" onClick={() => envolver("*")}>
-                            <Italic className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="Lista" onClick={inserirLista}>
-                            <List className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 ml-auto text-xs" title="Pré-visualizar formatação" onClick={() => setShowPreview((p) => !p)}>
-                            <Eye className="w-3.5 h-3.5 mr-1" /> {showPreview ? "Editar" : "Pré-ver"}
-                          </Button>
-                        </div>
-
-                        {showPreview ? (
-                          <div className="min-h-[220px] rounded-md border border-border bg-muted/20 p-3 text-sm">
-                            {sessionNotes.trim() ? (
-                              <Streamdown>{sessionNotes}</Streamdown>
-                            ) : (
-                              <p className="text-muted-foreground">Nada para pré-visualizar ainda.</p>
-                            )}
-                          </div>
-                        ) : (
-                          <Textarea
-                            ref={notesRef}
-                            value={sessionNotes}
-                            onChange={(e) => setSessionNotes(e.target.value)}
-                            placeholder="Anotações da sessão. Use os modelos (SOAP) e a formatação acima. Salva sozinho."
-                            className="min-h-[220px] resize-y text-sm leading-relaxed"
-                          />
-                        )}
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">
-                            {!notesEnabled && "Sala avulsa — anotações não vinculadas a um agendamento"}
-                            {notesEnabled && autoSaveStatus === "saving" && "Salvando..."}
-                            {notesEnabled && autoSaveStatus === "saved" && (
-                              <span className="text-green-600 flex items-center gap-1">
-                                <CheckCircle2 className="w-3 h-3" /> Salvo automaticamente
+                  <TabsContent value="notes" className="flex min-h-0 flex-col gap-3 p-4">
+                        <EditorDeAnotacao
+                          valor={sessionNotes}
+                          aoMudar={setSessionNotes}
+                          modelos={[...MODELOS_INTERNOS, ...templates.map((t) => ({ nome: t.nome, corpo: t.corpo }))]}
+                          placeholder="O que você quer registrar desta sessão. Um modelo acima já monta a estrutura, e o que você escreve salva sozinho."
+                          rodape={
+                            <>
+                              <span className="text-muted-foreground">
+                                {!notesEnabled && "Sala avulsa — a anotação não fica vinculada a uma consulta"}
+                                {notesEnabled && autoSaveStatus === "saving" && (
+                                  <span className="flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> Salvando…</span>
+                                )}
+                                {notesEnabled && autoSaveStatus === "saved" && (
+                                  <span className="flex items-center gap-1 text-green-600">
+                                    <CheckCircle2 className="size-3" /> Salvo
+                                  </span>
+                                )}
+                                {notesEnabled && autoSaveStatus === "error" && (
+                                  <span className="text-destructive">Não consegui salvar — verifique a conexão</span>
+                                )}
+                                {notesEnabled && autoSaveStatus === "idle" && "Salva sozinho enquanto você escreve."}
                               </span>
-                            )}
-                            {notesEnabled && autoSaveStatus === "error" && (
-                              <span className="text-destructive">Erro ao salvar</span>
-                            )}
-                            {notesEnabled && autoSaveStatus === "idle" && "As anotações salvam sozinhas."}
-                          </span>
-                        </div>
+                              {sessionNotes.trim() && (
+                                <span className="shrink-0 tabular-nums text-muted-foreground">
+                                  {sessionNotes.trim().split(/\s+/).length} palavras
+                                </span>
+                              )}
+                            </>
+                          }
+                        />
 
                         <div className="border-t border-border pt-3">
                           <p className="text-xs font-semibold text-foreground mb-2">
@@ -706,6 +667,29 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
               A videochamada foi encerrada. Deseja marcar esta consulta como realizada?
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {/* A anotação feita durante a chamada ficava SÓ presa ao link da sala:
+              não aparecia no prontuário nem no histórico de sessões, e a
+              psicóloga teria de digitar tudo de novo em "Nova Sessão". Aqui ela
+              vira uma sessão do prontuário — marcado por padrão, porque é onde o
+              registro deve estar (Resolução CFP 001/2009). */}
+          {podeRegistrarSessao && (
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border bg-muted/40 p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={salvarNoProntuario}
+                onChange={(e) => setSalvarNoProntuario(e.target.checked)}
+                className="mt-0.5 size-4 accent-primary"
+              />
+              <span>
+                <span className="font-medium text-foreground">Registrar a anotação no prontuário</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  O que você escreveu na aba “Anotações” entra como uma sessão no histórico do paciente.
+                </span>
+              </span>
+            </label>
+          )}
+
           <AlertDialogFooter>
             <AlertDialogCancel onClick={(e) => { e.preventDefault(); marcarRealizadaESair(false); }}>
               Agora não
