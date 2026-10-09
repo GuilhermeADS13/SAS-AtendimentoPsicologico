@@ -1,12 +1,44 @@
 import { useRef, useState } from "react";
 import { Streamdown } from "streamdown";
-import { Bold, ClipboardList, Eye, Italic, List } from "lucide-react";
+import { Bold, ClipboardList, Eye, Heading2, Italic, List, ListChecks, ListOrdered, Quote, Strikethrough } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { alternarLista, alternarMarca, inserirModelo, type Edicao } from "@shared/notasMarkdown";
+import {
+  alternarLista,
+  alternarMarca,
+  alternarPrefixo,
+  continuarLista,
+  diffMinimo,
+  inserirModelo,
+  type Edicao,
+} from "@shared/notasMarkdown";
 import { cn } from "@/lib/utils";
 
 export type ModeloDeAnotacao = { nome: string; corpo: string };
+
+/**
+ * A barra, na ordem em que aparece. Os nomes dizem o que a psicóloga quer fazer
+ * ("Citar a fala do paciente"), não o nome do recurso — e cada um tem o atalho
+ * do Word no fim, para quem já tem o costume.
+ */
+const FERRAMENTAS: {
+  chave: string;
+  rotulo: string;
+  titulo: string;
+  icone: typeof Bold;
+  separador?: boolean;
+  acao?: (t: string, i: number, f: number) => Edicao;
+}[] = [
+  { chave: "titulo", rotulo: "Título", titulo: "Título de seção", icone: Heading2, acao: (t, i, f) => alternarPrefixo(t, i, f, "## ") },
+  { chave: "negrito", rotulo: "Negrito", titulo: "Negrito (Ctrl+B)", icone: Bold, acao: (t, i, f) => alternarMarca(t, i, f, "**") },
+  { chave: "italico", rotulo: "Itálico", titulo: "Itálico (Ctrl+I)", icone: Italic, acao: (t, i, f) => alternarMarca(t, i, f, "*") },
+  { chave: "tachado", rotulo: "Tachado", titulo: "Tachado — para marcar o que não vale mais", icone: Strikethrough, acao: (t, i, f) => alternarMarca(t, i, f, "~~") },
+  { chave: "sep1", rotulo: "", titulo: "", icone: Bold, separador: true },
+  { chave: "lista", rotulo: "Lista com marcadores", titulo: "Lista (Ctrl+Shift+8)", icone: List, acao: (t, i, f) => alternarLista(t, i, f, "marcador") },
+  { chave: "numerada", rotulo: "Lista numerada", titulo: "Lista numerada (Ctrl+Shift+7)", icone: ListOrdered, acao: (t, i, f) => alternarLista(t, i, f, "numerada") },
+  { chave: "tarefa", rotulo: "Lista de tarefas", titulo: "Lista de tarefas — para os próximos passos", icone: ListChecks, acao: (t, i, f) => alternarLista(t, i, f, "tarefa") },
+  { chave: "citacao", rotulo: "Citação", titulo: "Citação — para a fala do paciente", icone: Quote, acao: (t, i, f) => alternarPrefixo(t, i, f, "> ") },
+];
 
 /**
  * Campo de anotação clínica: modelos, formatação e pré-visualização.
@@ -53,6 +85,33 @@ export default function EditorDeAnotacao({
     if (ta) selecaoRef.current = { inicio: ta.selectionStart, fim: ta.selectionEnd };
   };
 
+  /**
+   * Aplica a edição PELO NAVEGADOR (`insertText`), trocando só o trecho que
+   * mudou. É o que mantém o Ctrl+Z funcionando depois de usar a barra, como no
+   * Word: reescrever o campo inteiro pelo React apaga a pilha de desfazer.
+   * Se o navegador recusar (API antiga), cai no caminho normal.
+   */
+  const aplicar = (r: Edicao) => {
+    const ta = campoRef.current;
+    const d = diffMinimo(valor, r.texto);
+    let feito = false;
+    if (ta && typeof document !== "undefined" && typeof document.execCommand === "function") {
+      try {
+        ta.focus();
+        ta.setSelectionRange(d.de, d.ate);
+        feito = document.execCommand("insertText", false, d.texto);
+      } catch {
+        feito = false;
+      }
+    }
+    if (!feito) aoMudar(r.texto);
+    selecaoRef.current = { inicio: r.inicio, fim: r.fim };
+    requestAnimationFrame(() => {
+      campoRef.current?.focus();
+      campoRef.current?.setSelectionRange(r.inicio, r.fim);
+    });
+  };
+
   const editar = (transformar: (texto: string, inicio: number, fim: number) => Edicao) => {
     const ta = campoRef.current;
     const focado = typeof document !== "undefined" && document.activeElement === ta;
@@ -60,13 +119,24 @@ export default function EditorDeAnotacao({
     const bruto = focado && ta
       ? { inicio: ta.selectionStart, fim: ta.selectionEnd }
       : selecaoRef.current ?? { inicio: valor.length, fim: valor.length };
-    const r = transformar(valor, Math.min(bruto.inicio, valor.length), Math.min(bruto.fim, valor.length));
-    aoMudar(r.texto);
-    selecaoRef.current = { inicio: r.inicio, fim: r.fim };
-    requestAnimationFrame(() => {
-      campoRef.current?.focus();
-      campoRef.current?.setSelectionRange(r.inicio, r.fim);
-    });
+    aplicar(transformar(valor, Math.min(bruto.inicio, valor.length), Math.min(bruto.fim, valor.length)));
+  };
+
+  /** Atalhos do Word/Notion + Enter que continua a lista. */
+  const aoTeclar = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const comando = e.ctrlKey || e.metaKey;
+    if (comando && !e.altKey) {
+      const tecla = e.key.toLowerCase();
+      if (tecla === "b") { e.preventDefault(); return editar((t, i, f) => alternarMarca(t, i, f, "**")); }
+      if (tecla === "i") { e.preventDefault(); return editar((t, i, f) => alternarMarca(t, i, f, "*")); }
+      // Ctrl+Shift+8 e Ctrl+Shift+7: os mesmos do Word para lista e lista numerada.
+      if (e.shiftKey && (e.key === "8" || e.key === "*")) { e.preventDefault(); return editar((t, i, f) => alternarLista(t, i, f, "marcador")); }
+      if (e.shiftKey && (e.key === "7" || e.key === "&")) { e.preventDefault(); return editar((t, i, f) => alternarLista(t, i, f, "numerada")); }
+    }
+    if (e.key === "Enter" && !e.shiftKey && campoRef.current) {
+      const r = continuarLista(valor, campoRef.current.selectionStart);
+      if (r) { e.preventDefault(); aplicar(r); }
+    }
   };
 
   return (
@@ -95,18 +165,28 @@ export default function EditorDeAnotacao({
         </div>
       )}
 
-      {/* Botões de 32px: no celular o alvo anterior (28px) era pequeno demais. */}
-      <div className="flex items-center gap-1 rounded-lg border bg-muted/40 p-1">
-        <Button type="button" variant="ghost" size="sm" className="size-8 p-0" title="Negrito (envolve o trecho selecionado)" aria-label="Negrito" disabled={verFormatado} onClick={() => editar((t, i, f) => alternarMarca(t, i, f, "**"))}>
-          <Bold className="size-4" />
-        </Button>
-        <Button type="button" variant="ghost" size="sm" className="size-8 p-0" title="Itálico (envolve o trecho selecionado)" aria-label="Itálico" disabled={verFormatado} onClick={() => editar((t, i, f) => alternarMarca(t, i, f, "*"))}>
-          <Italic className="size-4" />
-        </Button>
-        <Button type="button" variant="ghost" size="sm" className="size-8 p-0" title="Lista: marca ou desmarca as linhas selecionadas" aria-label="Lista com marcadores" disabled={verFormatado} onClick={() => editar((t, i, f) => alternarLista(t, i, f))}>
-          <List className="size-4" />
-        </Button>
-        <span className="mx-1 h-5 w-px bg-border" />
+      {/* Botões de 32px: no celular o alvo anterior (28px) era pequeno demais.
+          `flex-wrap` porque no celular estreito a barra não cabe numa linha. */}
+      <div className="flex flex-wrap items-center gap-1 rounded-lg border bg-muted/40 p-1">
+        {FERRAMENTAS.map((f) =>
+          f.separador ? (
+            <span key={f.chave} aria-hidden className="mx-0.5 h-5 w-px bg-border" />
+          ) : (
+            <Button
+              key={f.chave}
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="size-8 p-0"
+              title={f.titulo}
+              aria-label={f.rotulo}
+              disabled={verFormatado}
+              onClick={() => editar(f.acao!)}
+            >
+              <f.icone className="size-4" />
+            </Button>
+          ),
+        )}
         <Button
           type="button"
           variant={verFormatado ? "secondary" : "ghost"}
@@ -136,6 +216,7 @@ export default function EditorDeAnotacao({
           onChange={(e) => aoMudar(e.target.value)}
           onSelect={lembrarSelecao}
           onKeyUp={lembrarSelecao}
+          onKeyDown={aoTeclar}
           onClick={lembrarSelecao}
           onBlur={lembrarSelecao}
           placeholder={placeholder}

@@ -435,7 +435,7 @@ export default function Appointments() {
               Nova Consulta
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{editingId ? "Editar Consulta" : "Agendar Nova Consulta"}</DialogTitle>
             </DialogHeader>

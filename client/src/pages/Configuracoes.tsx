@@ -395,7 +395,7 @@ export default function Configuracoes() {
       </div>
 
       <Dialog open={dialogoEmail} onOpenChange={(o) => (o ? setDialogoEmail(true) : fecharDialogoEmail())}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Alterar e-mail de acesso</DialogTitle>
             <DialogDescription>
@@ -491,7 +491,7 @@ export default function Configuracoes() {
       </Dialog>
 
       <Dialog open={dialogoSenha} onOpenChange={setDialogoSenha}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Alterar senha</DialogTitle>
             <DialogDescription>

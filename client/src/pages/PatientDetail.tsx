@@ -926,7 +926,7 @@ export default function PatientDetail() {
 
       {/* Dialog de edição */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {vinculado ? "Editar dados clínicos" : "Editar dados do paciente"}
@@ -1114,7 +1114,7 @@ export default function PatientDetail() {
 
       {/* Dialog de nova sessão */}
       <Dialog open={isSessionOpen} onOpenChange={setIsSessionOpen}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Registrar Nova Sessão</DialogTitle>
           </DialogHeader>

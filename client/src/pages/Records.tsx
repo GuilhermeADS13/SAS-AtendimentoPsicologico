@@ -274,7 +274,7 @@ export default function Records() {
                   <span className="truncate">Meus modelos</span>
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+              <DialogContent className="max-h-[85vh] sm:max-w-2xl overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Modelos de prontuário e anotação</DialogTitle>
                   <DialogDescription>
@@ -299,7 +299,7 @@ export default function Records() {
                   Novo paciente
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Novo paciente</DialogTitle>
                   <DialogDescription>
