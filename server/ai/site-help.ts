@@ -85,7 +85,7 @@ function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
       model: "site-help-local",
       topic: "reschedule",
       content:
-        "Para remarcar ou cancelar uma consulta, fale com a sua psicóloga — é ela quem ajusta a agenda. Você acompanha tudo em “Minhas Consultas”.",
+        "Para remarcar ou cancelar uma consulta, fale com a sua psicóloga — é ela quem ajusta a agenda. O caminho mais rápido é “Mensagens”, no menu. Você acompanha tudo em “Minhas Consultas”.",
     };
   }
 
@@ -114,25 +114,30 @@ function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
     };
   }
 
-  if (/(video|sala|chamada|entr(?:ar|o|a)\s+na\s+(?:consulta|sala|sessao|chamada)|acessar a consulta|camera|microfone|compartilhar)/.test(normalized)) {
+  // "compartilhar" sozinho puxava "compartilhar um arquivo" para cá; só tela.
+  if (/(video|sala|chamada|entr(?:ar|o|a)\s+na\s+(?:consulta|sala|sessao|chamada)|acessar a consulta|camera|microfone|compartilhar (?:a |minha )?tela)/.test(normalized)) {
     return {
       model: "site-help-local",
       topic: "video",
       content:
-        "Para entrar em uma consulta, abra “Minhas Consultas” e use o botão da consulta agendada no horário combinado. Dá para testar câmera e microfone antes de entrar; o acesso é liberado só para participantes autorizados.",
+        "Para entrar na consulta, abra “Minhas Consultas” e toque em “Entrar na sala” — o botão fica disponível a partir de 15 minutos antes do horário. Antes de entrar aparece uma tela para conferir câmera e microfone. Dentro da chamada, o botão “Mensagens” abre o chat com a sua psicóloga. O acesso é só para quem participa da consulta.",
     };
   }
 
-  if (/(mensagem|mensagens|chat|conversar por texto|falar por escrito|mandar recado|trocar arquivo|enviar arquivo)/.test(normalized)) {
+  // `arquivo|anexo` soltos: "como envio um arquivo?" não casava com "enviar
+  // arquivo" e caía no menu genérico.
+  if (/(mensagem|mensagens|chat|conversar por texto|falar por escrito|mandar recado|arquivo|anexo|anexar|foto para ela)/.test(normalized)) {
     return {
       model: "site-help-local",
       topic: "mensagens",
       content:
-        "Para trocar mensagens por texto com o seu profissional (e enviar arquivos), abra “Mensagens” no menu. O mesmo chat também aparece dentro da videochamada, no botão “Mensagens”.",
+        "Para trocar mensagens com a sua psicóloga e enviar arquivos, abra “Mensagens” no menu. Os dois tiques (✓✓) ao lado da sua mensagem mostram que ela já leu, e a lupa busca no histórico da conversa. É o mesmo chat que abre dentro da videochamada, no botão “Mensagens”.",
     };
   }
 
-  if (/(luma|assistente|coruja)/.test(normalized)) {
+  // "quem é você?" é a pergunta mais natural para quem abre o chat pela primeira
+  // vez, e caía no menu genérico.
+  if (/(luma|assistente|coruja|quem (?:e|eh) (?:voce|vc)|com quem (?:eu )?(?:estou|to) falando|(?:voce|vc) (?:e|eh) (?:um|uma) (?:rob|ia|bot)|\bchatbot\b)/.test(normalized)) {
     return {
       model: "site-help-local",
       topic: "luma",
@@ -163,12 +168,12 @@ function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
     };
   }
 
-  if (/(consulta|agendamento|horario|marcar|psicolog|sessao|atendimento)/.test(normalized)) {
+  if (/(consulta|agendamento|horario|marcar|psicolog|sessao|atendimento|presenca|confirmar|agenda|calendario)/.test(normalized)) {
     return {
       model: "site-help-local",
       topic: "appointments",
       content:
-        "Para consultar ou acompanhar seus horários, abra “Minhas Consultas” no menu. Quando a psicóloga criar um agendamento, ele aparece nessa área.",
+        "Suas consultas ficam em “Minhas Consultas”, no menu — quando a psicóloga agendar, aparece lá. Em cada consulta você pode tocar em “Confirmar presença” (ela é avisada) e em “Adicionar à agenda”, que salva no calendário do seu celular. Os horários são sempre os de Brasília; se o seu aparelho estiver em outro fuso, a tela mostra os dois.",
     };
   }
 
@@ -176,6 +181,6 @@ function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
     model: "site-help-local",
     topic: "general",
     content:
-      "Posso te ajudar a encontrar: Minhas Consultas, Mensagens, Configurações da conta, Minha Psicóloga ou a sala de videochamada. Me diga qual área você quer abrir.",
+      "Posso te ajudar a encontrar: Minhas Consultas, Mensagens, Minha Psicóloga, Configurações da conta ou Ajuda. Me diga qual área você quer abrir.",
   };
 }

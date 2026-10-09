@@ -47,6 +47,16 @@ describe("separação de papéis da Luma", () => {
     ["quem ve meu prontuario?", "privacy"],
     // "página" não pode virar "pagamento"
     ["em qual pagina eu vejo isso?", "general"],
+    // Buracos achados rodando perguntas reais do paciente (2026-10-09): os três
+    // caíam no menu genérico.
+    ["como confirmo presenca?", "appointments"],
+    ["como adiciono na minha agenda?", "appointments"],
+    ["como envio um arquivo?", "mensagens"],
+    ["quero anexar uma foto", "mensagens"],
+    ["quem e voce?", "luma"],
+    ["com quem eu estou falando?", "luma"],
+    // "compartilhar" sozinho puxava arquivo para o tópico de vídeo; só tela.
+    ["quero compartilhar a tela", "video"],
   ])("roteia %s para o tópico %s", (pergunta, topico) => {
     expect(answerSiteHelp(pergunta).topic).toBe(topico);
   });

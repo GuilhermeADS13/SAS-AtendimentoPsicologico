@@ -368,7 +368,7 @@ export default function Luma() {
             <Skeleton className="h-5 w-full max-w-xl" />
           </div>
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <Skeleton className="h-[max(420px,min(620px,calc(100dvh-280px)))] rounded-2xl" />
+            <Skeleton className="h-[max(min(420px,55dvh),min(620px,calc(100dvh-280px)))] rounded-2xl" />
             <Skeleton className="hidden h-64 rounded-2xl xl:block" />
           </div>
         </div>
@@ -468,8 +468,11 @@ export default function Luma() {
             // ocupa ~90px a mais acima do chat. O piso de 420px evita um chat
             // espremido em tela baixa (aí a página rola, o que é melhor).
             height={isClinicalUser
-              ? "max(420px, min(620px, calc(100dvh - 370px)))"
-              : "max(420px, min(620px, calc(100dvh - 280px)))"}
+              // O piso é 420px, mas nunca mais que 55% da tela: num celular
+              // pequeno (568px de altura) 420px + cabeçalho jogavam o campo de
+              // escrever para baixo da dobra. Em tela normal, nada muda.
+              ? "max(min(420px, 55dvh), min(620px, calc(100dvh - 370px)))"
+              : "max(min(420px, 55dvh), min(620px, calc(100dvh - 280px)))"}
           />
         </section>
 
