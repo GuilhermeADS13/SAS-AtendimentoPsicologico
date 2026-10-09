@@ -821,6 +821,19 @@ export default function WebRTCCall({
   // Um estado so para a UI: o botao nao precisa saber QUAL mecanismo esta em uso.
   const emTelaCheia = telaCheia || telaCheiaPorCss;
 
+  /**
+   * Onde os menus (engrenagens e fundo) nascem — e por que isso MUDA com a tela cheia.
+   *
+   * Fora da tela cheia, a chamada é uma caixa pequena com `overflow-hidden`; um
+   * menu dentro dela seria CORTADO pela borda (medido: no celular deitado a caixa
+   * tem ~210px e o menu passava do topo). Então ali vale o padrão, o `<body>`.
+   *
+   * Em tela cheia, o `<body>` é que não serve: na nativa só a subárvore da tela
+   * cheia é desenhada e na por CSS ela cobre tudo — o menu abria invisível. Lá
+   * dentro ele aparece, e sem risco de corte, porque a caixa é a tela inteira.
+   */
+  const containerDosMenus = emTelaCheia ? containerEl : null;
+
   const alternarTelaCheia = async () => {
     const elemento = containerRef.current;
     if (!elemento) return;
@@ -1059,7 +1072,7 @@ export default function WebRTCCall({
             lista={dispositivos.mics}
             aoTrocar={(id) => void aplicarMic(id || undefined)}
             aoAbrir={() => void atualizarDispositivos()}
-            container={containerEl}
+            container={containerDosMenus}
           />
         </div>
         <div className="relative">
@@ -1075,7 +1088,7 @@ export default function WebRTCCall({
                 {volumeRemoto === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
               </Button>
             </PopoverTrigger>
-            <PopoverContent side="top" className="w-64 p-3" container={containerEl}>
+            <PopoverContent side="top" className="w-64 p-3" container={containerDosMenus}>
               <p className="mb-2 text-xs font-medium text-muted-foreground">Volume do outro lado</p>
               <div className="flex items-center gap-2">
                 <button
@@ -1118,7 +1131,7 @@ export default function WebRTCCall({
               lista={dispositivos.spks}
               aoTrocar={(id) => void aplicarAltoFalante(id)}
               aoAbrir={() => void atualizarDispositivos()}
-            container={containerEl}
+            container={containerDosMenus}
             />
           )}
         </div>
@@ -1139,7 +1152,7 @@ export default function WebRTCCall({
             lista={dispositivos.cams}
             aoTrocar={(id) => void aplicarCam(id || undefined)}
             aoAbrir={() => void atualizarDispositivos()}
-            container={containerEl}
+            container={containerDosMenus}
           />
         </div>
         {podeCompartilharTela && (
@@ -1193,7 +1206,7 @@ export default function WebRTCCall({
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent side="top" className="w-64 p-3" container={containerEl}>
+            <PopoverContent side="top" className="w-64 p-3" container={containerDosMenus}>
               <p className="mb-2 text-xs font-medium text-muted-foreground">Fundo do vídeo</p>
               <div className="grid grid-cols-3 gap-2">
                 <button
