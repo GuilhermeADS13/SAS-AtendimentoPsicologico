@@ -52,10 +52,24 @@ export default function AddToCalendar({
         <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
           Onde você quer salvar esta consulta?
         </DropdownMenuLabel>
+        {/* O `target="_blank"` sozinho não bastava: o menu fecha e re-dispara o
+            clique no link, e aí o celular trocava a PÁGINA do site pelo Google —
+            quem estava prestes a entrar na consulta perdia a sala de vista. O
+            window.open garante a aba nova; o href continua para abrir em nova aba
+            pelo menu do navegador (toque longo, botão do meio). */}
         <DropdownMenuItem asChild>
-          <a href={googleCalendarUrl(evento)} target="_blank" rel="noreferrer" className="flex-col items-start gap-0.5">
+          <a
+            href={googleCalendarUrl(evento)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => {
+              e.preventDefault();
+              window.open(googleCalendarUrl(evento), "_blank", "noopener,noreferrer");
+            }}
+            className="flex-col items-start gap-0.5"
+          >
             <span>Google Agenda</span>
-            <span className="text-xs text-muted-foreground">Abre já preenchida — é só salvar</span>
+            <span className="text-xs text-muted-foreground">Abre em outra aba, já preenchida — é só salvar</span>
           </a>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={baixarIcs} className="flex-col items-start gap-0.5">

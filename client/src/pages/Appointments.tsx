@@ -679,13 +679,30 @@ export default function Appointments() {
                     </SelectContent>
                   </Select>
 
-                  <Input
-                    type="date"
-                    value={filtroData}
-                    onChange={(e) => setFiltroData(e.target.value)}
-                    aria-label="Filtrar por data da consulta"
-                    title="Mostra apenas as consultas deste dia"
-                  />
+                  {/* Vazio, o <input type="date"> do iPhone não mostra NADA — nem
+                      "dd/mm/aaaa", nem ícone: o filtro virava uma caixa branca sem
+                      explicação. Enquanto não há data escolhida, o rótulo é nosso
+                      (e o texto nativo fica transparente, senão no computador os
+                      dois apareciam um sobre o outro). */}
+                  <div className="relative">
+                    <CalendarDays
+                      aria-hidden
+                      className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                    />
+                    <Input
+                      type="date"
+                      value={filtroData}
+                      onChange={(e) => setFiltroData(e.target.value)}
+                      aria-label="Filtrar por data da consulta"
+                      title="Mostra apenas as consultas deste dia"
+                      className={`pl-9 ${filtroData ? "" : "text-transparent"}`}
+                    />
+                    {!filtroData && (
+                      <span className="pointer-events-none absolute left-9 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                        Qualquer data
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <p className="text-xs text-muted-foreground">

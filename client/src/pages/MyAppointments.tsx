@@ -41,7 +41,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Calendar, MessageCircle, Search, Video, UserRound, CheckCircle2 } from "lucide-react";
-import { LogoMark, LumaOwlIcon } from "@/components/Logo";
+import { LumaOwlIcon } from "@/components/Logo";
 import AddToCalendar from "@/components/AddToCalendar";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -115,12 +115,13 @@ export default function MyAppointments() {
         <Card className="overflow-hidden border-primary/25 bg-gradient-to-r from-primary/10 via-white to-secondary/20 shadow-sm">
           <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
+              {/* A coruja da LUMA (não a marca do VozInterior, que é outra coruja):
+                  o cartão mostrava as duas lado a lado, cada uma de um desenho. */}
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-primary/15">
-                <LogoMark className="h-9 w-9" />
+                <LumaOwlIcon className="h-9 w-9" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <LumaOwlIcon className="h-5 w-5 text-primary" aria-hidden="true" />
                   <p className="font-semibold text-foreground">Converse com a Luma</p>
                 </div>
                 <p className="mt-1 max-w-xl text-sm text-muted-foreground">
@@ -129,8 +130,10 @@ export default function MyAppointments() {
                 <p className="mt-1 text-xs text-muted-foreground">A Luma acessa somente informações autorizadas e não substitui atendimento profissional.</p>
               </div>
             </div>
+            {/* Ícone de conversa, não a coruja: ela é verde-escura e sumia no fundo
+                verde-escuro do botão. */}
             <Button onClick={() => setLocation("/luma")} className="shrink-0">
-              <LumaOwlIcon className="mr-2 h-5 w-5" />
+              <MessageCircle className="mr-2 h-5 w-5" />
               Abrir chatbot
             </Button>
           </CardContent>
