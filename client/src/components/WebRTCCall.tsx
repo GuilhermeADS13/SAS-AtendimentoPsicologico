@@ -101,12 +101,15 @@ function BadgeConfig({
   lista,
   aoTrocar,
   aoAbrir,
+  container,
 }: {
   titulo: string;
   valor: string;
   lista: MediaDeviceInfo[];
   aoTrocar: (deviceId: string) => void;
   aoAbrir: () => void;
+  /** O elemento da chamada: em tela cheia, o menu precisa nascer dentro dele. */
+  container?: HTMLElement | null;
 }) {
   return (
     <Popover onOpenChange={(o) => { if (o) aoAbrir(); }}>
@@ -121,7 +124,7 @@ function BadgeConfig({
           <Settings className="h-2.5 w-2.5" />
         </button>
       </PopoverTrigger>
-      <PopoverContent side="top" className="w-64 p-3">
+      <PopoverContent side="top" className="w-64 p-3" container={container}>
         <label className="mb-1 block text-xs font-medium text-muted-foreground">{titulo}</label>
         <select
           value={valor}
@@ -216,6 +219,14 @@ export default function WebRTCCall({
   const [telaCheia, setTelaCheia] = useState(false);
   /** Tela cheia simulada por CSS — o caminho do iPhone, que nao tem a API nativa. */
   const [telaCheiaPorCss, setTelaCheiaPorCss] = useState(false);
+  /**
+   * O próprio elemento da chamada, para os menus (engrenagens e fundo) nascerem
+   * DENTRO dele. No `<body>`, como é o padrão, eles abriam invisíveis em tela
+   * cheia: na nativa só a subárvore dela é desenhada, e na por CSS ela cobre tudo.
+   * Em estado, e não só no ref, porque o Radix lê o container quando o menu abre e
+   * precisa que o React já tenha re-renderizado com o elemento montado.
+   */
+  const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
   const [fundoAtual, setFundoAtual] = useState<string | null>(null);
   const [fundoCarregando, setFundoCarregando] = useState(false);
   const [canalPronto, setCanalPronto] = useState(false);
@@ -923,7 +934,10 @@ export default function WebRTCCall({
 
   return (
     <div
-      ref={containerRef}
+      ref={(el) => {
+        containerRef.current = el;
+        setContainerEl(el);
+      }}
       className={cn(
         "relative h-full w-full overflow-hidden rounded-lg bg-black",
         // z-[60] fica acima dos painéis de chat (z-50): na tela cheia NATIVA eles
@@ -1045,6 +1059,7 @@ export default function WebRTCCall({
             lista={dispositivos.mics}
             aoTrocar={(id) => void aplicarMic(id || undefined)}
             aoAbrir={() => void atualizarDispositivos()}
+            container={containerEl}
           />
         </div>
         <div className="relative">
@@ -1060,7 +1075,7 @@ export default function WebRTCCall({
                 {volumeRemoto === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
               </Button>
             </PopoverTrigger>
-            <PopoverContent side="top" className="w-64 p-3">
+            <PopoverContent side="top" className="w-64 p-3" container={containerEl}>
               <p className="mb-2 text-xs font-medium text-muted-foreground">Volume do outro lado</p>
               <div className="flex items-center gap-2">
                 <button
@@ -1103,6 +1118,7 @@ export default function WebRTCCall({
               lista={dispositivos.spks}
               aoTrocar={(id) => void aplicarAltoFalante(id)}
               aoAbrir={() => void atualizarDispositivos()}
+            container={containerEl}
             />
           )}
         </div>
@@ -1123,6 +1139,7 @@ export default function WebRTCCall({
             lista={dispositivos.cams}
             aoTrocar={(id) => void aplicarCam(id || undefined)}
             aoAbrir={() => void atualizarDispositivos()}
+            container={containerEl}
           />
         </div>
         {podeCompartilharTela && (
@@ -1176,7 +1193,7 @@ export default function WebRTCCall({
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent side="top" className="w-64 p-3">
+            <PopoverContent side="top" className="w-64 p-3" container={containerEl}>
               <p className="mb-2 text-xs font-medium text-muted-foreground">Fundo do vídeo</p>
               <div className="grid grid-cols-3 gap-2">
                 <button
@@ -1223,7 +1240,13 @@ export default function WebRTCCall({
           <Button
             variant="destructive"
             size="icon"
-            onClick={onEndCall}
+            onClick={() => {
+              // Sai da tela cheia ANTES de encerrar: a confirmação ("Encerrar a
+              // consulta?") é um diálogo da página, fora deste elemento — em tela
+              // cheia ela abria invisível e o botão parecia não fazer nada.
+              if (emTelaCheia) void alternarTelaCheia();
+              onEndCall();
+            }}
             className="ml-1 rounded-full"
             aria-label="Encerrar a chamada"
             title="Encerrar a chamada"

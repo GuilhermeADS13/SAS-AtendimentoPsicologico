@@ -19,10 +19,20 @@ function PopoverContent({
   className,
   align = "center",
   sideOffset = 4,
+  container,
   ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+}: React.ComponentProps<typeof PopoverPrimitive.Content> & {
+  /**
+   * Onde o conteúdo é inserido no documento. O padrão é o `<body>`, que não serve
+   * quando o gatilho está dentro de um elemento em TELA CHEIA: na tela cheia
+   * nativa só a subárvore dela é desenhada, e na versão por CSS ela fica acima de
+   * tudo — nos dois casos o popover abria invisível. Passando o próprio elemento
+   * em tela cheia, o conteúdo vai junto. Ver WebRTCCall.
+   */
+  container?: HTMLElement | null;
+}) {
   return (
-    <PopoverPrimitive.Portal>
+    <PopoverPrimitive.Portal container={container ?? undefined}>
       <PopoverPrimitive.Content
         data-slot="popover-content"
         align={align}
