@@ -1,12 +1,13 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Streamdown } from "streamdown";
-import { Bold, ClipboardList, Eye, Heading2, Italic, List, ListChecks, ListOrdered, Quote, Strikethrough } from "lucide-react";
+import { ClipboardList, Eye, Heading2, List, ListChecks, ListOrdered, Quote, Redo2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
   alternarLista,
   alternarMarca,
   alternarPrefixo,
+  alternarSublinhado,
   continuarLista,
   diffMinimo,
   inserirModelo,
@@ -17,27 +18,31 @@ import { cn } from "@/lib/utils";
 export type ModeloDeAnotacao = { nome: string; corpo: string };
 
 /**
- * A barra, na ordem em que aparece. Os nomes dizem o que a psicóloga quer fazer
- * ("Citar a fala do paciente"), não o nome do recurso — e cada um tem o atalho
- * do Word no fim, para quem já tem o costume.
+ * A barra, na ordem em que aparece.
+ *
+ * As letras seguem o Word em PORTUGUÊS, que é o que a psicóloga conhece: N de
+ * negrito, I de itálico, S sublinhado de sublinhado e "abc" riscado de tachado.
+ * O ícone do tachado era um "S" cortado (lucide) — ao lado do sublinhado, dois
+ * "S" diferentes confundiam, e cortado pequeno nem dava para ver o corte.
  */
 const FERRAMENTAS: {
   chave: string;
   rotulo: string;
   titulo: string;
-  icone: typeof Bold;
+  conteudo: ReactNode;
   separador?: boolean;
   acao?: (t: string, i: number, f: number) => Edicao;
 }[] = [
-  { chave: "titulo", rotulo: "Título", titulo: "Título de seção", icone: Heading2, acao: (t, i, f) => alternarPrefixo(t, i, f, "## ") },
-  { chave: "negrito", rotulo: "Negrito", titulo: "Negrito (Ctrl+B)", icone: Bold, acao: (t, i, f) => alternarMarca(t, i, f, "**") },
-  { chave: "italico", rotulo: "Itálico", titulo: "Itálico (Ctrl+I)", icone: Italic, acao: (t, i, f) => alternarMarca(t, i, f, "*") },
-  { chave: "tachado", rotulo: "Tachado", titulo: "Tachado — para marcar o que não vale mais", icone: Strikethrough, acao: (t, i, f) => alternarMarca(t, i, f, "~~") },
-  { chave: "sep1", rotulo: "", titulo: "", icone: Bold, separador: true },
-  { chave: "lista", rotulo: "Lista com marcadores", titulo: "Lista (Ctrl+Shift+8)", icone: List, acao: (t, i, f) => alternarLista(t, i, f, "marcador") },
-  { chave: "numerada", rotulo: "Lista numerada", titulo: "Lista numerada (Ctrl+Shift+7)", icone: ListOrdered, acao: (t, i, f) => alternarLista(t, i, f, "numerada") },
-  { chave: "tarefa", rotulo: "Lista de tarefas", titulo: "Lista de tarefas — para os próximos passos", icone: ListChecks, acao: (t, i, f) => alternarLista(t, i, f, "tarefa") },
-  { chave: "citacao", rotulo: "Citação", titulo: "Citação — para a fala do paciente", icone: Quote, acao: (t, i, f) => alternarPrefixo(t, i, f, "> ") },
+  { chave: "titulo", rotulo: "Título", titulo: "Título de seção", conteudo: <Heading2 className="size-4" />, acao: (t, i, f) => alternarPrefixo(t, i, f, "## ") },
+  { chave: "negrito", rotulo: "Negrito", titulo: "Negrito (Ctrl+B)", conteudo: <span className="text-[15px] font-bold leading-none">N</span>, acao: (t, i, f) => alternarMarca(t, i, f, "**") },
+  { chave: "italico", rotulo: "Itálico", titulo: "Itálico (Ctrl+I)", conteudo: <span className="font-serif text-[15px] italic leading-none">I</span>, acao: (t, i, f) => alternarMarca(t, i, f, "*") },
+  { chave: "sublinhado", rotulo: "Sublinhado", titulo: "Sublinhado (Ctrl+U)", conteudo: <span className="text-[15px] leading-none underline underline-offset-2">S</span>, acao: alternarSublinhado },
+  { chave: "tachado", rotulo: "Tachado", titulo: "Tachado — para o que não vale mais", conteudo: <span className="text-[12px] leading-none line-through">abc</span>, acao: (t, i, f) => alternarMarca(t, i, f, "~~") },
+  { chave: "sep1", rotulo: "", titulo: "", conteudo: null, separador: true },
+  { chave: "lista", rotulo: "Lista com marcadores", titulo: "Lista (Ctrl+Shift+8)", conteudo: <List className="size-4" />, acao: (t, i, f) => alternarLista(t, i, f, "marcador") },
+  { chave: "numerada", rotulo: "Lista numerada", titulo: "Lista numerada (Ctrl+Shift+7)", conteudo: <ListOrdered className="size-4" />, acao: (t, i, f) => alternarLista(t, i, f, "numerada") },
+  { chave: "tarefa", rotulo: "Lista de tarefas", titulo: "Lista de tarefas — para os próximos passos", conteudo: <ListChecks className="size-4" />, acao: (t, i, f) => alternarLista(t, i, f, "tarefa") },
+  { chave: "citacao", rotulo: "Citação", titulo: "Citação — para a fala do paciente", conteudo: <Quote className="size-4" />, acao: (t, i, f) => alternarPrefixo(t, i, f, "> ") },
 ];
 
 /**
@@ -129,6 +134,7 @@ export default function EditorDeAnotacao({
       const tecla = e.key.toLowerCase();
       if (tecla === "b") { e.preventDefault(); return editar((t, i, f) => alternarMarca(t, i, f, "**")); }
       if (tecla === "i") { e.preventDefault(); return editar((t, i, f) => alternarMarca(t, i, f, "*")); }
+      if (tecla === "u") { e.preventDefault(); return editar(alternarSublinhado); }
       // Ctrl+Shift+8 e Ctrl+Shift+7: os mesmos do Word para lista e lista numerada.
       if (e.shiftKey && (e.key === "8" || e.key === "*")) { e.preventDefault(); return editar((t, i, f) => alternarLista(t, i, f, "marcador")); }
       if (e.shiftKey && (e.key === "7" || e.key === "&")) { e.preventDefault(); return editar((t, i, f) => alternarLista(t, i, f, "numerada")); }
@@ -168,6 +174,34 @@ export default function EditorDeAnotacao({
       {/* Botões de 32px: no celular o alvo anterior (28px) era pequeno demais.
           `flex-wrap` porque no celular estreito a barra não cabe numa linha. */}
       <div className="flex flex-wrap items-center gap-1 rounded-lg border bg-muted/40 p-1">
+        {/* Desfazer/refazer com botão: no celular não existe Ctrl+Z. Usa o
+            desfazer do próprio navegador, o mesmo que a barra alimenta. */}
+        {([
+          { chave: "desfazer", rotulo: "Desfazer", titulo: "Desfazer (Ctrl+Z)", icone: Undo2, comando: "undo" },
+          { chave: "refazer", rotulo: "Refazer", titulo: "Refazer (Ctrl+Shift+Z)", icone: Redo2, comando: "redo" },
+        ] as const).map((b) => (
+          <Button
+            key={b.chave}
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="size-8 p-0"
+            title={b.titulo}
+            aria-label={b.rotulo}
+            disabled={verFormatado}
+            onClick={() => {
+              campoRef.current?.focus();
+              try {
+                document.execCommand(b.comando);
+              } catch {
+                /* navegador sem suporte: o Ctrl+Z do teclado continua valendo */
+              }
+            }}
+          >
+            <b.icone className="size-4" />
+          </Button>
+        ))}
+        <span aria-hidden className="mx-0.5 h-5 w-px bg-border" />
         {FERRAMENTAS.map((f) =>
           f.separador ? (
             <span key={f.chave} aria-hidden className="mx-0.5 h-5 w-px bg-border" />
@@ -183,7 +217,7 @@ export default function EditorDeAnotacao({
               disabled={verFormatado}
               onClick={() => editar(f.acao!)}
             >
-              <f.icone className="size-4" />
+              {f.conteudo}
             </Button>
           ),
         )}

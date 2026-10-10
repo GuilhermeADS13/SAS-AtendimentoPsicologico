@@ -74,6 +74,37 @@ export function alternarMarca(texto: string, inicio: number, fim: number, marca:
 }
 
 /**
+ * Sublinhado. Markdown não tem sublinhado, então vai como `<u>` — que o
+ * renderizador da pré-visualização aceita. Alterna, como os outros.
+ */
+export function alternarSublinhado(texto: string, inicio: number, fim: number): Edicao {
+  const abre = "<u>";
+  const fecha = "</u>";
+  const selecionado = texto.slice(inicio, fim);
+
+  if (selecionado.startsWith(abre) && selecionado.endsWith(fecha)) {
+    const limpo = selecionado.slice(abre.length, -fecha.length);
+    return { texto: texto.slice(0, inicio) + limpo + texto.slice(fim), inicio, fim: inicio + limpo.length };
+  }
+  if (texto.slice(Math.max(0, inicio - abre.length), inicio) === abre && texto.slice(fim, fim + fecha.length) === fecha) {
+    const novoInicio = inicio - abre.length;
+    return {
+      texto: texto.slice(0, novoInicio) + selecionado + texto.slice(fim + fecha.length),
+      inicio: novoInicio,
+      fim: novoInicio + selecionado.length,
+    };
+  }
+  if (!selecionado) {
+    return { texto: texto.slice(0, inicio) + abre + fecha + texto.slice(inicio), inicio: inicio + abre.length, fim: inicio + abre.length };
+  }
+  return {
+    texto: texto.slice(0, inicio) + abre + selecionado + fecha + texto.slice(fim),
+    inicio: inicio + abre.length,
+    fim: fim + abre.length,
+  };
+}
+
+/**
  * Listas (marcador, numerada e de tarefas). Pega TODAS as linhas da seleção
  * (antes marcava só a primeira) e alterna: se todas já são daquele tipo, remove.
  * Trocar de tipo converte, em vez de empilhar marcadores.

@@ -3,6 +3,7 @@ import {
   alternarLista,
   alternarMarca,
   alternarPrefixo,
+  alternarSublinhado,
   continuarLista,
   diffMinimo,
   inserirModelo,
@@ -36,6 +37,28 @@ describe("barra de anotações", () => {
       const r = alternarMarca("", 0, 0, "**");
       expect(r.texto).toBe("****");
       expect(r.inicio).toBe(2);
+    });
+  });
+
+  describe("sublinhado", () => {
+    it("envolve a seleção com <u> (markdown não tem sublinhado)", () => {
+      const r = alternarSublinhado("combinado com a paciente", 0, 9);
+      expect(r.texto).toBe("<u>combinado</u> com a paciente");
+      expect(r.texto.slice(r.inicio, r.fim)).toBe("combinado");
+    });
+
+    it("desfaz quando já está sublinhado", () => {
+      expect(alternarSublinhado("<u>combinado</u> com", 0, 16).texto).toBe("combinado com");
+    });
+
+    it("desfaz com as marcas fora da seleção", () => {
+      expect(alternarSublinhado("<u>combinado</u> com", 3, 12).texto).toBe("combinado com");
+    });
+
+    it("sem seleção, deixa o cursor dentro das marcas", () => {
+      const r = alternarSublinhado("", 0, 0);
+      expect(r.texto).toBe("<u></u>");
+      expect(r.inicio).toBe(3);
     });
   });
 
