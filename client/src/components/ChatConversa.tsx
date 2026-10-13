@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { contemTodos, termosDaBusca, trechosDestacados } from "@shared/buscaTexto";
+import { contarSoEmojis } from "@shared/emoji";
+import SeletorDeEmoji from "@/components/SeletorDeEmoji";
 import { uploadChatFile } from "@/lib/supabase";
 import { iniciais } from "@/lib/iniciais";
 import { FUSO_BR, formatarHora } from "@shared/datas";
@@ -156,6 +158,23 @@ export default function ChatConversa({
     el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
   }, [texto]);
 
+  /**
+   * Põe o emoji ONDE ESTÁ O CURSOR (não no fim), como no WhatsApp. No celular
+   * não devolve o foco ao campo: isso abriria o teclado por cima do seletor.
+   */
+  const inserirEmoji = (emoji: string) => {
+    const el = textoRef.current;
+    const ini = el?.selectionStart ?? texto.length;
+    const fim = el?.selectionEnd ?? texto.length;
+    setTexto(texto.slice(0, ini) + emoji + texto.slice(fim));
+    const cursor = ini + emoji.length;
+    requestAnimationFrame(() => {
+      if (!el) return;
+      if (!window.matchMedia("(pointer: coarse)").matches) el.focus();
+      el.setSelectionRange(cursor, cursor);
+    });
+  };
+
   const handleEnviarTexto = () => {
     const conteudo = texto.trim();
     if (!conteudo || enviar.isPending) return;
@@ -305,19 +324,34 @@ export default function ChatConversa({
                 !!anterior &&
                 anterior.senderRole === m.senderRole &&
                 quando.getTime() - new Date(anterior.createdAt).getTime() < JANELA_DO_BLOCO_MS;
+              // Só emojis (até 3) aparecem grandes e sem balão, como no WhatsApp.
+              const qtdEmojis = m.content && !m.fileKey ? contarSoEmojis(m.content) : 0;
+              const emojiGrande = qtdEmojis > 0 && qtdEmojis <= 3;
               return (
                 <Fragment key={m.id}>
                   <li className={cn("flex", minha ? "justify-end" : "justify-start", mesmoBloco ? "mt-0.5" : i === 0 ? "mt-1" : "mt-3")}>
                     <div
                       className={cn(
-                        "max-w-[85%] rounded-2xl px-3.5 py-2 text-sm shadow-[0_1px_2px_rgb(0_0_0/0.06)] sm:max-w-[75%]",
-                        minha ? "bg-primary text-primary-foreground" : "border bg-card text-foreground",
-                        minha && !mesmoBloco && "rounded-tr-md",
-                        !minha && !mesmoBloco && "rounded-tl-md",
+                        "max-w-[85%] rounded-2xl text-sm sm:max-w-[75%]",
+                        emojiGrande
+                          ? "px-1 text-foreground"
+                          : [
+                              "px-3.5 py-2 shadow-[0_1px_2px_rgb(0_0_0/0.06)]",
+                              minha ? "bg-primary text-primary-foreground" : "border bg-card text-foreground",
+                              minha && !mesmoBloco && "rounded-tr-md",
+                              !minha && !mesmoBloco && "rounded-tl-md",
+                            ],
                       )}
                     >
                       {m.content && (
-                        <p className="whitespace-pre-wrap break-words leading-relaxed">
+                        <p
+                          className={cn(
+                            "whitespace-pre-wrap break-words",
+                            emojiGrande
+                              ? cn("leading-tight", qtdEmojis === 1 ? "text-5xl" : qtdEmojis === 2 ? "text-4xl" : "text-3xl", minha && "text-right")
+                              : "leading-relaxed",
+                          )}
+                        >
                           {buscaAtiva
                             ? trechosDestacados(m.content, termos).map((t, k) =>
                                 t.destaque ? (
@@ -369,7 +403,8 @@ export default function ChatConversa({
                       <p
                         className={cn(
                           "mt-0.5 flex items-center justify-end gap-1 text-[10px] tabular-nums",
-                          minha ? "text-primary-foreground/75" : "text-muted-foreground",
+                          // Sem balão, a hora fica sobre o fundo da conversa: cor neutra.
+                          minha && !emojiGrande ? "text-primary-foreground/75" : "text-muted-foreground",
                         )}
                       >
                         {formatarHora(quando)}
@@ -429,6 +464,7 @@ export default function ChatConversa({
           >
             {enviando ? <Loader2 className="size-5 animate-spin" /> : <Paperclip className="size-5" />}
           </Button>
+          <SeletorDeEmoji aoEscolher={inserirEmoji} disabled={enviando} />
           <Textarea
             ref={textoRef}
             value={texto}
