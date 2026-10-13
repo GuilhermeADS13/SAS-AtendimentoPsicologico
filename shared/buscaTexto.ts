@@ -35,6 +35,26 @@ export function contemTodos(texto: string, termos: string[]): boolean {
   return termos.every((termo) => t.includes(termo));
 }
 
+/**
+ * A linha que aparece na LISTA de resultados (como no WhatsApp): tudo numa linha
+ * e, se o termo estiver longe do começo, começa um pouco antes dele com "…" —
+ * senão o termo achado ficaria escondido depois das reticências do corte.
+ */
+export function recorteDoResultado(texto: string, termos: string[], folga = 24): string {
+  const linha = texto.replace(/\s+/g, " ").trim();
+  const t = dobrar(linha);
+  let primeiro = -1;
+  for (const termo of termos) {
+    const i = t.indexOf(termo);
+    if (i !== -1 && (primeiro === -1 || i < primeiro)) primeiro = i;
+  }
+  if (primeiro <= folga) return linha;
+  // Começa no início de uma palavra, para não cortar no meio dela.
+  const espaco = linha.indexOf(" ", primeiro - folga);
+  const inicio = espaco !== -1 && espaco < primeiro ? espaco + 1 : primeiro - folga;
+  return `…${linha.slice(inicio)}`;
+}
+
 export type Trecho = { texto: string; destaque: boolean };
 
 /** Corta o texto original em trechos, marcando cada ocorrência dos termos. */

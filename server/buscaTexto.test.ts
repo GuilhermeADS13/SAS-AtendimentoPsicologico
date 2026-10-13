@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contemTodos, dobrar, termosDaBusca, trechosDestacados } from "../shared/buscaTexto";
+import { contemTodos, dobrar, recorteDoResultado, termosDaBusca, trechosDestacados } from "../shared/buscaTexto";
 
 /** A busca da conversa (Mensagens), que filtra a cada letra como o WhatsApp. */
 describe("busca nas mensagens", () => {
@@ -44,6 +44,22 @@ describe("busca nas mensagens", () => {
 
   it("termos que se sobrepõem viram um destaque só", () => {
     expect(trechosDestacados("natana", termosDaBusca("nat ana"))).toEqual([{ texto: "natana", destaque: true }]);
+  });
+
+  describe("linha da lista de resultados", () => {
+    it("mensagem curta fica inteira, numa linha só", () => {
+      expect(recorteDoResultado("Bom dia,\namor", termosDaBusca("amor"))).toBe("Bom dia, amor");
+    });
+
+    it("termo lá no fim: começa perto dele, com reticências, sem cortar palavra", () => {
+      const texto = "Tô arrumando minhas coisas para amanhã e depois vou dormir cedo porque a sessão é às oito";
+      const r = recorteDoResultado(texto, termosDaBusca("sessao"));
+      expect(r.startsWith("…")).toBe(true);
+      expect(r).toContain("sessão");
+      expect(r.length).toBeLessThan(texto.length);
+      expect(texto).toContain(r.slice(1)); // começou numa palavra inteira
+      expect(r.slice(1, 2)).not.toBe(" ");
+    });
   });
 
   it("caractere especial na busca não quebra (não é regex)", () => {

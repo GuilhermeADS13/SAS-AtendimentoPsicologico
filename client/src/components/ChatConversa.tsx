@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { contemTodos, termosDaBusca, trechosDestacados } from "@shared/buscaTexto";
+import { contemTodos, recorteDoResultado, termosDaBusca, trechosDestacados } from "@shared/buscaTexto";
 import { contarSoEmojis } from "@shared/emoji";
 import SeletorDeEmoji from "@/components/SeletorDeEmoji";
 import SeletorDeGif from "@/components/SeletorDeGif";
@@ -33,6 +33,14 @@ function rotuloDoDia(d: Date, agora: Date): string {
     .toLocaleDateString("pt-BR", { timeZone: FUSO_BR, weekday: "long", day: "numeric", month: "long" })
     .replace("-feira", "");
   return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+/** Data na lista de resultados da busca: hora se foi hoje, "Ontem", ou a data. */
+function quandoNoResultado(d: Date, agora: Date): string {
+  const chave = chaveDoDia(d);
+  if (chave === chaveDoDia(agora)) return formatarHora(d);
+  if (chave === chaveDoDia(new Date(agora.getTime() - 86_400_000))) return "Ontem";
+  return d.toLocaleDateString("pt-BR", { timeZone: FUSO_BR, day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 /** Agrupa as mensagens (já em ordem cronológica) por dia de Brasília. */
@@ -79,6 +87,11 @@ export default function ChatConversa({
   const [texto, setTexto] = useState("");
   const [buscando, setBuscando] = useState(false);
   const [busca, setBusca] = useState("");
+  // Busca como no WhatsApp: digitando, aparece a LISTA de resultados; tocar num
+  // deles volta para a conversa inteira, rolada até a mensagem, que pisca.
+  const [vendoResultados, setVendoResultados] = useState(true);
+  const [destacadaId, setDestacadaId] = useState<number | null>(null);
+  const listaRef = useRef<HTMLDivElement>(null);
   const [enviando, setEnviando] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const textoRef = useRef<HTMLTextAreaElement>(null);
@@ -89,16 +102,21 @@ export default function ChatConversa({
   const role = q.data?.role ?? null;
   const mensagens = q.data?.messages ?? [];
 
-  // Busca a CADA LETRA, como no WhatsApp: filtra a conversa já carregada (sem ir
+  // Busca a CADA LETRA, como no WhatsApp: procura na conversa já carregada (sem ir
   // ao servidor por tecla), sem diferenciar acento nem maiúscula, e destaca o
   // trecho achado. Antes só buscava no Enter, e "sessao" não achava "sessão".
   const termos = useMemo(() => termosDaBusca(busca), [busca]);
   const buscaAtiva = termos.length > 0;
-  const visiveis = useMemo(
-    // GIF fica de fora: o texto dele é só a marca `[gif:ID]`, não tem o que achar.
-    () => (buscaAtiva ? mensagens.filter((m) => !!m.content && !idDoGif(m.content) && contemTodos(m.content, termos)) : mensagens),
+  // Mais nova primeiro, como na lista do WhatsApp. GIF fica de fora: o texto dele
+  // é só a marca `[gif:ID]`, não tem o que achar.
+  const resultados = useMemo(
+    () =>
+      buscaAtiva
+        ? mensagens.filter((m) => !!m.content && !idDoGif(m.content) && contemTodos(m.content, termos)).reverse()
+        : [],
     [mensagens, termos, buscaAtiva],
   );
+  const mostrarResultados = buscaAtiva && vendoResultados;
   const nome = titulo ?? "Conversa";
 
   // Limpar o campo é do envio de TEXTO (abaixo), não daqui: mandar um GIF ou um
@@ -153,6 +171,15 @@ export default function ChatConversa({
     fimRef.current?.scrollIntoView({ block: "end", behavior: jaRolouRef.current ? "smooth" : "auto" });
     jaRolouRef.current = true;
   }, [mensagens.length, buscaAtiva]);
+
+  // Tocou num resultado: com a conversa inteira já na tela, rola até a mensagem
+  // (no meio da área) e tira o destaque depois de um instante.
+  useEffect(() => {
+    if (vendoResultados || destacadaId == null) return;
+    listaRef.current?.querySelector(`[data-msg-id="${destacadaId}"]`)?.scrollIntoView({ block: "center" });
+    const t = setTimeout(() => setDestacadaId(null), 2000);
+    return () => clearTimeout(t);
+  }, [vendoResultados, destacadaId]);
 
   // O campo cresce com o texto até ~5 linhas (depois rola por dentro).
   useEffect(() => {
@@ -221,6 +248,8 @@ export default function ChatConversa({
   const fecharBusca = () => {
     setBuscando(false);
     setBusca("");
+    setVendoResultados(true);
+    setDestacadaId(null);
   };
 
   const agora = new Date();
@@ -266,7 +295,10 @@ export default function ChatConversa({
             <Input
               autoFocus
               value={busca}
-              onChange={(e) => setBusca(e.target.value)}
+              onChange={(e) => {
+                setBusca(e.target.value);
+                setVendoResultados(true);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Escape") fecharBusca();
               }}
@@ -276,24 +308,76 @@ export default function ChatConversa({
             />
           </div>
           {buscaAtiva && (
-            <p className="text-xs text-muted-foreground" aria-live="polite">
-              {visiveis.length === 0
-                ? `Nada encontrado para “${busca.trim()}”.`
-                : `${visiveis.length} ${visiveis.length === 1 ? "mensagem encontrada" : "mensagens encontradas"} para “${busca.trim()}”.`}
-            </p>
+            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              <p aria-live="polite">
+                {resultados.length === 0
+                  ? `Nada encontrado para “${busca.trim()}”.`
+                  : `${resultados.length} ${resultados.length === 1 ? "mensagem encontrada" : "mensagens encontradas"} para “${busca.trim()}”.`}
+              </p>
+              {!vendoResultados && resultados.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setVendoResultados(true)}
+                  className="shrink-0 font-medium text-primary hover:underline focus-visible:underline focus-visible:outline-none"
+                >
+                  Ver resultados
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}
 
       {/* Mensagens */}
-      <div className="min-h-0 flex-1 overflow-y-auto bg-muted/30 px-3 py-4 sm:px-4">
+      <div ref={listaRef} className="min-h-0 flex-1 overflow-y-auto bg-muted/30 px-3 py-4 sm:px-4">
         {q.isLoading ? (
           <div className="space-y-3" aria-label="Carregando mensagens">
             <Skeleton className="h-10 w-2/3 rounded-2xl" />
             <Skeleton className="ml-auto h-10 w-1/2 rounded-2xl" />
             <Skeleton className="h-14 w-3/5 rounded-2xl" />
           </div>
-        ) : visiveis.length === 0 ? (
+        ) : mostrarResultados && resultados.length > 0 ? (
+          <ul className="overflow-hidden rounded-xl border bg-card" aria-label="Resultados da busca">
+            {resultados.map((m) => {
+              const minha = m.senderRole === role;
+              return (
+                <li key={m.id} className="border-b border-border/60 last:border-b-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDestacadaId(m.id);
+                      setVendoResultados(false);
+                    }}
+                    className="w-full px-4 py-2.5 text-left transition-colors hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
+                  >
+                    <span className="block text-[11px] tabular-nums text-muted-foreground">
+                      {quandoNoResultado(new Date(m.createdAt), agora)}
+                    </span>
+                    <span className="mt-0.5 flex min-w-0 items-center gap-1 text-sm text-foreground">
+                      {minha &&
+                        (m.readAt ? (
+                          <CheckCheck className="size-3.5 shrink-0 text-muted-foreground" aria-label="Lida" />
+                        ) : (
+                          <Check className="size-3.5 shrink-0 text-muted-foreground" aria-label="Enviada" />
+                        ))}
+                      <span className="truncate">
+                        {trechosDestacados(recorteDoResultado(m.content ?? "", termos), termos).map((t, k) =>
+                          t.destaque ? (
+                            <strong key={k} className="font-semibold text-primary">
+                              {t.texto}
+                            </strong>
+                          ) : (
+                            <Fragment key={k}>{t.texto}</Fragment>
+                          ),
+                        )}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (mostrarResultados ? resultados.length : mensagens.length) === 0 ? (
           <div className="flex h-full flex-col items-center justify-center px-6 py-10 text-center">
             <span className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               {buscaAtiva ? <Search className="size-6" /> : <MessageCircle className="size-6" />}
@@ -312,7 +396,7 @@ export default function ChatConversa({
             {/* Um bloco por dia: o rótulo gruda no topo só enquanto o SEU dia está
                 visível e é empurrado pelo do dia seguinte. Numa lista única, todos
                 grudavam no mesmo lugar e ficavam empilhados um sobre o outro. */}
-            {agruparPorDia(visiveis).map(({ chave, itens }) => (
+            {agruparPorDia(mensagens).map(({ chave, itens }) => (
               <section key={chave} className="pb-2">
                 <div className="sticky top-0 z-10 flex justify-center py-1.5" aria-hidden>
                   <span className="rounded-full border bg-card/95 px-3 py-0.5 text-[11px] font-medium text-muted-foreground shadow-sm backdrop-blur">
@@ -336,7 +420,16 @@ export default function ChatConversa({
               const semBalao = emojiGrande || !!gifId;
               return (
                 <Fragment key={m.id}>
-                  <li className={cn("flex", minha ? "justify-end" : "justify-start", mesmoBloco ? "mt-0.5" : i === 0 ? "mt-1" : "mt-3")}>
+                  <li
+                    data-msg-id={m.id}
+                    className={cn(
+                      "flex rounded-xl transition-colors duration-700",
+                      minha ? "justify-end" : "justify-start",
+                      mesmoBloco ? "mt-0.5" : i === 0 ? "mt-1" : "mt-3",
+                      // A mensagem aberta pela busca pisca, para o olho achá-la.
+                      destacadaId === m.id && "bg-amber-300/40 dark:bg-amber-400/25",
+                    )}
+                  >
                     <div
                       className={cn(
                         "max-w-[85%] rounded-2xl text-sm sm:max-w-[75%]",
