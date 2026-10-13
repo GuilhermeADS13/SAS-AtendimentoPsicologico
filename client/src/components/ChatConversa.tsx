@@ -1,5 +1,6 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { contemTodos, termosDaBusca, trechosDestacados } from "@shared/buscaTexto";
 import { uploadChatFile } from "@/lib/supabase";
 import { iniciais } from "@/lib/iniciais";
 import { FUSO_BR, formatarHora } from "@shared/datas";
@@ -74,19 +75,25 @@ export default function ChatConversa({
   const [texto, setTexto] = useState("");
   const [buscando, setBuscando] = useState(false);
   const [busca, setBusca] = useState("");
-  const [buscaAtiva, setBuscaAtiva] = useState("");
   const [enviando, setEnviando] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const textoRef = useRef<HTMLTextAreaElement>(null);
   const fimRef = useRef<HTMLDivElement>(null);
   const jaRolouRef = useRef(false);
 
-  const q = trpc.chat.messages.useQuery(
-    { patientId, search: buscaAtiva || undefined },
-    { refetchInterval: ativo ? 5000 : false, enabled: ativo },
-  );
+  const q = trpc.chat.messages.useQuery({ patientId }, { refetchInterval: ativo ? 5000 : false, enabled: ativo });
   const role = q.data?.role ?? null;
   const mensagens = q.data?.messages ?? [];
+
+  // Busca a CADA LETRA, como no WhatsApp: filtra a conversa já carregada (sem ir
+  // ao servidor por tecla), sem diferenciar acento nem maiúscula, e destaca o
+  // trecho achado. Antes só buscava no Enter, e "sessao" não achava "sessão".
+  const termos = useMemo(() => termosDaBusca(busca), [busca]);
+  const buscaAtiva = termos.length > 0;
+  const visiveis = useMemo(
+    () => (buscaAtiva ? mensagens.filter((m) => !!m.content && contemTodos(m.content, termos)) : mensagens),
+    [mensagens, termos, buscaAtiva],
+  );
   const nome = titulo ?? "Conversa";
 
   const enviar = trpc.chat.send.useMutation({
@@ -191,7 +198,6 @@ export default function ChatConversa({
   const fecharBusca = () => {
     setBuscando(false);
     setBusca("");
-    setBuscaAtiva("");
   };
 
   const agora = new Date();
@@ -239,20 +245,18 @@ export default function ChatConversa({
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") setBuscaAtiva(busca.trim());
                 if (e.key === "Escape") fecharBusca();
               }}
-              onBlur={() => setBuscaAtiva(busca.trim())}
-              placeholder="Buscar nas mensagens e apertar Enter"
+              placeholder="Buscar nas mensagens"
               className="h-9 bg-card pl-9"
               aria-label="Buscar nas mensagens"
             />
           </div>
-          {buscaAtiva && !q.isFetching && (
-            <p className="text-xs text-muted-foreground">
-              {mensagens.length === 0
-                ? `Nada encontrado para “${buscaAtiva}”.`
-                : `${mensagens.length} ${mensagens.length === 1 ? "mensagem encontrada" : "mensagens encontradas"} para “${buscaAtiva}”.`}
+          {buscaAtiva && (
+            <p className="text-xs text-muted-foreground" aria-live="polite">
+              {visiveis.length === 0
+                ? `Nada encontrado para “${busca.trim()}”.`
+                : `${visiveis.length} ${visiveis.length === 1 ? "mensagem encontrada" : "mensagens encontradas"} para “${busca.trim()}”.`}
             </p>
           )}
         </div>
@@ -266,7 +270,7 @@ export default function ChatConversa({
             <Skeleton className="ml-auto h-10 w-1/2 rounded-2xl" />
             <Skeleton className="h-14 w-3/5 rounded-2xl" />
           </div>
-        ) : mensagens.length === 0 ? (
+        ) : visiveis.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center px-6 py-10 text-center">
             <span className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               {buscaAtiva ? <Search className="size-6" /> : <MessageCircle className="size-6" />}
@@ -285,7 +289,7 @@ export default function ChatConversa({
             {/* Um bloco por dia: o rótulo gruda no topo só enquanto o SEU dia está
                 visível e é empurrado pelo do dia seguinte. Numa lista única, todos
                 grudavam no mesmo lugar e ficavam empilhados um sobre o outro. */}
-            {agruparPorDia(mensagens).map(({ chave, itens }) => (
+            {agruparPorDia(visiveis).map(({ chave, itens }) => (
               <section key={chave} className="pb-2">
                 <div className="sticky top-0 z-10 flex justify-center py-1.5" aria-hidden>
                   <span className="rounded-full border bg-card/95 px-3 py-0.5 text-[11px] font-medium text-muted-foreground shadow-sm backdrop-blur">
@@ -312,7 +316,27 @@ export default function ChatConversa({
                         !minha && !mesmoBloco && "rounded-tl-md",
                       )}
                     >
-                      {m.content && <p className="whitespace-pre-wrap break-words leading-relaxed">{m.content}</p>}
+                      {m.content && (
+                        <p className="whitespace-pre-wrap break-words leading-relaxed">
+                          {buscaAtiva
+                            ? trechosDestacados(m.content, termos).map((t, k) =>
+                                t.destaque ? (
+                                  <mark
+                                    key={k}
+                                    className={cn(
+                                      "rounded-sm",
+                                      minha ? "bg-white/35 text-primary-foreground" : "bg-amber-200 text-foreground dark:bg-amber-400/40",
+                                    )}
+                                  >
+                                    {t.texto}
+                                  </mark>
+                                ) : (
+                                  <Fragment key={k}>{t.texto}</Fragment>
+                                ),
+                              )
+                            : m.content}
+                        </p>
+                      )}
                       {m.fileKey && (
                         <button
                           type="button"

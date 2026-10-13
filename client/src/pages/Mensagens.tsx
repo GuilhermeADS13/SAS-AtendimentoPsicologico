@@ -6,6 +6,7 @@ import { iniciais } from "@/lib/iniciais";
 import { getAvatarSignedUrl } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { FUSO_BR, formatarHora } from "@shared/datas";
+import { contemTodos, termosDaBusca } from "@shared/buscaTexto";
 import DashboardLayout from "@/components/DashboardLayout";
 import ChatConversa from "@/components/ChatConversa";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -67,11 +68,10 @@ function MensagensTerapeuta() {
   const sel = lista.find((t) => t.patientId === selId) ?? null;
 
   const visiveis = useMemo(() => {
-    const termo = filtro.trim().toLocaleLowerCase("pt-BR");
+    // Sem acento e sem caixa: "lucia" acha "Lúcia", como na busca da conversa.
+    const termos = termosDaBusca(filtro);
     return lista.filter(
-      (t) =>
-        (!soNaoLidas || t.unread > 0) &&
-        (!termo || `${t.firstName} ${t.lastName}`.toLocaleLowerCase("pt-BR").includes(termo)),
+      (t) => (!soNaoLidas || t.unread > 0) && contemTodos(`${t.firstName} ${t.lastName}`, termos),
     );
   }, [lista, filtro, soNaoLidas]);
 
