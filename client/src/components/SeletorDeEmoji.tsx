@@ -87,7 +87,7 @@ export default function SeletorDeEmoji({ aoEscolher, disabled }: { aoEscolher: (
         <Button
           variant="ghost"
           size="icon"
-          className="size-9 shrink-0 rounded-xl text-muted-foreground hover:text-foreground"
+          className="size-8 shrink-0 rounded-xl text-muted-foreground hover:text-foreground sm:size-9"
           disabled={disabled}
           title="Emojis"
           aria-label="Emojis"

@@ -11,6 +11,7 @@ import { getDocumentQueueMetrics, queueMetricsToPrometheus } from "../ai/queue-m
 import { agentRuntimeMetricsToPrometheus } from "../ai/runtime-metrics";
 import { serveStatic, setupVite } from "./vite";
 import { cabecalhosDeSeguranca, ehChamadaDaLuma, limitarRequisicoes } from "./seguranca";
+import { rotaDoGif } from "../gifs";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -126,6 +127,15 @@ async function startServer() {
   });
   app.use("/api/trpc", (req, res, next) =>
     ehChamadaDaLuma(req.path) ? limitadorDaLuma(req, res, next) : next());
+
+  // Imagens dos GIFs das Mensagens (ver server/gifs.ts). Fica ANTES do teto geral:
+  // abrir o seletor carrega 24 imagens de uma vez, o que sozinho comeria 1/10 dos
+  // 240/min. Tem o proprio limite, que ainda impede usar a rota como proxy gratis.
+  app.get(
+    "/api/gif/:id",
+    limitarRequisicoes({ janelaMs: 60_000, maximo: 300, mensagem: "Muitos GIFs seguidos. Espere um minuto." }),
+    (req, res) => void rotaDoGif(req, res),
+  );
 
   // Teto geral da API. O cliente ja faz chamadas em lote e consulta mensagens nao
   // lidas a cada 30s, entao 240/min sobra para o uso normal e ainda barra forca

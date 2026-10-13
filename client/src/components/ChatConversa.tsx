@@ -3,6 +3,8 @@ import { trpc } from "@/lib/trpc";
 import { contemTodos, termosDaBusca, trechosDestacados } from "@shared/buscaTexto";
 import { contarSoEmojis } from "@shared/emoji";
 import SeletorDeEmoji from "@/components/SeletorDeEmoji";
+import SeletorDeGif from "@/components/SeletorDeGif";
+import { idDoGif, marcaDeGif, urlDoGif } from "@shared/gif";
 import { uploadChatFile } from "@/lib/supabase";
 import { iniciais } from "@/lib/iniciais";
 import { FUSO_BR, formatarHora } from "@shared/datas";
@@ -93,14 +95,16 @@ export default function ChatConversa({
   const termos = useMemo(() => termosDaBusca(busca), [busca]);
   const buscaAtiva = termos.length > 0;
   const visiveis = useMemo(
-    () => (buscaAtiva ? mensagens.filter((m) => !!m.content && contemTodos(m.content, termos)) : mensagens),
+    // GIF fica de fora: o texto dele é só a marca `[gif:ID]`, não tem o que achar.
+    () => (buscaAtiva ? mensagens.filter((m) => !!m.content && !idDoGif(m.content) && contemTodos(m.content, termos)) : mensagens),
     [mensagens, termos, buscaAtiva],
   );
   const nome = titulo ?? "Conversa";
 
+  // Limpar o campo é do envio de TEXTO (abaixo), não daqui: mandar um GIF ou um
+  // arquivo apagava o que a pessoa estava escrevendo.
   const enviar = trpc.chat.send.useMutation({
     onSuccess: () => {
-      setTexto("");
       utils.chat.messages.invalidate();
       utils.chat.threads.invalidate();
     },
@@ -178,7 +182,7 @@ export default function ChatConversa({
   const handleEnviarTexto = () => {
     const conteudo = texto.trim();
     if (!conteudo || enviar.isPending) return;
-    enviar.mutate({ patientId, content: conteudo });
+    enviar.mutate({ patientId, content: conteudo }, { onSuccess: () => setTexto("") });
   };
 
   const handleAnexo = async (file: File) => {
@@ -326,14 +330,17 @@ export default function ChatConversa({
                 quando.getTime() - new Date(anterior.createdAt).getTime() < JANELA_DO_BLOCO_MS;
               // Só emojis (até 3) aparecem grandes e sem balão, como no WhatsApp.
               const qtdEmojis = m.content && !m.fileKey ? contarSoEmojis(m.content) : 0;
-              const emojiGrande = qtdEmojis > 0 && qtdEmojis <= 3;
+              const gifId = m.fileKey ? null : idDoGif(m.content);
+              const emojiGrande = !gifId && qtdEmojis > 0 && qtdEmojis <= 3;
+              // GIF e emoji grande vão sem balão, direto sobre o fundo da conversa.
+              const semBalao = emojiGrande || !!gifId;
               return (
                 <Fragment key={m.id}>
                   <li className={cn("flex", minha ? "justify-end" : "justify-start", mesmoBloco ? "mt-0.5" : i === 0 ? "mt-1" : "mt-3")}>
                     <div
                       className={cn(
                         "max-w-[85%] rounded-2xl text-sm sm:max-w-[75%]",
-                        emojiGrande
+                        semBalao
                           ? "px-1 text-foreground"
                           : [
                               "px-3.5 py-2 shadow-[0_1px_2px_rgb(0_0_0/0.06)]",
@@ -343,7 +350,14 @@ export default function ChatConversa({
                             ],
                       )}
                     >
-                      {m.content && (
+                      {gifId ? (
+                        <img
+                          src={urlDoGif(gifId)}
+                          alt="GIF"
+                          loading="lazy"
+                          className={cn("block w-[200px] max-w-full rounded-xl bg-muted", minha && "ml-auto")}
+                        />
+                      ) : m.content && (
                         <p
                           className={cn(
                             "whitespace-pre-wrap break-words",
@@ -404,7 +418,7 @@ export default function ChatConversa({
                         className={cn(
                           "mt-0.5 flex items-center justify-end gap-1 text-[10px] tabular-nums",
                           // Sem balão, a hora fica sobre o fundo da conversa: cor neutra.
-                          minha && !emojiGrande ? "text-primary-foreground/75" : "text-muted-foreground",
+                          minha && !semBalao ? "text-primary-foreground/75" : "text-muted-foreground",
                         )}
                       >
                         {formatarHora(quando)}
@@ -452,11 +466,11 @@ export default function ChatConversa({
             if (f) handleAnexo(f);
           }}
         />
-        <div className="flex items-end gap-1.5 rounded-2xl border bg-background p-1.5 transition-colors focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15">
+        <div className="flex items-end gap-0.5 rounded-2xl sm:gap-1.5 border bg-background p-1.5 transition-colors focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15">
           <Button
             variant="ghost"
             size="icon"
-            className="size-9 shrink-0 rounded-xl text-muted-foreground hover:text-foreground"
+            className="size-8 shrink-0 rounded-xl text-muted-foreground hover:text-foreground sm:size-9"
             disabled={enviando}
             onClick={() => fileRef.current?.click()}
             title="Anexar arquivo (até 20 MB)"
@@ -465,6 +479,7 @@ export default function ChatConversa({
             {enviando ? <Loader2 className="size-5 animate-spin" /> : <Paperclip className="size-5" />}
           </Button>
           <SeletorDeEmoji aoEscolher={inserirEmoji} disabled={enviando} />
+          <SeletorDeGif aoEscolher={(id) => enviar.mutate({ patientId, content: marcaDeGif(id) })} disabled={enviando} />
           <Textarea
             ref={textoRef}
             value={texto}

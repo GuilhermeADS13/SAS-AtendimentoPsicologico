@@ -36,6 +36,8 @@ import {
 import { normalizarEmail, pacienteDoUsuario, resolverAcessoSala } from "./roomAccess";
 import { chavePertenceAoUsuario } from "./storageKeys";
 import { pendenciasDoProntuario } from "../shared/prontuario";
+import { idDoGif } from "../shared/gif";
+import { buscarGifs, gifsConfigurados } from "./gifs";
 
 /**
  * Corre uma promessa contra um timeout e SEMPRE limpa o timer. O `Promise.race`
@@ -2658,7 +2660,11 @@ export const appRouter = router({
             lastName: p.lastName,
             unread: Number(r?.unread ?? 0),
             lastAt: (r?.lastAt as string | null) ?? null,
-            preview: ult ? (ult.content?.trim() || (ult.fileName ? `📎 ${ult.fileName}` : "")) : "",
+            preview: ult
+              ? idDoGif(ult.content)
+                ? "GIF"
+                : ult.content?.trim() || (ult.fileName ? `📎 ${ult.fileName}` : "")
+              : "",
             lastFromMe: ult?.senderRole === "therapist",
           };
         })
@@ -2669,6 +2675,13 @@ export const appRouter = router({
           return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
         });
     }),
+
+    // GIFs (GIPHY pelo nosso servidor — ver server/gifs.ts). Sem a chave no
+    // ambiente, `disponivel` é falso e o botão de GIF não aparece.
+    gifsDisponiveis: protectedProcedure.query(() => ({ disponivel: gifsConfigurados() })),
+    gifs: protectedProcedure
+      .input(z.object({ busca: z.string().trim().max(50).optional() }))
+      .query(({ input }) => buscarGifs(input.busca)),
 
     // Mensagens do thread (cronológico). patientId só é usado pela psicóloga.
     messages: protectedProcedure
