@@ -355,6 +355,10 @@ export const chatMessages = pgTable(
     /** Quando o destinatário leu. Nulo = não lida. */
     readAt: timestamp("readAt", { withTimezone: true, mode: "date" }),
     createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    /** Editada pelo remetente (até 15 min). A tela mostra "Editada". */
+    editedAt: timestamp("editedAt", { withTimezone: true, mode: "date" }),
+    /** Apagada para todos (até 2 dias). O texto e o anexo são limpos na hora. */
+    deletedAt: timestamp("deletedAt", { withTimezone: true, mode: "date" }),
   },
   (table) => [
     // Lista/lida por thread, em ordem cronológica.

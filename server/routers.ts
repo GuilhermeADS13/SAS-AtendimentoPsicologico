@@ -37,6 +37,7 @@ import { normalizarEmail, pacienteDoUsuario, resolverAcessoSala } from "./roomAc
 import { chavePertenceAoUsuario } from "./storageKeys";
 import { pendenciasDoProntuario } from "../shared/prontuario";
 import { idDoGif } from "../shared/gif";
+import { podeApagar, podeEditar } from "../shared/chatMensagem";
 import { buscarGifs, gifsConfigurados } from "./gifs";
 
 /**
@@ -90,6 +91,32 @@ async function resolverParticipanteChat(
   const paciente = await pacienteDoUsuario(db, { id: user.id, email: user.email });
   if (paciente) return { therapistId: paciente.therapistId, patientId: paciente.id, role: "patient" };
   return null;
+}
+
+/**
+ * Uma mensagem, só se for da conversa de QUEM pede (mesma psicóloga e paciente).
+ * Editar/apagar checa o resto (dono e prazo) em shared/chatMensagem.
+ */
+async function mensagemDoThread(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  user: { id: number; email?: string | null },
+  patientIdInput: number | undefined,
+  messageId: number,
+) {
+  const part = await resolverParticipanteChat(db, user, patientIdInput);
+  if (!part) return null;
+  const rows = await db
+    .select()
+    .from(chatMessages)
+    .where(
+      and(
+        eq(chatMessages.id, messageId),
+        eq(chatMessages.therapistId, part.therapistId),
+        eq(chatMessages.patientId, part.patientId),
+      ),
+    )
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 // Estado efêmero de "digitando" por thread (em memória; reseta no restart, e o
@@ -2642,6 +2669,7 @@ export const appRouter = router({
           fileName: chatMessages.fileName,
           senderRole: chatMessages.senderRole,
           createdAt: chatMessages.createdAt,
+          deletedAt: chatMessages.deletedAt,
         })
         .from(chatMessages)
         .where(eq(chatMessages.therapistId, therapistId))
@@ -2661,7 +2689,9 @@ export const appRouter = router({
             unread: Number(r?.unread ?? 0),
             lastAt: (r?.lastAt as string | null) ?? null,
             preview: ult
-              ? idDoGif(ult.content)
+              ? ult.deletedAt
+                ? "🚫 Mensagem apagada"
+                : idDoGif(ult.content)
                 ? "GIF"
                 : ult.content?.trim() || (ult.fileName ? `📎 ${ult.fileName}` : "")
               : "",
@@ -2753,6 +2783,48 @@ export const appRouter = router({
           console.error("Falha ao notificar nova mensagem de chat:", err);
         }
         return { id: inserted[0]?.id, createdAt: inserted[0]?.createdAt } as const;
+      }),
+
+    // Editar a PRÓPRIA mensagem de texto, até 15 min (regra em shared/chatMensagem).
+    edit: protectedProcedure
+      .input(
+        z.object({
+          messageId: z.number(),
+          patientId: z.number().optional(),
+          content: z.string().trim().min(1).max(4000),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const m = await mensagemDoThread(db, ctx.user, input.patientId, input.messageId);
+        if (!m || !podeEditar(m, ctx.user.id)) {
+          throw new Error("Essa mensagem não pode mais ser editada.");
+        }
+        await db
+          .update(chatMessages)
+          .set({ content: input.content, editedAt: new Date() })
+          .where(eq(chatMessages.id, m.id));
+        return { success: true } as const;
+      }),
+
+    // Apagar para todos a PRÓPRIA mensagem, até 2 dias. Não guarda o original: o
+    // texto é limpo e o anexo sai do Storage — é o que "apagar para todos" promete.
+    delete: protectedProcedure
+      .input(z.object({ messageId: z.number(), patientId: z.number().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const m = await mensagemDoThread(db, ctx.user, input.patientId, input.messageId);
+        if (!m || !podeApagar(m, ctx.user.id)) {
+          throw new Error("Essa mensagem não pode mais ser apagada.");
+        }
+        await db
+          .update(chatMessages)
+          .set({ content: null, fileKey: null, fileName: null, fileType: null, fileSize: null, deletedAt: new Date() })
+          .where(eq(chatMessages.id, m.id));
+        if (m.fileKey && chavePertenceAoUsuario(m.fileKey, ctx.user.openId, "chat")) await removeStorageFile(m.fileKey);
+        return { success: true } as const;
       }),
 
     // Marca como lidas as mensagens recebidas do outro lado neste thread.

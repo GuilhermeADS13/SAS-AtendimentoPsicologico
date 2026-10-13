@@ -5,6 +5,19 @@ import { contarSoEmojis } from "@shared/emoji";
 import SeletorDeEmoji from "@/components/SeletorDeEmoji";
 import SeletorDeGif from "@/components/SeletorDeGif";
 import { idDoGif, marcaDeGif, urlDoGif } from "@shared/gif";
+import { podeApagar, podeEditar } from "@shared/chatMensagem";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { uploadChatFile } from "@/lib/supabase";
 import { iniciais } from "@/lib/iniciais";
 import { FUSO_BR, formatarHora } from "@shared/datas";
@@ -15,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { Check, CheckCheck, Download, FileText, Loader2, MessageCircle, Paperclip, Search, Send, X } from "lucide-react";
+import { Ban, Check, CheckCheck, ChevronDown, Download, FileText, Loader2, MessageCircle, Paperclip, Pencil, Search, Send, Trash2, X } from "lucide-react";
 
 const MAX_ANEXO = 20 * 1024 * 1024; // 20 MB
 // Mensagens do mesmo lado com menos que isso de intervalo formam um "bloco" (ficam
@@ -93,6 +106,11 @@ export default function ChatConversa({
   const [destacadaId, setDestacadaId] = useState<number | null>(null);
   const listaRef = useRef<HTMLDivElement>(null);
   const [enviando, setEnviando] = useState(false);
+  // Editar (como no WhatsApp): o campo de baixo passa a editar a mensagem; o que
+  // estava sendo escrito fica guardado e volta ao terminar ou cancelar.
+  const [editando, setEditando] = useState<{ id: number; rascunho: string } | null>(null);
+  const [apagarId, setApagarId] = useState<number | null>(null);
+  const { user } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
   const textoRef = useRef<HTMLTextAreaElement>(null);
   const fimRef = useRef<HTMLDivElement>(null);
@@ -129,6 +147,31 @@ export default function ChatConversa({
     onError: (e) => toast.error(e.message || "Não foi possível enviar."),
   });
   const markRead = trpc.chat.markRead.useMutation();
+  const aoMudarMensagem = {
+    onSuccess: () => {
+      utils.chat.messages.invalidate();
+      utils.chat.threads.invalidate();
+    },
+    onError: (e: { message?: string }) => toast.error(e.message || "Não foi possível alterar a mensagem."),
+  };
+  const editar = trpc.chat.edit.useMutation(aoMudarMensagem);
+  const apagar = trpc.chat.delete.useMutation(aoMudarMensagem);
+
+  const comecarEdicao = (m: { id: number; content: string | null }) => {
+    setEditando({ id: m.id, rascunho: editando ? editando.rascunho : texto });
+    setTexto(m.content ?? "");
+    requestAnimationFrame(() => {
+      const el = textoRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    });
+  };
+  const cancelarEdicao = () => {
+    if (!editando) return;
+    setTexto(editando.rascunho);
+    setEditando(null);
+  };
 
   // "Está digitando": sinalizo (no máx. 1x a cada 2s enquanto escrevo) e verifico
   // o outro lado por polling curto. É por polling (o chat inteiro é), então tem
@@ -208,6 +251,13 @@ export default function ChatConversa({
 
   const handleEnviarTexto = () => {
     const conteudo = texto.trim();
+    if (editando) {
+      if (!conteudo || editar.isPending) return;
+      const original = mensagens.find((m) => m.id === editando.id)?.content;
+      if (conteudo === original) return cancelarEdicao(); // nada mudou
+      editar.mutate({ messageId: editando.id, patientId, content: conteudo }, { onSuccess: cancelarEdicao });
+      return;
+    }
     if (!conteudo || enviar.isPending) return;
     enviar.mutate({ patientId, content: conteudo }, { onSuccess: () => setTexto("") });
   };
@@ -418,18 +468,49 @@ export default function ChatConversa({
               const emojiGrande = !gifId && qtdEmojis > 0 && qtdEmojis <= 3;
               // GIF e emoji grande vão sem balão, direto sobre o fundo da conversa.
               const semBalao = emojiGrande || !!gifId;
+              const meuId = user?.id ?? -1;
+              const daPraEditar = podeEditar(m, meuId, agora);
+              const daPraApagar = podeApagar(m, meuId, agora);
               return (
                 <Fragment key={m.id}>
                   <li
                     data-msg-id={m.id}
                     className={cn(
-                      "flex rounded-xl transition-colors duration-700",
+                      "group flex items-center rounded-xl transition-colors duration-700",
                       minha ? "justify-end" : "justify-start",
                       mesmoBloco ? "mt-0.5" : i === 0 ? "mt-1" : "mt-3",
                       // A mensagem aberta pela busca pisca, para o olho achá-la.
                       destacadaId === m.id && "bg-amber-300/40 dark:bg-amber-400/25",
                     )}
                   >
+                    {/* Opções da PRÓPRIA mensagem, enquanto o prazo vale. No mouse,
+                        aparecem ao passar por cima (como a setinha do WhatsApp Web);
+                        no toque, ficam sempre visíveis, discretas. */}
+                    {(daPraEditar || daPraApagar) && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label="Opções da mensagem"
+                            className="mr-1 flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+                          >
+                            <ChevronDown className="size-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {daPraEditar && (
+                            <DropdownMenuItem onSelect={() => comecarEdicao(m)}>
+                              <Pencil /> Editar
+                            </DropdownMenuItem>
+                          )}
+                          {daPraApagar && (
+                            <DropdownMenuItem variant="destructive" onSelect={() => setApagarId(m.id)}>
+                              <Trash2 /> Apagar para todos
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                     <div
                       className={cn(
                         "max-w-[85%] rounded-2xl text-sm sm:max-w-[75%]",
@@ -443,7 +524,12 @@ export default function ChatConversa({
                             ],
                       )}
                     >
-                      {gifId ? (
+                      {m.deletedAt ? (
+                        <p className="flex items-center gap-1.5 italic opacity-80">
+                          <Ban className="size-3.5 shrink-0" aria-hidden />
+                          {minha ? "Você apagou esta mensagem" : "Esta mensagem foi apagada"}
+                        </p>
+                      ) : gifId ? (
                         <img
                           src={urlDoGif(gifId)}
                           alt="GIF"
@@ -514,6 +600,7 @@ export default function ChatConversa({
                           minha && !semBalao ? "text-primary-foreground/75" : "text-muted-foreground",
                         )}
                       >
+                        {m.editedAt && !m.deletedAt && <span className="italic">Editada</span>}
                         {formatarHora(quando)}
                         {minha &&
                           (m.readAt ? (
@@ -559,20 +646,46 @@ export default function ChatConversa({
             if (f) handleAnexo(f);
           }}
         />
+        {editando && (
+          <div className="mb-2 flex items-center gap-2 rounded-xl border-l-4 border-primary bg-primary/5 px-3 py-1.5">
+            <Pencil className="size-3.5 shrink-0 text-primary" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-primary">Editando mensagem</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {mensagens.find((m) => m.id === editando.id)?.content}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 shrink-0"
+              onClick={cancelarEdicao}
+              title="Cancelar edição (Esc)"
+              aria-label="Cancelar edição"
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+        )}
         <div className="flex items-end gap-0.5 rounded-2xl sm:gap-1.5 border bg-background p-1.5 transition-colors focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8 shrink-0 rounded-xl text-muted-foreground hover:text-foreground sm:size-9"
-            disabled={enviando}
-            onClick={() => fileRef.current?.click()}
-            title="Anexar arquivo (até 20 MB)"
-            aria-label="Anexar arquivo"
-          >
-            {enviando ? <Loader2 className="size-5 animate-spin" /> : <Paperclip className="size-5" />}
-          </Button>
+          {/* Editando, só o texto muda: anexo e GIF não fazem sentido aqui. */}
+          {!editando && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 shrink-0 rounded-xl text-muted-foreground hover:text-foreground sm:size-9"
+              disabled={enviando}
+              onClick={() => fileRef.current?.click()}
+              title="Anexar arquivo (até 20 MB)"
+              aria-label="Anexar arquivo"
+            >
+              {enviando ? <Loader2 className="size-5 animate-spin" /> : <Paperclip className="size-5" />}
+            </Button>
+          )}
           <SeletorDeEmoji aoEscolher={inserirEmoji} disabled={enviando} />
-          <SeletorDeGif aoEscolher={(id) => enviar.mutate({ patientId, content: marcaDeGif(id) })} disabled={enviando} />
+          {!editando && (
+            <SeletorDeGif aoEscolher={(id) => enviar.mutate({ patientId, content: marcaDeGif(id) })} disabled={enviando} />
+          )}
           <Textarea
             ref={textoRef}
             value={texto}
@@ -585,27 +698,65 @@ export default function ChatConversa({
                 e.preventDefault();
                 handleEnviarTexto();
               }
+              if (e.key === "Escape" && editando) {
+                e.preventDefault();
+                cancelarEdicao();
+              }
             }}
             placeholder={enviando ? "Enviando o arquivo…" : "Escreva uma mensagem"}
-            aria-label={`Mensagem para ${nome}`}
+            aria-label={editando ? "Editar mensagem" : `Mensagem para ${nome}`}
             rows={1}
             className="max-h-32 min-h-9 flex-1 resize-none border-0 bg-transparent px-1.5 py-2 shadow-none focus-visible:ring-0 dark:bg-transparent"
           />
           <Button
             size="icon"
             className="size-9 shrink-0 rounded-xl"
-            disabled={!texto.trim() || enviar.isPending}
+            disabled={!texto.trim() || enviar.isPending || editar.isPending}
             onClick={handleEnviarTexto}
-            title="Enviar (Enter)"
-            aria-label="Enviar mensagem"
+            title={editando ? "Salvar edição (Enter)" : "Enviar (Enter)"}
+            aria-label={editando ? "Salvar edição" : "Enviar mensagem"}
           >
-            {enviar.isPending && !enviando ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            {(enviar.isPending && !enviando) || editar.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : editando ? (
+              <Check className="size-4" />
+            ) : (
+              <Send className="size-4" />
+            )}
           </Button>
         </div>
         <p className="mt-1.5 hidden px-1 text-[11px] text-muted-foreground sm:block">
-          Enter envia · Shift + Enter quebra a linha
+          {editando ? "Enter salva · Esc cancela" : "Enter envia · Shift + Enter quebra a linha"}
         </p>
       </div>
+
+      <AlertDialog open={apagarId != null} onOpenChange={(aberto) => !aberto && setApagarId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apagar para todos?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A mensagem some para você e para {titulo ?? "a outra pessoa"}. No lugar dela fica “Mensagem apagada”. Não dá
+              para desfazer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (apagarId != null) {
+                  if (editando?.id === apagarId) cancelarEdicao();
+                  apagar.mutate({ messageId: apagarId, patientId });
+                }
+                setApagarId(null);
+              }}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Apagar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
