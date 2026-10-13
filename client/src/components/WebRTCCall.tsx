@@ -173,6 +173,30 @@ async function ajustarQualidade(pc: RTCPeerConnection, modo: "camera" | "tela") 
   }
 }
 
+/**
+ * Áudio com REDUNDÂNCIA (RED, RFC 2198): cada pacote leva também uma cópia do
+ * anterior, então um pacote perdido na rede não vira "picote" na fala. É o
+ * `audio_codec_red` que o app do Discord declara. Custa poucos kbps a mais, nada
+ * perto do vídeo — e numa consulta o que não pode falhar é a voz.
+ *
+ * Só reordena a preferência: se o outro navegador não tiver RED, a negociação
+ * cai no Opus normal sozinha. Precisa rodar ANTES da oferta/resposta.
+ */
+function preferirAudioRedundante(pc: RTCPeerConnection) {
+  const codecs = typeof RTCRtpReceiver !== "undefined" ? RTCRtpReceiver.getCapabilities?.("audio")?.codecs : undefined;
+  if (!codecs?.some((c) => c.mimeType.toLowerCase() === "audio/red")) return;
+  const red = codecs.filter((c) => c.mimeType.toLowerCase() === "audio/red");
+  const resto = codecs.filter((c) => c.mimeType.toLowerCase() !== "audio/red");
+  for (const t of pc.getTransceivers()) {
+    if (t.sender.track?.kind !== "audio" || typeof t.setCodecPreferences !== "function") continue;
+    try {
+      t.setCodecPreferences([...red, ...resto]);
+    } catch {
+      /* navegador recusou a lista: segue com o padrão dele */
+    }
+  }
+}
+
 export default function WebRTCCall({
   roomName,
   role,
@@ -266,6 +290,8 @@ export default function WebRTCCall({
   useEffect(() => {
     let disposed = false;
     const onErr = onError;
+    let tentativasIce = 0;
+    let avisoDeQueda: ReturnType<typeof setTimeout> | null = null;
 
     const send = (payload: unknown) => {
       const ws = wsRef.current;
@@ -343,6 +369,7 @@ export default function WebRTCCall({
       const pc = new RTCPeerConnection({ iceServers: servidoresIce });
       pcRef.current = pc;
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      preferirAudioRedundante(pc);
 
       // Canal de dados para "mostrar arquivo". Quem cria é a ofertante (terapeuta),
       // ANTES da oferta, para já ir na negociação; o paciente recebe por ondatachannel.
@@ -371,10 +398,38 @@ export default function WebRTCCall({
       };
 
       pc.onconnectionstatechange = () => {
-        // Só depois de conectar os parâmetros do remetente existem de fato.
-        if (pc.connectionState === "connected") void ajustarQualidade(pc, "camera");
+        if (pc.connectionState === "connected") {
+          tentativasIce = 0;
+          if (avisoDeQueda) clearTimeout(avisoDeQueda);
+          avisoDeQueda = null;
+          setConnected(true);
+          // Só depois de conectar os parâmetros do remetente existem de fato. Pode
+          // ser uma RECONEXÃO no meio do compartilhamento: aí a tela continua tela.
+          void ajustarQualidade(pc, telaStreamRef.current ? "tela" : "camera");
+        }
         if (pc.connectionState === "failed") {
-          onErr?.("A conexão de vídeo caiu. Tente sair e entrar de novo.");
+          // A rede caiu (troca de Wi-Fi para 4G, por exemplo). Antes a chamada
+          // morria aqui e era preciso sair e entrar. Agora a psicóloga, que é quem
+          // faz a oferta, renegocia só o caminho de rede (ICE restart): a mídia e
+          // a sala continuam as mesmas. O paciente responde pelo fluxo normal.
+          if (role === "therapist" && tentativasIce < 3 && pc.signalingState === "stable") {
+            tentativasIce++;
+            void (async () => {
+              try {
+                const offer = await pc.createOffer({ iceRestart: true });
+                await pc.setLocalDescription(offer);
+                send({ type: "offer", sdp: offer.sdp });
+              } catch {
+                /* a pc foi fechada no meio do caminho */
+              }
+            })();
+          }
+          // Só desiste e avisa se nem a reconexão resolver.
+          avisoDeQueda ??= setTimeout(() => {
+            if (!disposed && pc.connectionState !== "connected") {
+              onErr?.("A conexão de vídeo caiu. Tente sair e entrar de novo.");
+            }
+          }, 20_000);
         }
         if (pc.connectionState === "disconnected") setConnected(false);
       };
@@ -455,6 +510,7 @@ export default function WebRTCCall({
 
     return () => {
       disposed = true;
+      if (avisoDeQueda) clearTimeout(avisoDeQueda);
       try {
         wsRef.current?.close();
       } catch {
@@ -533,8 +589,21 @@ export default function WebRTCCall({
       return;
     }
     try {
-      const tela = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const tela = await navigator.mediaDevices.getDisplayMedia({
+        // Teto de 30 fps, como o Discord: tela não precisa de mais, e a banda que
+        // sobra vai para a nitidez do texto.
+        video: { frameRate: { max: 30 } },
+        // Chrome: tira a PRÓPRIA aba da chamada da lista (compartilhá-la gera o
+        // "espelho infinito") e oferece "compartilhar esta aba" para trocar de aba
+        // sem parar e recomeçar. Os outros navegadores ignoram as duas opções.
+        selfBrowserSurface: "exclude",
+        surfaceSwitching: "include",
+      } as DisplayMediaStreamOptions);
       const trilha = tela.getVideoTracks()[0];
+      // Avisa o codificador que é TEXTO/detalhe, não movimento: sob pouca banda ele
+      // derruba quadros em vez de borrar a letra. Complementa o
+      // "maintain-resolution" de ajustarQualidade.
+      if (trilha && "contentHint" in trilha) trilha.contentHint = "detail";
       const sender = pcRef.current?.getSenders().find(s => s.track?.kind === "video");
       if (!trilha || !sender) {
         tela.getTracks().forEach(t => t.stop());
