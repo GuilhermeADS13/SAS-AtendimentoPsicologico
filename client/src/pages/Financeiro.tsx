@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { formatarBRL } from "@shared/dinheiro";
-import { DollarSign, Clock, TrendingUp, CheckCircle2, Users, CalendarDays, ChevronRight } from "lucide-react";
+import { DollarSign, Clock, TrendingUp, CheckCircle2, Users, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { AvatarDaPessoa } from "@/components/AvatarDaPessoa";
 
 type Periodo = "semana" | "mes" | "ano";
@@ -16,27 +16,36 @@ type Periodo = "semana" | "mes" | "ano";
 /**
  * Início/fim do período escolhido, em datas LOCAIS (o mesmo fuso em que as
  * consultas são exibidas). fim é exclusivo: compara-se com `d >= inicio && d < fim`.
+ *
+ * `deslocamento` anda pelas setas: -1 = semana/mês/ano anterior, +1 = o próximo.
+ * Sem isso o painel só mostrava o período ATUAL — uma consulta marcada para o mês
+ * que vem não aparecia em "Mês", e parecia que o previsto estava errado.
  */
-function intervalo(periodo: Periodo): { inicio: Date; fim: Date; label: string } {
+function intervalo(periodo: Periodo, deslocamento = 0): { inicio: Date; fim: Date; label: string } {
   const hoje = new Date();
   const y = hoje.getFullYear();
   const m = hoje.getMonth();
 
   if (periodo === "semana") {
     const inicio = new Date(hoje);
-    inicio.setDate(hoje.getDate() - hoje.getDay()); // volta ao domingo
+    inicio.setDate(hoje.getDate() - hoje.getDay() + deslocamento * 7); // domingo da semana
     inicio.setHours(0, 0, 0, 0);
     const fim = new Date(inicio);
     fim.setDate(inicio.getDate() + 7);
-    return { inicio, fim, label: "esta semana" };
+    const sabado = new Date(fim);
+    sabado.setDate(fim.getDate() - 1);
+    const dm = (d: Date) => d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    const label = deslocamento === 0 ? "esta semana" : `${dm(inicio)} a ${dm(sabado)}`;
+    return { inicio, fim, label };
   }
   if (periodo === "ano") {
-    return { inicio: new Date(y, 0, 1), fim: new Date(y + 1, 0, 1), label: String(y) };
+    return { inicio: new Date(y + deslocamento, 0, 1), fim: new Date(y + deslocamento + 1, 0, 1), label: String(y + deslocamento) };
   }
+  const inicio = new Date(y, m + deslocamento, 1);
   return {
-    inicio: new Date(y, m, 1),
-    fim: new Date(y, m + 1, 1),
-    label: formatarMesAno(hoje),
+    inicio,
+    fim: new Date(y, m + deslocamento + 1, 1),
+    label: formatarMesAno(inicio),
   };
 }
 
@@ -51,6 +60,8 @@ export default function Financeiro() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const [periodo, setPeriodo] = useState<Periodo>("mes");
+  // Quantas semanas/meses/anos para trás (-) ou para a frente (+) do atual.
+  const [deslocamento, setDeslocamento] = useState(0);
 
   const { data: appointments = [] } = trpc.appointments.list.useQuery();
   const { data: patients = [] } = trpc.patients.list.useQuery();
@@ -73,7 +84,7 @@ export default function Financeiro() {
   const ativa = (a: (typeof appointments)[number]) =>
     a.status !== "cancelled" && a.status !== "no_show";
 
-  const { inicio, fim, label } = intervalo(periodo);
+  const { inicio, fim, label } = intervalo(periodo, deslocamento);
   const noPeriodo = appointments.filter((a) => {
     const d = new Date(a.scheduledAt);
     return d >= inicio && d < fim;
@@ -162,7 +173,10 @@ export default function Financeiro() {
             {PERIODOS.map((p) => (
               <button
                 key={p.valor}
-                onClick={() => setPeriodo(p.valor)}
+                onClick={() => {
+                  setPeriodo(p.valor);
+                  setDeslocamento(0);
+                }}
                 aria-pressed={periodo === p.valor}
                 className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${
                   periodo === p.valor ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
@@ -172,6 +186,38 @@ export default function Financeiro() {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Setas para andar pelo período (inclusive para a frente: o previsto). */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-9"
+            onClick={() => setDeslocamento((d) => d - 1)}
+            aria-label={`${PERIODOS.find((x) => x.valor === periodo)?.rotulo} anterior`}
+            title="Anterior"
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
+          <p className="min-w-40 text-center text-base font-semibold text-foreground first-letter:uppercase" aria-live="polite">
+            {label}
+          </p>
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-9"
+            onClick={() => setDeslocamento((d) => d + 1)}
+            aria-label={`Próximo ${periodo === "semana" ? "semana" : periodo === "mes" ? "mês" : "ano"}`}
+            title="Próximo"
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+          {deslocamento !== 0 && (
+            <Button variant="ghost" size="sm" className="h-9" onClick={() => setDeslocamento(0)}>
+              Hoje
+            </Button>
+          )}
         </div>
 
         {/* Cartões do período */}
