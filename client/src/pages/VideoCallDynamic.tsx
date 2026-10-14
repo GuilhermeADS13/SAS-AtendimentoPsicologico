@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { AlertCircle, ChevronUp, CheckCircle2, Copy, ShieldAlert, Loader2, MessageSquare } from "lucide-react";
+import { AlertCircle, ChevronUp, CheckCircle2, Copy, ShieldAlert, Loader2, MessageSquare, NotebookPen } from "lucide-react";
 import { useLocation } from "wouter";
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -39,6 +39,8 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const [error, setError] = useState<string | null>(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  // Vídeo + prontuário + chat: é o que cobre a tela na tela cheia (ver WebRTCCall).
+  const [areaChamada, setAreaChamada] = useState<HTMLDivElement | null>(null);
   // Confirmações de encerrar a chamada / marcar como realizada (modal, no lugar
   // do window.confirm).
   const [confirmarEncerrar, setConfirmarEncerrar] = useState(false);
@@ -405,8 +407,14 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
           </Card>
         )}
 
-        {/* Main Content — empilha no mobile, lado a lado no desktop */}
-        <div className="flex-1 flex flex-col gap-4 min-h-0 lg:flex-row">
+        {/* Main Content — empilha no mobile, lado a lado no desktop.
+            Na tela cheia (data-tela-cheia) cobre a tela: z-[45] fica acima da
+            barra do topo (z-40) e abaixo de menus e diálogos (z-50), que nascem
+            no <body> — o seletor de emoji e o "Encerrar?" continuam aparecendo. */}
+        <div
+          ref={setAreaChamada}
+          className="flex-1 flex flex-col gap-4 min-h-0 lg:flex-row data-[tela-cheia=sim]:fixed data-[tela-cheia=sim]:inset-0 data-[tela-cheia=sim]:z-[45] data-[tela-cheia=sim]:h-[100dvh] data-[tela-cheia=sim]:bg-background data-[tela-cheia=sim]:p-3"
+        >
           {/* Vídeo (WebRTC P2P) */}
           {/* Deitado, 55vh = ~215px e ainda sobrava página para rolar; aí o vídeo
               usa a altura que restou na tela, sem empurrar nada para baixo. */}
@@ -427,6 +435,41 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                 role={presenceRole}
                 onError={(err) => setError(err)}
                 onEndCall={handleEndCall}
+                areaTelaCheia={areaChamada}
+                extrasTelaCheia={
+                  <>
+                    {podeChat && (
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        onClick={() => setShowChat(true)}
+                        className="relative rounded-full"
+                        aria-label="Mensagens"
+                        title="Mensagens"
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                        {chatNaoLidas > 0 && (
+                          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold text-white">
+                            {chatNaoLidas}
+                          </span>
+                        )}
+                      </Button>
+                    )}
+                    {/* No desktop o prontuário já fica ao lado do vídeo. */}
+                    {isTherapist && patient && (
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        onClick={() => setShowSidebar((v) => !v)}
+                        className="rounded-full lg:hidden"
+                        aria-label="Prontuário"
+                        title="Prontuário"
+                      >
+                        <NotebookPen className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </>
+                }
               />
             )}
           </div>

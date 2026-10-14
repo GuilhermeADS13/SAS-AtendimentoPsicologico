@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Eye,
   EyeOff,
@@ -206,12 +206,23 @@ export default function WebRTCCall({
   role,
   onError,
   onEndCall,
+  areaTelaCheia,
+  extrasTelaCheia,
 }: {
   roomName: string;
   role: Role;
   onError?: (error: string) => void;
   /** Encerrar fica na MESMA barra dos outros controles, como nos apps de vídeo. */
   onEndCall?: () => void;
+  /**
+   * O que cobre a tela na TELA CHEIA. Sem isto, só o vídeo — e o painel do
+   * prontuário (com as Anotações) ficava de fora: a psicóloga punha tela cheia e
+   * não conseguia mais escrever. Com ele, a área inteira (vídeo + prontuário +
+   * chat) vai junto.
+   */
+  areaTelaCheia?: HTMLElement | null;
+  /** Botões a mais na barra, só em tela cheia (o cabeçalho da página fica coberto). */
+  extrasTelaCheia?: ReactNode;
 }) {
   const utils = trpc.useUtils();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -247,6 +258,9 @@ export default function WebRTCCall({
   const [telaCheia, setTelaCheia] = useState(false);
   /** Tela cheia simulada por CSS — o caminho do iPhone, que nao tem a API nativa. */
   const [telaCheiaPorCss, setTelaCheiaPorCss] = useState(false);
+  /** Tela cheia da ÁREA (ver `areaTelaCheia`) e se ela usou a API nativa. */
+  const [telaCheiaArea, setTelaCheiaArea] = useState(false);
+  const nativoDaAreaRef = useRef(false);
   /**
    * O próprio elemento da chamada, para os menus (engrenagens e fundo) nascerem
    * DENTRO dele. No `<body>`, como é o padrão, eles abriam invisíveis em tela
@@ -892,7 +906,7 @@ export default function WebRTCCall({
    * qualquer navegador e preserva a barra de controles.
    */
   // Um estado so para a UI: o botao nao precisa saber QUAL mecanismo esta em uso.
-  const emTelaCheia = telaCheia || telaCheiaPorCss;
+  const emTelaCheia = areaTelaCheia ? telaCheiaArea : telaCheia || telaCheiaPorCss;
 
   /**
    * Onde os menus (engrenagens e fundo) nascem — e por que isso MUDA com a tela cheia.
@@ -905,9 +919,55 @@ export default function WebRTCCall({
    * cheia é desenhada e na por CSS ela cobre tudo — o menu abria invisível. Lá
    * dentro ele aparece, e sem risco de corte, porque a caixa é a tela inteira.
    */
-  const containerDosMenus = emTelaCheia ? containerEl : null;
+  //
+  // Com `areaTelaCheia` o caso é outro: a tela cheia nativa é da PÁGINA inteira,
+  // então o `<body>` é desenhado; e a caixa do vídeo não é a tela toda (o
+  // prontuário fica ao lado), então dentro dela o menu poderia ser cortado.
+  const containerDosMenus = emTelaCheia && !areaTelaCheia ? containerEl : null;
+
+  /**
+   * Tela cheia da ÁREA (vídeo + prontuário + chat). O navegador põe em tela cheia
+   * a PÁGINA (documentElement) e a área se estica por CSS sobre o resto. Pôr em
+   * tela cheia só a área não serviria: menus e diálogos (emoji, GIF, modelos,
+   * "Encerrar?") nascem no `<body>`, e na tela cheia nativa só a subárvore dela é
+   * desenhada — abririam invisíveis. Sem a API (iPhone), fica só o CSS.
+   */
+  const alternarTelaCheiaDaArea = async () => {
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => Promise<void> | void;
+    };
+    if (telaCheiaArea) {
+      setTelaCheiaArea(false);
+      if (nativoDaAreaRef.current) {
+        nativoDaAreaRef.current = false;
+        if (document.fullscreenElement ?? doc.webkitFullscreenElement) {
+          try {
+            await (document.exitFullscreen?.() ?? doc.webkitExitFullscreen?.());
+          } catch {
+            /* já tinha saído */
+          }
+        }
+      }
+      return;
+    }
+    setTelaCheiaArea(true);
+    const raiz = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
+    const pedir = raiz.requestFullscreen ?? raiz.webkitRequestFullscreen;
+    if (!pedir) return;
+    try {
+      await pedir.call(raiz);
+      nativoDaAreaRef.current = true;
+    } catch {
+      // Recusou (permissão, iframe): fica a versão por CSS, que já está valendo.
+    }
+  };
 
   const alternarTelaCheia = async () => {
+    if (areaTelaCheia) {
+      await alternarTelaCheiaDaArea();
+      return;
+    }
     const elemento = containerRef.current;
     if (!elemento) return;
     const doc = document as Document & {
@@ -941,7 +1001,15 @@ export default function WebRTCCall({
 
   useEffect(() => {
     const doc = document as Document & { webkitFullscreenElement?: Element | null };
-    const aoMudar = () => setTelaCheia(Boolean(document.fullscreenElement ?? doc.webkitFullscreenElement));
+    const aoMudar = () => {
+      const ativo = Boolean(document.fullscreenElement ?? doc.webkitFullscreenElement);
+      setTelaCheia(ativo);
+      // Saiu pelo Esc ou pelo gesto do navegador: a área volta junto.
+      if (!ativo && nativoDaAreaRef.current) {
+        nativoDaAreaRef.current = false;
+        setTelaCheiaArea(false);
+      }
+    };
     document.addEventListener("fullscreenchange", aoMudar);
     document.addEventListener("webkitfullscreenchange", aoMudar);
     return () => {
@@ -966,6 +1034,32 @@ export default function WebRTCCall({
       document.removeEventListener("keydown", aoTeclar);
     };
   }, [telaCheiaPorCss]);
+
+  // Área em tela cheia: a página marca o elemento (data-tela-cheia) e o estica
+  // por CSS. Trava a rolagem do fundo e, sem a API nativa, ouve o Esc.
+  useEffect(() => {
+    if (!areaTelaCheia || !telaCheiaArea) return;
+    areaTelaCheia.dataset.telaCheia = "sim";
+    const overflowAnterior = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const aoTeclar = (evento: KeyboardEvent) => {
+      if (evento.key === "Escape" && !nativoDaAreaRef.current) setTelaCheiaArea(false);
+    };
+    document.addEventListener("keydown", aoTeclar);
+    return () => {
+      delete areaTelaCheia.dataset.telaCheia;
+      document.body.style.overflow = overflowAnterior;
+      document.removeEventListener("keydown", aoTeclar);
+    };
+  }, [areaTelaCheia, telaCheiaArea]);
+
+  // Saiu da página da chamada com a PÁGINA em tela cheia: sai dela também.
+  useEffect(
+    () => () => {
+      if (nativoDaAreaRef.current && document.fullscreenElement) void document.exitFullscreen?.()?.catch(() => {});
+    },
+    [],
+  );
 
   // Detector de fala: mede o nível de áudio de cada lado e acende o brilho verde
   // de quem está falando. Só depois de conectar (aí a trilha remota existe).
@@ -1312,6 +1406,7 @@ export default function WebRTCCall({
               </p>
             </PopoverContent>
           </Popover>
+        {emTelaCheia && extrasTelaCheia}
         <Button
           variant="secondary"
           size="icon"
