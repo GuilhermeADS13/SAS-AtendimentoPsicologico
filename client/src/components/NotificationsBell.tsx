@@ -1,9 +1,7 @@
-import { useEffect, useRef } from "react";
 import { formatarData } from "@shared/datas";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
-import { playNotificationPing } from "@/lib/sound";
 import { NotificationsMenu, type NotifItem } from "./NotificationsMenu";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -39,22 +37,8 @@ export function NotificationsBell() {
 
   const pending = notifications.filter((n) => n.status === "pending").length;
 
-  // Toca um "ping" quando chega notificação nova. O maior id conhecido é a
-  // referência; na primeira carga não toca (senão apitaria a cada abertura da
-  // página). A lista é buscada de 60 em 60s, então o som pode atrasar até 1 min.
-  const ultimoIdConhecido = useRef<number | null>(null);
-  useEffect(() => {
-    if (notifications.length === 0) return;
-    const maiorId = Math.max(...notifications.map((n) => n.id));
-    if (ultimoIdConhecido.current === null) {
-      ultimoIdConhecido.current = maiorId; // primeira carga: só memoriza
-      return;
-    }
-    if (maiorId > ultimoIdConhecido.current) {
-      playNotificationPing();
-      ultimoIdConhecido.current = maiorId;
-    }
-  }, [notifications]);
+  // O som de notificação nova toca no NotificationsMenu, junto com o aviso na
+  // tela — lá vale para a psicóloga e para o paciente.
 
   const items: NotifItem[] = notifications.map((n) => ({
     id: n.id,

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Bell, X } from "lucide-react";
+import { playNotificationPing } from "@/lib/sound";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -63,6 +64,8 @@ export function NotificationsMenu({
     const anterior = maiorIdVisto.current;
     if (maior <= anterior) return;
     maiorIdVisto.current = maior;
+    // Som junto com o aviso — UMA vez, por mais que cheguem várias.
+    playNotificationPing();
     // No máximo 3 de uma vez: uma rajada (ex.: a semanal) não pode cobrir a tela.
     for (const n of items.filter((x) => x.id > anterior).slice(0, 3)) {
       // No TOPO, logo abaixo do sino (e não no canto de baixo, junto dos avisos

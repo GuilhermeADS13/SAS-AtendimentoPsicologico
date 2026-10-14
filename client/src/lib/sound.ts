@@ -17,6 +17,9 @@ function tocar(notas: Nota[], volume: number) {
     if (!Ctx) return;
 
     const ctx = new Ctx();
+    // Criado fora de um clique (ex.: aviso que chega pela busca automática), o
+    // contexto pode nascer "suspenso"; com a página já usada, retomar libera.
+    if (ctx.state === "suspended") void ctx.resume().catch(() => {});
     const t0 = ctx.currentTime;
     let fim = 0;
 
@@ -54,7 +57,17 @@ export function playPresenceChime() {
   );
 }
 
-/** Notificação nova na sineta: um "ping" curto e distinto do da sala. */
+/**
+ * Notificação nova (toca junto com o aviso na tela): duas notas curtas, "plim-
+ * plim" — mais fácil de perceber que o ping de uma nota só, e diferente do
+ * "ding-dong" de paciente entrando na sala.
+ */
 export function playNotificationPing() {
-  tocar([{ freq: 1318.51, inicio: 0, dur: 0.24 }], 0.5); // E6
+  tocar(
+    [
+      { freq: 1318.51, inicio: 0, dur: 0.18 }, // E6
+      { freq: 1567.98, inicio: 0.12, dur: 0.26 }, // G6
+    ],
+    0.5,
+  );
 }
