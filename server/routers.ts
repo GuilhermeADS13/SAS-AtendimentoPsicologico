@@ -10,7 +10,9 @@ import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessag
 import { signDocumentUrl, downloadDocumentFile, removeDocumentFile as removeStorageFile } from "./storage";
 import { extractClinicalDocument } from "./ai/document-ingestion";
 import { sendEmail } from "./mailer";
-import { trocarEmailSupabase } from "./supabaseAdmin";
+import { gerarLinkDeRecuperacao, trocarEmailSupabase } from "./supabaseAdmin";
+import { emailComMarca } from "./emailLayout";
+import { identificarCliente } from "./_core/seguranca";
 import { randomInt, createHash } from "node:crypto";
 import { eq, and, asc, desc, isNull, ne, inArray, getTableColumns, sql, ilike } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -28,6 +30,7 @@ import {
   processPendingNotifications,
   notifyAdminOfTherapistRequest,
   notifyTherapistRequestReviewed,
+  rodarCicloDeNotificacoes,
 } from "./notifications";
 
 // A regra de acesso à sala e o vínculo paciente↔usuário moram em ./roomAccess,
@@ -39,6 +42,24 @@ import { pendenciasDoProntuario } from "../shared/prontuario";
 import { idDoGif } from "../shared/gif";
 import { podeApagar, podeEditar } from "../shared/chatMensagem";
 import { buscarGifs, gifsConfigurados } from "./gifs";
+
+/**
+ * Limite do "esqueci minha senha", que é PÚBLICO: um envio a cada 2 min por
+ * e-mail e até 5 a cada 10 min por IP. Em memória (zera no restart — e tudo bem:
+ * o objetivo é cortar o disparo em laço, não contabilizar).
+ */
+const ultimoEnvioPorEmail = new Map<string, number>();
+const enviosPorIp = new Map<string, number[]>();
+export function podeEnviarRecuperacao(email: string, ip: string, agora = Date.now()): boolean {
+  if (agora - (ultimoEnvioPorEmail.get(email) ?? 0) < 2 * 60_000) return false;
+  const recentes = (enviosPorIp.get(ip) ?? []).filter((t) => agora - t < 10 * 60_000);
+  if (recentes.length >= 5) return false;
+  if (ultimoEnvioPorEmail.size > 5000) ultimoEnvioPorEmail.clear();
+  if (enviosPorIp.size > 5000) enviosPorIp.clear();
+  ultimoEnvioPorEmail.set(email, agora);
+  enviosPorIp.set(ip, [...recentes, agora]);
+  return true;
+}
 
 /**
  * Corre uma promessa contra um timeout e SEMPRE limpa o timer. O `Promise.race`
@@ -147,15 +168,19 @@ async function notifyNewChatMessage(
     await sendEmail(
       to,
       "Nova mensagem da sua psicóloga — VozInterior",
-      `<p>Olá${p[0]?.firstName ? `, ${escHtml(p[0].firstName)}` : ""}!</p>
-       <p>Você recebeu uma nova mensagem da sua psicóloga no VozInterior.</p>
-       <p><a href="${link}">Abrir mensagens</a></p>`,
+      emailComMarca({
+        nome: p[0]?.firstName,
+        titulo: "Você tem uma nova mensagem",
+        corpo: `<p style="margin:0 0 12px">A sua psicóloga te mandou uma mensagem no VozInterior. Por sigilo, o conteúdo só aparece dentro do sistema.</p>`,
+        botao: { texto: "Abrir mensagens", url: link },
+        base,
+      }),
     );
     return;
   }
   // Remetente é o paciente → avisa a psicóloga (conta vinculada ao therapist).
   const t = await db
-    .select({ email: users.email })
+    .select({ email: users.email, name: users.name })
     .from(therapists)
     .innerJoin(users, eq(users.id, therapists.userId))
     .where(eq(therapists.id, part.therapistId))
@@ -170,9 +195,14 @@ async function notifyNewChatMessage(
   const nome = p[0] ? `${p[0].firstName} ${p[0].lastName}`.trim() : "um paciente";
   await sendEmail(
     to,
-    "Nova mensagem no VozInterior",
-    `<p>Você recebeu uma nova mensagem de ${escHtml(nome)} no VozInterior.</p>
-     <p><a href="${link}">Abrir mensagens</a></p>`,
+    `Nova mensagem de ${nome} — VozInterior`,
+    emailComMarca({
+      nome: t[0]?.name,
+      titulo: "Você tem uma nova mensagem",
+      corpo: `<p style="margin:0 0 12px"><strong>${escHtml(nome)}</strong> te mandou uma mensagem no VozInterior. Por sigilo, o conteúdo só aparece dentro do sistema.</p>`,
+      botao: { texto: "Abrir mensagens", url: link },
+      base,
+    }),
   );
 }
 
@@ -591,6 +621,41 @@ export const appRouter = router({
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
+
+    /**
+     * "Esqueci minha senha" com o NOSSO e-mail (marca, logo e o nome da pessoa)
+     * em vez do e-mail padrão do Supabase. O link é o mesmo de antes (gerado pelo
+     * Supabase) e abre /redefinir-senha.
+     *
+     * Responde SEMPRE igual, exista a conta ou não (não revela quem tem cadastro),
+     * e limita os envios — por e-mail e por IP — para ninguém usar isto para lotar
+     * a caixa de outra pessoa.
+     */
+    requestPasswordReset: publicProcedure
+      .input(z.object({ email: z.string().trim().toLowerCase().email().max(320) }))
+      .mutation(async ({ ctx, input }) => {
+        if (!podeEnviarRecuperacao(input.email, identificarCliente(ctx.req))) return { ok: true } as const;
+        const base = process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:3000";
+        const link = await gerarLinkDeRecuperacao(input.email, `${base}/redefinir-senha`);
+        if (!link) return { ok: true } as const;
+        const db = await getDb();
+        const nome = db
+          ? (await db.select({ name: users.name }).from(users).where(eq(users.email, input.email)).limit(1))[0]?.name ?? null
+          : null;
+        await sendEmail(
+          input.email,
+          "Redefinir sua senha — VozInterior",
+          emailComMarca({
+            nome,
+            titulo: "Redefinir sua senha",
+            corpo: `<p style="margin:0 0 12px">Recebemos um pedido para redefinir a senha da sua conta no VozInterior. Toque no botão para criar uma senha nova.</p>`,
+            botao: { texto: "Criar nova senha", url: link },
+            observacao: "O link vale por 1 hora e só funciona uma vez. Se não foi você que pediu, ignore este e-mail: sua senha continua a mesma.",
+            base,
+          }),
+        );
+        return { ok: true } as const;
+      }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
@@ -734,9 +799,14 @@ export const appRouter = router({
           })
           .where(eq(users.id, ctx.user.id));
         const assunto = "Código para trocar seu e-mail — VozInterior";
-        const corpo = `<p>Seu código para trocar o e-mail no VozInterior é:</p>
-          <p style="font-size:26px;font-weight:bold;letter-spacing:4px">${codigo}</p>
-          <p>Ele vale por 15 minutos. Se não foi você que pediu, ignore este e-mail — sua conta continua segura e o e-mail não muda.</p>`;
+        const corpo = emailComMarca({
+          nome: ctx.user.name,
+          titulo: "Código para trocar seu e-mail",
+          corpo: `<p style="margin:0 0 12px">Use este código na tela de Configurações para confirmar a troca do e-mail da sua conta:</p>
+            <p style="margin:8px 0 4px;font-size:30px;font-weight:700;letter-spacing:6px;color:#215756">${codigo}</p>`,
+          observacao: "O código vale por 15 minutos. Se não foi você que pediu, ignore este e-mail: sua conta continua segura e o e-mail não muda.",
+          base: process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:3000",
+        });
         if (atual) await sendEmail(atual, assunto, corpo);
         await sendEmail(novo, assunto, corpo);
         return { ok: true } as const;
@@ -1778,6 +1848,8 @@ export const appRouter = router({
             : "Já existe uma consulta nesse horário. Escolha outro.");
         }
         await db.insert(appointments).values(linhas);
+        // Avisa o paciente NA HORA (antes esperava o ciclo de até 15 min).
+        if (process.env.NOTIFICATIONS_ENABLED === "true") void rodarCicloDeNotificacoes();
         return { criadas: linhas.length } as const;
       }),
 

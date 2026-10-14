@@ -17,6 +17,20 @@ function adminClient(env: NodeJS.ProcessEnv = process.env) {
   });
 }
 
+/**
+ * Link de recuperação de senha, gerado aqui para o e-mail sair pela NOSSA conta
+ * (Brevo), com a marca e o nome da pessoa — e não pelo e-mail padrão do Supabase.
+ * O link é o mesmo de antes: abre /redefinir-senha já com a sessão de recuperação.
+ * Devolve null se o e-mail não tem conta (quem chama não revela isso).
+ */
+export async function gerarLinkDeRecuperacao(email: string, redirectTo: string): Promise<string | null> {
+  const client = adminClient();
+  if (!client) throw new Error("Serviço de conta indisponível.");
+  const { data, error } = await client.auth.admin.generateLink({ type: "recovery", email, options: { redirectTo } });
+  if (error) return null;
+  return data.properties?.action_link ?? null;
+}
+
 /** Troca o e-mail de um usuário do Supabase (pelo uid), já marcado como confirmado. */
 export async function trocarEmailSupabase(authUid: string, novoEmail: string): Promise<void> {
   const client = adminClient();

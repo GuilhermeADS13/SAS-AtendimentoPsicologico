@@ -12,6 +12,7 @@ import { consumePendingAction, issuePendingAction, type PendingActionParams } fr
 import { formatarBRL } from "../../shared/dinheiro";
 import { DESLOCAMENTO_BR } from "../../shared/datas";
 import { pendenciasDoProntuario } from "../../shared/prontuario";
+import { rodarCicloDeNotificacoes } from "../notifications";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
@@ -658,6 +659,8 @@ async function executarAgendamento(db: Db, ctx: AiAccessContext, params: Pending
     notes,
     roomToken: nanoid(16),
   }))).returning({ id: appointments.id });
+  // Avisa o paciente na hora, como o agendamento pela tela.
+  if (process.env.NOTIFICATIONS_ENABLED === "true") void rodarCicloDeNotificacoes();
   const motivos: string[] = [];
   if (emConflito) motivos.push(`${emConflito} por conflito`);
   if (passados) motivos.push(`${passados} no passado`);

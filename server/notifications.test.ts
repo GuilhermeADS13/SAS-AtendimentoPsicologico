@@ -58,11 +58,47 @@ describe("e-mail de notificação: diz QUAL consulta", () => {
   it("mostra a psicóloga ao paciente, e o paciente à psicóloga", () => {
     const psi = composeEmail(notificacao("appointment_cancelled", "therapist"));
     expect(psi.html).toContain("Paciente Souza");
-    expect(psi.html).toContain("Paciente:");
+    expect(psi.html).toMatch(/>Paciente<\/td>/);
 
     const pac = composeEmail(notificacao("appointment_cancelled", "patient"));
     expect(pac.html).toContain("Psicóloga Exemplo");
-    expect(pac.html).toContain("Psicóloga:");
+    expect(pac.html).toMatch(/>Psicóloga<\/td>/);
+  });
+
+  /** A saudação usa o nome de QUEM RECEBE (e não o da outra pessoa). */
+  it("cumprimenta quem recebe pelo primeiro nome", () => {
+    expect(composeEmail(notificacao("appointment_reminder", "patient")).html).toContain("Olá, Paciente!");
+    expect(composeEmail(notificacao("appointment_reminder", "therapist")).html).toContain("Olá, Psicóloga!");
+  });
+
+  it("leva a logo e a marca do VozInterior", () => {
+    const { html } = composeEmail(notificacao("appointment_reminder", "patient"));
+    expect(html).toContain("/vozinterior-mark.png");
+    expect(html).toContain("VozInterior");
+  });
+
+  /**
+   * Consulta nova para o PACIENTE (antes ele não recebia nada) e, na semanal, UM
+   * e-mail com todas as datas em vez de um por semana.
+   */
+  it("avisa o paciente da consulta nova, com o botão de confirmar presença", () => {
+    const { subject, html } = composeEmail(notificacao("new_appointment", "patient"));
+    expect(subject).toContain("Consulta agendada");
+    expect(html).toContain("Psicóloga Exemplo agendou uma consulta");
+    expect(html).toContain("Confirmar presença");
+    expect(html).toContain("Adicionar ao Google Agenda");
+  });
+
+  it("consulta semanal vira um e-mail só, listando as datas", () => {
+    const semana = 7 * 24 * 3600_000;
+    const serie = [0, 1, 2, 3].map((i) => new Date(QUANDO.getTime() + i * semana));
+    const { subject, html } = composeEmail({ ...notificacao("new_appointment", "patient"), serie });
+    expect(subject).toBe("4 consultas agendadas com Psicóloga Exemplo");
+    expect(html).toContain("24/07 às 15:00");
+    expect(html).toContain("14/08 às 15:00");
+    expect(html).toContain("horário de Brasília");
+    // O link do Google Agenda poria UMA data só: na série ele não aparece.
+    expect(html).not.toContain("Adicionar ao Google Agenda");
   });
 
   it("escreve a data por extenso no corpo, no horário de Brasília", () => {

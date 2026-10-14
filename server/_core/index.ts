@@ -180,36 +180,13 @@ async function startServer() {
   // Agendador de lembretes/notificações (opt-in). Enfileira e envia os e-mails
   // pendentes a cada 15 min. Ative com NOTIFICATIONS_ENABLED=true + SMTP_*.
   if (process.env.NOTIFICATIONS_ENABLED === "true") {
-    // Trava de reentrância: se um ciclo demorar mais que o intervalo (Brevo lenta,
-    // fila grande), o setInterval dispararia um segundo ciclo em paralelo. Como as
-    // checagens "já existe notificação?" são SELECT-depois-INSERT (não atômicas) e
-    // processPendingNotifications lê os pendentes antes de marcá-los como enviados,
-    // dois ciclos concorrentes enviariam o MESMO e-mail duas vezes. Espelha o guard
-    // do worker de indexação logo abaixo.
-    let cicloEmExecucao = false;
+    // Trava de reentrância: dois ciclos em paralelo (um lento + o próximo tick, ou
+    // o tick + o disparo logo após agendar) mandariam o MESMO e-mail duas vezes,
+    // porque as checagens "já existe notificação?" não são atômicas. A trava mora
+    // em notifications.ts (rodarCicloDeNotificacoes), que os dois usam.
     const runCycle = async () => {
-      if (cicloEmExecucao) return;
-      cicloEmExecucao = true;
-      try {
-        const {
-          sendAppointmentReminders,
-          sendTherapistAlerts,
-          sendCancellationAlerts,
-          processPendingNotifications,
-          notifyPendingTherapistRequests,
-        } = await import("../notifications");
-        await sendAppointmentReminders();
-        await sendTherapistAlerts();
-        await sendCancellationAlerts();
-        // Reenvia o aviso de solicitação de acesso que não saiu na hora.
-        const pedidos = await notifyPendingTherapistRequests();
-        const result = await processPendingNotifications();
-        console.log("[Notifications] ciclo:", { ...result, solicitacoes: pedidos });
-      } catch (error) {
-        console.error("[Notifications] erro no ciclo:", error);
-      } finally {
-        cicloEmExecucao = false;
-      }
+      const { rodarCicloDeNotificacoes } = await import("../notifications");
+      await rodarCicloDeNotificacoes();
     };
     setInterval(runCycle, 15 * 60 * 1000);
     void runCycle();

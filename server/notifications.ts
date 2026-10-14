@@ -7,9 +7,10 @@ import {
   users,
   therapistRequests,
 } from "../drizzle/schema";
-import { eq, and, lt, gte, isNull } from "drizzle-orm";
+import { eq, and, lt, gte, gt, isNull, inArray, asc } from "drizzle-orm";
 import { sendEmail } from "./mailer";
 import { googleCalendarUrl } from "../shared/calendario";
+import { detalhesDoEmail, emailComMarca, esc, primeiroNome } from "./emailLayout";
 
 /**
  * Base dos links enviados por e-mail.
@@ -27,18 +28,6 @@ function appUrl(): string {
 }
 
 const FUSO = "America/Sao_Paulo";
-
-/**
- * Escapa texto vindo do banco antes de interpolar no HTML do e-mail.
- * Nome de paciente é digitado por gente — não pode virar marcação.
- */
-function esc(texto: string): string {
-  return texto
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 /** "quinta-feira, 24 de julho de 2026 às 15:00" — sempre no horário de Brasília. */
 function formatarQuando(d: Date | null): string | null {
@@ -59,6 +48,12 @@ function formatarQuando(d: Date | null): string | null {
   // contexto é lido como horário local — quem está em Manaus entraria uma hora
   // atrasado.
   return `${data} às ${hora} (horário de Brasília)`;
+}
+
+/** "sex., 24/07 às 15:00" — uma linha por data na lista da consulta semanal. */
+function dataCurtaComDia(d: Date): string {
+  const dia = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, weekday: "short" }).format(d);
+  return `${dia} ${quandoCurto(d)}`;
 }
 
 /** "24/07 às 15:00" — versão curta, que cabe no assunto do e-mail. */
@@ -276,6 +271,11 @@ type NotificacaoComContexto = {
   patientFirstName: string | null;
   patientLastName: string | null;
   therapistName: string | null;
+  /**
+   * Consulta nova SEMANAL: todas as datas criadas junto com esta (inclusive ela).
+   * Vira UM e-mail com a lista, em vez de um e-mail por semana.
+   */
+  serie?: Date[];
 };
 
 /**
@@ -304,73 +304,106 @@ export function composeEmail(row: NotificacaoComContexto): { subject: string; ht
   const aOutraPessoa = paraPsicologa ? paciente : psicologa;
   const rotulo = paraPsicologa ? "Paciente" : "Psicóloga";
   const link = paraPsicologa ? `${base}/appointments` : `${base}/consultas`;
+  // Quem RECEBE, para a saudação ("Olá, Ana!").
+  const destinatario = paraPsicologa ? psicologa : row.patientFirstName;
+  // Mais de uma data = consulta semanal criada de uma vez.
+  const serie = (row.serie ?? []).length > 1 ? row.serie! : null;
 
   // Bloco de detalhes, igual em todos os avisos: é exatamente o que faltava.
   // Cada linha só aparece se o dado existir (notificação sem consulta ligada,
   // cadastro sem nome) — melhor omitir do que mostrar "undefined".
-  const detalhes = `
-    <ul>
-      ${aOutraPessoa ? `<li><strong>${rotulo}:</strong> ${esc(aOutraPessoa)}</li>` : ""}
-      ${quando ? `<li><strong>Quando:</strong> ${quando}</li>` : ""}
-      ${row.duration ? `<li><strong>Duração:</strong> ${row.duration} minutos</li>` : ""}
-    </ul>
-    <p><a href="${link}">Ver no VozInterior</a></p>
-  `;
+  const detalhes = detalhesDoEmail([
+    [rotulo, aOutraPessoa ? esc(aOutraPessoa) : null],
+    // Na série, data curta ("sex., 16/10 às 15:00") e o fuso UMA vez, no rótulo:
+    // repetido em cada linha, a lista de 12 semanas virava um paredão.
+    serie
+      ? ["Datas (horário de Brasília)", serie.map((d) => dataCurtaComDia(d)).join("<br>")]
+      : ["Quando", quando],
+    ["Duração", row.duration ? `${row.duration} minutos` : null],
+  ]);
 
   // "Adicionar ao Google Agenda": um clique põe a consulta no calendário da
   // pessoa, que passa a lembrá-la sozinho. NÃO entra no aviso de cancelamento —
-  // mandar agendar o que acabou de ser cancelado seria o oposto do esperado.
+  // mandar agendar o que acabou de ser cancelado seria o oposto do esperado. Nem
+  // na série: o link põe UMA data só, e daria a impressão de que é só aquela.
   const agenda =
-    row.scheduledAt && n.notificationType !== "appointment_cancelled"
-      ? `<p><a href="${googleCalendarUrl({
+    row.scheduledAt && n.notificationType !== "appointment_cancelled" && !serie
+      ? `<p style="margin:14px 0 0;font-size:14px"><a href="${googleCalendarUrl({
           titulo: aOutraPessoa ? `Consulta com ${aOutraPessoa}` : "Consulta — VozInterior",
           inicio: row.scheduledAt,
           duracaoMin: row.duration ?? 60,
           descricao: "Consulta pelo VozInterior.",
           url: link,
           uid: `apt${n.appointmentId ?? ""}@vozinterior`,
-        })}">Adicionar ao Google Agenda</a></p>`
+        })}" style="color:#215756;font-weight:600">+ Adicionar ao Google Agenda</a></p>`
       : "";
-  const detalhesComAgenda = `${detalhes}${agenda}`;
 
   // Sem prefixo "[VozInterior]" de propósito: o remetente já se identifica, e o
   // prefixo empurraria nome e horário para fora da tela no celular.
   const sufixo = [aOutraPessoa, curto].filter(Boolean).join(" — ");
   const assunto = (titulo: string) => (sufixo ? `${titulo}: ${sufixo}` : titulo);
+  const p = (texto: string) => `<p style="margin:0 0 12px">${texto}</p>`;
+  const montar = (titulo: string, corpo: string, botao: string, observacao?: string) =>
+    emailComMarca({ nome: destinatario, titulo, corpo: `${corpo}${detalhes}${agenda}`, botao: { texto: botao, url: link }, observacao, base });
+  const entrarNaSala = "No horário, entre por “Minhas Consultas” → “Entrar na sala” (o botão abre 15 minutos antes).";
 
   switch (n.notificationType) {
     case "appointment_reminder":
       return {
         subject: assunto("Lembrete de consulta"),
-        // Os nomes ficam só no bloco de detalhes: repeti-los na frase deixava o
-        // e-mail dizendo o mesmo nome duas vezes, com duas linhas de distância.
-        html: `<p>Olá!</p>
-          <p>Passando para lembrar da sua consulta.</p>
-          ${detalhesComAgenda}`,
+        html: montar(
+          "Lembrete da sua consulta",
+          p("Passando para lembrar da sua consulta."),
+          paraPsicologa ? "Ver agendamentos" : "Ver minhas consultas",
+          paraPsicologa ? undefined : entrarNaSala,
+        ),
       };
     case "appointment_confirmation":
       return {
         subject: assunto("Presença confirmada"),
-        html: `<p>O paciente <strong>confirmou presença</strong> na consulta.</p>
-          ${detalhesComAgenda}`,
+        html: montar("Presença confirmada", p("O paciente <strong>confirmou presença</strong> na consulta."), "Ver agendamentos"),
       };
     case "appointment_cancelled":
       return {
         subject: assunto("Consulta cancelada"),
-        html: `<p>A consulta abaixo foi <strong>cancelada</strong>.</p>
-          ${detalhesComAgenda}
-          <p>Se foi engano, é só agendar de novo pelo sistema.</p>`,
+        html: montar(
+          "Consulta cancelada",
+          p("A consulta abaixo foi <strong>cancelada</strong>."),
+          paraPsicologa ? "Ver agendamentos" : "Ver minhas consultas",
+          paraPsicologa ? "Se foi engano, é só agendar de novo pelo sistema." : "Se quiser remarcar, fale com a sua psicóloga pelas Mensagens.",
+        ),
       };
-    case "new_appointment":
+    case "new_appointment": {
+      if (paraPsicologa) {
+        return {
+          subject: assunto(serie ? `${serie.length} consultas agendadas` : "Consulta agendada"),
+          html: montar(
+            serie ? `${serie.length} consultas agendadas` : "Consulta agendada",
+            p(serie ? "As consultas semanais abaixo estão na sua agenda." : "A consulta abaixo está na sua agenda."),
+            "Ver agendamentos",
+          ),
+        };
+      }
       return {
-        subject: assunto("Nova consulta agendada"),
-        html: `<p>Uma nova consulta foi agendada.</p>
-          ${detalhesComAgenda}`,
+        subject: serie
+          ? `${serie.length} consultas agendadas${psicologa ? ` com ${psicologa}` : ""}`
+          : assunto("Consulta agendada"),
+        html: montar(
+          serie ? "Suas consultas foram agendadas" : "Sua consulta foi agendada",
+          p(
+            serie
+              ? `${psicologa ? esc(psicologa) : "Sua psicóloga"} agendou ${serie.length} consultas semanais com você. Confirme sua presença no sistema.`
+              : `${psicologa ? esc(psicologa) : "Sua psicóloga"} agendou uma consulta com você. Confirme sua presença no sistema.`,
+          ),
+          "Confirmar presença",
+          entrarNaSala,
+        ),
       };
+    }
     default:
       return {
         subject: assunto("Notificação"),
-        html: `<p>Você tem uma notificação sobre uma consulta.</p>${detalhesComAgenda}`,
+        html: montar("Aviso sobre uma consulta", p("Você tem uma notificação sobre uma consulta."), "Abrir o VozInterior"),
       };
   }
 }
@@ -396,6 +429,8 @@ export async function processPendingNotifications(
       patientFirstName: patients.firstName,
       patientLastName: patients.lastName,
       therapistName: users.name,
+      patientId: appointments.patientId,
+      appointmentCreatedAt: appointments.createdAt,
     })
     .from(notifications)
     .leftJoin(appointments, eq(appointments.id, notifications.appointmentId))
@@ -411,7 +446,12 @@ export async function processPendingNotifications(
 
   for (const row of pending) {
     const n = row.n;
-    const { subject, html } = composeEmail(row);
+    // Consulta nova: as datas criadas JUNTO com esta (a semanal) vão no mesmo e-mail.
+    const serie =
+      n.notificationType === "new_appointment" && row.patientId && row.appointmentCreatedAt
+        ? (await consultasDoMesmoLote(db, row.patientId, row.appointmentCreatedAt)).map((c) => c.scheduledAt)
+        : undefined;
+    const { subject, html } = composeEmail({ ...row, serie });
     try {
       const delivered = await sendEmail(n.recipientEmail, subject, html);
       if (delivered) {
@@ -517,8 +557,37 @@ export async function sendAppointmentReminders() {
   }
 }
 
+type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
 /**
- * Enviar alertas para psicóloga sobre novos agendamentos
+ * As consultas criadas NO MESMO lote (a "repetir por N semanas" insere todas de
+ * uma vez, com o mesmo createdAt), ainda agendadas, em ordem de data. A folga de
+ * 1s é porque o Drizzle lê o createdAt sem os microssegundos do Postgres.
+ */
+async function consultasDoMesmoLote(db: Db, patientId: number, criadoEm: Date) {
+  return db
+    .select({ id: appointments.id, scheduledAt: appointments.scheduledAt })
+    .from(appointments)
+    .where(
+      and(
+        eq(appointments.patientId, patientId),
+        eq(appointments.status, "scheduled"),
+        gte(appointments.createdAt, new Date(criadoEm.getTime() - 1000)),
+        lt(appointments.createdAt, new Date(criadoEm.getTime() + 1000)),
+      ),
+    )
+    .orderBy(asc(appointments.scheduledAt));
+}
+
+/**
+ * Aviso de CONSULTA NOVA — agora também para o PACIENTE.
+ *
+ * Antes só a psicóloga recebia (e era ela mesma quem tinha acabado de agendar),
+ * enquanto o paciente não ficava sabendo de nada até o lembrete da véspera. E a
+ * consulta semanal gerava um e-mail POR SEMANA: até 12 de uma vez. Agora sai um
+ * aviso por LOTE (para cada lado), com todas as datas.
+ *
+ * Só consultas futuras: registrar uma consulta que já passou não é "agendar".
  */
 export async function sendTherapistAlerts() {
   const db = await getDb();
@@ -528,15 +597,14 @@ export async function sendTherapistAlerts() {
   }
 
   try {
-    // Buscar agendamentos criados nas últimas 24 horas sem notificação enviada
-    const oneDayAgo = new Date(new Date().getTime() - 24 * 60 * 60 * 1000);
+    const agora = new Date();
+    const oneDayAgo = new Date(agora.getTime() - 24 * 60 * 60 * 1000);
 
-    const recentAppointments = await db
+    const recentes = await db
       .select({
         appointment: appointments,
-        patient: patients,
-        therapist: therapists,
-        therapistUser: users,
+        patientEmail: patients.email,
+        therapistEmail: users.email,
       })
       .from(appointments)
       .innerJoin(patients, eq(appointments.patientId, patients.id))
@@ -545,42 +613,88 @@ export async function sendTherapistAlerts() {
       .where(
         and(
           gte(appointments.createdAt, oneDayAgo),
-          eq(appointments.status, "scheduled")
-        )
+          eq(appointments.status, "scheduled"),
+          gt(appointments.scheduledAt, agora),
+        ),
       );
 
-    for (const record of recentAppointments) {
-      // Verificar se já foi enviado um alerta
-      const existingNotification = await db
-        .select()
-        .from(notifications)
-        .where(
-          and(
-            eq(notifications.appointmentId, record.appointment.id),
-            eq(notifications.notificationType, "new_appointment"),
-            eq(notifications.recipientType, "therapist")
-          )
-        )
-        .limit(1);
+    // Um lote = mesmo paciente + mesmo instante de criação. O aviso fica preso à
+    // PRIMEIRA data do lote; o e-mail lista as demais.
+    const lotes = new Map<string, typeof recentes>();
+    for (const r of recentes) {
+      const chave = `${r.appointment.patientId}:${Math.floor(r.appointment.createdAt.getTime() / 1000)}`;
+      lotes.set(chave, [...(lotes.get(chave) ?? []), r]);
+    }
 
-      if (existingNotification.length === 0 && record.therapistUser.email) {
-        // Criar notificação pendente para psicóloga
+    for (const lote of Array.from(lotes.values())) {
+      lote.sort((a, b) => a.appointment.scheduledAt.getTime() - b.appointment.scheduledAt.getTime());
+      const primeira = lote[0];
+      const ids = lote.map((r) => r.appointment.id);
+      const destinatarios: Array<{ tipo: "patient" | "therapist"; email: string | null }> = [
+        { tipo: "patient", email: primeira.patientEmail },
+        { tipo: "therapist", email: primeira.therapistEmail },
+      ];
+      for (const { tipo, email } of destinatarios) {
+        if (!email) continue;
+        // Dedup pelo LOTE inteiro: se a primeira for cancelada antes do envio, a
+        // "primeira" muda — e não pode sair um segundo aviso do mesmo lote.
+        const jaExiste = await db
+          .select({ id: notifications.id })
+          .from(notifications)
+          .where(
+            and(
+              inArray(notifications.appointmentId, ids),
+              eq(notifications.notificationType, "new_appointment"),
+              eq(notifications.recipientType, tipo),
+            ),
+          )
+          .limit(1);
+        if (jaExiste.length) continue;
         await db.insert(notifications).values({
-          appointmentId: record.appointment.id,
-          recipientType: "therapist",
-          recipientEmail: record.therapistUser.email,
+          appointmentId: primeira.appointment.id,
+          recipientType: tipo,
+          recipientEmail: email,
           notificationType: "new_appointment",
           status: "pending",
         });
-
-        console.log(
-          `[Notifications] Alert queued for therapist ${record.therapistUser.email}`
-        );
       }
     }
   } catch (error) {
-    console.error("[Notifications] Error sending therapist alerts:", error);
+    console.error("[Notifications] Error sending new-appointment alerts:", error);
   }
+}
+
+/**
+ * Roda o ciclo de notificações AGORA (ex.: logo depois de agendar), sem esperar
+ * os 15 min do agendador — e sem rodar dois ciclos ao mesmo tempo: as checagens
+ * "já existe aviso?" não são atômicas, e dois ciclos juntos mandariam o MESMO
+ * e-mail duas vezes. Se pedirem durante um ciclo, roda mais um no fim.
+ */
+let cicloEmCurso: Promise<void> | null = null;
+let rodarDeNovo = false;
+export function rodarCicloDeNotificacoes(): Promise<void> {
+  if (cicloEmCurso) {
+    rodarDeNovo = true;
+    return cicloEmCurso;
+  }
+  cicloEmCurso = (async () => {
+    try {
+      do {
+        rodarDeNovo = false;
+        await sendAppointmentReminders();
+        await sendTherapistAlerts();
+        await sendCancellationAlerts();
+        const pedidos = await notifyPendingTherapistRequests();
+        const result = await processPendingNotifications();
+        console.log("[Notifications] ciclo:", { ...result, solicitacoes: pedidos });
+      } while (rodarDeNovo);
+    } catch (error) {
+      console.error("[Notifications] erro no ciclo:", error);
+    } finally {
+      cicloEmCurso = null;
+    }
+  })();
+  return cicloEmCurso;
 }
 
 /**

@@ -342,8 +342,13 @@ describe("solicitação de acesso profissional", () => {
   });
 
   it("o agendador roda o reenvio das solicitações", () => {
+    // O ciclo (com a trava contra envio duplicado) mora em notifications.ts e o
+    // agendador do index.ts o chama.
     const idx = readFileSync(new URL("./_core/index.ts", import.meta.url), "utf8");
-    expect(idx).toContain("notifyPendingTherapistRequests");
+    expect(idx).toContain("rodarCicloDeNotificacoes");
+    const ciclo = readFileSync(new URL("./notifications.ts", import.meta.url), "utf8");
+    const corpoDoCiclo = ciclo.slice(ciclo.indexOf("export function rodarCicloDeNotificacoes"));
+    expect(corpoDoCiclo).toContain("notifyPendingTherapistRequests");
   });
 
   it("solicitar NÃO promove o usuário (segue sem acesso clínico)", async () => {

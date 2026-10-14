@@ -33,6 +33,7 @@ export default function Login() {
   const [aceitouPolitica, setAceitouPolitica] = useState(false);
 
   const requestTherapist = trpc.me.requestTherapist.useMutation();
+  const pedirRecuperacao = trpc.auth.requestPasswordReset.useMutation();
 
   const senhaChecks = getPasswordChecks(password);
 
@@ -59,11 +60,10 @@ export default function Login() {
     }
   };
 
-  // "Esqueci minha senha": manda o link de recuperação pelo e-mail nativo do
-  // Supabase (do domínio autenticado dele, entrega melhor que o nosso remetente).
-  // O link leva a /redefinir-senha, onde a pessoa define a nova senha.
+  // "Esqueci minha senha": o link sai pelo NOSSO e-mail (marca VozInterior, logo e
+  // o nome da pessoa), gerado no servidor — antes era o e-mail padrão do Supabase,
+  // com o nome dele. O link leva a /redefinir-senha, como antes.
   const handleForgotPassword = async () => {
-    if (!supabase) return;
     const alvo = email.trim().toLowerCase();
     if (!alvo) {
       toast.error("Digite seu e-mail no campo acima para receber o link.");
@@ -71,17 +71,15 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(alvo, {
-        redirectTo: `${window.location.origin}/redefinir-senha`,
-      });
-      if (error) throw error;
+      await pedirRecuperacao.mutateAsync({ email: alvo });
       // Mensagem genérica de propósito: não revela se o e-mail tem conta.
       toast.success(
         "Se houver uma conta com esse e-mail, enviamos um link para redefinir a senha. Confira também o spam.",
         { duration: 9000 },
       );
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível enviar o link");
+    } catch {
+      // O erro do servidor seria a validação crua (JSON); a frase basta.
+      toast.error("Não foi possível enviar o link. Confira o e-mail digitado e tente de novo.");
     } finally {
       setLoading(false);
     }
