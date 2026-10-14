@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { urlDaSala } from "@/lib/sala";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
-import { formatarData, formatarHora, formatarMesAno, instanteEmBrasilia, partesEmBrasilia } from "@shared/datas";
+import { formatarData, formatarHora, instanteEmBrasilia, partesEmBrasilia } from "@shared/datas";
+import { intervalo, dentroDoIntervalo, type Periodo } from "@/lib/periodo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -41,7 +42,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, Wallet, CreditCard, Table as TableIcon, CalendarDays, Filter, Loader2, Pencil, RotateCcw, Search } from "lucide-react";
+import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, Wallet, CreditCard, Table as TableIcon, CalendarDays, Filter, Loader2, Pencil, RotateCcw, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { CalendarioAgenda } from "@/components/CalendarioAgenda";
@@ -50,6 +51,12 @@ import { AvatarDaPessoa } from "@/components/AvatarDaPessoa";
 import { reaisParaCentavos, centavosParaInput, formatarBRL } from "@shared/dinheiro";
 
 type Status = "scheduled" | "completed" | "cancelled" | "no_show";
+
+const PERIODOS: { valor: Periodo | "todas"; rotulo: string }[] = [
+  { valor: "semana", rotulo: "Semana" },
+  { valor: "mes", rotulo: "Mês" },
+  { valor: "todas", rotulo: "Todas" },
+];
 
 // O formato da sala vive em client/src/lib/sala.ts: o Dashboard monta o mesmo
 // link, e duas cópias divergiriam em silêncio.
@@ -101,6 +108,12 @@ export default function Appointments() {
   const [filtroSituacao, setFiltroSituacao] = useState<"todas" | "scheduled" | "aConfirmar" | "completed" | "cancelled">("todas");
   const [filtroData, setFiltroData] = useState("");
   const [busca, setBusca] = useState("");
+  // Período mostrado no resumo e na tabela (setas ‹ ›, como no Financeiro).
+  // Chegando pela sineta (?ap=<id>) começa em "Todas": a consulta destacada
+  // pode ser de outro mês, e sumiria da lista.
+  const [periodo, setPeriodo] = useState<Periodo | "todas">(() => (highlightId ? "todas" : "mes"));
+  // Quantas semanas/meses para trás (-) ou para a frente (+) do atual.
+  const [deslocamento, setDeslocamento] = useState(0);
   const [paymentUpdatingId, setPaymentUpdatingId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -310,21 +323,20 @@ export default function Appointments() {
     });
   };
 
-  // Resumo financeiro do MÊS corrente (por data da consulta): recebido = pagas;
-  // a receber = ainda não pagas que não foram canceladas/faltadas. Calculado no
-  // cliente sobre a lista já carregada — sem query nova, escala do piloto.
-  const agora = new Date();
-  const doMes = appointments.filter((a) => {
-    const d = new Date(a.scheduledAt);
-    return d.getMonth() === agora.getMonth() && d.getFullYear() === agora.getFullYear();
-  });
-  const recebidoMes = doMes
+  // Resumo financeiro do PERÍODO escolhido nas setas (por data da consulta):
+  // recebido = pagas; a receber = ainda não pagas que não foram canceladas/
+  // faltadas. Calculado no cliente sobre a lista já carregada — sem query nova,
+  // escala do piloto.
+  const faixa = periodo === "todas" ? null : intervalo(periodo, deslocamento);
+  const noPeriodo = (quando: string | Date) => !faixa || dentroDoIntervalo(quando, faixa);
+  const doPeriodo = appointments.filter((a) => noPeriodo(a.scheduledAt));
+  const recebidoPeriodo = doPeriodo
     .filter((a) => a.paid)
     .reduce((soma, a) => soma + (a.price ?? 0), 0);
-  const aReceberMes = doMes
+  const aReceberPeriodo = doPeriodo
     .filter((a) => !a.paid && a.status !== "cancelled" && a.status !== "no_show")
     .reduce((soma, a) => soma + (a.price ?? 0), 0);
-  const mesLabel = formatarMesAno(agora);
+  const periodoLabel = faixa?.label ?? "todo o período";
   /** "2026-07-15" da consulta no horário de Brasília — comparável ao <input type="date">. */
   const diaDaConsulta = (quando: string | Date) =>
     new Date(quando).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -359,7 +371,11 @@ export default function Appointments() {
 
       const nomeOk = !buscaNome || patientName(appointment.patientId).toLowerCase().includes(buscaNome);
 
-      return pagamentoOk && situacaoOk && dataOk && nomeOk;
+      // Uma data escolhida no filtro vale mais que o período (senão um dia fora
+      // do mês mostrado não acharia nada). O calendário tem as próprias setas.
+      const periodoOk = vista === "calendario" || !!filtroData || noPeriodo(appointment.scheduledAt);
+
+      return pagamentoOk && situacaoOk && dataOk && nomeOk && periodoOk;
     })
     // Próximas primeiro (a mais perto no topo); depois as passadas (mais recente
     // primeiro). Assim a psicóloga abre e já vê o que vem a seguir.
@@ -372,6 +388,8 @@ export default function Appointments() {
       if (aFut !== bFut) return aFut ? -1 : 1;
       return aFut ? ta - tb : tb - ta;
     });
+
+  const semFiltros = filtroPagamento === "todos" && filtroSituacao === "todas" && !filtroData && !busca;
 
   const getStatusColor = (status: Status) => {
     switch (status) {
@@ -564,19 +582,73 @@ export default function Appointments() {
           </DialogContent>
         </Dialog>
 
-        {/* Resumo financeiro do mês. Só aparece quando há valor a mostrar —
+        {/* Período: Semana / Mês / Todas, com setas para andar (inclusive para a
+            frente, nas consultas futuras). Vale para o resumo e para a tabela. */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="inline-flex rounded-xl border border-border bg-card p-1" role="group" aria-label="Período">
+            {PERIODOS.map((p) => (
+              <button
+                key={p.valor}
+                onClick={() => {
+                  setPeriodo(p.valor);
+                  setDeslocamento(0);
+                }}
+                aria-pressed={periodo === p.valor}
+                className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${
+                  periodo === p.valor ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {p.rotulo}
+              </button>
+            ))}
+          </div>
+          {periodo !== "todas" && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-9"
+                onClick={() => setDeslocamento((d) => d - 1)}
+                aria-label={periodo === "semana" ? "Semana anterior" : "Mês anterior"}
+                title="Anterior"
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <p className="min-w-40 text-center text-base font-semibold text-foreground first-letter:uppercase" aria-live="polite">
+                {periodoLabel}
+              </p>
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-9"
+                onClick={() => setDeslocamento((d) => d + 1)}
+                aria-label={periodo === "semana" ? "Próxima semana" : "Próximo mês"}
+                title="Próximo"
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+              {deslocamento !== 0 && (
+                <Button variant="ghost" size="sm" className="h-9" onClick={() => setDeslocamento(0)}>
+                  Hoje
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Resumo financeiro do período. Só aparece quando há valor a mostrar —
             sem preço registrado, não polui a tela com "R$ 0,00". */}
-        {(recebidoMes > 0 || aReceberMes > 0) && (
+        {(recebidoPeriodo > 0 || aReceberPeriodo > 0) && (
           <div className="grid gap-3 sm:grid-cols-2 max-w-xl">
             <Card className="border-primary/20">
               <CardContent className="flex items-center gap-3">
                 <Wallet className="w-5 h-5 text-primary shrink-0" />
                 <div>
-                  <p className="text-xs text-muted-foreground capitalize">
-                    Recebido · {mesLabel}
+                  <p className="text-xs text-muted-foreground">
+                    Recebido · {periodoLabel}
                   </p>
                   <p className="text-lg font-bold text-foreground">
-                    {formatarBRL(recebidoMes)}
+                    {formatarBRL(recebidoPeriodo)}
                   </p>
                 </div>
               </CardContent>
@@ -587,7 +659,7 @@ export default function Appointments() {
                 <div>
                   <p className="text-xs text-muted-foreground">A receber</p>
                   <p className="text-lg font-bold text-foreground">
-                    {formatarBRL(aReceberMes)}
+                    {formatarBRL(aReceberPeriodo)}
                   </p>
                 </div>
               </CardContent>
@@ -734,7 +806,7 @@ export default function Appointments() {
                 </div>
               ) : filteredAppointments.length === 0 ? (
                 <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  Nenhuma consulta encontrada neste filtro.
+                  {semFiltros ? "Nenhuma consulta neste período." : "Nenhuma consulta encontrada neste filtro."}
                 </div>
               ) : (
                 filteredAppointments.map((appointment) => {
@@ -871,7 +943,7 @@ export default function Appointments() {
                   ) : filteredAppointments.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                        Nenhuma consulta encontrada neste filtro.
+                        {semFiltros ? "Nenhuma consulta neste período." : "Nenhuma consulta encontrada neste filtro."}
                       </TableCell>
                     </TableRow>
                   ) : (

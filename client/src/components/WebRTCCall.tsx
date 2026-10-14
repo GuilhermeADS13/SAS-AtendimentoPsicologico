@@ -28,6 +28,7 @@ import {
   iniciarFundoVirtual,
   type ControleFundo,
 } from "@/lib/virtualBackground";
+import { videoDaCamera } from "@/lib/camera";
 
 /**
  * Videochamada 1:1 peer-to-peer (WebRTC), sem provedor externo nem cartão.
@@ -148,8 +149,11 @@ function BadgeConfig({
  *
  * Numa consulta, o que não pode falhar é o ÁUDIO e a fluidez do rosto:
  *  - áudio com prioridade alta de rede;
- *  - teto de bitrate no vídeo (não adianta banda alta para um rosto falando, e
- *    isso ainda economiza o TURN, que é cobrado pelo tráfego relayado);
+ *  - teto de bitrate no vídeo (economiza o TURN, que é cobrado pelo tráfego
+ *    relayado). O teto da câmera é 2,5 Mbps: com 1 Mbps o 720p virava papa;
+ *    é só um TETO — em rede fraca o navegador manda menos;
+ *  - câmera em "balanced": com "maintain-framerate" o navegador derrubava a
+ *    RESOLUÇÃO primeiro a qualquer aperto de banda, e o rosto ficava borrado;
  *  - ao compartilhar a TELA a preferência inverte: aí o que importa é enxergar o
  *    texto, então preserva-se resolução em vez de fluidez.
  */
@@ -161,8 +165,8 @@ async function ajustarQualidade(pc: RTCPeerConnection, modo: "camera" | "tela") 
       const params = sender.getParameters();
       if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
       if (tipo === "video") {
-        params.degradationPreference = modo === "tela" ? "maintain-resolution" : "maintain-framerate";
-        params.encodings[0].maxBitrate = modo === "tela" ? 1_500_000 : 1_000_000;
+        params.degradationPreference = modo === "tela" ? "maintain-resolution" : "balanced";
+        params.encodings[0].maxBitrate = modo === "tela" ? 1_500_000 : 2_500_000;
       } else {
         params.encodings[0].networkPriority = "high";
       }
@@ -331,7 +335,7 @@ export default function WebRTCCall({
       let stream: MediaStream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: camId ? { deviceId: { exact: camId } } : true,
+          video: videoDaCamera(camId || undefined),
           audio: micId ? { deviceId: { exact: micId } } : true,
         });
       } catch {
@@ -717,7 +721,7 @@ export default function WebRTCCall({
     let novo: MediaStream;
     try {
       novo = await navigator.mediaDevices.getUserMedia({
-        video: deviceId ? { deviceId: { exact: deviceId } } : true,
+        video: videoDaCamera(deviceId),
       });
     } catch {
       toast.error("Não foi possível acessar a câmera.");

@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Video, VideoOff, Mic, MicOff, Loader2, AlertCircle, Volume2 } from "lucide-react";
+import { videoDaCamera } from "@/lib/camera";
 
 const LS = {
   mic: "sas-video-mic",
@@ -102,7 +103,7 @@ export default function VideoCallLobby({
       }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: cam ? { deviceId: { exact: cam } } : true,
+          video: videoDaCamera(cam || undefined),
           audio: mic ? { deviceId: { exact: mic } } : true,
         });
         streamRef.current = stream;

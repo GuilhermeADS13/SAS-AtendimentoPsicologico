@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { formatarData, formatarMesAno } from "@shared/datas";
+import { formatarData } from "@shared/datas";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -10,44 +10,7 @@ import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { formatarBRL } from "@shared/dinheiro";
 import { DollarSign, Clock, TrendingUp, CheckCircle2, Users, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { AvatarDaPessoa } from "@/components/AvatarDaPessoa";
-
-type Periodo = "semana" | "mes" | "ano";
-
-/**
- * Início/fim do período escolhido, em datas LOCAIS (o mesmo fuso em que as
- * consultas são exibidas). fim é exclusivo: compara-se com `d >= inicio && d < fim`.
- *
- * `deslocamento` anda pelas setas: -1 = semana/mês/ano anterior, +1 = o próximo.
- * Sem isso o painel só mostrava o período ATUAL — uma consulta marcada para o mês
- * que vem não aparecia em "Mês", e parecia que o previsto estava errado.
- */
-function intervalo(periodo: Periodo, deslocamento = 0): { inicio: Date; fim: Date; label: string } {
-  const hoje = new Date();
-  const y = hoje.getFullYear();
-  const m = hoje.getMonth();
-
-  if (periodo === "semana") {
-    const inicio = new Date(hoje);
-    inicio.setDate(hoje.getDate() - hoje.getDay() + deslocamento * 7); // domingo da semana
-    inicio.setHours(0, 0, 0, 0);
-    const fim = new Date(inicio);
-    fim.setDate(inicio.getDate() + 7);
-    const sabado = new Date(fim);
-    sabado.setDate(fim.getDate() - 1);
-    const dm = (d: Date) => d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-    const label = deslocamento === 0 ? "esta semana" : `${dm(inicio)} a ${dm(sabado)}`;
-    return { inicio, fim, label };
-  }
-  if (periodo === "ano") {
-    return { inicio: new Date(y + deslocamento, 0, 1), fim: new Date(y + deslocamento + 1, 0, 1), label: String(y + deslocamento) };
-  }
-  const inicio = new Date(y, m + deslocamento, 1);
-  return {
-    inicio,
-    fim: new Date(y, m + deslocamento + 1, 1),
-    label: formatarMesAno(inicio),
-  };
-}
+import { intervalo, type Periodo } from "@/lib/periodo";
 
 const PERIODOS: { valor: Periodo; rotulo: string }[] = [
   { valor: "semana", rotulo: "Semana" },
@@ -208,7 +171,7 @@ export default function Financeiro() {
             size="icon"
             className="size-9"
             onClick={() => setDeslocamento((d) => d + 1)}
-            aria-label={`Próximo ${periodo === "semana" ? "semana" : periodo === "mes" ? "mês" : "ano"}`}
+            aria-label={periodo === "semana" ? "Próxima semana" : periodo === "mes" ? "Próximo mês" : "Próximo ano"}
             title="Próximo"
           >
             <ChevronRight className="size-4" />
