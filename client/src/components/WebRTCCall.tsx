@@ -208,6 +208,7 @@ export default function WebRTCCall({
   onEndCall,
   areaTelaCheia,
   extrasTelaCheia,
+  aoMudarTelaCheia,
 }: {
   roomName: string;
   role: Role;
@@ -223,6 +224,8 @@ export default function WebRTCCall({
   areaTelaCheia?: HTMLElement | null;
   /** Botões a mais na barra, só em tela cheia (o cabeçalho da página fica coberto). */
   extrasTelaCheia?: ReactNode;
+  /** Avisa a página quando entra/sai da tela cheia (ela muda o layout do prontuário). */
+  aoMudarTelaCheia?: (ativa: boolean) => void;
 }) {
   const utils = trpc.useUtils();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -911,6 +914,10 @@ export default function WebRTCCall({
    */
   // Um estado so para a UI: o botao nao precisa saber QUAL mecanismo esta em uso.
   const emTelaCheia = areaTelaCheia ? telaCheiaArea : telaCheia || telaCheiaPorCss;
+  useEffect(() => {
+    aoMudarTelaCheia?.(emTelaCheia);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emTelaCheia]);
 
   /**
    * Onde os menus (engrenagens e fundo) nascem — e por que isso MUDA com a tela cheia.

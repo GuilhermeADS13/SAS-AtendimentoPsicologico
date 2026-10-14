@@ -41,6 +41,11 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   const [showChat, setShowChat] = useState(false);
   // Vídeo + prontuário + chat: é o que cobre a tela na tela cheia (ver WebRTCCall).
   const [areaChamada, setAreaChamada] = useState<HTMLDivElement | null>(null);
+  const [telaCheia, setTelaCheia] = useState(false);
+  // Em tela cheia o prontuário fica ABERTO ao lado do vídeo também no celular
+  // (deitado: à direita; em pé: embaixo) — a psicóloga escreve sem abrir gaveta.
+  // O botão "Prontuário" da barra esconde/mostra, para quem quiser o vídeo maior.
+  const [prontuarioNaTelaCheia, setProntuarioNaTelaCheia] = useState(true);
   // Confirmações de encerrar a chamada / marcar como realizada (modal, no lugar
   // do window.confirm).
   const [confirmarEncerrar, setConfirmarEncerrar] = useState(false);
@@ -417,12 +422,12 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
             margem, porque o prontuário fica ao lado. */}
         <div
           ref={setAreaChamada}
-          className="group/area flex-1 flex flex-col gap-4 min-h-0 lg:flex-row data-[tela-cheia=sim]:fixed data-[tela-cheia=sim]:inset-0 data-[tela-cheia=sim]:z-[45] data-[tela-cheia=sim]:h-[100dvh] data-[tela-cheia=sim]:gap-0 data-[tela-cheia=sim]:bg-black lg:data-[tela-cheia=sim]:gap-4 lg:data-[tela-cheia=sim]:bg-background lg:data-[tela-cheia=sim]:p-3"
+          className="group/area flex-1 flex flex-col gap-4 min-h-0 lg:flex-row max-lg:landscape:data-[tela-cheia=sim]:flex-row data-[tela-cheia=sim]:fixed data-[tela-cheia=sim]:inset-0 data-[tela-cheia=sim]:z-[45] data-[tela-cheia=sim]:h-[100dvh] data-[tela-cheia=sim]:gap-0 data-[tela-cheia=sim]:bg-black lg:data-[tela-cheia=sim]:gap-4 lg:data-[tela-cheia=sim]:bg-background lg:data-[tela-cheia=sim]:p-3"
         >
           {/* Vídeo (WebRTC P2P) */}
           {/* Deitado, 55vh = ~215px e ainda sobrava página para rolar; aí o vídeo
               usa a altura que restou na tela, sem empurrar nada para baixo. */}
-          <div className="relative flex-1 min-h-[55vh] bg-black rounded-lg overflow-hidden flex flex-col lg:min-h-0 [@media(max-height:560px)]:min-h-0 group-data-[tela-cheia=sim]/area:rounded-none lg:group-data-[tela-cheia=sim]/area:rounded-lg">
+          <div className="relative flex-1 min-h-[55vh] bg-black rounded-lg overflow-hidden flex flex-col lg:min-h-0 [@media(max-height:560px)]:min-h-0 group-data-[tela-cheia=sim]/area:min-h-0 group-data-[tela-cheia=sim]/area:rounded-none lg:group-data-[tela-cheia=sim]/area:rounded-lg">
             {isTherapist && !patientPresent && !error && (
               <div className="pointer-events-none absolute inset-x-0 top-3 z-10 mx-auto w-fit max-w-[calc(100%-1.5rem)] rounded-full bg-black/70 px-4 py-1.5 text-xs font-medium text-white shadow">
                 Aguardando o paciente entrar…
@@ -440,6 +445,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                 onError={(err) => setError(err)}
                 onEndCall={handleEndCall}
                 areaTelaCheia={areaChamada}
+                aoMudarTelaCheia={setTelaCheia}
                 extrasTelaCheia={
                   <>
                     {podeChat && (
@@ -464,7 +470,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                       <Button
                         variant="secondary"
                         size="icon"
-                        onClick={() => setShowSidebar((v) => !v)}
+                        onClick={() => setProntuarioNaTelaCheia((v) => !v)}
                         className="rounded-full lg:hidden"
                         aria-label="Prontuário"
                         title="Prontuário"
@@ -508,11 +514,24 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                 onClick={() => setShowSidebar(false)}
                 aria-hidden="true"
               />
-              <div className={`fixed inset-y-0 right-0 z-50 flex w-80 max-w-[85vw] flex-col overflow-hidden border-l border-border bg-card shadow-xl transition-transform lg:static lg:z-auto lg:max-w-none lg:translate-x-0 lg:rounded-lg lg:border lg:shadow-none ${showSidebar ? "translate-x-0" : "translate-x-full"}`}>
+              <div
+                className={
+                  telaCheia && prontuarioNaTelaCheia
+                    ? // Tela cheia: painel no fluxo, ao lado (deitado/desktop) ou embaixo (em pé).
+                      "flex shrink-0 flex-col overflow-hidden bg-card max-lg:h-[52%] max-lg:border-t max-lg:border-border max-lg:landscape:h-auto max-lg:landscape:w-[42%] max-lg:landscape:border-l max-lg:landscape:border-t-0 lg:w-80 lg:rounded-lg lg:border lg:border-border"
+                    : `fixed inset-y-0 right-0 z-50 flex w-80 max-w-[85vw] flex-col overflow-hidden border-l border-border bg-card shadow-xl transition-transform lg:static lg:z-auto lg:max-w-none lg:translate-x-0 lg:rounded-lg lg:border lg:shadow-none ${showSidebar ? "translate-x-0" : "translate-x-full"}`
+                }
+              >
                 <div className="bg-primary/10 p-4 border-b border-border">
                   <div className="flex items-center justify-between">
                     <h2 className="font-semibold text-foreground">Prontuário</h2>
-                    <Button variant="ghost" size="sm" className="lg:hidden" onClick={() => setShowSidebar(false)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="lg:hidden"
+                      onClick={() => (telaCheia ? setProntuarioNaTelaCheia(false) : setShowSidebar(false))}
+                      aria-label={telaCheia ? "Esconder o prontuário" : "Fechar o prontuário"}
+                    >
                       <ChevronUp className="w-4 h-4" />
                     </Button>
                   </div>
