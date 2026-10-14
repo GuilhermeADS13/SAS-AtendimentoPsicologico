@@ -128,12 +128,12 @@ function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
 
   // `arquivo|anexo` soltos: "como envio um arquivo?" não casava com "enviar
   // arquivo" e caía no menu genérico.
-  if (/(mensagem|mensagens|chat|conversar por texto|falar por escrito|mandar recado|arquivo|anexo|anexar|foto para ela|emoji)/.test(normalized)) {
+  if (/(mensagem|mensagens|chat|conversar por texto|falar por escrito|mandar recado|arquivo|anexo|anexar|foto para ela|emoji|gif)/.test(normalized)) {
     return {
       model: "site-help-local",
       topic: "mensagens",
       content:
-        "Para trocar mensagens com a sua psicóloga, enviar arquivos e emojis, abra “Mensagens” no menu. Os dois tiques (✓✓) ao lado da sua mensagem mostram que ela já leu, e a lupa no topo da conversa acha mensagens enquanto você digita. Mandou algo errado? Na setinha ao lado da sua mensagem você edita (até 15 minutos depois) ou apaga para todos (até 2 dias). É o mesmo chat que abre dentro da videochamada, no botão “Mensagens”.",
+        "Para trocar mensagens com a sua psicóloga, enviar arquivos, emojis e GIFs (no botão “GIF”, ao lado do emoji), abra “Mensagens” no menu. Os dois tiques (✓✓) ao lado da sua mensagem mostram que ela já leu, e a lupa no topo da conversa acha mensagens enquanto você digita. Mandou algo errado? Na setinha ao lado da sua mensagem você edita (até 15 minutos depois) ou apaga para todos (até 2 dias). É o mesmo chat que abre dentro da videochamada, no botão “Mensagens”.",
     };
   }
 

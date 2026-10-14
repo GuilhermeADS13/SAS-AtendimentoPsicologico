@@ -62,6 +62,7 @@ describe("separação de papéis da Luma", () => {
     ["da para apagar a mensagem?", "mensagens"],
     ["ja paguei a consulta?", "payments"],
     ["tem emoji?", "mensagens"],
+    ["como mando um gif?", "mensagens"],
   ])("roteia %s para o tópico %s", (pergunta, topico) => {
     expect(answerSiteHelp(pergunta).topic).toBe(topico);
   });

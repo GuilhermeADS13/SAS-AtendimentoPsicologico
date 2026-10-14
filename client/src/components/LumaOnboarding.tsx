@@ -63,7 +63,7 @@ const therapistSteps: Step[] = [
     path: "/mensagens",
     icon: MessageSquare,
     title: "Mensagens",
-    body: "Converse com seus pacientes, troque arquivos e emojis — o ✓✓ mostra que a pessoa leu. Na lupa da conversa, a busca acha a mensagem enquanto você digita. Errou? A setinha ao lado da sua mensagem edita (até 15 min) ou apaga para todos (até 2 dias).",
+    body: "Converse com seus pacientes, troque arquivos, emojis e GIFs — o ✓✓ mostra que a pessoa leu. Na lupa da conversa, a busca acha a mensagem enquanto você digita. Errou? A setinha ao lado da sua mensagem edita (até 15 min) ou apaga para todos (até 2 dias).",
     target: '[data-tour="mensagens"]',
   },
   {
@@ -121,7 +121,7 @@ const patientSteps: Step[] = [
     path: "/mensagens",
     icon: MessageSquare,
     title: "Mensagens",
-    body: "Fale com a sua psicóloga e troque arquivos e emojis, a qualquer hora — o ✓✓ mostra quando ela já leu. A lupa acha mensagens enquanto você digita. Mandou algo errado? A setinha ao lado da sua mensagem edita (até 15 min) ou apaga para todos (até 2 dias).",
+    body: "Fale com a sua psicóloga e troque arquivos, emojis e GIFs, a qualquer hora — o ✓✓ mostra quando ela já leu. A lupa acha mensagens enquanto você digita. Mandou algo errado? A setinha ao lado da sua mensagem edita (até 15 min) ou apaga para todos (até 2 dias).",
     target: '[data-tour="chat-composer"]',
   },
   {
