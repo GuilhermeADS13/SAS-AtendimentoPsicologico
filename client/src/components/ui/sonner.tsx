@@ -8,6 +8,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme as ToasterProps["theme"]}
       closeButton
+      // Avisos no topo (as notificações novas) nascem abaixo do cabeçalho de 56px
+      // — e não por cima do sino que eles anunciam.
+      offset={{ top: 68 }}
+      mobileOffset={{ top: 64 }}
       className="toaster group"
       style={
         {

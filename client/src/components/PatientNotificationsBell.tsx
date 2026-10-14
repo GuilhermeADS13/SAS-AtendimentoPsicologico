@@ -4,11 +4,12 @@ import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { NotificationsMenu, type NotifItem } from "./NotificationsMenu";
 
-// O paciente só recebe estes dois tipos; os demais são avisos internos da
-// psicóloga. Texto amigável, sem jargão de fila de e-mail.
+// Os tipos que o paciente recebe. Texto amigável, sem jargão de fila de e-mail.
+// "Consulta agendada" chegou depois: sem rótulo, aparecia "Aviso da sua consulta".
 const TYPE_LABEL: Record<string, string> = {
   appointment_reminder: "Lembrete da sua consulta",
   appointment_cancelled: "Uma consulta foi cancelada",
+  new_appointment: "Nova consulta agendada",
 };
 
 /**
@@ -19,7 +20,7 @@ const TYPE_LABEL: Record<string, string> = {
 export function PatientNotificationsBell() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
-  const { data: notifications = [] } = trpc.me.notifications.useQuery(undefined, {
+  const { data: notifications = [], isSuccess: carregado } = trpc.me.notifications.useQuery(undefined, {
     refetchInterval: 60_000,
     retry: false,
   });
@@ -42,6 +43,7 @@ export function PatientNotificationsBell() {
   return (
     <NotificationsMenu
       items={items}
+      carregado={carregado}
       badge={items.length}
       onItemClick={() => setLocation("/consultas")}
       onDismiss={(id) => dismiss.mutate({ id })}

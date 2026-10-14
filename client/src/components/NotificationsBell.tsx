@@ -23,7 +23,7 @@ const STATUS_LABEL: Record<string, string> = {
 export function NotificationsBell() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
-  const { data: notifications = [] } = trpc.notifications.list.useQuery(undefined, {
+  const { data: notifications = [], isSuccess: carregado } = trpc.notifications.list.useQuery(undefined, {
     refetchInterval: 60_000,
     retry: false,
   });
@@ -72,6 +72,7 @@ export function NotificationsBell() {
   return (
     <NotificationsMenu
       items={items}
+      carregado={carregado}
       badge={pending}
       onItemClick={irParaConsulta}
       onDismiss={(id) => dismiss.mutate({ id })}

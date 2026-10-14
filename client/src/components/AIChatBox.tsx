@@ -300,6 +300,10 @@ export function AIChatBox({
    * Na abertura o salto é instantâneo (`auto`): animar do topo até embaixo dava
    * aquela descida rápida na cara de quem abre. Depois disso, mensagem nova rola
    * suave, que é o esperado durante a conversa.
+   *
+   * Rola SÓ a área do chat, não a página: `scrollIntoView` rolava também a janela.
+   * No tour, isso empurrava a página para baixo logo depois de o holofote se
+   * posicionar no chat (o recorte aparecia certo e em seguida "descia").
    */
   const jaPosicionou = useRef(false);
   useEffect(() => {
@@ -308,7 +312,10 @@ export function AIChatBox({
     const primeiraVez = !jaPosicionou.current;
     jaPosicionou.current = true;
     requestAnimationFrame(() => {
-      alvo.scrollIntoView({ block: "start", behavior: primeiraVez ? "auto" : "smooth" });
+      const viewport = scrollAreaRef.current?.querySelector("[data-radix-scroll-area-viewport]") as HTMLDivElement | null;
+      if (!viewport) return;
+      const topo = alvo.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop;
+      viewport.scrollTo({ top: topo, behavior: primeiraVez ? "auto" : "smooth" });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayMessages.length, isLoading]);
