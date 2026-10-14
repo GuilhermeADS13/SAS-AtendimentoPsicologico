@@ -42,7 +42,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, Wallet, CreditCard, Table as TableIcon, CalendarDays, Filter, Loader2, Pencil, RotateCcw, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, CreditCard, Table as TableIcon, CalendarDays, Filter, Loader2, Pencil, RotateCcw, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { CalendarioAgenda } from "@/components/CalendarioAgenda";
@@ -108,7 +108,7 @@ export default function Appointments() {
   const [filtroSituacao, setFiltroSituacao] = useState<"todas" | "scheduled" | "aConfirmar" | "completed" | "cancelled">("todas");
   const [filtroData, setFiltroData] = useState("");
   const [busca, setBusca] = useState("");
-  // Período mostrado no resumo e na tabela (setas ‹ ›, como no Financeiro).
+  // Período mostrado na tabela (setas ‹ ›, como no Financeiro).
   // Chegando pela sineta (?ap=<id>) começa em "Todas": a consulta destacada
   // pode ser de outro mês, e sumiria da lista.
   const [periodo, setPeriodo] = useState<Periodo | "todas">(() => (highlightId ? "todas" : "mes"));
@@ -323,19 +323,10 @@ export default function Appointments() {
     });
   };
 
-  // Resumo financeiro do PERÍODO escolhido nas setas (por data da consulta):
-  // recebido = pagas; a receber = ainda não pagas que não foram canceladas/
-  // faltadas. Calculado no cliente sobre a lista já carregada — sem query nova,
-  // escala do piloto.
+  // Valores (recebido / a receber) ficam só no Financeiro; aqui o período só
+  // escolhe quais consultas aparecem.
   const faixa = periodo === "todas" ? null : intervalo(periodo, deslocamento);
   const noPeriodo = (quando: string | Date) => !faixa || dentroDoIntervalo(quando, faixa);
-  const doPeriodo = appointments.filter((a) => noPeriodo(a.scheduledAt));
-  const recebidoPeriodo = doPeriodo
-    .filter((a) => a.paid)
-    .reduce((soma, a) => soma + (a.price ?? 0), 0);
-  const aReceberPeriodo = doPeriodo
-    .filter((a) => !a.paid && a.status !== "cancelled" && a.status !== "no_show")
-    .reduce((soma, a) => soma + (a.price ?? 0), 0);
   const periodoLabel = faixa?.label ?? "todo o período";
   /** "2026-07-15" da consulta no horário de Brasília — comparável ao <input type="date">. */
   const diaDaConsulta = (quando: string | Date) =>
@@ -586,7 +577,7 @@ export default function Appointments() {
         </Dialog>
 
         {/* Período: Semana / Mês / Todas, com setas para andar (inclusive para a
-            frente, nas consultas futuras). Vale para o resumo e para a tabela. */}
+            frente, nas consultas futuras). Vale para a tabela. */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="inline-flex rounded-xl border border-border bg-card p-1" role="group" aria-label="Período">
             {PERIODOS.map((p) => (
@@ -639,37 +630,6 @@ export default function Appointments() {
           )}
         </div>
         </div>
-
-        {/* Resumo financeiro do período. Só aparece quando há valor a mostrar —
-            sem preço registrado, não polui a tela com "R$ 0,00". */}
-        {(recebidoPeriodo > 0 || aReceberPeriodo > 0) && (
-          <div className="grid gap-3 sm:grid-cols-2 max-w-xl">
-            <Card className="border-primary/20">
-              <CardContent className="flex items-center gap-3">
-                <Wallet className="w-5 h-5 text-primary shrink-0" />
-                <div>
-                  <p className="text-xs text-muted-foreground">
-                    Recebido · {periodoLabel}
-                  </p>
-                  <p className="text-lg font-bold text-foreground">
-                    {formatarBRL(recebidoPeriodo)}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="border-border">
-              <CardContent className="flex items-center gap-3">
-                <Clock className="w-5 h-5 text-muted-foreground shrink-0" />
-                <div>
-                  <p className="text-xs text-muted-foreground">A receber</p>
-                  <p className="text-lg font-bold text-foreground">
-                    {formatarBRL(aReceberPeriodo)}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
 
         {/* Consultas: tabela ou calendário — os mesmos dados, duas visões. */}
         <Card>
