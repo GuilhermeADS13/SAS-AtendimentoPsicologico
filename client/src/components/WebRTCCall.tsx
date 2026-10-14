@@ -284,6 +284,10 @@ export default function WebRTCCall({
   const [spkAtual, setSpkAtual] = useState(() => readLS(LS.spk));
   // "Quem está falando": brilho verde na tela (o outro lado) e na miniatura (eu).
   const [localFalando, setLocalFalando] = useState(false);
+  // Altura da barra de controles: no celular ela quebra em 2 linhas, e a
+  // miniatura da própria câmera precisa subir junto para não ficar por cima.
+  const barraRef = useRef<HTMLDivElement>(null);
+  const [alturaBarra, setAlturaBarra] = useState(48);
   const [remoteFalando, setRemoteFalando] = useState(false);
   // Volume do OUTRO lado (0–100), só no SEU aparelho — mexe no <video>, não na
   // trilha. Em 0 você para de ouvir a pessoa mesmo com o mic dela ligado.
@@ -1061,6 +1065,14 @@ export default function WebRTCCall({
     [],
   );
 
+  useEffect(() => {
+    const barra = barraRef.current;
+    if (!barra || typeof ResizeObserver === "undefined") return;
+    const obs = new ResizeObserver(() => setAlturaBarra(Math.round(barra.getBoundingClientRect().height)));
+    obs.observe(barra);
+    return () => obs.disconnect();
+  }, []);
+
   // Detector de fala: mede o nível de áudio de cada lado e acende o brilho verde
   // de quem está falando. Só depois de conectar (aí a trilha remota existe).
   useEffect(() => {
@@ -1154,15 +1166,15 @@ export default function WebRTCCall({
 
       {/* Meu próprio vídeo em miniatura (canto), com opção de ocultar. O <video>
           fica sempre montado (mesmo oculto) para não perder o srcObject/ref.
-          bottom-16 (não bottom-3): a barra de controles é centralizada e tem
-          ~272px; com a miniatura à direita na MESMA altura, as duas se cruzavam
-          e os botões da direita (inclusive encerrar) caíam por cima do vídeo.
-          Só deixaria de colidir acima de ~680px de largura útil — então ela sobe
-          em qualquer tamanho, e encolhe no celular. */}
+          Fica ACIMA da barra de controles (que é centralizada): na mesma altura,
+          as duas se cruzavam e os botões da direita (inclusive encerrar) caíam
+          por cima do vídeo. A altura vem medida, porque no celular a barra
+          quebra em 2 linhas — com um `bottom` fixo, a miniatura cobria a de cima. */}
       <div
-        className={`absolute bottom-16 right-3 h-20 w-28 sm:h-28 sm:w-40 lg:h-32 lg:w-48 ${
+        className={`absolute right-3 h-20 w-28 sm:h-28 sm:w-40 lg:h-32 lg:w-48 ${
           selfViewHidden ? "hidden" : ""
         }`}
+        style={{ bottom: alturaBarra + 20 }}
       >
         <video
           ref={localVideoRef}
@@ -1188,7 +1200,8 @@ export default function WebRTCCall({
           type="button"
           onClick={toggleSelfView}
           title="Mostrar minha imagem"
-          className="absolute bottom-16 right-3 flex items-center gap-1.5 rounded-md border border-white/20 bg-black/60 px-2.5 py-1.5 text-xs text-white shadow-lg transition-colors hover:bg-black/80"
+          style={{ bottom: alturaBarra + 20 }}
+          className="absolute right-3 flex items-center gap-1.5 rounded-md border border-white/20 bg-black/60 px-2.5 py-1.5 text-xs text-white shadow-lg transition-colors hover:bg-black/80"
         >
           <Eye className="h-3.5 w-3.5" /> Minha imagem
         </button>
@@ -1220,8 +1233,14 @@ export default function WebRTCCall({
       )}
 
       {/* Barra única de controles, como nos apps de vídeo: encerrar fica AQUI,
-          junto do resto — antes ele ficava fora do vídeo e desalinhado. */}
-      <div className="absolute bottom-3 left-1/2 flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-3xl bg-black/50 p-1.5 backdrop-blur">
+          junto do resto — antes ele ficava fora do vídeo e desalinhado.
+          Centralizada com inset-x-0 + mx-auto + w-fit (e não left-1/2 +
+          translate): com `left: 50%` a largura disponível era só a METADE do
+          vídeo, e no celular a barra quebrava em 3 linhas com a tela sobrando. */}
+      <div
+        ref={barraRef}
+        className="absolute inset-x-0 bottom-3 mx-auto flex w-fit max-w-[calc(100%-1.5rem)] flex-wrap items-center justify-center gap-2 rounded-3xl bg-black/50 p-1.5 backdrop-blur"
+      >
         <div className="relative">
           <Button
             variant={micOn ? "secondary" : "destructive"}

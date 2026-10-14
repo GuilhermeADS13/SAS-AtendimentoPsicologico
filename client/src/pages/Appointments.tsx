@@ -108,10 +108,10 @@ export default function Appointments() {
   const [filtroSituacao, setFiltroSituacao] = useState<"todas" | "scheduled" | "aConfirmar" | "completed" | "cancelled">("todas");
   const [filtroData, setFiltroData] = useState("");
   const [busca, setBusca] = useState("");
-  // Período mostrado na tabela (setas ‹ ›, como no Financeiro).
-  // Chegando pela sineta (?ap=<id>) começa em "Todas": a consulta destacada
-  // pode ser de outro mês, e sumiria da lista.
-  const [periodo, setPeriodo] = useState<Periodo | "todas">(() => (highlightId ? "todas" : "mes"));
+  // Período mostrado na tabela (setas ‹ ›, como no Financeiro). Abre em
+  // "Todas"; quem quiser recorta por semana ou mês. (Também garante que a
+  // consulta destacada pela sineta, ?ap=<id>, esteja na lista.)
+  const [periodo, setPeriodo] = useState<Periodo | "todas">("todas");
   // Quantas semanas/meses para trás (-) ou para a frente (+) do atual.
   const [deslocamento, setDeslocamento] = useState(0);
   const [paymentUpdatingId, setPaymentUpdatingId] = useState<number | null>(null);

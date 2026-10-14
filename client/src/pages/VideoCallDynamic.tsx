@@ -410,17 +410,21 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
         {/* Main Content — empilha no mobile, lado a lado no desktop.
             Na tela cheia (data-tela-cheia) cobre a tela: z-[45] fica acima da
             barra do topo (z-40) e abaixo de menus e diálogos (z-50), que nascem
-            no <body> — o seletor de emoji e o "Encerrar?" continuam aparecendo. */}
+            no <body> — o seletor de emoji e o "Encerrar?" continuam aparecendo.
+            No celular o vídeo vai de ponta a ponta (sem margem nem canto
+            arredondado): com a moldura, a barra de controles quebrava em duas
+            linhas e passava por cima da própria miniatura. No desktop há
+            margem, porque o prontuário fica ao lado. */}
         <div
           ref={setAreaChamada}
-          className="flex-1 flex flex-col gap-4 min-h-0 lg:flex-row data-[tela-cheia=sim]:fixed data-[tela-cheia=sim]:inset-0 data-[tela-cheia=sim]:z-[45] data-[tela-cheia=sim]:h-[100dvh] data-[tela-cheia=sim]:bg-background data-[tela-cheia=sim]:p-3"
+          className="group/area flex-1 flex flex-col gap-4 min-h-0 lg:flex-row data-[tela-cheia=sim]:fixed data-[tela-cheia=sim]:inset-0 data-[tela-cheia=sim]:z-[45] data-[tela-cheia=sim]:h-[100dvh] data-[tela-cheia=sim]:gap-0 data-[tela-cheia=sim]:bg-black lg:data-[tela-cheia=sim]:gap-4 lg:data-[tela-cheia=sim]:bg-background lg:data-[tela-cheia=sim]:p-3"
         >
           {/* Vídeo (WebRTC P2P) */}
           {/* Deitado, 55vh = ~215px e ainda sobrava página para rolar; aí o vídeo
               usa a altura que restou na tela, sem empurrar nada para baixo. */}
-          <div className="relative flex-1 min-h-[55vh] bg-black rounded-lg overflow-hidden flex flex-col lg:min-h-0 [@media(max-height:560px)]:min-h-0">
+          <div className="relative flex-1 min-h-[55vh] bg-black rounded-lg overflow-hidden flex flex-col lg:min-h-0 [@media(max-height:560px)]:min-h-0 group-data-[tela-cheia=sim]/area:rounded-none lg:group-data-[tela-cheia=sim]/area:rounded-lg">
             {isTherapist && !patientPresent && !error && (
-              <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-xs font-medium text-white shadow">
+              <div className="pointer-events-none absolute inset-x-0 top-3 z-10 mx-auto w-fit max-w-[calc(100%-1.5rem)] rounded-full bg-black/70 px-4 py-1.5 text-xs font-medium text-white shadow">
                 Aguardando o paciente entrar…
               </div>
             )}
