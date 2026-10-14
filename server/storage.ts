@@ -30,6 +30,27 @@ export async function signDocumentUrl(fileKey: string, ttlSeconds = 300): Promis
   return data?.signedUrl ?? null;
 }
 
+/**
+ * URLs assinadas das FOTOS (bucket privado `avatars`), em lote.
+ *
+ * A regra do bucket só deixa cada pessoa ler a própria pasta (e as fotos de
+ * psicólogas): a psicóloga não consegue ver a foto do paciente pelo navegador.
+ * Quem chama (patients.fotos) já filtrou os pacientes DELA e conferiu que cada
+ * caminho está na pasta da conta daquele paciente. Devolve caminho → URL.
+ */
+export async function assinarFotos(caminhos: string[], ttlSeconds = 3600): Promise<Record<string, string>> {
+  const client = storageClient();
+  if (!client || caminhos.length === 0) return {};
+  const { data, error } = await client.storage.from("avatars").createSignedUrls(caminhos, ttlSeconds);
+  if (error || !data) {
+    console.error("Falha ao assinar fotos:", error?.message);
+    return {};
+  }
+  const saida: Record<string, string> = {};
+  for (const item of data) if (item.path && item.signedUrl) saida[item.path] = item.signedUrl;
+  return saida;
+}
+
 /** Baixa um arquivo do bucket privado (service role), como Buffer, ou null. */
 export async function downloadDocumentFile(fileKey: string): Promise<Buffer | null> {
   const client = storageClient();

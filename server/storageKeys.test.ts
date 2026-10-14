@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chavePertenceAoUsuario, uidSupabase } from "./storageKeys";
+import { chavePertenceAoUsuario, fotoPertenceAoUsuario, uidSupabase } from "./storageKeys";
 
 /**
  * O servidor baixa e assina arquivos do bucket com a service role, que fura a RLS.
@@ -44,5 +44,28 @@ describe("posse de arquivo no bucket (fileKey)", () => {
 
   it("recusa quando o dono não é conta do Supabase", () => {
     expect(chavePertenceAoUsuario(`${uid}/chat/x.pdf`, "dev:local", "chat")).toBe(false);
+  });
+});
+
+/**
+ * Foto do paciente nos cards da psicóloga: o servidor assina com a service role,
+ * então só aceita o caminho que o upload gera, na pasta da conta do PRÓPRIO
+ * paciente (senão ele poderia apontar a foto para a de outra pessoa).
+ */
+describe("foto da conta (avatars)", () => {
+  const openId = "sb:11111111-2222-3333-4444-555555555555";
+  const uid = "11111111-2222-3333-4444-555555555555";
+
+  it("aceita o caminho que o upload gera", () => {
+    for (const ext of ["jpg", "png", "webp"]) expect(fotoPertenceAoUsuario(`${uid}/avatar.${ext}`, openId)).toBe(true);
+  });
+
+  it("recusa foto de outra conta, caminho estranho ou extensão fora", () => {
+    expect(fotoPertenceAoUsuario("99999999-0000-0000-0000-000000000000/avatar.jpg", openId)).toBe(false);
+    expect(fotoPertenceAoUsuario(`${uid}/../outro/avatar.jpg`, openId)).toBe(false);
+    expect(fotoPertenceAoUsuario(`${uid}/avatar.svg`, openId)).toBe(false);
+    expect(fotoPertenceAoUsuario(`${uid}/chat/x.jpg`, openId)).toBe(false);
+    expect(fotoPertenceAoUsuario(null, openId)).toBe(false);
+    expect(fotoPertenceAoUsuario(`${uid}/avatar.jpg`, "manus:abc")).toBe(false);
   });
 });

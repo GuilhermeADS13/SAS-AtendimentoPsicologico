@@ -41,11 +41,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, Wallet, Table as TableIcon, CalendarDays, Filter, Loader2, Pencil, RotateCcw, Search } from "lucide-react";
+import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, Wallet, CreditCard, Table as TableIcon, CalendarDays, Filter, Loader2, Pencil, RotateCcw, Search } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { CalendarioAgenda } from "@/components/CalendarioAgenda";
 import AddToCalendar from "@/components/AddToCalendar";
+import { AvatarDaPessoa } from "@/components/AvatarDaPessoa";
 import { reaisParaCentavos, centavosParaInput, formatarBRL } from "@shared/dinheiro";
 
 type Status = "scheduled" | "completed" | "cancelled" | "no_show";
@@ -63,6 +64,8 @@ export default function Appointments() {
 
   const { data: appointments = [] } = trpc.appointments.list.useQuery();
   const { data: patients = [] } = trpc.patients.list.useQuery();
+  // Fotos dos pacientes (assinadas no servidor; a URL vale 1 h).
+  const { data: fotos = {} } = trpc.patients.fotos.useQuery(undefined, { staleTime: 50 * 60_000 });
   // Preço padrão da psicóloga: preenche o valor de cada consulta nova.
   const { data: therapist } = trpc.therapists.me.useQuery();
 
@@ -742,13 +745,17 @@ export default function Appointments() {
                   return (
                     <article key={appointment.id} className={`space-y-3 rounded-xl border bg-card p-4 shadow-sm ${appointment.id === proximaConsultaId ? "ring-2 ring-primary/60" : ""}`}>
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h3 className="truncate font-semibold">{patientName(appointment.patientId)}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {formatarData(scheduled)} às {formatarHora(scheduled)} · {appointment.duration} min
-                          </p>
+                        <div className="flex min-w-0 items-center gap-3">
+                          <AvatarDaPessoa url={fotos[appointment.patientId]} nome={patientName(appointment.patientId)} />
+                          <div className="min-w-0">
+                            <h3 className="truncate text-base font-semibold">{patientName(appointment.patientId)}</h3>
+                            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                              <Calendar className="size-4 shrink-0" aria-hidden />
+                              {formatarData(scheduled)} às {formatarHora(scheduled)} · {appointment.duration} min
+                            </p>
+                          </div>
                         </div>
-                        <div className="flex shrink-0 flex-col items-end gap-1">
+                        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
                           {appointment.id === proximaConsultaId && (
                             <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
                               Próxima
@@ -762,8 +769,18 @@ export default function Appointments() {
                       {appointment.confirmedAt ? (
                         <p className="text-xs text-green-600">✓ Presença confirmada</p>
                       ) : null}
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-y py-2">
-                        <span className="text-sm font-medium">{formatarBRL(appointment.price, "Sem preço")}</span>
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-y py-2.5">
+                        <div className="flex items-start gap-2">
+                          <CreditCard className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+                          <div>
+                            <p className="text-sm font-semibold">{formatarBRL(appointment.price, "Sem preço")}</p>
+                            {appointment.paidAt ? (
+                              <p className="text-xs text-muted-foreground">Pago em {formatarData(appointment.paidAt)}</p>
+                            ) : appointment.updatedAt ? (
+                              <p className="text-xs text-muted-foreground">Atualizado em {formatarData(appointment.updatedAt)}</p>
+                            ) : null}
+                          </div>
+                        </div>
                         <button
                           onClick={() => togglePayment(appointment)}
                           disabled={paymentUpdatingId !== null}
@@ -775,10 +792,9 @@ export default function Appointments() {
                           {appointment.paid ? "Pago" : "Pagamento pendente"} · alterar
                         </button>
                       </div>
-                      <div className="space-y-1 text-xs text-muted-foreground">
-                        {appointment.paidAt ? <p>Pago em {formatarData(appointment.paidAt)}</p> : appointment.updatedAt ? <p>Atualizado em {formatarData(appointment.updatedAt)}</p> : null}
-                        {appointment.paymentUpdatedByName ? <p>Alterado por {appointment.paymentUpdatedByName}</p> : null}
-                      </div>
+                      {appointment.paymentUpdatedByName ? (
+                        <p className="text-xs text-muted-foreground">Alterado por {appointment.paymentUpdatedByName}</p>
+                      ) : null}
                       {/* Consulta cancelada ou já realizada não tem sala para copiar nem
                           para entrar: TODAS as ações (inclusive "Copiar sala") valem só
                           enquanto ela está agendada. */}
@@ -788,7 +804,7 @@ export default function Appointments() {
                             <Button variant="outline" size="sm" onClick={() => copyToClipboard(roomUrl)} className="h-10 justify-center gap-1.5" title="Copiar link da sala">
                               <Copy className="h-4 w-4" /> Copiar sala
                             </Button>
-                            <Button variant="outline" size="sm" disabled={!href} onClick={() => href && window.open(href, "_blank", "noopener")} className="h-10 justify-center gap-1.5 text-green-700" title={href ? "Abrir mensagem pronta no WhatsApp" : "Paciente sem telefone cadastrado"}>
+                            <Button variant="outline" size="sm" disabled={!href} onClick={() => href && window.open(href, "_blank", "noopener")} className="h-10 justify-center gap-1.5 border-green-200 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-400" title={href ? "Abrir mensagem pronta no WhatsApp" : "Paciente sem telefone cadastrado"}>
                               <WhatsAppIcon className="h-4 w-4" /> Avisar no WhatsApp
                             </Button>
                             <Button variant="outline" size="sm" onClick={() => startEdit(appointment)} className="h-10 justify-center gap-1.5" title="Editar data, hora, duração ou valor">
@@ -808,10 +824,10 @@ export default function Appointments() {
                                 uid: `apt${appointment.id}@vozinterior`,
                               }}
                             />
-                            <Button variant="outline" size="sm" onClick={() => setConfirmarRealizada(appointment)} className="h-10 justify-center gap-1.5 text-green-700" title="Marcar consulta como realizada">
+                            <Button variant="outline" size="sm" onClick={() => setConfirmarRealizada(appointment)} className="h-10 justify-center gap-1.5 border-green-200 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-400" title="Marcar consulta como realizada">
                               <CheckCircle className="h-4 w-4" /> Realizada
                             </Button>
-                            <Button variant="outline" size="sm" onClick={() => updateStatus.mutate({ id: appointment.id, status: "cancelled" })} className="h-10 justify-center gap-1.5 text-red-700" title="Cancelar consulta">
+                            <Button variant="outline" size="sm" onClick={() => updateStatus.mutate({ id: appointment.id, status: "cancelled" })} className="h-10 justify-center gap-1.5 border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800 sm:col-span-2 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400" title="Cancelar consulta">
                               <XCircle className="h-4 w-4" /> Cancelar
                             </Button>
                           </>
@@ -883,6 +899,7 @@ export default function Appointments() {
                           }`}
                         >
                           <TableCell className="font-medium">
+                            <AvatarDaPessoa url={fotos[appointment.patientId]} nome={patientName(appointment.patientId)} className="mr-2 inline-flex size-7 align-middle" />
                             {patientName(appointment.patientId)}
                             {appointment.id === proximaConsultaId && (
                               <span className="ml-2 rounded-full bg-primary px-2 py-0.5 align-middle text-[10px] font-bold text-primary-foreground">

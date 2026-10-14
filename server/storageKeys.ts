@@ -16,6 +16,18 @@ export function uidSupabase(openId: string | null | undefined): string | null {
 }
 
 /**
+ * A foto é a da própria conta? O upload grava SEMPRE `<uid>/avatar.<jpg|png|webp>`
+ * (uploadAvatarFile). Sem conferir, um paciente poderia salvar no cadastro o
+ * caminho da foto de outra pessoa e o servidor (que assina com a service role)
+ * a mostraria como se fosse dele.
+ */
+export function fotoPertenceAoUsuario(photoKey: string | null | undefined, openId: string | null | undefined): boolean {
+  const uid = uidSupabase(openId);
+  if (!uid || !photoKey) return false;
+  return photoKey === `${uid}/avatar.jpg` || photoKey === `${uid}/avatar.png` || photoKey === `${uid}/avatar.webp`;
+}
+
+/**
  * O arquivo está na pasta `<uid>/<subpasta>/` de quem é dono do `openId`?
  * Exige exatamente um nome de arquivo depois da subpasta e recusa segmento `.`/`..`,
  * barra dupla, barra invertida ou caminho começando com barra.

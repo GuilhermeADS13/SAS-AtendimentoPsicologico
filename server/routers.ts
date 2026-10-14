@@ -7,7 +7,7 @@ import { z } from "zod";
 import { iceServersParaChamada } from "./turn";
 import { getDb } from "./db";
 import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessageFeedback, patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users, chatMessages } from "../drizzle/schema";
-import { signDocumentUrl, downloadDocumentFile, removeDocumentFile as removeStorageFile } from "./storage";
+import { signDocumentUrl, downloadDocumentFile, removeDocumentFile as removeStorageFile, assinarFotos } from "./storage";
 import { extractClinicalDocument } from "./ai/document-ingestion";
 import { sendEmail } from "./mailer";
 import { gerarLinkDeCadastro, gerarLinkDeRecuperacao, trocarEmailSupabase } from "./supabaseAdmin";
@@ -17,7 +17,7 @@ import { faixaDoHibp, MENSAGEM_SENHA_VAZADA, PREFIXO_HIBP, senhaVazada } from ".
 import { emailComMarca } from "./emailLayout";
 import { identificarCliente } from "./_core/seguranca";
 import { randomInt, createHash } from "node:crypto";
-import { eq, and, asc, desc, isNull, ne, inArray, getTableColumns, sql, ilike } from "drizzle-orm";
+import { eq, and, asc, desc, isNull, isNotNull, ne, inArray, getTableColumns, sql, ilike } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { runOpenSourceAgent } from "./ai/llm";
 import { answerSiteHelp } from "./ai/site-help";
@@ -36,7 +36,7 @@ import {
 // compartilhados com a sinalização e a presença do vídeo (mesma barreira nos dois
 // lugares). `normalizarEmail`/`pacienteDoUsuario` seguem usados aqui como antes.
 import { normalizarEmail, pacienteDoUsuario, resolverAcessoSala } from "./roomAccess";
-import { chavePertenceAoUsuario } from "./storageKeys";
+import { chavePertenceAoUsuario, fotoPertenceAoUsuario } from "./storageKeys";
 import { pendenciasDoProntuario } from "../shared/prontuario";
 import { idDoGif } from "../shared/gif";
 import { podeApagar, podeEditar } from "../shared/chatMensagem";
@@ -1621,6 +1621,32 @@ export const appRouter = router({
             ? pendenciasDoProntuario({ initialDemand, therapeuticGoals, tcleSignedAt, anamnesis })
             : [],
       }));
+    }),
+
+    /**
+     * Fotos dos pacientes DESTA psicóloga, para os cards de consulta: paciente id
+     * → URL assinada (1 h). A regra do bucket não deixa a psicóloga ler a pasta do
+     * paciente pelo navegador, então a assinatura é feita aqui — só para os
+     * pacientes dela e só de foto na pasta da conta do próprio paciente.
+     */
+    fotos: therapistProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return {} as Record<number, string>;
+      const therapist = await db.select({ id: therapists.id }).from(therapists).where(eq(therapists.userId, ctx.user.id)).limit(1);
+      if (!therapist.length) return {} as Record<number, string>;
+      const linhas = await db
+        .select({ id: patients.id, photoKey: patients.photoKey, openId: users.openId })
+        .from(patients)
+        .innerJoin(users, eq(users.id, patients.userId))
+        .where(and(eq(patients.therapistId, therapist[0].id), isNotNull(patients.photoKey)));
+      const validas = linhas.filter((l) => fotoPertenceAoUsuario(l.photoKey, l.openId));
+      const urls = await assinarFotos(validas.map((l) => l.photoKey as string));
+      const saida: Record<number, string> = {};
+      for (const l of validas) {
+        const url = urls[l.photoKey as string];
+        if (url) saida[l.id] = url;
+      }
+      return saida;
     }),
 
     create: therapistProcedure

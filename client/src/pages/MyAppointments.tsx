@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatarData, formatarDataHora, formatarHora, formatarMesAno } from "@shared/datas";
 
 /**
@@ -43,6 +43,8 @@ import { Input } from "@/components/ui/input";
 import { Calendar, MessageCircle, Search, Video, UserRound, CheckCircle2 } from "lucide-react";
 import { LumaOwlIcon } from "@/components/Logo";
 import AddToCalendar from "@/components/AddToCalendar";
+import { AvatarDaPessoa } from "@/components/AvatarDaPessoa";
+import { getAvatarSignedUrl } from "@/lib/supabase";
 
 const STATUS_LABEL: Record<string, string> = {
   scheduled: "Agendada",
@@ -57,6 +59,23 @@ export default function MyAppointments() {
   const utils = trpc.useUtils();
   const { data: appointments = [], isLoading } = trpc.me.appointments.useQuery();
   const { data: profile } = trpc.me.profile.useQuery();
+  // Foto da psicóloga nos cards (bucket privado → URL assinada; a regra do bucket
+  // libera a foto de psicóloga para quem está logado).
+  const { data: psi } = trpc.me.therapist.useQuery();
+  const [fotoPsi, setFotoPsi] = useState<string | null>(null);
+  useEffect(() => {
+    let ativo = true;
+    if (!psi?.photoKey) {
+      setFotoPsi(null);
+      return;
+    }
+    getAvatarSignedUrl(psi.photoKey).then((url) => {
+      if (ativo) setFotoPsi(url);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, [psi?.photoKey]);
   const [busca, setBusca] = useState("");
 
   const confirmar = trpc.me.confirmAppointment.useMutation({
@@ -193,6 +212,8 @@ export default function MyAppointments() {
                 {proximas.map((a) => (
                   <Card key={a.id} className="border-primary/30">
                     <CardContent className="flex flex-wrap items-center justify-between gap-4">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <AvatarDaPessoa url={fotoPsi} nome={a.therapistName || "Sua psicóloga"} />
                       <div className="min-w-0">
                         {/* Com quem é a consulta vem primeiro: é o que o
                             paciente procura ao bater o olho. */}
@@ -212,6 +233,7 @@ export default function MyAppointments() {
                           {a.duration} min
                           {a.confirmedAt ? " · presença confirmada ✓" : ""}
                         </p>
+                      </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         {!a.confirmedAt && (
@@ -263,13 +285,16 @@ export default function MyAppointments() {
                 {anteriores.map((a) => (
                   <Card key={a.id}>
                     <CardContent className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-semibold text-foreground">
-                          {a.therapistName || "Sua psicóloga"}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          <HorarioDaConsulta quando={a.scheduledAt} />
-                        </p>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <AvatarDaPessoa url={fotoPsi} nome={a.therapistName || "Sua psicóloga"} className="size-10" />
+                        <div className="min-w-0">
+                          <p className="font-semibold text-foreground">
+                            {a.therapistName || "Sua psicóloga"}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            <HorarioDaConsulta quando={a.scheduledAt} />
+                          </p>
+                        </div>
                       </div>
                       <span className="text-xs text-muted-foreground">
                         {STATUS_LABEL[a.status] ?? a.status}
