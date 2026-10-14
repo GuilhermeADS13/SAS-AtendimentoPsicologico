@@ -29,7 +29,9 @@ const STEP_PREFIX = "luma-onboarding-step:";
 type Role = "therapist" | "patient";
 // `target`: seletor CSS do elemento a destacar na PÁGINA (holofote). Sem ele
 // (ex.: passo de boas-vindas), o fundo escurece por inteiro e o card fica embaixo.
-type Step = { path: string; icon: LucideIcon | null; title: string; body: string; target?: string };
+// `alinharPeloFim`: alvo mais alto que o espaço livre cujo ponto principal fica
+// embaixo (o chat da Luma, com o campo de escrever no fim).
+type Step = { path: string; icon: LucideIcon | null; title: string; body: string; target?: string; alinharPeloFim?: boolean };
 
 const therapistSteps: Step[] = [
   {
@@ -85,7 +87,8 @@ const therapistSteps: Step[] = [
     icon: null,
     title: "Falar comigo",
     body: "Escolha o paciente e me peça em português (ex.: “marque a Ana quinta às 14h”) ou toque numa sugestão. Eu monto a ação; ela só acontece quando você clicar em Confirmar. Para recomeçar, use “Nova conversa”.",
-    target: '[data-tour="luma-composer"]',
+    target: '[data-tour="luma-chat"]',
+    alinharPeloFim: true,
   },
   {
     path: "/configuracoes",
@@ -136,7 +139,8 @@ const patientSteps: Step[] = [
     icon: null,
     title: "Falar comigo",
     body: "Ficou com dúvida de como usar o sistema? Toque numa sugestão ou escreva aqui. Depois de cada resposta, eu sugiro o próximo passo.",
-    target: '[data-tour="luma-composer"]',
+    target: '[data-tour="luma-chat"]',
+    alinharPeloFim: true,
   },
   {
     path: "/configuracoes",
@@ -306,7 +310,16 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
         const fundoLivre = window.innerHeight - alturaCard;
         const foraDaTela = r.top < 0 || r.top > fundoLivre;
         const cabe = r.height <= fundoLivre - topoLivre;
-        if (foraDaTela || (cabe && r.bottom > fundoLivre)) {
+        if (passo.alinharPeloFim && !cabe) {
+          // O que importa está no FIM do alvo (o campo de escrever, no fim do chat
+          // da Luma): rola até ele ficar logo acima do card do tour. O topo do alvo
+          // fica sob a barra — e o recorte, cortado nela.
+          const margemAnterior = el.style.scrollMarginBottom;
+          el.style.scrollMarginBottom = `${alturaCard}px`;
+          el.scrollIntoView({ block: "end", inline: "nearest" });
+          el.style.scrollMarginBottom = margemAnterior;
+          r = el.getBoundingClientRect();
+        } else if (foraDaTela || (cabe && r.bottom > fundoLivre)) {
           const margemAnterior = el.style.scrollMarginTop;
           el.style.scrollMarginTop = `${topoLivre}px`;
           el.scrollIntoView({ block: "start", inline: "nearest" });

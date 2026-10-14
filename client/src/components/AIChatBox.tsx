@@ -344,6 +344,10 @@ export function AIChatBox({
       role="region"
       aria-label={`Conversa com ${agentName}`}
       aria-busy={isLoading}
+      // Alvo do passo "Falar comigo" do tour: o card do chat (conversa + campo).
+      // Nem a seção inteira (título incluso, mais alta que a tela: o recorte subia
+      // no cabeçalho), nem só o campo (ficava solto, sem o chat em volta).
+      data-tour="luma-chat"
       className={cn(
         "flex flex-col bg-card text-card-foreground rounded-lg border shadow-sm",
         className
@@ -657,10 +661,6 @@ export function AIChatBox({
         ref={inputAreaRef}
         onSubmit={handleSubmit}
         data-testid="ai-chat-form"
-        // Alvo do passo "Falar comigo" do tour: SÓ o campo de escrever. Antes o
-        // alvo era a seção inteira da Luma, mais alta que a tela, e o recorte do
-        // holofote subia por cima do cabeçalho em vez de mostrar onde escrever.
-        data-tour="luma-composer"
         className="flex items-end gap-2 border-t bg-background/50 p-3 sm:p-4"
       >
         <label htmlFor="luma-chat-input" className="sr-only">Mensagem para {agentName}</label>
