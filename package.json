@@ -103,7 +103,11 @@
       "@xmldom/xmldom": "^0.8.15",
       "lodash": "^4.18.1",
       "lodash-es": "^4.18.1",
-      "mysql2": "^3.22.0"
+      "mysql2": "^3.22.0",
+      "mermaid": "^11.15.0",
+      "dompurify": "^3.4.16",
+      "mdast-util-to-hast": "^13.2.1",
+      "uuid@11": "^11.1.1"
     }
   }
 }

@@ -377,9 +377,10 @@ describe("notifications router", () => {
     expect(result).toHaveLength(0);
   });
 
-  it("notifications.run is a no-op counter when there is no database", async () => {
-    const caller = appRouter.createCaller(createAuthContext());
-    const result = await caller.notifications.run();
-    expect(result).toEqual({ sent: 0, failed: 0, skipped: 0 });
+  // Removido: deixava qualquer psicóloga disparar o ciclo de e-mails do sistema
+  // inteiro, fora da trava contra envio duplicado. Não pode voltar sem querer.
+  it("notifications.run não existe mais", () => {
+    expect("run" in appRouter._def.procedures).toBe(false);
+    expect(Object.keys(appRouter._def.procedures)).not.toContain("notifications.run");
   });
 });

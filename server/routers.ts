@@ -24,10 +24,6 @@ import { recordAiAuditEvent } from "./ai/audit";
 import { enqueueDocumentIndexing, getDocumentIndexingStatus } from "./ai/document-queue";
 import { getDocumentQueueMetrics, queueMetricsToPrometheus } from "./ai/queue-metrics";
 import {
-  sendAppointmentReminders,
-  sendTherapistAlerts,
-  sendCancellationAlerts,
-  processPendingNotifications,
   notifyAdminOfTherapistRequest,
   notifyTherapistRequestReviewed,
   rodarCicloDeNotificacoes,
@@ -49,6 +45,8 @@ import { buscarGifs, gifsConfigurados } from "./gifs";
  * o objetivo é cortar o disparo em laço, não contabilizar).
  */
 const ultimoEnvioPorEmail = new Map<string, number>();
+/** Último pedido de código de troca de e-mail, por conta (ver requestEmailChange). */
+const ultimoPedidoDeTrocaDeEmail = new Map<number, number>();
 const enviosPorIp = new Map<string, number[]>();
 export function podeEnviarRecuperacao(email: string, ip: string, agora = Date.now()): boolean {
   if (agora - (ultimoEnvioPorEmail.get(email) ?? 0) < 2 * 60_000) return false;
@@ -138,6 +136,26 @@ async function mensagemDoThread(
     )
     .limit(1);
   return rows[0] ?? null;
+}
+
+/**
+ * A consulta citada numa sessão/anotação tem de ser DESTA psicóloga e DESTE
+ * paciente. Sem isso, dava para gravar a sessão "pendurada" na consulta de outra
+ * pessoa (não vazava dado, mas sujava o vínculo do prontuário). 0 = sem consulta.
+ */
+async function exigirConsultaDoPaciente(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  appointmentId: number,
+  therapistId: number,
+  patientId: number,
+) {
+  if (!appointmentId) return;
+  const linhas = await db
+    .select({ id: appointments.id })
+    .from(appointments)
+    .where(and(eq(appointments.id, appointmentId), eq(appointments.therapistId, therapistId), eq(appointments.patientId, patientId)))
+    .limit(1);
+  if (!linhas.length) throw new Error("Consulta não encontrada para este paciente.");
 }
 
 // Estado efêmero de "digitando" por thread (em memória; reseta no restart, e o
@@ -668,11 +686,32 @@ export const appRouter = router({
   // Área do PACIENTE: só o próprio cadastro e as próprias consultas.
   // Qualquer usuário autenticado pode usar (não expõe dados de outros).
   me: router({
+    /**
+     * O cadastro PESSOAL do paciente — só o que a tela dele usa.
+     *
+     * Devolvia a linha inteira de `patients`, e nela moram os campos CLÍNICOS
+     * que a psicóloga escreve (demanda inicial, objetivos terapêuticos, anamnese,
+     * histórico, resumo de alta, TCLE). A tela não mostrava, mas chegavam ao
+     * navegador do paciente: as anotações de trabalho dela ficavam a um F12 de
+     * distância, sem ela decidir compartilhar.
+     */
     profile: protectedProcedure.query(async ({ ctx }) => {
       const db = await getDb();
       if (!db) return null;
 
-      return pacienteDoUsuario(db, ctx.user);
+      const p = await pacienteDoUsuario(db, ctx.user);
+      if (!p) return null;
+      return {
+        id: p.id,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        email: p.email,
+        phone: p.phone,
+        address: p.address,
+        dateOfBirth: p.dateOfBirth,
+        photoKey: p.photoKey,
+        status: p.status,
+      };
     }),
 
     /**
@@ -779,6 +818,13 @@ export const appRouter = router({
         const novo = input.novoEmail.trim().toLowerCase();
         const atual = (ctx.user.email ?? "").toLowerCase();
         if (novo === atual) throw new Error("Este já é o seu e-mail atual.");
+        // Um pedido por minuto por conta: cada pedido manda 2 e-mails, e o endereço
+        // "novo" é livre — sem limite, uma conta mandaria e-mail em laço para
+        // qualquer pessoa (e gastaria a cota da Brevo).
+        if (Date.now() - (ultimoPedidoDeTrocaDeEmail.get(ctx.user.id) ?? 0) < 60_000) {
+          throw new Error("Espere um minuto antes de pedir outro código.");
+        }
+        ultimoPedidoDeTrocaDeEmail.set(ctx.user.id, Date.now());
         const existe = await db
           .select({ id: users.id })
           .from(users)
@@ -1101,7 +1147,8 @@ export const appRouter = router({
           scheduledAt: appointments.scheduledAt,
           duration: appointments.duration,
           status: appointments.status,
-          notes: appointments.notes,
+          // `notes` NÃO vai: é a observação da psicóloga sobre a consulta (a
+          // Luma também escreve ali ao agendar). A tela do paciente não usa.
           confirmedAt: appointments.confirmedAt,
           roomToken: appointments.roomToken,
           therapistName: users.name,
@@ -2052,6 +2099,7 @@ export const appRouter = router({
           .limit(1);
 
         if (!patient.length) throw new Error("Patient not found for this therapist");
+        await exigirConsultaDoPaciente(db, input.appointmentId, therapist[0].id, input.patientId);
 
         return db.insert(sessions).values({
           appointmentId: input.appointmentId,
@@ -2100,6 +2148,7 @@ export const appRouter = router({
           .limit(1);
 
         if (!patient.length) throw new Error("Patient not found for this therapist");
+        await exigirConsultaDoPaciente(db, input.appointmentId, therapistId, input.patientId);
 
         try {
           // Check if note exists
@@ -2570,14 +2619,10 @@ export const appRouter = router({
         );
       return { success: true } as const;
     }),
-
-    // Enfileira lembretes/alertas e processa a fila (envia os pendentes).
-    run: therapistProcedure.mutation(async () => {
-      await sendAppointmentReminders();
-      await sendTherapistAlerts();
-      await sendCancellationAlerts();
-      return processPendingNotifications();
-    }),
+    // `notifications.run` foi REMOVIDO: nenhuma tela usava, e ele deixava
+    // qualquer psicóloga disparar o ciclo de e-mails do sistema INTEIRO, fora da
+    // trava contra envio duplicado. O ciclo roda pelo agendador e logo após
+    // agendar (rodarCicloDeNotificacoes).
   }),
 
   videoCalls: router({

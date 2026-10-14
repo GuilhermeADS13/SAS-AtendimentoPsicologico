@@ -548,7 +548,9 @@ export async function sendAppointmentReminders() {
             notificationType: "appointment_reminder",
             status: "pending",
           });
-          console.log(`[Notifications] Reminder queued for ${tipo} ${email}`);
+          // Sem o e-mail no log: o log do Render guarda tudo, e endereco de
+          // paciente ali e dado pessoal sem necessidade (LGPD, minimizacao).
+          console.log(`[Notifications] lembrete enfileirado (${tipo}, consulta ${record.appointment.id})`);
         }
       }
     }

@@ -47,7 +47,9 @@ export const PRESENCE_PATH = "/api/ws/presence";
 // Dois WebSocketServer com `{ server, path }` no mesmo HTTP faziam o primeiro
 // abortar (400) o upgrade do path do outro — quebrava a sinalização do vídeo.
 export function createPresenceWss(): WebSocketServer {
-  const wss = new WebSocketServer({ noServer: true });
+  // Teto por mensagem (padrao da biblioteca: 100 MB). A presenca so recebe o
+  // token de login (~2 KB).
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
 
   wss.on("connection", (ws, req) => {
     const url = new URL(req.url || "", "http://localhost");

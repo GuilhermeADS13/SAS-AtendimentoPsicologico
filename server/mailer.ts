@@ -108,6 +108,7 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
     return true;
   }
 
-  console.log(`[Mailer] dry-run (nada configurado) → para: ${to} | assunto: ${subject}`);
+  // Sem o destinatario no log (dado pessoal): o assunto basta para depurar.
+  console.log(`[Mailer] dry-run (nada configurado) → assunto: ${subject}`);
   return false;
 }

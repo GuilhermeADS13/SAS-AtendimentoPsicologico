@@ -6,6 +6,7 @@ import { LumaOwlIcon } from "@/components/Logo";
 import { Loader2, Send, User, Sparkles, ThumbsUp, ThumbsDown, RotateCcw, CalendarClock, Check, ChevronRight, X } from "lucide-react";
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Streamdown } from "streamdown";
+import { PLUGINS_REHYPE_SEGUROS } from "@/lib/markdownSeguro";
 
 /**
  * Message type matching server-side LLM Message interface
@@ -470,7 +471,7 @@ export function AIChatBox({
                       {message.role === "assistant" ? (
                         <>
                           <div className="prose prose-sm dark:prose-invert max-w-none overflow-x-auto">
-                            <Streamdown>{message.content}</Streamdown>
+                            <Streamdown rehypePlugins={PLUGINS_REHYPE_SEGUROS}>{message.content}</Streamdown>
                           </div>
                           {message.sources && message.sources.length > 0 && (
                             <details className="mt-3 border-t border-border/60 pt-2 text-xs">

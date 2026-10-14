@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import { Streamdown } from "streamdown";
+import { PLUGINS_REHYPE_SEGUROS } from "@/lib/markdownSeguro";
 import { ClipboardList, Eye, Heading2, List, ListChecks, ListOrdered, Quote, Redo2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -237,7 +238,7 @@ export default function EditorDeAnotacao({
       {verFormatado ? (
         <div className={cn("flex-1 overflow-y-auto rounded-lg border bg-muted/20 p-3 text-sm", minAltura)}>
           {valor.trim() ? (
-            <Streamdown>{valor}</Streamdown>
+            <Streamdown rehypePlugins={PLUGINS_REHYPE_SEGUROS}>{valor}</Streamdown>
           ) : (
             <p className="text-muted-foreground">Nada escrito ainda — volte a escrever para começar.</p>
           )}

@@ -130,15 +130,31 @@ describe("cabeçalhos de segurança", () => {
   });
 
   /**
-   * A CSP entra em modo RELATORIO primeiro: o navegador nao bloqueia nada, so
-   * anota o que teria bloqueado. Promover para o cabecalho que bloqueia de verdade
-   * e um passo deliberado, depois de ler os relatos em producao.
+   * Duas camadas: a parte que NAO depende de dominio externo ja bloqueia
+   * (plugin, troca da base dos links, iframe de terceiro, formulario para fora);
+   * a politica completa (script-src etc.) segue em relatorio ate os logs
+   * mostrarem que da para ligar sem quebrar a chamada.
    */
-  it("a CSP esta em modo relatorio, nao bloqueando", () => {
+  it("a CSP bloqueia o que e seguro bloquear e relata o resto", () => {
     const { res, cabecalhos } = resposta();
     cabecalhosDeSeguranca(pedido({}), res, vi.fn() as unknown as NextFunction);
-    expect(cabecalhos["Content-Security-Policy"]).toBeUndefined();
+    const ativa = cabecalhos["Content-Security-Policy"];
+    expect(ativa).toContain("object-src 'none'");
+    expect(ativa).toContain("base-uri 'self'");
+    expect(ativa).toContain("frame-ancestors 'none'");
+    expect(ativa).toContain("form-action 'self'");
+    // Nada que dependa de dominio externo: isso so entra depois dos relatos.
+    expect(ativa).not.toContain("script-src");
     expect(cabecalhos["Content-Security-Policy-Report-Only"]).toContain("default-src 'self'");
+  });
+
+  /** O fundo virtual carrega o MediaPipe do jsDelivr e o modelo do Google Storage. */
+  it("a CSP de relatorio ja preve o fundo virtual da chamada", () => {
+    const { res, cabecalhos } = resposta();
+    cabecalhosDeSeguranca(pedido({}), res, vi.fn() as unknown as NextFunction);
+    const csp = cabecalhos["Content-Security-Policy-Report-Only"];
+    expect(csp).toContain("script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'");
+    expect(csp).toContain("https://storage.googleapis.com");
   });
 
   /**

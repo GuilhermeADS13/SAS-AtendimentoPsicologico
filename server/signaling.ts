@@ -45,7 +45,10 @@ export const SIGNALING_PATH = "/api/ws/rtc";
 
 // `noServer`: upgrade despachado pelo roteador único em _core/index.ts (ver presence.ts).
 export function createSignalingWss(): WebSocketServer {
-  const wss = new WebSocketServer({ noServer: true });
+  // Teto por mensagem: o padrao da biblioteca e 100 MB, e qualquer conta logada
+  // poderia mandar mensagens enormes para derrubar o processo (plano free, pouca
+  // memoria). Oferta/resposta SDP tem poucos KB; 256 KB sobra.
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 256 * 1024 });
 
   wss.on("connection", (ws, req) => {
     const url = new URL(req.url || "", "http://localhost");

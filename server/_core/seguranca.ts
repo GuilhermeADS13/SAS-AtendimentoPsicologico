@@ -102,10 +102,15 @@ const CSP_RELATORIO = [
   "font-src 'self' data:",
   // O Tailwind compila para arquivo, mas React injeta style inline em componente.
   "style-src 'self' 'unsafe-inline'",
-  "script-src 'self'",
-  // Supabase (API, Storage, Realtime), os WebSockets da própria sala e os
-  // servidores STUN/TURN da videochamada.
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co wss: stun: turn: turns:",
+  // Fundo virtual da chamada: o MediaPipe carrega o próprio JS + WebAssembly do
+  // jsDelivr (virtualBackground.ts). Sem isto, a CSP valendo apagaria o fundo
+  // virtual no meio do atendimento. 'wasm-unsafe-eval' é só para WebAssembly
+  // (MediaPipe e o realce de código), não libera eval de JavaScript.
+  "script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'",
+  // Supabase (API, Storage, Realtime), os WebSockets da própria sala, os
+  // servidores STUN/TURN da videochamada e os arquivos do MediaPipe (WASM no
+  // jsDelivr, modelo de recorte no Google Storage).
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co wss: stun: turn: turns: https://cdn.jsdelivr.net https://storage.googleapis.com",
   "worker-src 'self' blob:",
   // O arquivo compartilhado DENTRO da chamada é exibido num <iframe src="blob:">
   // (WebRTCCall.tsx). Sem esta linha, frame-src herdaria default-src 'self' e o
@@ -118,6 +123,20 @@ const CSP_RELATORIO = [
 ].join("; ");
 
 /**
+ * A parte da CSP que JÁ BLOQUEIA. Só regras que não dependem de domínio externo
+ * nenhum, então não quebram tela alguma — e cortam caminhos de ataque mesmo que
+ * um HTML malicioso passe por algum filtro:
+ *  - object-src 'none': nada de <object>/<embed> (plugin);
+ *  - base-uri 'self': ninguém troca a base dos links relativos para outro site;
+ *  - frame-ancestors 'none': o sistema não abre dentro de iframe de terceiro;
+ *  - form-action 'self': formulário só envia para o próprio sistema (formulário
+ *    falso injetado não manda a senha para fora).
+ * O resto (script-src etc.) continua no relatório até os logs `[csp]` mostrarem
+ * que dá para ligar sem quebrar nada.
+ */
+const CSP_ATIVA = ["object-src 'none'", "base-uri 'self'", "frame-ancestors 'none'", "form-action 'self'"].join("; ");
+
+/**
  * Cabeçalhos de segurança.
  *
  * A Permissions-Policy declara `self` para câmera, microfone e captura de tela:
@@ -125,6 +144,7 @@ const CSP_RELATORIO = [
  * efeito prático é barrar iframe de terceiro de pedir esses recursos.
  */
 export function cabecalhosDeSeguranca(_req: Request, res: Response, next: NextFunction) {
+  res.setHeader("Content-Security-Policy", CSP_ATIVA);
   res.setHeader("Content-Security-Policy-Report-Only", CSP_RELATORIO);
   res.setHeader(
     "Permissions-Policy",
