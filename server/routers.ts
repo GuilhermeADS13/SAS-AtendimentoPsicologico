@@ -13,6 +13,7 @@ import { sendEmail } from "./mailer";
 import { gerarLinkDeCadastro, gerarLinkDeRecuperacao, trocarEmailSupabase } from "./supabaseAdmin";
 import { PASSWORD_MAX_LENGTH, validatePassword } from "../shared/passwordPolicy";
 import { CRP_REGEX } from "../shared/crp";
+import { faixaDoHibp, MENSAGEM_SENHA_VAZADA, PREFIXO_HIBP, senhaVazada } from "../shared/senhaVazada";
 import { emailComMarca } from "./emailLayout";
 import { identificarCliente } from "./_core/seguranca";
 import { randomInt, createHash } from "node:crypto";
@@ -730,6 +731,8 @@ export const appRouter = router({
         // A política de senha agora vale de verdade (antes era só o formulário).
         const erroSenha = validatePassword(input.senha);
         if (erroSenha) throw new Error(erroSenha);
+        // Senha já vazada na internet (HIBP, por k-anonimato — ver shared/senhaVazada).
+        if (await senhaVazada(input.senha)) throw new Error(MENSAGEM_SENHA_VAZADA);
         if (!podeEnviarRecuperacao(`cadastro:${input.email}`, identificarCliente(ctx.req))) return { ok: true } as const;
         if (!dentroDoLimite("cadastro:global", 30, 10 * 60_000)) return { ok: true } as const;
 
@@ -755,6 +758,16 @@ export const appRouter = router({
         );
         return { ok: true } as const;
       }),
+
+    /**
+     * Faixa do HIBP para a checagem de senha vazada FEITA NO NAVEGADOR (redefinir
+     * e trocar senha vão direto ao Supabase). Recebe só os 5 primeiros caracteres
+     * do hash — nunca a senha — e devolve a lista para o navegador comparar.
+     * Passa pelo servidor para o HIBP não ver o IP de quem está trocando a senha.
+     */
+    faixaDeSenhasVazadas: publicProcedure
+      .input(z.object({ prefixo: z.string().regex(PREFIXO_HIBP) }))
+      .query(({ input }) => faixaDoHibp(input.prefixo)),
 
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);

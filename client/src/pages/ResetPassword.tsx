@@ -8,6 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LogoFull, APP_NAME, APP_TAGLINE } from "@/components/Logo";
 import { getPasswordChecks, validatePassword, PASSWORD_RULE_LABELS } from "@shared/passwordPolicy";
+import { MENSAGEM_SENHA_VAZADA } from "@shared/senhaVazada";
+import { senhaVazadaNoNavegador } from "@/lib/senhaVazada";
+import { trpc } from "@/lib/trpc";
 import { Check, X } from "lucide-react";
 
 /**
@@ -24,6 +27,7 @@ export default function ResetPassword() {
   const [senha, setSenha] = useState("");
   const [salvando, setSalvando] = useState(false);
   const checks = getPasswordChecks(senha);
+  const utils = trpc.useUtils();
 
   useEffect(() => {
     if (!supabase) {
@@ -57,6 +61,11 @@ export default function ResetPassword() {
     }
     setSalvando(true);
     try {
+      // Senha que já vazou na internet (HIBP; a senha não sai do navegador).
+      if (await senhaVazadaNoNavegador(senha, (prefixo) => utils.auth.faixaDeSenhasVazadas.fetch({ prefixo }))) {
+        toast.error(MENSAGEM_SENHA_VAZADA, { duration: 8000 });
+        return;
+      }
       const { error } = await supabase.auth.updateUser({ password: senha });
       if (error) throw error;
       toast.success("Senha redefinida! Entre com a nova senha.");

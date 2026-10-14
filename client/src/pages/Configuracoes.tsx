@@ -22,6 +22,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { getPasswordChecks, validatePassword, PASSWORD_RULE_LABELS } from "@shared/passwordPolicy";
+import { MENSAGEM_SENHA_VAZADA } from "@shared/senhaVazada";
+import { senhaVazadaNoNavegador } from "@/lib/senhaVazada";
 import { Check, X, Mail, KeyRound, Phone, ShieldCheck, Info } from "lucide-react";
 
 /**
@@ -207,6 +209,11 @@ export default function Configuracoes() {
     }
     setSalvandoSenha(true);
     try {
+      // Senha que já vazou na internet (HIBP; a senha não sai do navegador).
+      if (await senhaVazadaNoNavegador(novaSenha, (prefixo) => utils.auth.faixaDeSenhasVazadas.fetch({ prefixo }))) {
+        toast.error(MENSAGEM_SENHA_VAZADA, { duration: 8000 });
+        return;
+      }
       if (!(await conferirSenhaAtual(senhaAtual))) return;
       const { error } = await supabase.auth.updateUser({ password: novaSenha });
       if (error) throw error;
