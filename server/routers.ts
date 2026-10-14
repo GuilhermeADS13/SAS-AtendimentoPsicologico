@@ -47,6 +47,23 @@ import { buscarGifs, gifsConfigurados } from "./gifs";
 const ultimoEnvioPorEmail = new Map<string, number>();
 /** Último pedido de código de troca de e-mail, por conta (ver requestEmailChange). */
 const ultimoPedidoDeTrocaDeEmail = new Map<number, number>();
+
+/**
+ * Contador por janela, em memória: true enquanto `chave` não passou de `maximo`
+ * usos nos últimos `janelaMs`. Para os limites que o limitador por IP não cobre
+ * (por conta, por conversa, global).
+ */
+const usosPorChave = new Map<string, number[]>();
+export function dentroDoLimite(chave: string, maximo: number, janelaMs: number, agora = Date.now()): boolean {
+  const recentes = (usosPorChave.get(chave) ?? []).filter((t) => agora - t < janelaMs);
+  if (recentes.length >= maximo) {
+    usosPorChave.set(chave, recentes);
+    return false;
+  }
+  if (usosPorChave.size > 20_000) usosPorChave.clear();
+  usosPorChave.set(chave, [...recentes, agora]);
+  return true;
+}
 const enviosPorIp = new Map<string, number[]>();
 export function podeEnviarRecuperacao(email: string, ip: string, agora = Date.now()): boolean {
   if (agora - (ultimoEnvioPorEmail.get(email) ?? 0) < 2 * 60_000) return false;
@@ -172,6 +189,11 @@ async function notifyNewChatMessage(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
   part: { therapistId: number; patientId: number; role: "therapist" | "patient" },
 ): Promise<void> {
+  // UM e-mail a cada 15 min por conversa (e por lado), não um por mensagem. Antes
+  // cada mensagem disparava um e-mail: uma conversa normal enchia a caixa da
+  // pessoa, e um laço de mensagens esgotava a cota diária da Brevo em segundos —
+  // derrubando TODOS os e-mails do sistema (senha, lembretes) até o dia seguinte.
+  if (!dentroDoLimite(`aviso-chat:${part.therapistId}:${part.patientId}:${part.role}`, 1, 15 * 60_000)) return;
   const base = process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:3000";
   const link = `${base}/mensagens`;
   if (part.role === "therapist") {
@@ -653,6 +675,10 @@ export const appRouter = router({
       .input(z.object({ email: z.string().trim().toLowerCase().email().max(320) }))
       .mutation(async ({ ctx, input }) => {
         if (!podeEnviarRecuperacao(input.email, identificarCliente(ctx.req))) return { ok: true } as const;
+        // Teto GLOBAL: com muitos IPs, os limites por e-mail/IP não seguram, e a
+        // cota diária da Brevo é pequena — esgotada, ninguém mais recebe e-mail
+        // (nem lembrete de consulta). Uso real de "esqueci a senha" fica muito abaixo.
+        if (!dentroDoLimite("recuperacao:global", 30, 10 * 60_000)) return { ok: true } as const;
         const base = process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:3000";
         const link = await gerarLinkDeRecuperacao(input.email, `${base}/redefinir-senha`);
         if (!link) return { ok: true } as const;
@@ -2872,6 +2898,11 @@ export const appRouter = router({
         const part = await resolverParticipanteChat(db, ctx.user, input.patientId);
         if (!part) throw new Error("Conversa não disponível.");
         if (!input.content && !input.fileKey) throw new Error("Mensagem vazia.");
+        // 30 por minuto por conta: conversa real fica muito abaixo, e um laço não
+        // enche o banco nem a caixa do outro lado.
+        if (!dentroDoLimite(`chat:${ctx.user.id}`, 30, 60_000)) {
+          throw new Error("Muitas mensagens seguidas. Espere um instante.");
+        }
         // Anexo: só um arquivo que o PRÓPRIO remetente subiu (`<uid>/chat/...`, o
         // caminho do uploadChatFile). O outro lado baixa por URL assinada com a
         // service role (chat.attachmentUrl), então um fileKey de terceiro aqui virava

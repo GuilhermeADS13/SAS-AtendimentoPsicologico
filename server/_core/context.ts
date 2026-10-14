@@ -10,6 +10,9 @@ export type TrpcContext = {
   user: User | null;
 };
 
+/** Última sincronização da conta com o token do Supabase (openId → e-mail e quando). */
+const ultimoSincronismo = new Map<string, { email: string | null; quando: number }>();
+
 export async function createContext(
   opts: CreateExpressContextOptions
 ): Promise<TrpcContext> {
@@ -31,13 +34,22 @@ export async function createContext(
         const sbUser = await verifySupabaseToken(token);
         if (sbUser) {
           const openId = `sb:${sbUser.sub}`;
-          await upsertUser({
-            openId,
-            email: sbUser.email ?? null,
-            name: sbUser.name ?? null,
-            loginMethod: "supabase",
-            lastSignedIn: new Date(),
-          });
+          // Gravava no banco a CADA requisição (e o chat consulta a cada 2–5 s):
+          // dobrava a carga do banco e tornava cada chamada mais cara num ataque.
+          // Agora grava na 1ª vez, quando o e-mail muda ou a cada 5 min.
+          const email = sbUser.email ?? null;
+          const anterior = ultimoSincronismo.get(openId);
+          if (!anterior || anterior.email !== email || Date.now() - anterior.quando > 5 * 60_000) {
+            await upsertUser({
+              openId,
+              email,
+              name: sbUser.name ?? null,
+              loginMethod: "supabase",
+              lastSignedIn: new Date(),
+            });
+            if (ultimoSincronismo.size > 5000) ultimoSincronismo.clear();
+            ultimoSincronismo.set(openId, { email, quando: Date.now() });
+          }
           user = (await getUserByOpenId(openId)) ?? null;
         }
       } catch (error) {

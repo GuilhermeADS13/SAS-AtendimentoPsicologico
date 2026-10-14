@@ -17,12 +17,53 @@ import type { NextFunction, Request, Response } from "express";
  * falsificável, o que apenas permitiria escapar do limite — nunca atingir outra
  * pessoa, já que a chave é usada só para contar.
  */
-export function identificarCliente(req: Request): string {
-  const cloudflare = req.get("cf-connecting-ip");
+type PedidoComIp = {
+  get?: (nome: string) => string | undefined;
+  headers?: Record<string, string | string[] | undefined>;
+  socket: { remoteAddress?: string };
+};
+
+/** Lê um cabeçalho tanto do Express (`req.get`) quanto do upgrade de WebSocket (`req.headers`). */
+function cabecalho(req: PedidoComIp, nome: string): string | undefined {
+  if (typeof req.get === "function") return req.get(nome) ?? undefined;
+  const v = req.headers?.[nome];
+  return Array.isArray(v) ? v[0] : v;
+}
+
+export function identificarCliente(req: PedidoComIp): string {
+  const cloudflare = cabecalho(req, "cf-connecting-ip");
   if (cloudflare) return cloudflare.trim();
-  const encaminhado = req.get("x-forwarded-for");
+  const encaminhado = cabecalho(req, "x-forwarded-for");
   if (encaminhado) return encaminhado.split(",")[0]!.trim();
   return req.socket.remoteAddress ?? "desconhecido";
+}
+
+/**
+ * Limite de CONEXÕES NOVAS de WebSocket por IP (vídeo e presença).
+ *
+ * O upgrade de WebSocket não passa pelos middlewares do Express, então o limite
+ * geral da API não vale para ele: sem isto, um IP abria milhares de conexões
+ * (cada uma segura memória até o tempo de autenticação acabar). 30 por minuto
+ * sobra para quem reconecta numa rede ruim.
+ */
+export function limitarConexoes(opcoes: { janelaMs: number; maximo: number }) {
+  const baldes = new Map<string, Janela>();
+  return function podeConectar(req: PedidoComIp): boolean {
+    const agora = Date.now();
+    if (baldes.size > MAXIMO_DE_CLIENTES) {
+      baldes.forEach((janela, chave) => {
+        if (janela.expiraEm <= agora) baldes.delete(chave);
+      });
+    }
+    const chave = identificarCliente(req);
+    const janela = baldes.get(chave);
+    if (!janela || janela.expiraEm <= agora) {
+      baldes.set(chave, { expiraEm: agora + opcoes.janelaMs, usos: 1 });
+      return true;
+    }
+    janela.usos += 1;
+    return janela.usos <= opcoes.maximo;
+  };
 }
 
 /**

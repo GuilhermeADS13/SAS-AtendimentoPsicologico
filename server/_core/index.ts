@@ -10,7 +10,8 @@ import { createContext } from "./context";
 import { getDocumentQueueMetrics, queueMetricsToPrometheus } from "../ai/queue-metrics";
 import { agentRuntimeMetricsToPrometheus } from "../ai/runtime-metrics";
 import { serveStatic, setupVite } from "./vite";
-import { cabecalhosDeSeguranca, ehChamadaDaLuma, limitarRequisicoes } from "./seguranca";
+import { cabecalhosDeSeguranca, ehChamadaDaLuma, limitarConexoes, limitarRequisicoes } from "./seguranca";
+import { ehErroDeBanco } from "./trpc";
 import { rotaDoGif } from "../gifs";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -42,11 +43,18 @@ async function startServer() {
   // (ex.: HMR do Vite em dev) são ignorados de propósito, para outro handler tratar.
   const presenceWss = createPresenceWss();
   const signalingWss = createSignalingWss();
+  // O upgrade não passa pelo limitador do Express: tem o seu (ver seguranca.ts).
+  const podeConectar = limitarConexoes({ janelaMs: 60_000, maximo: 30 });
   server.on("upgrade", (req, socket, head) => {
     let pathname: string;
     try {
       pathname = new URL(req.url || "", "http://localhost").pathname;
     } catch {
+      return;
+    }
+    if ((pathname === PRESENCE_PATH || pathname === SIGNALING_PATH) && !podeConectar(req)) {
+      socket.write("HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\n\r\n");
+      socket.destroy();
       return;
     }
     if (pathname === PRESENCE_PATH) {
@@ -55,6 +63,8 @@ async function startServer() {
       signalingWss.handleUpgrade(req, socket, head, ws => signalingWss.emit("connection", ws, req));
     }
   });
+  // Não anuncia "X-Powered-By: Express": só ajuda quem procura falha conhecida.
+  app.disable("x-powered-by");
   app.use(cabecalhosDeSeguranca);
 
   /**
@@ -72,6 +82,9 @@ async function startServer() {
    */
   app.post(
     "/api/csp-report",
+    // Fica antes do limite geral (é registrada antes dele) e cada chamada escreve
+    // no log: sem limite próprio, dava para inundar o log e a CPU em laço.
+    limitarRequisicoes({ janelaMs: 60_000, maximo: 30, mensagem: "Muitos relatórios." }),
     express.json({ type: "*/*", limit: "16kb" }),
     (req, res) => {
       const relato = (req.body?.["csp-report"] ?? req.body ?? {}) as Record<string, unknown>;
@@ -152,6 +165,18 @@ async function startServer() {
     createExpressMiddleware({
       router: appRouter,
       createContext,
+      // Uma requisição pode pedir VÁRIAS rotas de uma vez (lote), e o limite da
+      // API conta como uma só: sem teto, 1 requisição virava centenas de
+      // consultas ao banco. O cliente divide os lotes no mesmo tamanho (main.tsx).
+      maxBatchSize: 10,
+      // Erro inesperado: registra a ROTA e o tipo, nunca a mensagem inteira — a de
+      // erro de banco traz a consulta e os parâmetros (dado de paciente).
+      onError({ error, path }) {
+        if (error.code === "INTERNAL_SERVER_ERROR" && ehErroDeBanco(error)) {
+          const causa = error.cause as { code?: string; cause?: { code?: string } } | undefined;
+          console.error(`[trpc] erro de banco em ${path ?? "?"} (${causa?.code ?? causa?.cause?.code ?? "sem código"})`);
+        }
+      },
     })
   );
   // development mode uses Vite, production mode uses static files
