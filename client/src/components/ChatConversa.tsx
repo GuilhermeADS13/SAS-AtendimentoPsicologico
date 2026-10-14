@@ -635,8 +635,9 @@ export default function ChatConversa({
         <div ref={fimRef} />
       </div>
 
-      {/* Composer */}
-      <div className="border-t border-border bg-card p-2.5 sm:p-3">
+      {/* Composer (alvo do passo "Mensagens" do tour do paciente: o card inteiro
+          do chat é mais alto que a tela e o destaque não mostrava nada útil). */}
+      <div data-tour="chat-composer" className="border-t border-border bg-card p-2.5 sm:p-3">
         <input
           ref={fileRef}
           type="file"

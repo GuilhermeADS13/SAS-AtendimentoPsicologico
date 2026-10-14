@@ -91,7 +91,9 @@ function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
 
   // "pago"/"paguei"/"custa" ficavam de fora ("pagar" não casa com "pago"), então
   // pergunta de preço caía no tópico de agenda. O `paga\b` evita casar com "página".
-  if (/(pagamento|pagar|pago|paguei|paga\b|cobranca|valor|preco|custa|custo|boleto|pix|nota fiscal|honorario|mensalidade)/.test(normalized)) {
+  // O `\b` NA FRENTE: "apago"/"apagar" contêm "pago"/"pagar", e "como apago uma
+  // mensagem?" recebia a resposta de pagamento.
+  if (/(\bpagamento|\bpagar|\bpago|\bpaguei|\bpaga\b|cobranca|valor|preco|custa|custo|boleto|pix|nota fiscal|honorario|mensalidade)/.test(normalized)) {
     return {
       model: "site-help-local",
       topic: "payments",
@@ -120,18 +122,18 @@ function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
       model: "site-help-local",
       topic: "video",
       content:
-        "Para entrar na consulta, abra “Minhas Consultas” e toque em “Entrar na sala” — o botão fica disponível a partir de 15 minutos antes do horário. Antes de entrar aparece uma tela para conferir câmera e microfone. Dentro da chamada, o botão “Mensagens” abre o chat com a sua psicóloga. O acesso é só para quem participa da consulta.",
+        "Para entrar na consulta, abra “Minhas Consultas” e toque em “Entrar na sala” — o botão fica disponível a partir de 15 minutos antes do horário. Antes de entrar aparece uma tela para conferir câmera e microfone. Dentro da chamada, o botão “Mensagens” abre o chat com a sua psicóloga, e compartilhar a tela funciona no computador. Se a internet cair, a chamada tenta voltar sozinha — espere alguns segundos antes de sair. O acesso é só para quem participa da consulta.",
     };
   }
 
   // `arquivo|anexo` soltos: "como envio um arquivo?" não casava com "enviar
   // arquivo" e caía no menu genérico.
-  if (/(mensagem|mensagens|chat|conversar por texto|falar por escrito|mandar recado|arquivo|anexo|anexar|foto para ela)/.test(normalized)) {
+  if (/(mensagem|mensagens|chat|conversar por texto|falar por escrito|mandar recado|arquivo|anexo|anexar|foto para ela|emoji)/.test(normalized)) {
     return {
       model: "site-help-local",
       topic: "mensagens",
       content:
-        "Para trocar mensagens com a sua psicóloga e enviar arquivos, abra “Mensagens” no menu. Os dois tiques (✓✓) ao lado da sua mensagem mostram que ela já leu, e a lupa busca no histórico da conversa. É o mesmo chat que abre dentro da videochamada, no botão “Mensagens”.",
+        "Para trocar mensagens com a sua psicóloga, enviar arquivos e emojis, abra “Mensagens” no menu. Os dois tiques (✓✓) ao lado da sua mensagem mostram que ela já leu, e a lupa no topo da conversa acha mensagens enquanto você digita. Mandou algo errado? Na setinha ao lado da sua mensagem você edita (até 15 minutos depois) ou apaga para todos (até 2 dias). É o mesmo chat que abre dentro da videochamada, no botão “Mensagens”.",
     };
   }
 

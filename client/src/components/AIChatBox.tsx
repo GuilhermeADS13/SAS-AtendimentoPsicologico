@@ -657,6 +657,10 @@ export function AIChatBox({
         ref={inputAreaRef}
         onSubmit={handleSubmit}
         data-testid="ai-chat-form"
+        // Alvo do passo "Falar comigo" do tour: SÓ o campo de escrever. Antes o
+        // alvo era a seção inteira da Luma, mais alta que a tela, e o recorte do
+        // holofote subia por cima do cabeçalho em vez de mostrar onde escrever.
+        data-tour="luma-composer"
         className="flex items-end gap-2 border-t bg-background/50 p-3 sm:p-4"
       >
         <label htmlFor="luma-chat-input" className="sr-only">Mensagem para {agentName}</label>

@@ -63,14 +63,14 @@ const therapistSteps: Step[] = [
     path: "/mensagens",
     icon: MessageSquare,
     title: "Mensagens",
-    body: "Converse com seus pacientes e troque arquivos. Busque pelo nome, filtre as não lidas e veja ✓✓ quando a pessoa já leu. É o mesmo chat que abre dentro da videochamada.",
+    body: "Converse com seus pacientes, troque arquivos e emojis — o ✓✓ mostra que a pessoa leu. Na lupa da conversa, a busca acha a mensagem enquanto você digita. Errou? A setinha ao lado da sua mensagem edita (até 15 min) ou apaga para todos (até 2 dias).",
     target: '[data-tour="mensagens"]',
   },
   {
     path: "/appointments",
     icon: Calendar,
     title: "Agendar consultas",
-    body: "Marque uma consulta em “Nova Consulta”. A lista mostra as próximas no topo (com o selo “Próxima”), e você pode buscar pelo nome do paciente.",
+    body: "Marque uma consulta em “Nova Consulta”. As próximas ficam no topo (selo “Próxima”) e os filtros acham por nome, situação, pagamento e data. A videochamada abre daqui — e o que você escrever em “Anotações” durante ela pode ir para o prontuário ao encerrar.",
     target: '[data-tour="nova-consulta"]',
   },
   {
@@ -121,8 +121,8 @@ const patientSteps: Step[] = [
     path: "/mensagens",
     icon: MessageSquare,
     title: "Mensagens",
-    body: "Fale com a sua psicóloga e troque arquivos, a qualquer hora. O ✓✓ mostra quando ela já leu. Na videochamada, o botão “Mensagens” abre esta mesma conversa.",
-    target: '[data-tour="mensagens"]',
+    body: "Fale com a sua psicóloga e troque arquivos e emojis, a qualquer hora — o ✓✓ mostra quando ela já leu. A lupa acha mensagens enquanto você digita. Mandou algo errado? A setinha ao lado da sua mensagem edita (até 15 min) ou apaga para todos (até 2 dias).",
+    target: '[data-tour="chat-composer"]',
   },
   {
     path: "/psicologa",
@@ -153,6 +153,20 @@ const patientSteps: Step[] = [
     target: '[data-tour="ajuda"]',
   },
 ];
+
+/**
+ * Topo e altura do recorte, sem nunca subir por cima da barra fixa do topo.
+ *
+ * Alvo colado na barra (Configurações no celular) ou mais alto que a tela (a seção
+ * inteira da Luma) fazia o anel e a área iluminada passarem POR CIMA do cabeçalho:
+ * o holofote parecia "recortado errado". Agora o recorte começa logo abaixo dela.
+ */
+function recorteAbaixoDaBarra(r: { top: number; height: number }): { top: number; height: number } {
+  const barra = document.querySelector("[data-barra-topo]")?.getBoundingClientRect().bottom ?? 0;
+  const topo = Math.max(r.top - 6, barra + 4);
+  const fundo = r.top + r.height + 6;
+  return { top: topo, height: Math.max(0, fundo - topo) };
+}
 
 export default function LumaOnboarding({ role, userId }: { role: Role; userId?: number | string }) {
   const stepKey = userId != null ? `${STEP_PREFIX}${userId}` : null;
@@ -394,9 +408,8 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
           className="pointer-events-none absolute rounded-xl ring-2 ring-primary/80 transition-all duration-200"
           style={{
             left: alvoRect.left - 6,
-            top: alvoRect.top - 6,
+            ...recorteAbaixoDaBarra(alvoRect),
             width: alvoRect.width + 12,
-            height: alvoRect.height + 12,
             boxShadow: "0 0 0 9999px rgba(0,0,0,0.72)",
           }}
         />

@@ -57,8 +57,22 @@ describe("separação de papéis da Luma", () => {
     ["com quem eu estou falando?", "luma"],
     // "compartilhar" sozinho puxava arquivo para o tópico de vídeo; só tela.
     ["quero compartilhar a tela", "video"],
+    // "apago"/"apagar" contêm "pago"/"pagar" e caíam em pagamento.
+    ["como apago uma mensagem que mandei?", "mensagens"],
+    ["da para apagar a mensagem?", "mensagens"],
+    ["ja paguei a consulta?", "payments"],
+    ["tem emoji?", "mensagens"],
   ])("roteia %s para o tópico %s", (pergunta, topico) => {
     expect(answerSiteHelp(pergunta).topic).toBe(topico);
+  });
+
+  // Editar/apagar mensagem (como no WhatsApp) chegou depois do texto de ajuda:
+  // a Luma do paciente precisa saber dos dois e dos prazos.
+  it("explica editar e apagar mensagem, com os prazos", () => {
+    const response = answerSiteHelp("como apago uma mensagem que mandei?");
+    expect(response.content).toMatch(/edita/);
+    expect(response.content).toMatch(/apaga para todos/);
+    expect(response.content).toMatch(/15 minutos/);
   });
 
   // A troca de e-mail passou a exigir CÓDIGO de verificação; o texto do paciente

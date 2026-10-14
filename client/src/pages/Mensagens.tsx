@@ -310,7 +310,7 @@ function MensagensPaciente() {
       />
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
-        <div data-tour="mensagens" className="h-[calc(100dvh-14rem)] min-h-[28rem] overflow-hidden rounded-2xl border bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04)] lg:h-[calc(100dvh-13rem)]">
+        <div className="h-[calc(100dvh-14rem)] min-h-[28rem] overflow-hidden rounded-2xl border bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04)] lg:h-[calc(100dvh-13rem)]">
           <ChatConversa titulo={nome} subtitulo={psi?.crp ? `Psicóloga · CRP ${psi.crp}` : "Sua psicóloga"} fotoUrl={fotoUrl} />
         </div>
 
