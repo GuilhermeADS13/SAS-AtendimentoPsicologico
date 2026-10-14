@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { trpc } from "@/lib/trpc";
@@ -32,8 +32,8 @@ export default function Login() {
   // LGPD: dado de saúde exige consentimento explícito — sem marcar, não cria conta.
   const [aceitouPolitica, setAceitouPolitica] = useState(false);
 
-  const requestTherapist = trpc.me.requestTherapist.useMutation();
   const pedirRecuperacao = trpc.auth.requestPasswordReset.useMutation();
+  const cadastrar = trpc.auth.signUp.useMutation();
 
   const senhaChecks = getPasswordChecks(password);
 
@@ -85,9 +85,13 @@ export default function Login() {
     }
   };
 
+  /**
+   * Cadastro pelo NOSSO servidor, com confirmação de e-mail (ver auth.signUp):
+   * ninguém entra com o e-mail de outra pessoa. A conta só abre depois do clique
+   * no link que chega por e-mail; o pedido de acesso profissional (CRP) sai
+   * sozinho no primeiro login confirmado.
+   */
   const handleSignup = async () => {
-    if (!supabase) return;
-
     const erroSenha = validatePassword(password);
     if (erroSenha) {
       toast.error(erroSenha);
@@ -98,45 +102,51 @@ export default function Login() {
       toast.error("Informe o CRP no formato 06/123456");
       return;
     }
+    if (!aceitouPolitica) {
+      toast.error("Para criar a conta, aceite a Política de Privacidade.");
+      return;
+    }
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { name } },
+      await cadastrar.mutateAsync({
+        email: email.trim().toLowerCase(),
+        senha: password,
+        nome: name.trim(),
+        crp: isPsychologist ? crp.trim() : undefined,
+        aceitouPolitica: true,
       });
-      if (error) throw error;
-
-      if (!data.session) {
-        toast.success("Conta criada! Confirme o e-mail para entrar.");
-        return;
-      }
-
-      // Psicólogo(a): registra a solicitação (o acesso clínico só sai após
-      // aprovação manual — o CRP é público e não prova identidade).
-      if (isPsychologist) {
-        try {
-          await requestTherapist.mutateAsync({ fullName: name, crp: crp.trim() });
-          toast.success(
-            "Solicitação enviada! Seu acesso profissional será liberado após a verificação do CRP.",
-            { duration: 8000 },
-          );
-        } catch (e) {
-          toast.error(
-            e instanceof Error ? e.message : "Conta criada, mas a solicitação falhou.",
-          );
-        }
-      } else {
-        toast.success("Conta criada!");
-      }
-
-      await afterAuth();
+      // Mensagem igual tenha ou não conta (não revela quem está cadastrado).
+      toast.success(
+        `Enviamos um link de confirmação para ${email.trim()}. Abra o e-mail para entrar (confira também o spam). Se você já tem conta, use "Esqueci minha senha".`,
+        { duration: 15000 },
+      );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha no cadastro");
+      toast.error(e instanceof Error && !e.message.startsWith("[") ? e.message : "Não foi possível criar a conta. Confira os dados.");
     } finally {
       setLoading(false);
     }
   };
+
+  // Voltou pelo link de confirmação (/login?confirmado=1#access_token=…): o
+  // Supabase abre a sessão sozinho a partir do endereço; aqui só segue para a área.
+  useEffect(() => {
+    if (!supabase || !new URLSearchParams(window.location.search).has("confirmado")) return;
+    let feito = false;
+    const entrar = () => {
+      if (feito) return;
+      feito = true;
+      toast.success("E-mail confirmado! Bem-vinda ao VozInterior.");
+      void afterAuth();
+    };
+    const { data: sub } = supabase.auth.onAuthStateChange((_evento, sessao) => {
+      if (sessao) entrar();
+    });
+    void supabase.auth.getSession().then(({ data }) => {
+      if (data.session) entrar();
+    });
+    return () => sub.subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background via-background to-secondary/20 p-4">

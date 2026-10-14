@@ -3,6 +3,7 @@ import type { User } from "../../drizzle/schema";
 import { getOrCreateDevUser } from "../devAuth";
 import { verifySupabaseToken } from "../supabaseAuth";
 import { upsertUser, getUserByOpenId } from "../db";
+import { registrarPedidoDoCadastro } from "../pedidoProfissional";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
@@ -39,7 +40,8 @@ export async function createContext(
           // Agora grava na 1ª vez, quando o e-mail muda ou a cada 5 min.
           const email = sbUser.email ?? null;
           const anterior = ultimoSincronismo.get(openId);
-          if (!anterior || anterior.email !== email || Date.now() - anterior.quando > 5 * 60_000) {
+          const sincronizar = !anterior || anterior.email !== email || Date.now() - anterior.quando > 5 * 60_000;
+          if (sincronizar) {
             await upsertUser({
               openId,
               email,
@@ -51,6 +53,14 @@ export async function createContext(
             ultimoSincronismo.set(openId, { email, quando: Date.now() });
           }
           user = (await getUserByOpenId(openId)) ?? null;
+          // Psicóloga que se cadastrou com CRP: o pedido de acesso sai no 1º login
+          // confirmado (ver pedidoProfissional.ts). Junto da sincronização, não a
+          // cada requisição.
+          if (sincronizar && user && sbUser.crpSolicitado) {
+            await registrarPedidoDoCadastro(user, sbUser.crpSolicitado).catch((e) =>
+              console.warn("[TherapistRequest] pedido do cadastro falhou:", e instanceof Error ? e.message : e),
+            );
+          }
         }
       } catch (error) {
         console.warn("[SupabaseAuth] Falha ao validar token:", error);

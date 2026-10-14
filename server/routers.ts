@@ -10,7 +10,9 @@ import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessag
 import { signDocumentUrl, downloadDocumentFile, removeDocumentFile as removeStorageFile } from "./storage";
 import { extractClinicalDocument } from "./ai/document-ingestion";
 import { sendEmail } from "./mailer";
-import { gerarLinkDeRecuperacao, trocarEmailSupabase } from "./supabaseAdmin";
+import { gerarLinkDeCadastro, gerarLinkDeRecuperacao, trocarEmailSupabase } from "./supabaseAdmin";
+import { PASSWORD_MAX_LENGTH, validatePassword } from "../shared/passwordPolicy";
+import { CRP_REGEX } from "../shared/crp";
 import { emailComMarca } from "./emailLayout";
 import { identificarCliente } from "./_core/seguranca";
 import { randomInt, createHash } from "node:crypto";
@@ -700,6 +702,60 @@ export const appRouter = router({
         );
         return { ok: true } as const;
       }),
+    /**
+     * Cadastro com CONFIRMAÇÃO de e-mail pelo NOSSO e-mail (Brevo, com a marca).
+     *
+     * Por que existe: o paciente é ligado à conta PELO E-MAIL. Com o cadastro indo
+     * direto ao Supabase e "Confirm email" desligado, qualquer um criava conta com
+     * o e-mail de um paciente já cadastrado pela psicóloga e virava ele — via
+     * consultas, mensagens e entrava na sala de vídeo. Ligar a confirmação só no
+     * painel não basta: no plano grátis o e-mail padrão do Supabase só chega a quem
+     * é da equipe, e o paciente nunca receberia o link.
+     *
+     * Responde sempre igual (não revela quem já tem conta) e tem limite por
+     * e-mail, por IP e global, como o "esqueci a senha".
+     */
+    signUp: publicProcedure
+      .input(z.object({
+        email: z.string().trim().toLowerCase().email().max(320),
+        senha: z.string().min(1).max(PASSWORD_MAX_LENGTH),
+        nome: z.string().trim().min(2).max(120),
+        // Psicóloga: o pedido de acesso profissional sai no 1º login confirmado
+        // (ver pedidoDeCrpPendente em _core/context.ts).
+        crp: z.string().trim().regex(CRP_REGEX).optional(),
+        // LGPD: dado de saúde exige consentimento explícito.
+        aceitouPolitica: z.literal(true),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // A política de senha agora vale de verdade (antes era só o formulário).
+        const erroSenha = validatePassword(input.senha);
+        if (erroSenha) throw new Error(erroSenha);
+        if (!podeEnviarRecuperacao(`cadastro:${input.email}`, identificarCliente(ctx.req))) return { ok: true } as const;
+        if (!dentroDoLimite("cadastro:global", 30, 10 * 60_000)) return { ok: true } as const;
+
+        const base = process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:3000";
+        const dados: Record<string, string> = { name: input.nome };
+        if (input.crp) dados.crp_solicitado = input.crp;
+        const link = await gerarLinkDeCadastro(input.email, input.senha, dados, `${base}/login?confirmado=1`);
+        // E-mail já cadastrado: não diz isso a quem perguntou. A tela orienta a usar
+        // "Esqueci minha senha" se a pessoa já tiver conta.
+        if (!link) return { ok: true } as const;
+
+        await sendEmail(
+          input.email,
+          "Confirme seu e-mail — VozInterior",
+          emailComMarca({
+            nome: input.nome,
+            titulo: "Confirme seu e-mail",
+            corpo: `<p style="margin:0 0 12px">Falta só um passo para criar sua conta no VozInterior: confirme que este e-mail é seu.</p>`,
+            botao: { texto: "Confirmar e entrar", url: link },
+            observacao: "Se não foi você que criou a conta, ignore este e-mail: sem a confirmação, ninguém entra com ele.",
+            base,
+          }),
+        );
+        return { ok: true } as const;
+      }),
+
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });

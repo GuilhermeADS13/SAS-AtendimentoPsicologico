@@ -31,6 +31,33 @@ export async function gerarLinkDeRecuperacao(email: string, redirectTo: string):
   return data.properties?.action_link ?? null;
 }
 
+/**
+ * Cria a conta (ainda NÃO confirmada) e devolve o link de confirmação, para o
+ * e-mail sair pela NOSSA conta (Brevo), com a marca — o e-mail padrão do Supabase,
+ * no plano grátis, só chega a quem é da equipe do projeto.
+ *
+ * Só protege com "Confirm email" LIGADO no painel do Supabase: com ele desligado,
+ * a conta já nasce confirmada e qualquer um entraria com o e-mail de outra pessoa.
+ * Devolve null se o e-mail já tem conta (quem chama não revela isso).
+ */
+export async function gerarLinkDeCadastro(
+  email: string,
+  senha: string,
+  dados: Record<string, string>,
+  redirectTo: string,
+): Promise<string | null> {
+  const client = adminClient();
+  if (!client) throw new Error("Serviço de conta indisponível.");
+  const { data, error } = await client.auth.admin.generateLink({
+    type: "signup",
+    email,
+    password: senha,
+    options: { data: dados, redirectTo },
+  });
+  if (error) return null;
+  return data.properties?.action_link ?? null;
+}
+
 /** Troca o e-mail de um usuário do Supabase (pelo uid), já marcado como confirmado. */
 export async function trocarEmailSupabase(authUid: string, novoEmail: string): Promise<void> {
   const client = adminClient();
