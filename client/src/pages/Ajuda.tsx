@@ -295,7 +295,7 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
     resposta: (
       <ul className="list-disc pl-5 space-y-1">
         <li>
-          Vá em <strong>Agendamentos</strong> e clique em <strong>“Nova Consulta”</strong>
+          Vá em <strong>Agendamentos / Videochamada</strong> e clique em <strong>“Nova Consulta”</strong>
           .
         </li>
         <li>Escolha o paciente, a data, o horário e a duração.</li>
@@ -310,7 +310,7 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
     resposta: (
       <ul className="list-disc pl-5 space-y-1">
         <li>
-          Em <strong>Agendamentos</strong>, na linha da consulta, use o botão{" "}
+          Em <strong>Agendamentos / Videochamada</strong>, na linha da consulta, use o botão{" "}
           <strong>“Entrar na videochamada”</strong>.
         </li>
         <li>

@@ -53,7 +53,7 @@ const therapistMenu = [
   { icon: Users, label: "Pacientes / Prontuários", path: "/records" },
   { icon: MessageSquare, label: "Mensagens", path: "/mensagens" },
   { icon: LumaOwlIcon, label: "Luma — Assistente IA", path: "/luma" },
-  { icon: Calendar, label: "Agendamentos", path: "/appointments" },
+  { icon: Calendar, label: "Agendamentos / Videochamada", path: "/appointments" },
   { icon: Wallet, label: "Financeiro", path: "/financeiro" },
   { icon: UserRound, label: "Perfil", path: "/profile" },
   // Configurações é separada do Perfil de propósito: lá ficam os dados que os
