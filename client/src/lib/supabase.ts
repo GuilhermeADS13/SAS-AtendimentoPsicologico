@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { problemaNoArquivo } from "@shared/arquivosPermitidos";
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
@@ -19,6 +20,25 @@ export async function getAccessToken(): Promise<string | null> {
 
 const DOCS_BUCKET = "documents";
 
+/**
+ * Confere tipo e tamanho ANTES de subir (a mesma regra está gravada no bucket),
+ * e traduz a recusa do Storage, que vem em inglês.
+ */
+function exigirArquivoPermitido(file: File) {
+  const problema = problemaNoArquivo(file);
+  if (problema) throw new Error(problema);
+}
+function erroDeUpload(error: { message?: string }): Error {
+  const m = (error.message ?? "").toLowerCase();
+  if (m.includes("mime") || m.includes("not supported")) {
+    return new Error(problemaNoArquivo({ type: "x/x", size: 0 }) ?? "Tipo de arquivo não aceito.");
+  }
+  if (m.includes("size") || m.includes("too large") || m.includes("maximum")) {
+    return new Error("Arquivo muito grande (máximo 20 MB).");
+  }
+  return new Error(error.message || "Não foi possível enviar o arquivo.");
+}
+
 /** Faz upload de um documento e devolve o path (fileKey) no Storage. */
 export async function uploadDocumentFile(patientId: number, file: File): Promise<string> {
   if (!supabase) throw new Error("Supabase não configurado.");
@@ -26,10 +46,11 @@ export async function uploadDocumentFile(patientId: number, file: File): Promise
   const uid = userData.user?.id;
   if (!uid) throw new Error("Faça login com Supabase para enviar documentos.");
   // Path namespaced por usuário (a RLS do bucket exige o uid no 1º segmento).
+  exigirArquivoPermitido(file);
   const safeName = file.name.replace(/[^\w.\-]+/g, "_");
   const path = `${uid}/${patientId}/${Date.now()}_${safeName}`;
   const { error } = await supabase.storage.from(DOCS_BUCKET).upload(path, file, { upsert: false });
-  if (error) throw error;
+  if (error) throw erroDeUpload(error);
   return path;
 }
 
@@ -65,10 +86,11 @@ export async function uploadChatFile(file: File): Promise<string> {
   const { data: userData } = await supabase.auth.getUser();
   const uid = userData.user?.id;
   if (!uid) throw new Error("Faça login para enviar arquivos.");
+  exigirArquivoPermitido(file);
   const safeName = file.name.replace(/[^\w.\-]+/g, "_");
   const path = `${uid}/chat/${Date.now()}_${safeName}`;
   const { error } = await supabase.storage.from(DOCS_BUCKET).upload(path, file, { upsert: false });
-  if (error) throw error;
+  if (error) throw erroDeUpload(error);
   return path;
 }
 
@@ -81,10 +103,11 @@ export async function uploadModelFile(file: File): Promise<string> {
   const { data: userData } = await supabase.auth.getUser();
   const uid = userData.user?.id;
   if (!uid) throw new Error("Faça login para enviar arquivos.");
+  exigirArquivoPermitido(file);
   const safeName = file.name.replace(/[^\w.\-]+/g, "_");
   const path = `${uid}/modelo/${Date.now()}_${safeName}`;
   const { error } = await supabase.storage.from(DOCS_BUCKET).upload(path, file, { upsert: false });
-  if (error) throw error;
+  if (error) throw erroDeUpload(error);
   return path;
 }
 
