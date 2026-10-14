@@ -302,6 +302,10 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
         <li>
           A sala de vídeo é criada junto, sozinha — você não precisa preparar nada antes.
         </li>
+        <li>
+          Para ver outra semana ou outro mês, use as setas <strong>‹ ›</strong> no alto da
+          tela. <strong>“Todas”</strong> mostra todas as consultas de uma vez.
+        </li>
       </ul>
     ),
   },
@@ -310,12 +314,8 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
     resposta: (
       <ul className="list-disc pl-5 space-y-1">
         <li>
-          Em <strong>Agendamentos / Videochamada</strong>, na linha da consulta, use o botão{" "}
+          Em <strong>Agendamentos / Videochamada</strong>, na consulta, clique em{" "}
           <strong>“Entrar na videochamada”</strong>.
-        </li>
-        <li>
-          Os botões da linha são <strong>ícones, sem texto</strong>. Passe o mouse por
-          cima para ver o que cada um faz.
         </li>
         <li>
           Entre sempre pela consulta do dia. Cada consulta tem a sua sala — link antigo
@@ -329,16 +329,15 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
     resposta: (
       <ul className="list-disc pl-5 space-y-1">
         <li>
-          Na linha da consulta, o ícone verde do WhatsApp (
-          <strong>“Avisar por WhatsApp”</strong>) abre a conversa com a mensagem já
-          escrita.
+          Na consulta, o botão verde <strong>“Avisar no WhatsApp”</strong> abre a conversa
+          com a mensagem já escrita.
         </li>
         <li>
           <strong>Nada é enviado sozinho</strong>: abre no seu aparelho, você lê, ajusta se
           quiser e envia.
         </li>
         <li>
-          Se o ícone estiver apagado, é porque o paciente está sem telefone no cadastro.
+          Se o botão estiver apagado, é porque o paciente está sem telefone no cadastro.
         </li>
       </ul>
     ),
@@ -348,11 +347,31 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
     resposta: (
       <ul className="list-disc pl-5 space-y-1">
         <li>
-          Na linha da consulta aparece <strong>“✓ Presença confirmada”</strong>.
+          Na consulta aparece <strong>“✓ Presença confirmada”</strong>.
         </li>
         <li>
           Você também recebe o aviso na <strong>sineta</strong>, no alto da tela. Clicando
           nele, o sistema leva direto à consulta.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Como vejo o que recebi e quem não pagou",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Em <strong>Financeiro</strong> aparecem o recebido, o que falta receber e o total
+          previsto. As setas <strong>‹ ›</strong> trocam a semana, o mês ou o ano.
+        </li>
+        <li>
+          Embaixo, <strong>“Quem ainda não pagou”</strong> junta as consultas pendentes de
+          cada paciente. <strong>“Lembrar”</strong> abre o WhatsApp com a mensagem pronta;{" "}
+          <strong>“Marcar pago”</strong> dá baixa.
+        </li>
+        <li>
+          O valor de cada consulta vem do preço padrão do seu <strong>Perfil</strong> e pode
+          ser mudado ao agendar.
         </li>
       </ul>
     ),

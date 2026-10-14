@@ -431,6 +431,9 @@ export default function Appointments() {
           </p>
         </div>
 
+        {/* O tour destaca este bloco inteiro: o texto do passo fala do botão
+            E das setas de período. */}
+        <div className="space-y-6" data-tour="nova-consulta">
         {/* Nova Consulta */}
         <Dialog
           open={isOpen}
@@ -451,7 +454,7 @@ export default function Appointments() {
           }}
         >
           <DialogTrigger asChild>
-            <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground sm:w-auto" data-tour="nova-consulta">
+            <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground sm:w-auto">
               <Plus className="w-4 h-4 mr-2" />
               Nova Consulta
             </Button>
@@ -634,6 +637,7 @@ export default function Appointments() {
               )}
             </div>
           )}
+        </div>
         </div>
 
         {/* Resumo financeiro do período. Só aparece quando há valor a mostrar —
