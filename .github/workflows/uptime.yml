@@ -17,11 +17,12 @@ name: uptime
 # visita espera ~40s na tela "Application loading" — inclusive o paciente clicando
 # no link da consulta no horário marcado.
 #
-# PARA RESOLVER DE VERDADE, uma das duas (nenhuma dá para fazer pelo repositório):
-#   1. Um pinger externo gratuito — cron-job.org ou UptimeRobot — apontando para
-#      https://sas-atendimento-psicologico.onrender.com/ a cada 5 minutos. Esses
-#      serviços executam no horário, diferente do cron do GitHub.
-#   2. O plano pago do Render, que não hiberna.
+# RESOLVIDO em 2026-10-14: quem mantém o Render acordado é o PRÓPRIO SUPABASE
+# (pg_cron + pg_net, migração 0035_acordar_render), que acessa a página inicial a
+# cada 10 minutos — no horário, diferente do cron do GitHub. Para conferir:
+#   select * from cron.job where jobname = 'acordar-render';
+#   select status_code, created from net._http_response order by id desc limit 5;
+# Este workflow fica só como monitoramento (avisa por e-mail se o site cair).
 #
 # Aumentar a frequência do cron aqui não adianta: o gargalo é o GitHub não
 # disparar, não o intervalo pedido.
