@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { LogoFull, APP_NAME, APP_TAGLINE } from "@/components/Logo";
 import { getPasswordChecks, validatePassword, PASSWORD_RULE_LABELS } from "@shared/passwordPolicy";
 import { MENSAGEM_SENHA_VAZADA } from "@shared/senhaVazada";
+import { mensagemDeErroDeAcesso } from "@shared/erroDeAcesso";
 import { senhaVazadaNoNavegador } from "@/lib/senhaVazada";
 import { trpc } from "@/lib/trpc";
 import { Check, X } from "lucide-react";
@@ -72,7 +73,7 @@ export default function ResetPassword() {
       await supabase.auth.signOut();
       setLocation("/login");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível redefinir a senha");
+      toast.error(mensagemDeErroDeAcesso(e, "Não foi possível redefinir a senha. Peça um link novo."));
     } finally {
       setSalvando(false);
     }

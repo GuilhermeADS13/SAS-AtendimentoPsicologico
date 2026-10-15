@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { getPasswordChecks, validatePassword, PASSWORD_RULE_LABELS } from "@shared/passwordPolicy";
 import { MENSAGEM_SENHA_VAZADA } from "@shared/senhaVazada";
+import { mensagemDeErroDeAcesso } from "@shared/erroDeAcesso";
 import { senhaVazadaNoNavegador } from "@/lib/senhaVazada";
 import { Check, X, Mail, KeyRound, Phone, ShieldCheck, Info } from "lucide-react";
 
@@ -222,7 +223,7 @@ export default function Configuracoes() {
       setNovaSenha("");
       setDialogoSenha(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível trocar a senha");
+      toast.error(mensagemDeErroDeAcesso(e, "Não foi possível trocar a senha."));
     } finally {
       setSalvandoSenha(false);
     }

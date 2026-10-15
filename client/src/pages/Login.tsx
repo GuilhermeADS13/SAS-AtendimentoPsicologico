@@ -13,7 +13,8 @@ import {
   validatePassword,
   PASSWORD_RULE_LABELS,
 } from "@shared/passwordPolicy";
-import { Check, X } from "lucide-react";
+import { AlertCircle, Check, X } from "lucide-react";
+import { emailValido, mensagemDeErroDeAcesso } from "@shared/erroDeAcesso";
 import { LogoFull, APP_NAME, APP_TAGLINE } from "@/components/Logo";
 import { maskCrp, isValidCrp } from "@shared/crp";
 
@@ -24,6 +25,24 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
+  // Erros NA TELA, junto do campo (borda vermelha + frase embaixo). Antes era só
+  // um aviso no canto, em inglês ("Invalid login credentials"), e o campo errado
+  // não ficava marcado. `credenciais` = e-mail/senha não conferem: marca os dois.
+  const [erros, setErros] = useState<{ email?: string; senha?: string; geral?: string; credenciais?: boolean }>({});
+  const mudarEmail = (valor: string) => {
+    setEmail(valor);
+    setErros((e) => ({ ...e, email: undefined, geral: undefined, credenciais: false }));
+  };
+  const mudarSenha = (valor: string) => {
+    setPassword(valor);
+    setErros((e) => ({ ...e, senha: undefined, geral: undefined, credenciais: false }));
+  };
+  /** Confere o e-mail antes de ir ao servidor; devolve a frase do erro ou null. */
+  const erroDoEmail = (valor: string) => {
+    if (!valor.trim()) return "Digite seu e-mail.";
+    if (!emailValido(valor)) return "E-mail incompleto. Confira se está assim: nome@gmail.com";
+    return null;
+  };
 
   // Cadastro: paciente (padrão) ou psicólogo(a) — este último vira solicitação
   // pendente com o CRP, aprovada manualmente pelo admin.
@@ -47,14 +66,26 @@ export default function Login() {
 
   const handleLogin = async () => {
     if (!supabase) return;
+    const erroEmail = erroDoEmail(email);
+    const erroSenha = password ? null : "Digite sua senha.";
+    if (erroEmail || erroSenha) {
+      setErros({ email: erroEmail ?? undefined, senha: erroSenha ?? undefined });
+      return;
+    }
+    setErros({});
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) throw error;
       toast.success("Bem-vinda de volta!");
       await afterAuth();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha no login");
+      const codigo = (e as { code?: string }).code;
+      const msg = e instanceof Error ? e.message : "";
+      setErros({
+        geral: mensagemDeErroDeAcesso(e, "Não foi possível entrar. Tente de novo."),
+        credenciais: codigo === "invalid_credentials" || /invalid login credentials/i.test(msg),
+      });
     } finally {
       setLoading(false);
     }
@@ -66,7 +97,12 @@ export default function Login() {
   const handleForgotPassword = async () => {
     const alvo = email.trim().toLowerCase();
     if (!alvo) {
-      toast.error("Digite seu e-mail no campo acima para receber o link.");
+      setErros({ email: "Digite seu e-mail aqui para receber o link." });
+      return;
+    }
+    const erroEmail = erroDoEmail(alvo);
+    if (erroEmail) {
+      setErros({ email: erroEmail });
       return;
     }
     setLoading(true);
@@ -92,6 +128,11 @@ export default function Login() {
    * sozinho no primeiro login confirmado.
    */
   const handleSignup = async () => {
+    const erroEmail = erroDoEmail(email);
+    if (erroEmail) {
+      setErros({ email: erroEmail });
+      return;
+    }
     const erroSenha = validatePassword(password);
     if (erroSenha) {
       toast.error(erroSenha);
@@ -181,15 +222,59 @@ export default function Login() {
               </TabsList>
 
               <TabsContent value="login" className="space-y-4 pt-4">
+                {/* <form>: o Enter em qualquer campo já entra. */}
+                <form
+                  className="space-y-4"
+                  noValidate
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void handleLogin();
+                  }}
+                >
                 <div className="space-y-2">
                   <Label htmlFor="email">E-mail</Label>
-                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => mudarEmail(e.target.value)}
+                    aria-invalid={Boolean(erros.email || erros.credenciais)}
+                    aria-describedby={erros.email ? "email-erro" : undefined}
+                  />
+                  {erros.email && (
+                    <p id="email-erro" className="text-sm text-destructive">
+                      {erros.email}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Senha</Label>
-                  <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                  <Input
+                    id="password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => mudarSenha(e.target.value)}
+                    aria-invalid={Boolean(erros.senha || erros.credenciais)}
+                    aria-describedby={erros.senha ? "senha-erro" : undefined}
+                  />
+                  {erros.senha && (
+                    <p id="senha-erro" className="text-sm text-destructive">
+                      {erros.senha}
+                    </p>
+                  )}
                 </div>
-                <Button onClick={handleLogin} disabled={loading} className="h-11 w-full bg-primary hover:bg-primary/90 sm:h-9">
+                {erros.geral && (
+                  <div
+                    role="alert"
+                    className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
+                  >
+                    <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                    <span>{erros.geral}</span>
+                  </div>
+                )}
+                <Button type="submit" disabled={loading} className="h-11 w-full bg-primary hover:bg-primary/90 sm:h-9">
                   {loading ? "Entrando..." : "Entrar"}
                 </Button>
                 <button
@@ -200,6 +285,7 @@ export default function Login() {
                 >
                   Esqueci minha senha
                 </button>
+                </form>
               </TabsContent>
 
               <TabsContent value="signup" className="space-y-4 pt-4">
@@ -209,7 +295,20 @@ export default function Login() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email-s">E-mail</Label>
-                  <Input id="email-s" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                  <Input
+                    id="email-s"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => mudarEmail(e.target.value)}
+                    aria-invalid={Boolean(erros.email)}
+                    aria-describedby={erros.email ? "email-s-erro" : undefined}
+                  />
+                  {erros.email && (
+                    <p id="email-s-erro" className="text-sm text-destructive">
+                      {erros.email}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password-s">Senha</Label>
