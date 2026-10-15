@@ -13,6 +13,7 @@ import { sendEmail } from "./mailer";
 import { gerarLinkDeCadastro, gerarLinkDeRecuperacao, trocarEmailSupabase } from "./supabaseAdmin";
 import { PASSWORD_MAX_LENGTH, validatePassword } from "../shared/passwordPolicy";
 import { CRP_REGEX } from "../shared/crp";
+import { celularValido, soDigitos } from "../shared/telefone";
 import { faixaDoHibp, MENSAGEM_SENHA_VAZADA, PREFIXO_HIBP, senhaVazada } from "../shared/senhaVazada";
 import { emailComMarca } from "./emailLayout";
 import { identificarCliente } from "./_core/seguranca";
@@ -721,6 +722,10 @@ export const appRouter = router({
         email: z.string().trim().toLowerCase().email().max(320),
         senha: z.string().min(1).max(PASSWORD_MAX_LENGTH),
         nome: z.string().trim().min(2).max(120),
+        // Celular (profissional e paciente): contato e, quando o SMS for ligado,
+        // outro jeito de recuperar o acesso. Vai nos dados da conta — ver
+        // server/telefoneDoCadastro.ts.
+        celular: z.string().trim().max(20).refine(celularValido, "Informe um celular com DDD, por exemplo (81) 99999-0000."),
         // Psicóloga: o pedido de acesso profissional sai no 1º login confirmado
         // (ver pedidoDeCrpPendente em _core/context.ts).
         crp: z.string().trim().regex(CRP_REGEX).optional(),
@@ -737,7 +742,7 @@ export const appRouter = router({
         if (!dentroDoLimite("cadastro:global", 30, 10 * 60_000)) return { ok: true } as const;
 
         const base = process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:3000";
-        const dados: Record<string, string> = { name: input.nome };
+        const dados: Record<string, string> = { name: input.nome, telefone: soDigitos(input.celular) };
         if (input.crp) dados.crp_solicitado = input.crp;
         const link = await gerarLinkDeCadastro(input.email, input.senha, dados, `${base}/login?confirmado=1`);
         // E-mail já cadastrado: não diz isso a quem perguntou. A tela orienta a usar

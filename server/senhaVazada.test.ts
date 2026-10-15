@@ -53,7 +53,7 @@ describe("senha vazada (HIBP)", () => {
       res: {} as TrpcContext["res"],
     });
     await expect(
-      caller.auth.signUp({ email: "vazada@exemplo.com", senha: forte, nome: "Ana Souza", aceitouPolitica: true }),
+      caller.auth.signUp({ email: "vazada@exemplo.com", senha: forte, nome: "Ana Souza", celular: "81999990000", aceitouPolitica: true }),
     ).rejects.toThrow(/vazamentos/);
   });
 });

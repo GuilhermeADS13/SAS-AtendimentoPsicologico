@@ -4,6 +4,7 @@ import { getOrCreateDevUser } from "../devAuth";
 import { verifySupabaseToken } from "../supabaseAuth";
 import { upsertUser, getUserByOpenId } from "../db";
 import { registrarPedidoDoCadastro } from "../pedidoProfissional";
+import { guardarTelefoneDoCadastro } from "../telefoneDoCadastro";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
@@ -59,6 +60,12 @@ export async function createContext(
           if (sincronizar && user && sbUser.crpSolicitado) {
             await registrarPedidoDoCadastro(user, sbUser.crpSolicitado).catch((e) =>
               console.warn("[TherapistRequest] pedido do cadastro falhou:", e instanceof Error ? e.message : e),
+            );
+          }
+          // Celular do cadastro → telefone da ficha/perfil (só se estiver vazio).
+          if (sincronizar && user && sbUser.telefone) {
+            await guardarTelefoneDoCadastro(user, sbUser.telefone).catch((e) =>
+              console.warn("[Cadastro] telefone do cadastro falhou:", e instanceof Error ? e.message : e),
             );
           }
         }

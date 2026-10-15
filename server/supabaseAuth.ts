@@ -32,6 +32,8 @@ export interface SupabaseTokenUser {
   name?: string;
   /** CRP informado no cadastro de psicóloga (vira pedido de acesso no 1º login). */
   crpSolicitado?: string;
+  /** Celular informado no cadastro (só dígitos) — ver telefoneDoCadastro.ts. */
+  telefone?: string;
 }
 
 export async function verifySupabaseToken(
@@ -61,6 +63,7 @@ export async function verifySupabaseToken(
       email: typeof payload.email === "string" ? payload.email : undefined,
       name,
       crpSolicitado: typeof meta.crp_solicitado === "string" ? meta.crp_solicitado : undefined,
+      telefone: typeof meta.telefone === "string" ? meta.telefone : undefined,
     };
   } catch {
     // Token inválido/expirado/assinatura incorreta.

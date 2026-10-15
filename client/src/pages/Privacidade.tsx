@@ -36,7 +36,7 @@ export default function Privacidade() {
               Política de Privacidade
             </h1>
             <p className="text-muted-foreground">
-              VozInterior — Atendimento Psicológico Online · atualizada em setembro de 2026
+              VozInterior — Atendimento Psicológico Online · atualizada em outubro de 2026
             </p>
           </div>
 
@@ -54,8 +54,9 @@ export default function Privacidade() {
             <h2 className="text-lg font-semibold text-foreground">2. Quais dados coletamos</h2>
             <ul className="list-disc pl-5 space-y-1">
               <li>
-                <strong>Conta:</strong> nome, e-mail e senha (a senha é guardada de forma
-                criptografada — nem nós conseguimos lê-la).
+                <strong>Conta:</strong> nome, e-mail, celular e senha (a senha é guardada de
+                forma criptografada — nem nós conseguimos lê-la). O celular serve para
+                contato sobre as consultas e, quando disponível, para recuperar o acesso.
               </li>
               <li>
                 <strong>Cadastro:</strong> telefone, data de nascimento, endereço e

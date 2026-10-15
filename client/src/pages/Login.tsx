@@ -15,6 +15,7 @@ import {
 } from "@shared/passwordPolicy";
 import { AlertCircle, Check, X } from "lucide-react";
 import { emailValido, mensagemDeErroDeAcesso } from "@shared/erroDeAcesso";
+import { celularValido, mascaraTelefone, soDigitos } from "@shared/telefone";
 import { LogoFull, APP_NAME, APP_TAGLINE } from "@/components/Logo";
 import { maskCrp, isValidCrp } from "@shared/crp";
 
@@ -24,11 +25,14 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  // Celular no cadastro (profissional e paciente): contato e, quando o SMS for
+  // ligado, outro jeito de recuperar o acesso.
+  const [celular, setCelular] = useState("");
   const [loading, setLoading] = useState(false);
   // Erros NA TELA, junto do campo (borda vermelha + frase embaixo). Antes era só
   // um aviso no canto, em inglês ("Invalid login credentials"), e o campo errado
   // não ficava marcado. `credenciais` = e-mail/senha não conferem: marca os dois.
-  const [erros, setErros] = useState<{ email?: string; senha?: string; geral?: string; credenciais?: boolean }>({});
+  const [erros, setErros] = useState<{ email?: string; senha?: string; celular?: string; geral?: string; credenciais?: boolean }>({});
   const mudarEmail = (valor: string) => {
     setEmail(valor);
     setErros((e) => ({ ...e, email: undefined, geral: undefined, credenciais: false }));
@@ -129,8 +133,9 @@ export default function Login() {
    */
   const handleSignup = async () => {
     const erroEmail = erroDoEmail(email);
-    if (erroEmail) {
-      setErros({ email: erroEmail });
+    const erroCelular = celularValido(celular) ? null : "Informe um celular com DDD, por exemplo (81) 99999-0000.";
+    if (erroEmail || erroCelular) {
+      setErros({ email: erroEmail ?? undefined, celular: erroCelular ?? undefined });
       return;
     }
     const erroSenha = validatePassword(password);
@@ -153,6 +158,7 @@ export default function Login() {
         email: email.trim().toLowerCase(),
         senha: password,
         nome: name.trim(),
+        celular: soDigitos(celular),
         crp: isPsychologist ? crp.trim() : undefined,
         aceitouPolitica: true,
       });
@@ -311,6 +317,32 @@ export default function Login() {
                   )}
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="celular-s">Celular (com DDD)</Label>
+                  <Input
+                    id="celular-s"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel-national"
+                    placeholder="(81) 99999-0000"
+                    value={celular}
+                    onChange={(e) => {
+                      setCelular(mascaraTelefone(e.target.value));
+                      setErros((er) => ({ ...er, celular: undefined }));
+                    }}
+                    aria-invalid={Boolean(erros.celular)}
+                    aria-describedby={erros.celular ? "celular-s-erro" : "celular-s-dica"}
+                  />
+                  {erros.celular ? (
+                    <p id="celular-s-erro" className="text-sm text-destructive">
+                      {erros.celular}
+                    </p>
+                  ) : (
+                    <p id="celular-s-dica" className="text-xs text-muted-foreground">
+                      Para contato sobre as consultas e, em breve, para recuperar o acesso pelo celular.
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="password-s">Senha</Label>
                   <Input
                     id="password-s"
@@ -354,7 +386,7 @@ export default function Login() {
                       type="button"
                       variant={isPsychologist ? "outline" : "default"}
                       size="sm"
-                      className="flex-1"
+                      className="h-auto min-h-9 flex-1 whitespace-normal py-2"
                       onClick={() => setIsPsychologist(false)}
                     >
                       Não, sou paciente
@@ -363,7 +395,7 @@ export default function Login() {
                       type="button"
                       variant={isPsychologist ? "default" : "outline"}
                       size="sm"
-                      className="flex-1"
+                      className="h-auto min-h-9 flex-1 whitespace-normal py-2"
                       onClick={() => setIsPsychologist(true)}
                     >
                       Sim, sou psicólogo(a)

@@ -15,7 +15,7 @@ const publico = () =>
     res: {} as TrpcContext["res"],
   });
 
-const valido = { email: "nova@exemplo.com", senha: "Senha@Forte1", nome: "Ana Souza", aceitouPolitica: true as const };
+const valido = { email: "nova@exemplo.com", senha: "Senha@Forte1", nome: "Ana Souza", celular: "81999990000", aceitouPolitica: true as const };
 
 describe("cadastro com confirmação de e-mail", () => {
   it("a política de senha vale NO SERVIDOR (antes era só o formulário)", async () => {
@@ -27,6 +27,13 @@ describe("cadastro com confirmação de e-mail", () => {
     await expect(
       publico().auth.signUp({ ...valido, aceitouPolitica: false as unknown as true }),
     ).rejects.toThrow();
+  });
+
+  it("celular é obrigatório e precisa ser celular com DDD (vale NO SERVIDOR)", async () => {
+    const { celular: _semCelular, ...semCelular } = valido;
+    await expect(publico().auth.signUp(semCelular as typeof valido)).rejects.toThrow();
+    await expect(publico().auth.signUp({ ...valido, celular: "(81) 3333-4444" })).rejects.toThrow(/celular com DDD/);
+    await expect(publico().auth.signUp({ ...valido, celular: "99999-0000" })).rejects.toThrow(/celular com DDD/);
   });
 
   it("CRP fora do formato é recusado", async () => {
