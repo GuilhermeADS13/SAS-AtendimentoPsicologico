@@ -745,9 +745,34 @@ export const appRouter = router({
         const dados: Record<string, string> = { name: input.nome, telefone: soDigitos(input.celular) };
         if (input.crp) dados.crp_solicitado = input.crp;
         const link = await gerarLinkDeCadastro(input.email, input.senha, dados, `${base}/login?confirmado=1`);
-        // E-mail já cadastrado: não diz isso a quem perguntou. A tela orienta a usar
-        // "Esqueci minha senha" se a pessoa já tiver conta.
-        if (!link) return { ok: true } as const;
+        // E-mail já cadastrado: a TELA não diz isso (num site de psicologia, revelaria
+        // a qualquer um que a pessoa faz terapia), mas o DONO do e-mail é avisado, no
+        // próprio e-mail, com o botão de criar nova senha. Antes não recebia nada e
+        // ficava esperando uma confirmação que nunca chegava.
+        if (!link) {
+          const recuperar = await gerarLinkDeRecuperacao(input.email, `${base}/redefinir-senha`);
+          // Sem link de recuperação = não era "já cadastrado" (outro erro): nada a avisar.
+          if (!recuperar) return { ok: true } as const;
+          const db = await getDb();
+          const nome = db
+            ? (await db.select({ name: users.name }).from(users).where(eq(users.email, input.email)).limit(1))[0]?.name ?? null
+            : null;
+          await sendEmail(
+            input.email,
+            "Você já tem conta no VozInterior",
+            emailComMarca({
+              nome,
+              titulo: "Você já tem conta",
+              corpo:
+                `<p style="margin:0 0 12px">Alguém (provavelmente você) tentou criar uma conta nova com este e-mail, mas ele já está cadastrado no VozInterior.</p>` +
+                `<p style="margin:0 0 12px">Para entrar, use sua senha de sempre. Se não lembra a senha, toque no botão para criar uma nova.</p>`,
+              botao: { texto: "Criar nova senha", url: recuperar },
+              observacao: "O link vale por 1 hora e só funciona uma vez. Se não foi você, ignore este e-mail: ninguém entra na sua conta sem a sua senha.",
+              base,
+            }),
+          );
+          return { ok: true } as const;
+        }
 
         await sendEmail(
           input.email,

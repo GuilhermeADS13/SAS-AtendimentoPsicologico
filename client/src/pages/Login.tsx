@@ -32,7 +32,7 @@ export default function Login() {
   // Erros NA TELA, junto do campo (borda vermelha + frase embaixo). Antes era só
   // um aviso no canto, em inglês ("Invalid login credentials"), e o campo errado
   // não ficava marcado. `credenciais` = e-mail/senha não conferem: marca os dois.
-  const [erros, setErros] = useState<{ email?: string; senha?: string; celular?: string; geral?: string; credenciais?: boolean }>({});
+  const [erros, setErros] = useState<{ nome?: string; email?: string; senha?: string; celular?: string; geral?: string; credenciais?: boolean }>({});
   const mudarEmail = (valor: string) => {
     setEmail(valor);
     setErros((e) => ({ ...e, email: undefined, geral: undefined, credenciais: false }));
@@ -132,15 +132,19 @@ export default function Login() {
    * sozinho no primeiro login confirmado.
    */
   const handleSignup = async () => {
+    // Todos os erros de uma vez, cada um embaixo do seu campo.
+    const nome = name.trim();
+    const erroNome = !nome ? "Digite seu nome." : nome.length < 2 ? "Digite seu nome completo." : null;
     const erroEmail = erroDoEmail(email);
     const erroCelular = celularValido(celular) ? null : "Informe um celular com DDD, por exemplo (81) 99999-0000.";
-    if (erroEmail || erroCelular) {
-      setErros({ email: erroEmail ?? undefined, celular: erroCelular ?? undefined });
-      return;
-    }
-    const erroSenha = validatePassword(password);
-    if (erroSenha) {
-      toast.error(erroSenha);
+    const erroSenha = password ? validatePassword(password) : "Crie uma senha.";
+    if (erroNome || erroEmail || erroCelular || erroSenha) {
+      setErros({
+        nome: erroNome ?? undefined,
+        email: erroEmail ?? undefined,
+        celular: erroCelular ?? undefined,
+        senha: erroSenha ?? undefined,
+      });
       return;
     }
 
@@ -162,11 +166,11 @@ export default function Login() {
         crp: isPsychologist ? crp.trim() : undefined,
         aceitouPolitica: true,
       });
-      // Mensagem igual tenha ou não conta (não revela quem está cadastrado).
-      toast.success(
-        `Enviamos um link de confirmação para ${email.trim()}. Abra o e-mail para entrar (confira também o spam). Se você já tem conta, use "Esqueci minha senha".`,
-        { duration: 15000 },
-      );
+      // Mensagem igual tenha ou não conta (não revela quem está cadastrado): quem
+      // já tem conta recebe, no próprio e-mail, o aviso com o "criar nova senha".
+      toast.success(`Enviamos um e-mail para ${email.trim()}. Abra para continuar (confira também o spam).`, {
+        duration: 15000,
+      });
     } catch (e) {
       toast.error(e instanceof Error && !e.message.startsWith("[") ? e.message : "Não foi possível criar a conta. Confira os dados.");
     } finally {
@@ -220,6 +224,8 @@ export default function Login() {
             // padrão do app no desktop (sm:).
             <Tabs
               defaultValue="login"
+              // As duas abas dividem e-mail/senha: o erro de uma não pode aparecer na outra.
+              onValueChange={() => setErros({})}
               className="w-full [&_button[data-slot=tabs-trigger]]:h-10 [&_input]:h-11 sm:[&_button[data-slot=tabs-trigger]]:h-9 sm:[&_input]:h-9"
             >
               <TabsList className="grid h-auto w-full grid-cols-2">
@@ -297,7 +303,22 @@ export default function Login() {
               <TabsContent value="signup" className="space-y-4 pt-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Nome</Label>
-                  <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+                  <Input
+                    id="name"
+                    autoComplete="name"
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      setErros((er) => ({ ...er, nome: undefined }));
+                    }}
+                    aria-invalid={Boolean(erros.nome)}
+                    aria-describedby={erros.nome ? "name-erro" : undefined}
+                  />
+                  {erros.nome && (
+                    <p id="name-erro" className="text-sm text-destructive">
+                      {erros.nome}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email-s">E-mail</Label>
@@ -330,15 +351,11 @@ export default function Login() {
                       setErros((er) => ({ ...er, celular: undefined }));
                     }}
                     aria-invalid={Boolean(erros.celular)}
-                    aria-describedby={erros.celular ? "celular-s-erro" : "celular-s-dica"}
+                    aria-describedby={erros.celular ? "celular-s-erro" : undefined}
                   />
-                  {erros.celular ? (
+                  {erros.celular && (
                     <p id="celular-s-erro" className="text-sm text-destructive">
                       {erros.celular}
-                    </p>
-                  ) : (
-                    <p id="celular-s-dica" className="text-xs text-muted-foreground">
-                      Para contato sobre as consultas e, em breve, para recuperar o acesso pelo celular.
                     </p>
                   )}
                 </div>
@@ -347,9 +364,17 @@ export default function Login() {
                   <Input
                     id="password-s"
                     type="password"
+                    autoComplete="new-password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => mudarSenha(e.target.value)}
+                    aria-invalid={Boolean(erros.senha)}
+                    aria-describedby={erros.senha ? "password-s-erro" : undefined}
                   />
+                  {erros.senha && (
+                    <p id="password-s-erro" className="text-sm text-destructive">
+                      {erros.senha}
+                    </p>
+                  )}
                   {/* Requisitos visíveis enquanto digita: errar e só descobrir
                       no "Criar conta" é o que faz a pessoa desistir. */}
                   {password.length > 0 && (
