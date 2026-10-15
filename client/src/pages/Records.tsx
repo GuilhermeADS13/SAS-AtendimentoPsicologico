@@ -120,6 +120,10 @@ export default function Records() {
   const [modelosOpen, setModelosOpen] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
   const [tentouEnviar, setTentouEnviar] = useState(false);
+  // E-mail que o servidor recusou por já ser de um paciente dela: o erro vai para
+  // baixo do campo (era só um aviso no canto). Aqui pode dizer "já existe" —
+  // são os pacientes da própria psicóloga, não revela nada a terceiros.
+  const [emailEmUso, setEmailEmUso] = useState("");
   // Avanca sozinho: sem isto, "ha 3 semanas" e a classificacao ultima/proxima
   // congelam no momento em que a aba abriu. O Dashboard ja fazia assim.
   const relogio = useAgora();
@@ -132,7 +136,10 @@ export default function Records() {
       setIsOpen(false);
       toast.success("Paciente cadastrado. Quando ele criar a conta com esse e-mail, o acesso é liberado.");
     },
-    onError: (e) => toast.error(e.message || "Erro ao cadastrar paciente"),
+    onError: (e, vars) => {
+      if (/já existe um paciente/i.test(e.message)) setEmailEmUso(vars.email.trim().toLowerCase());
+      else toast.error(e.message || "Erro ao cadastrar paciente");
+    },
   });
 
   // Paciente a excluir (o AlertDialog abre com ele).
@@ -220,7 +227,9 @@ export default function Records() {
       ? "Informe o e-mail."
       : !EMAIL_VALIDO.test(formData.email.trim())
         ? "E-mail inválido."
-        : "",
+        : emailEmUso && formData.email.trim().toLowerCase() === emailEmUso
+          ? "Já existe um paciente seu com esse e-mail. Procure-o na lista."
+          : "",
     phone:
       formData.phone && formData.phone.replace(/\D/g, "").length < 10 ? "Telefone incompleto (DDD + número)." : "",
   };
