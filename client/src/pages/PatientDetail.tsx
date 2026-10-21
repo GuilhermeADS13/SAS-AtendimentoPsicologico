@@ -746,7 +746,12 @@ export default function PatientDetail() {
 
           {/* Evolução — linha do tempo das sessões (um cartão por momento). */}
           <TabsContent value="evolucao">
-            <LinhaDoTempoEvolucao patientId={patientId} sessoes={patientSessions} aoNovaSessao={() => setIsSessionOpen(true)} />
+            <LinhaDoTempoEvolucao
+              patientId={patientId}
+              frequencia={patient.frequencia}
+              sessoes={patientSessions}
+              aoNovaSessao={() => setIsSessionOpen(true)}
+            />
           </TabsContent>
 
           {/* Documents Tab — upload/lista via Supabase Storage */}

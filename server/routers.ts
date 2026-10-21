@@ -15,6 +15,7 @@ import { PASSWORD_MAX_LENGTH, validatePassword } from "../shared/passwordPolicy"
 import { CRP_REGEX } from "../shared/crp";
 import { celularValido, soDigitos } from "../shared/telefone";
 import { FASES_VALORES } from "../shared/evolucao";
+import { FREQUENCIA_REGEX } from "../shared/frequencia";
 import { faixaDoHibp, MENSAGEM_SENHA_VAZADA, PREFIXO_HIBP, senhaVazada } from "../shared/senhaVazada";
 import { emailComMarca } from "./emailLayout";
 import { identificarCliente } from "./_core/seguranca";
@@ -1756,6 +1757,35 @@ export const appRouter = router({
           .limit(1);
 
         return rows[0] ?? null;
+      }),
+
+    /**
+     * Frequência do atendimento escolhida pela psicóloga (aba "Evolução"):
+     * "semanal" | "quinzenal" | "mensal" | "dias:2,4", ou null para voltar ao
+     * cálculo pelas sessões. Ver shared/frequencia.ts.
+     */
+    definirFrequencia: therapistProcedure
+      .input(z.object({
+        patientId: z.number().int(),
+        frequencia: z.string().regex(FREQUENCIA_REGEX).nullable(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const therapist = await db
+          .select({ id: therapists.id })
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+        if (!therapist.length) throw new Error("Therapist not found");
+        // therapistId no WHERE: só o paciente dela.
+        const atualizados = await db
+          .update(patients)
+          .set({ frequencia: input.frequencia })
+          .where(and(eq(patients.id, input.patientId), eq(patients.therapistId, therapist[0].id)))
+          .returning({ id: patients.id });
+        if (!atualizados.length) throw new Error("Paciente não encontrado.");
+        return { ok: true } as const;
       }),
 
     // Edita os dados de um paciente do terapeuta logado.

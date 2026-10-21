@@ -4,6 +4,8 @@ import { Award, CalendarDays, ChevronDown, ChevronUp, Clock, Flag, Layers, Plus,
 import { trpc } from "@/lib/trpc";
 import { ClassificacaoDaSessao, type Classificacao } from "@/components/ClassificacaoDaSessao";
 import { GraficoDeHumor } from "@/components/GraficoDeHumor";
+import { EscolherFrequencia } from "@/components/EscolherFrequencia";
+import { descreverFrequencia, lerFrequencia } from "@shared/frequencia";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -64,13 +66,17 @@ function Destacado({ texto, termos }: { texto: string; termos: string[] }) {
  */
 export function LinhaDoTempoEvolucao({
   patientId,
+  frequencia,
   sessoes,
   aoNovaSessao,
 }: {
   patientId: number;
+  /** A escolhida pela psicóloga (patients.frequencia); sem ela, calculada pelas sessões. */
+  frequencia: string | null | undefined;
   sessoes: readonly SessaoDaEvolucao[];
   aoNovaSessao: () => void;
 }) {
+  const frequenciaDefinida = lerFrequencia(frequencia);
   const utils = trpc.useUtils();
   // Sessão sendo classificada (humor/fase) e o rascunho dela.
   const [classificando, setClassificando] = useState<{ id: number; valor: Classificacao } | null>(null);
@@ -145,21 +151,24 @@ export function LinhaDoTempoEvolucao({
               {
                 icone: Repeat,
                 rotulo: "Frequência",
-                valor: resumo.frequencia ?? "—",
-                nota: resumo.frequencia ? "intervalo mais comum" : "a partir da 2ª sessão",
+                // A escolhida pela psicóloga vale mais que a calculada pelas sessões.
+                valor: frequenciaDefinida ? descreverFrequencia(frequenciaDefinida) : (resumo.frequencia ?? "—"),
+                nota: "",
+                acao: <EscolherFrequencia patientId={patientId} atual={frequencia} />,
               },
               { icone: Clock, rotulo: "Última sessão", valor: formatarData(resumo.ultima), nota: "" },
-            ].map(({ icone: Icone, rotulo, valor, nota }) => (
+            ].map(({ icone: Icone, rotulo, valor, nota, acao }) => (
               <Card key={rotulo}>
                 <CardContent className="flex items-start gap-3">
                   <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                     <Icone className="size-4" aria-hidden />
                   </span>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs text-muted-foreground">{rotulo}</p>
                     {/* text-sm no celular: com text-base a data quebrava no meio ("14/10/202" / "6"). */}
                     <p className="text-sm font-semibold text-foreground first-letter:uppercase sm:text-base">{valor}</p>
                     {nota && <p className="text-xs text-muted-foreground">{nota}</p>}
+                    {acao}
                   </div>
                 </CardContent>
               </Card>

@@ -191,6 +191,9 @@ export const patients = pgTable("patients", {
   /** Path da foto no bucket `avatars`. Opcional — o paciente põe se quiser. */
   photoKey: text("photoKey"),
   medicalHistory: text("medicalHistory"),
+  /** Frequência do atendimento definida pela psicóloga (ver shared/frequencia.ts):
+   *  "semanal" | "quinzenal" | "mensal" | "dias:2,4". Nula = calculada pelas sessões. */
+  frequencia: varchar("frequencia", { length: 40 }),
   emergencyContact: varchar("emergencyContact", { length: 128 }),
   emergencyPhone: varchar("emergencyPhone", { length: 20 }),
   /** Responsável legal, para pacientes menores de 18 (LGPD art. 14). Preenchido

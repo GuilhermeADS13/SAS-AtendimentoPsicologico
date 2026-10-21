@@ -20,6 +20,12 @@ describe("sessions.classificar", () => {
     ).rejects.toThrow();
   });
 
+  it("frequência fora do formato é recusada", async () => {
+    for (const frequencia of ["diario", "dias:7", "dias:", "semanal; drop table patients"]) {
+      await expect(psicologa().patients.definirFrequencia({ patientId: 1, frequencia })).rejects.toThrow();
+    }
+  });
+
   it("paciente não classifica sessão (só psicóloga)", async () => {
     const paciente = appRouter.createCaller({
       user: { id: 2, role: "user", openId: "y", name: "Ana", email: "a@exemplo.com" } as TrpcContext["user"],
