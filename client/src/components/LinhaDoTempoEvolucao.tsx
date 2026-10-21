@@ -1,5 +1,9 @@
 import { useMemo, useState } from "react";
-import { Award, CalendarDays, ChevronDown, ChevronUp, Clock, Flag, Plus, Repeat, RotateCcw, Search, TrendingUp } from "lucide-react";
+import { toast } from "sonner";
+import { Award, CalendarDays, ChevronDown, ChevronUp, Clock, Flag, Layers, Plus, Repeat, RotateCcw, Search, SlidersHorizontal, TrendingUp } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+import { ClassificacaoDaSessao, type Classificacao } from "@/components/ClassificacaoDaSessao";
+import { GraficoDeHumor } from "@/components/GraficoDeHumor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { formatarData, formatarDataHora, formatarMesAno } from "@shared/datas";
 import { SOAP_CAMPOS } from "@shared/prontuario";
 import { contemTodos, termosDaBusca, trechosDestacados } from "@shared/buscaTexto";
-import { duracaoEmPalavras, momentosDaEvolucao, resumoDaEvolucao, type Marco } from "@shared/evolucao";
+import { duracaoEmPalavras, momentosDaEvolucao, resumoDaEvolucao, rotuloDaFase, type Fase, type Marco } from "@shared/evolucao";
 
 export type SessaoDaEvolucao = {
   id: number;
@@ -20,6 +24,8 @@ export type SessaoDaEvolucao = {
   plan?: string | null;
   treatment?: string | null;
   nextSteps?: string | null;
+  moodScore?: number | null;
+  fase?: string | null;
 };
 
 /** Os textos de uma sessão, na ordem em que aparecem no cartão aberto. */
@@ -32,7 +38,7 @@ function camposDaSessao(s: SessaoDaEvolucao): { rotulo: string | null; texto: st
   ].filter((c) => c.texto.trim());
 }
 
-const ICONE_DO_MARCO: Record<Marco["tipo"], typeof Flag> = { inicio: Flag, retorno: RotateCcw, contagem: Award };
+const ICONE_DO_MARCO: Record<Marco["tipo"], typeof Flag> = { inicio: Flag, retorno: RotateCcw, contagem: Award, fase: Layers };
 
 function Destacado({ texto, termos }: { texto: string; termos: string[] }) {
   return (
@@ -57,12 +63,25 @@ function Destacado({ texto, termos }: { texto: string; termos: string[] }) {
  * gravado; é outra forma de LER as sessões que já existem.
  */
 export function LinhaDoTempoEvolucao({
+  patientId,
   sessoes,
   aoNovaSessao,
 }: {
+  patientId: number;
   sessoes: readonly SessaoDaEvolucao[];
   aoNovaSessao: () => void;
 }) {
+  const utils = trpc.useUtils();
+  // Sessão sendo classificada (humor/fase) e o rascunho dela.
+  const [classificando, setClassificando] = useState<{ id: number; valor: Classificacao } | null>(null);
+  const classificar = trpc.sessions.classificar.useMutation({
+    onSuccess: () => {
+      void utils.sessions.getByPatient.invalidate({ patientId });
+      setClassificando(null);
+      toast.success("Sessão classificada.");
+    },
+    onError: (e) => toast.error(e.message || "Não foi possível salvar."),
+  });
   const [busca, setBusca] = useState("");
   const [abertos, setAbertos] = useState<Set<number>>(() => new Set());
   const termos = termosDaBusca(busca);
@@ -138,13 +157,23 @@ export function LinhaDoTempoEvolucao({
                   </span>
                   <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">{rotulo}</p>
-                    <p className="break-words text-base font-semibold text-foreground first-letter:uppercase">{valor}</p>
+                    {/* text-sm no celular: com text-base a data quebrava no meio ("14/10/202" / "6"). */}
+                    <p className="text-sm font-semibold text-foreground first-letter:uppercase sm:text-base">{valor}</p>
                     {nota && <p className="text-xs text-muted-foreground">{nota}</p>}
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
+
+          <GraficoDeHumor
+            pontos={momentos.map((m) => ({
+              numero: m.numero,
+              moodScore: m.sessao.moodScore ?? null,
+              startedAt: m.sessao.startedAt,
+              fase: m.fase,
+            }))}
+          />
 
           {/* Busca nas evoluções */}
           <div className="space-y-1.5">
@@ -203,9 +232,19 @@ export function LinhaDoTempoEvolucao({
                                     : `${m.diasDesdeAnterior} ${m.diasDesdeAnterior === 1 ? "dia" : "dias"} após a anterior`}
                                 </span>
                               )}
+                              {m.sessao.moodScore != null && (
+                                <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium tabular-nums text-secondary-foreground">
+                                  Humor {m.sessao.moodScore}/10
+                                </span>
+                              )}
                               {m.sessao.mood && (
                                 <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">
                                   Humor: <Destacado texto={m.sessao.mood} termos={termos} />
+                                </span>
+                              )}
+                              {m.fase && (
+                                <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
+                                  {rotuloDaFase(m.fase)}
                                 </span>
                               )}
                             </div>
@@ -245,23 +284,66 @@ export function LinhaDoTempoEvolucao({
                               </p>
                             )}
 
-                            {campos.length > 0 && termos.length === 0 && (
-                              <button
-                                type="button"
-                                onClick={() => alternar(m.sessao.id)}
-                                aria-expanded={aberto}
-                                className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-                              >
-                                {aberto ? (
-                                  <>
-                                    <ChevronUp className="size-4" aria-hidden /> Mostrar menos
-                                  </>
-                                ) : (
-                                  <>
-                                    <ChevronDown className="size-4" aria-hidden /> Ver evolução completa
-                                  </>
+                            {classificando?.id === m.sessao.id ? (
+                              <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
+                                <ClassificacaoDaSessao
+                                  idBase={`classificar-${m.sessao.id}`}
+                                  valor={classificando.valor}
+                                  aoMudar={(valor) => setClassificando({ id: m.sessao.id, valor })}
+                                />
+                                <div className="flex justify-end gap-2">
+                                  <Button variant="ghost" size="sm" onClick={() => setClassificando(null)}>
+                                    Cancelar
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    disabled={classificar.isPending}
+                                    onClick={() =>
+                                      classificar.mutate({
+                                        sessionId: m.sessao.id,
+                                        moodScore: classificando.valor.moodScore,
+                                        fase: classificando.valor.fase,
+                                      })
+                                    }
+                                  >
+                                    {classificar.isPending ? "Salvando..." : "Salvar"}
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                                {campos.length > 0 && termos.length === 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => alternar(m.sessao.id)}
+                                    aria-expanded={aberto}
+                                    className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                                  >
+                                    {aberto ? (
+                                      <>
+                                        <ChevronUp className="size-4" aria-hidden /> Mostrar menos
+                                      </>
+                                    ) : (
+                                      <>
+                                        <ChevronDown className="size-4" aria-hidden /> Ver evolução completa
+                                      </>
+                                    )}
+                                  </button>
                                 )}
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setClassificando({
+                                      id: m.sessao.id,
+                                      // A fase MARCADA nesta sessão (não a herdada): é o que se edita.
+                                      valor: { moodScore: m.sessao.moodScore ?? null, fase: (rotuloDaFase(m.sessao.fase) ? m.sessao.fase : null) as Fase | null },
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground hover:underline"
+                                >
+                                  <SlidersHorizontal className="size-4" aria-hidden /> Classificar
+                                </button>
+                              </div>
                             )}
                           </CardContent>
                         </Card>

@@ -14,6 +14,7 @@ import { gerarLinkDeCadastro, gerarLinkDeRecuperacao, trocarEmailSupabase } from
 import { PASSWORD_MAX_LENGTH, validatePassword } from "../shared/passwordPolicy";
 import { CRP_REGEX } from "../shared/crp";
 import { celularValido, soDigitos } from "../shared/telefone";
+import { FASES_VALORES } from "../shared/evolucao";
 import { faixaDoHibp, MENSAGEM_SENHA_VAZADA, PREFIXO_HIBP, senhaVazada } from "../shared/senhaVazada";
 import { emailComMarca } from "./emailLayout";
 import { identificarCliente } from "./_core/seguranca";
@@ -2229,17 +2230,20 @@ export const appRouter = router({
         objective: z.string().optional(),
         assessment: z.string().optional(),
         plan: z.string().optional(),
+        // Aba "Evolução" (0037): humor 0–10 e fase do tratamento.
+        moodScore: z.number().int().min(0).max(10).optional(),
+        fase: z.enum(FASES_VALORES).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new Error("Database not available");
-        
+
         const therapist = await db
           .select()
           .from(therapists)
           .where(eq(therapists.userId, ctx.user.id))
           .limit(1);
-        
+
         if (!therapist.length) throw new Error("Therapist not found");
 
         // Ensure the patient belongs to this therapist before recording a session.
@@ -2265,7 +2269,39 @@ export const appRouter = router({
           objective: input.objective,
           assessment: input.assessment,
           plan: input.plan,
+          moodScore: input.moodScore,
+          fase: input.fase,
         });
+      }),
+
+    /**
+     * Humor (0–10) e fase de uma sessão JÁ registrada, pela aba "Evolução".
+     * Só essas duas classificações: o texto clínico da sessão não muda por aqui
+     * (o registro do que aconteceu não se reescreve). null limpa o campo.
+     */
+    classificar: therapistProcedure
+      .input(z.object({
+        sessionId: z.number().int(),
+        moodScore: z.number().int().min(0).max(10).nullable(),
+        fase: z.enum(FASES_VALORES).nullable(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const therapist = await db
+          .select({ id: therapists.id })
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+        if (!therapist.length) throw new Error("Therapist not found");
+        // therapistId no WHERE: uma psicóloga não classifica sessão de outra.
+        const atualizadas = await db
+          .update(sessions)
+          .set({ moodScore: input.moodScore, fase: input.fase })
+          .where(and(eq(sessions.id, input.sessionId), eq(sessions.therapistId, therapist[0].id)))
+          .returning({ id: sessions.id });
+        if (!atualizadas.length) throw new Error("Sessão não encontrada.");
+        return { ok: true } as const;
       }),
   }),
 

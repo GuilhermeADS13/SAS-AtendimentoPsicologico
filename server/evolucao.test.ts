@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { duracaoEmPalavras, frequenciaDasSessoes, momentosDaEvolucao, resumoDaEvolucao } from "@shared/evolucao";
+import { duracaoEmPalavras, faixasDeFase, frequenciaDasSessoes, momentosDaEvolucao, resumoDaEvolucao } from "@shared/evolucao";
 
 // 14h em Brasília = 17h UTC.
 const s = (id: number, dia: string) => ({ id, startedAt: `${dia}T17:00:00.000Z` });
@@ -26,6 +26,40 @@ describe("momentosDaEvolucao", () => {
   it("separa por mês no horário de Brasília (23h do dia 31 ainda é o mês dele)", () => {
     const m = momentosDaEvolucao([{ id: 1, startedAt: "2026-02-01T02:00:00.000Z" }]); // 31/01 23h em Brasília
     expect(m[0].mes).toBe("2026-01");
+  });
+});
+
+describe("fases do tratamento", () => {
+  it("a fase marcada vale para as sessões seguintes, e cada troca vira marco", () => {
+    const m = momentosDaEvolucao([
+      { ...s(1, "2026-03-01"), fase: "avaliacao" },
+      { ...s(2, "2026-03-08"), fase: null },
+      { ...s(3, "2026-03-15"), fase: "intervencao" },
+      { ...s(4, "2026-03-22"), fase: "intervencao" }, // marcar de novo a mesma fase não é marco
+    ]).reverse();
+    expect(m.map((x) => x.fase)).toEqual(["avaliacao", "avaliacao", "intervencao", "intervencao"]);
+    expect(m[0].marcos.map((x) => x.texto)).toEqual(["Início do acompanhamento", "Início da avaliação"]);
+    expect(m[2].marcos.map((x) => x.texto)).toEqual(["Início da intervenção"]);
+    expect(m[3].marcos).toEqual([]);
+  });
+
+  it("valor fora da lista é ignorado (não vira fase nem marco)", () => {
+    const m = momentosDaEvolucao([{ ...s(1, "2026-03-01"), fase: "qualquer" }]);
+    expect(m[0].fase).toBeNull();
+  });
+
+  it("faixas seguidas por fase, para o fundo do gráfico", () => {
+    expect(
+      faixasDeFase([
+        { numero: 1, fase: null },
+        { numero: 2, fase: "avaliacao" },
+        { numero: 3, fase: "avaliacao" },
+        { numero: 4, fase: "intervencao" },
+      ]),
+    ).toEqual([
+      { fase: "avaliacao", de: 2, ate: 3 },
+      { fase: "intervencao", de: 4, ate: 4 },
+    ]);
   });
 });
 

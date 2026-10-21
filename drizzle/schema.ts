@@ -1,4 +1,4 @@
-import { boolean, customType, index, integer, jsonb, pgEnum, pgTable, serial, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
+import { boolean, customType, index, integer, jsonb, pgEnum, pgTable, serial, smallint, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import type { AnamneseData, TcleData, NoteTemplate } from "../shared/prontuario";
 
@@ -283,6 +283,12 @@ export const sessions = pgTable("sessions", {
   objective: text("objective"),
   assessment: text("assessment"),
   plan: text("plan"),
+  /** Humor de 0 (muito mal) a 10 (muito bem), na leitura da psicóloga — o gráfico
+   *  da aba "Evolução". Nulo = não avaliado (migração 0037). */
+  moodScore: smallint("moodScore"),
+  /** Fase do tratamento a partir desta sessão (ver FASES em shared/evolucao.ts).
+   *  Nula = continua a fase anterior. */
+  fase: varchar("fase", { length: 20 }),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
     .defaultNow()

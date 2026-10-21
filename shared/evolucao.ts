@@ -10,9 +10,21 @@ import { partesEmBrasilia } from "./datas";
  * existem — nenhum dado novo é gravado.
  */
 
-export type SessaoBase = { id: number; startedAt: Date | string };
+/** Fases do tratamento, em ordem. O valor é o que o banco guarda (CHECK na 0037). */
+export const FASES = [
+  { valor: "avaliacao", rotulo: "Avaliação", marco: "Início da avaliação" },
+  { valor: "intervencao", rotulo: "Intervenção", marco: "Início da intervenção" },
+  { valor: "manutencao", rotulo: "Manutenção", marco: "Início da manutenção" },
+  { valor: "encerramento", rotulo: "Encerramento", marco: "Início do encerramento" },
+] as const;
+export type Fase = (typeof FASES)[number]["valor"];
+export const FASES_VALORES = FASES.map((f) => f.valor) as [Fase, ...Fase[]];
+export const rotuloDaFase = (fase: string | null | undefined) => FASES.find((f) => f.valor === fase)?.rotulo ?? null;
+const ehFase = (v: unknown): v is Fase => FASES.some((f) => f.valor === v);
 
-export type Marco = { tipo: "inicio" | "retorno" | "contagem"; texto: string };
+export type SessaoBase = { id: number; startedAt: Date | string; fase?: string | null };
+
+export type Marco = { tipo: "inicio" | "retorno" | "contagem" | "fase"; texto: string };
 
 export type MomentoDaEvolucao<S extends SessaoBase> = {
   sessao: S;
@@ -23,6 +35,11 @@ export type MomentoDaEvolucao<S extends SessaoBase> = {
   marcos: Marco[];
   /** "2026-10", no horário de Brasília — para separar por mês. */
   mes: string;
+  /**
+   * Fase em que a sessão está. A psicóloga marca só quando a fase MUDA; as
+   * sessões seguintes continuam nela (marcar sessão por sessão ninguém faria).
+   */
+  fase: Fase | null;
 };
 
 /** A partir de quantos dias sem sessão o retorno vira marco. */
@@ -37,6 +54,7 @@ const diasEntre = (a: Date | string, b: Date | string) =>
 /** Momentos do MAIS RECENTE para o mais antigo (é o que a psicóloga quer ver primeiro). */
 export function momentosDaEvolucao<S extends SessaoBase>(sessoes: readonly S[]): MomentoDaEvolucao<S>[] {
   const ordenadas = [...sessoes].sort((a, b) => instante(a.startedAt) - instante(b.startedAt));
+  let faseAtual: Fase | null = null;
   const momentos = ordenadas.map((sessao, i) => {
     const numero = i + 1;
     const diasDesdeAnterior = i === 0 ? null : diasEntre(ordenadas[i - 1].startedAt, sessao.startedAt);
@@ -46,9 +64,36 @@ export function momentosDaEvolucao<S extends SessaoBase>(sessoes: readonly S[]):
       marcos.push({ tipo: "retorno", texto: `Retorno após ${diasDesdeAnterior} dias sem sessão` });
     }
     if (numero % 10 === 0) marcos.push({ tipo: "contagem", texto: `${numero}ª sessão` });
-    return { sessao, numero, diasDesdeAnterior, marcos, mes: partesEmBrasilia(sessao.startedAt).data.slice(0, 7) };
+    // Fase marcada nesta sessão e DIFERENTE da que vinha: é um marco.
+    if (ehFase(sessao.fase) && sessao.fase !== faseAtual) {
+      faseAtual = sessao.fase;
+      marcos.push({ tipo: "fase", texto: FASES.find((f) => f.valor === faseAtual)!.marco });
+    }
+    return {
+      sessao,
+      numero,
+      diasDesdeAnterior,
+      marcos,
+      mes: partesEmBrasilia(sessao.startedAt).data.slice(0, 7),
+      fase: faseAtual,
+    };
   });
   return momentos.reverse();
+}
+
+/**
+ * Trechos seguidos de sessões na mesma fase (pelo número da sessão), para as
+ * faixas de fundo do gráfico. Sessões antes da primeira fase marcada ficam fora.
+ */
+export function faixasDeFase(momentos: readonly { numero: number; fase: Fase | null }[]): { fase: Fase; de: number; ate: number }[] {
+  const faixas: { fase: Fase; de: number; ate: number }[] = [];
+  for (const m of [...momentos].sort((a, b) => a.numero - b.numero)) {
+    if (!m.fase) continue;
+    const ultima = faixas[faixas.length - 1];
+    if (ultima && ultima.fase === m.fase && ultima.ate === m.numero - 1) ultima.ate = m.numero;
+    else faixas.push({ fase: m.fase, de: m.numero, ate: m.numero });
+  }
+  return faixas;
 }
 
 export type ResumoDaEvolucao = {

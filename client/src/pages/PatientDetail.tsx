@@ -11,6 +11,7 @@ import { exportProntuarioPDF, exportProntuarioDOCX, exportTclePDF } from "@/lib/
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
 import EditorDeAnotacao from "@/components/EditorDeAnotacao";
 import { LinhaDoTempoEvolucao } from "@/components/LinhaDoTempoEvolucao";
+import { ClassificacaoDaSessao, type Classificacao } from "@/components/ClassificacaoDaSessao";
 import {
   ANAMNESE_CAMPOS,
   TCLE_CAMPOS,
@@ -252,10 +253,13 @@ export default function PatientDetail() {
     clinicalNotes: "",
   };
   const [sessionForm, setSessionForm] = useState(sessionFormVazio);
+  // Humor 0–10 e fase da sessão nova (aba "Evolução"); ambos opcionais.
+  const [classificacaoNova, setClassificacaoNova] = useState<Classificacao>({ moodScore: null, fase: null });
   const createSession = trpc.sessions.create.useMutation({
     onSuccess: () => {
       utils.sessions.getByPatient.invalidate({ patientId });
       setSessionForm(sessionFormVazio);
+      setClassificacaoNova({ moodScore: null, fase: null });
       setIsSessionOpen(false);
       toast.success("Sessão registrada!");
     },
@@ -283,6 +287,8 @@ export default function PatientDetail() {
       objective: sessionForm.objective || undefined,
       assessment: sessionForm.assessment || undefined,
       plan: sessionForm.plan || undefined,
+      moodScore: classificacaoNova.moodScore ?? undefined,
+      fase: classificacaoNova.fase ?? undefined,
     });
   };
 
@@ -740,7 +746,7 @@ export default function PatientDetail() {
 
           {/* Evolução — linha do tempo das sessões (um cartão por momento). */}
           <TabsContent value="evolucao">
-            <LinhaDoTempoEvolucao sessoes={patientSessions} aoNovaSessao={() => setIsSessionOpen(true)} />
+            <LinhaDoTempoEvolucao patientId={patientId} sessoes={patientSessions} aoNovaSessao={() => setIsSessionOpen(true)} />
           </TabsContent>
 
           {/* Documents Tab — upload/lista via Supabase Storage */}
@@ -1151,6 +1157,7 @@ export default function PatientDetail() {
                 placeholder="Ex.: Ansioso, Melhorado, Estável..."
               />
             </div>
+            <ClassificacaoDaSessao idBase="nova-sessao" valor={classificacaoNova} aoMudar={setClassificacaoNova} />
             <div className="space-y-2">
               <Label htmlFor="clinicalNotes">Resumo / observações (opcional)</Label>
               {/* O MESMO editor da aba "Anotações" da videochamada: aqui só havia
