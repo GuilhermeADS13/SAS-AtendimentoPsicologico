@@ -462,7 +462,7 @@ export default function PatientDetail() {
       <div className="space-y-6">
         {/* Header */}
         {/* flex-wrap: no celular os botões passavam da tela (rolava para o lado). */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-4" data-tour="prontuario-topo">
           <div className="flex min-w-0 items-center gap-4">
             <Button variant="ghost" onClick={() => setLocation("/records")} className="p-0">
               <ArrowLeft className="w-6 h-6" />
@@ -567,11 +567,11 @@ export default function PatientDetail() {
 
         {/* Tabs */}
         <Tabs defaultValue="info" className="w-full">
-          <TabsList className="grid h-auto w-full grid-cols-3 sm:grid-cols-4 lg:grid-cols-7">
+          <TabsList className="grid h-auto w-full grid-cols-3 sm:grid-cols-4 lg:grid-cols-7" data-tour="prontuario-abas">
             <TabsTrigger value="info">Informações</TabsTrigger>
             <TabsTrigger value="anamnese">Anamnese</TabsTrigger>
             <TabsTrigger value="sessions">Sessões</TabsTrigger>
-            <TabsTrigger value="evolucao">Evolução</TabsTrigger>
+            <TabsTrigger value="evolucao" data-tour="aba-evolucao">Evolução</TabsTrigger>
             <TabsTrigger value="documents">Documentos</TabsTrigger>
             <TabsTrigger value="tcle">TCLE</TabsTrigger>
             <TabsTrigger value="pagamentos">Pagamentos</TabsTrigger>
