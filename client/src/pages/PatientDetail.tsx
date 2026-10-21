@@ -11,6 +11,7 @@ import { exportProntuarioPDF, exportProntuarioDOCX, exportTclePDF } from "@/lib/
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
 import EditorDeAnotacao from "@/components/EditorDeAnotacao";
 import { LinhaDoTempoEvolucao } from "@/components/LinhaDoTempoEvolucao";
+import { ABA_DO_TOUR_EVENT } from "@/components/LumaOnboarding";
 import { ClassificacaoDaSessao, type Classificacao } from "@/components/ClassificacaoDaSessao";
 import {
   ANAMNESE_CAMPOS,
@@ -244,6 +245,16 @@ export default function PatientDetail() {
     { enabled: patientId > 0 },
   );
   const [isSessionOpen, setIsSessionOpen] = useState(false);
+  // Aba aberta. Controlada para o tour da Luma poder abrir cada uma (evento).
+  const [aba, setAba] = useState("info");
+  useEffect(() => {
+    const abrir = (e: Event) => {
+      const valor = (e as CustomEvent<string>).detail;
+      if (typeof valor === "string") setAba(valor);
+    };
+    window.addEventListener(ABA_DO_TOUR_EVENT, abrir);
+    return () => window.removeEventListener(ABA_DO_TOUR_EVENT, abrir);
+  }, []);
   const sessionFormVazio = {
     subjective: "",
     objective: "",
@@ -566,19 +577,19 @@ export default function PatientDetail() {
         )}
 
         {/* Tabs */}
-        <Tabs defaultValue="info" className="w-full">
+        <Tabs value={aba} onValueChange={setAba} className="w-full">
           <TabsList className="grid h-auto w-full grid-cols-3 sm:grid-cols-4 lg:grid-cols-7" data-tour="prontuario-abas">
             <TabsTrigger value="info">Informações</TabsTrigger>
             <TabsTrigger value="anamnese">Anamnese</TabsTrigger>
             <TabsTrigger value="sessions">Sessões</TabsTrigger>
-            <TabsTrigger value="evolucao" data-tour="aba-evolucao">Evolução</TabsTrigger>
+            <TabsTrigger value="evolucao">Evolução</TabsTrigger>
             <TabsTrigger value="documents">Documentos</TabsTrigger>
             <TabsTrigger value="tcle">TCLE</TabsTrigger>
             <TabsTrigger value="pagamentos">Pagamentos</TabsTrigger>
           </TabsList>
 
           {/* Info Tab */}
-          <TabsContent value="info" className="space-y-4">
+          <TabsContent value="info" className="space-y-4" data-tour="aba-info">
             <Card>
               <CardHeader>
                 <CardTitle>Informações Pessoais</CardTitle>
@@ -646,7 +657,7 @@ export default function PatientDetail() {
           </TabsContent>
 
           {/* Anamnese Tab — ficha estruturada da 1ª sessão */}
-          <TabsContent value="anamnese" className="space-y-4">
+          <TabsContent value="anamnese" className="space-y-4" data-tour="aba-anamnese">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold text-foreground">Ficha de Anamnese</h2>
@@ -675,7 +686,7 @@ export default function PatientDetail() {
           </TabsContent>
 
           {/* Sessions Tab — registro e evolução clínica */}
-          <TabsContent value="sessions" className="space-y-4">
+          <TabsContent value="sessions" className="space-y-4" data-tour="aba-sessions">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-foreground">Histórico de Sessões</h2>
               <Button onClick={() => setIsSessionOpen(true)} className="bg-primary hover:bg-primary/90">
@@ -745,7 +756,7 @@ export default function PatientDetail() {
           </TabsContent>
 
           {/* Evolução — linha do tempo das sessões (um cartão por momento). */}
-          <TabsContent value="evolucao">
+          <TabsContent value="evolucao" data-tour="aba-evolucao">
             <LinhaDoTempoEvolucao
               patientId={patientId}
               frequencia={patient.frequencia}
@@ -755,7 +766,7 @@ export default function PatientDetail() {
           </TabsContent>
 
           {/* Documents Tab — upload/lista via Supabase Storage */}
-          <TabsContent value="documents" className="space-y-4">
+          <TabsContent value="documents" className="space-y-4" data-tour="aba-documents">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-foreground">Documentos</h2>
               <input
@@ -826,7 +837,7 @@ export default function PatientDetail() {
           </TabsContent>
 
           {/* TCLE Tab — termo de consentimento livre e esclarecido */}
-          <TabsContent value="tcle" className="space-y-4">
+          <TabsContent value="tcle" className="space-y-4" data-tour="aba-tcle">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold text-foreground">Termo de Consentimento (TCLE)</h2>
@@ -877,7 +888,7 @@ export default function PatientDetail() {
           </TabsContent>
 
           {/* Pagamentos deste paciente */}
-          <TabsContent value="pagamentos" className="space-y-4">
+          <TabsContent value="pagamentos" className="space-y-4" data-tour="aba-pagamentos">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-xl font-semibold text-foreground">Pagamentos</h2>
               <span className="text-sm">

@@ -24,6 +24,12 @@ import { Calendar, CircleHelp, ClipboardList, FileText, FolderOpen, MessageSquar
  */
 
 export const OPEN_ONBOARDING_EVENT = "luma:onboarding";
+/**
+ * O tour pede ao prontuário para abrir uma aba (detail = valor da aba). O
+ * prontuário ouve este evento; o tour repete o pedido até o conteúdo aparecer,
+ * porque a página pode montar depois da navegação.
+ */
+export const ABA_DO_TOUR_EVENT = "luma:aba-do-prontuario";
 /** Marca dos passos que acontecem DENTRO de um prontuário (ver `steps`). */
 const PRONTUARIO = "/records/:paciente";
 const STEP_PREFIX = "luma-onboarding-step:";
@@ -33,7 +39,8 @@ type Role = "therapist" | "patient";
 // (ex.: passo de boas-vindas), o fundo escurece por inteiro e o card fica embaixo.
 // `alinharPeloFim`: alvo mais alto que o espaço livre cujo ponto principal fica
 // embaixo (o chat da Luma, com o campo de escrever no fim).
-type Step = { path: string; icon: LucideIcon | null; title: string; body: string; target?: string; alinharPeloFim?: boolean };
+// `aba`: no prontuário, a aba que o passo abre (ver ABA_DO_TOUR_EVENT).
+type Step = { path: string; icon: LucideIcon | null; title: string; body: string; target?: string; alinharPeloFim?: boolean; aba?: string };
 
 const therapistSteps: Step[] = [
   {
@@ -68,19 +75,39 @@ const therapistSteps: Step[] = [
   {
     path: PRONTUARIO,
     icon: FileText,
+    aba: "info",
     title: "O prontuário do paciente",
     body: "Este é o prontuário: tudo do paciente num lugar só. Em “Editar dados” você corrige o cadastro, e “Baixar prontuário” gera o PDF ou Word para guardar.",
     target: '[data-tour="prontuario-topo"]',
   },
+  // Uma aba por passo: o tour ABRE a aba (aba: ...) e destaca o conteúdo dela.
   {
     path: PRONTUARIO,
+    aba: "info",
     icon: ClipboardList,
-    title: "Informações, Anamnese e Sessões",
-    body: "Informações: dados, contato e o plano clínico (demanda, objetivos, alta). Anamnese: a ficha da primeira sessão, que dá para completar aos poucos. Sessões: registre cada atendimento em “Nova Sessão”, com o modelo SOAP.",
-    target: '[data-tour="prontuario-abas"]',
+    title: "Informações",
+    body: "Dados e contato do paciente e o plano clínico: demanda inicial, objetivos e encerramento, como pede o registro do CFP.",
+    target: '[data-tour="aba-info"]',
   },
   {
     path: PRONTUARIO,
+    aba: "anamnese",
+    icon: ClipboardList,
+    title: "Anamnese",
+    body: "A ficha da primeira sessão, com a história do paciente. Dá para completar aos poucos: toque em “Salvar anamnese” quando quiser.",
+    target: '[data-tour="aba-anamnese"]',
+  },
+  {
+    path: PRONTUARIO,
+    aba: "sessions",
+    icon: MessageSquare,
+    title: "Sessões",
+    body: "Registre cada atendimento em “Nova Sessão”, com o modelo SOAP. O que você escreve em “Anotações” durante a videochamada também chega aqui.",
+    target: '[data-tour="aba-sessions"]',
+  },
+  {
+    path: PRONTUARIO,
+    aba: "evolucao",
     icon: TrendingUp,
     title: "Evolução",
     body: "A história do acompanhamento: um cartão por sessão, com marcos como o início e os retornos. Em “Classificar” você dá a nota de humor e a fase, e o gráfico mostra a evolução. A frequência você ajusta em “Alterar”.",
@@ -88,10 +115,27 @@ const therapistSteps: Step[] = [
   },
   {
     path: PRONTUARIO,
+    aba: "documents",
     icon: FolderOpen,
-    title: "Documentos, TCLE e Pagamentos",
-    body: "Documentos: guarde arquivos do paciente, como PDF, fotos e Word. TCLE: o termo de consentimento, para preencher e gerar em PDF para assinar. Pagamentos: o valor de cada consulta e o que falta pagar.",
-    target: '[data-tour="prontuario-abas"]',
+    title: "Documentos",
+    body: "Guarde arquivos do paciente, como PDF, fotos e Word, e abra quando precisar.",
+    target: '[data-tour="aba-documents"]',
+  },
+  {
+    path: PRONTUARIO,
+    aba: "tcle",
+    icon: FileText,
+    title: "TCLE",
+    body: "O termo de consentimento do contrato terapêutico: preencha os termos e gere o PDF para o paciente assinar.",
+    target: '[data-tour="aba-tcle"]',
+  },
+  {
+    path: PRONTUARIO,
+    aba: "pagamentos",
+    icon: Wallet,
+    title: "Pagamentos",
+    body: "O valor de cada consulta deste paciente, o que já foi pago e o que falta. Dá para marcar como pago ali mesmo.",
+    target: '[data-tour="aba-pagamentos"]',
   },
   {
     path: "/mensagens",
@@ -336,6 +380,9 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
     let primeira = true;
     let achou = false;
     const medir = () => {
+      // Passo de uma aba do prontuário: pede para abri-la até o conteúdo existir
+      // (aba fechada não é desenhada, então o alvo só aparece depois).
+      if (passo.aba && !achou) window.dispatchEvent(new CustomEvent(ABA_DO_TOUR_EVENT, { detail: passo.aba }));
       const el = document.querySelector(sel) as HTMLElement | null;
       let r = el?.getBoundingClientRect();
       // Rola até o elemento ANTES de checar se está na tela. Antes a checagem vinha
@@ -349,10 +396,14 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
         // atrás do card (no celular, o cartão da Luma no painel ficava com as
         // perguntas escondidas). Alvo maior que a faixa e já com o topo visível:
         // não mexe — rolar não o mostraria inteiro mesmo.
-        const topoLivre = 72;
+        // Medido, e não fixo: o alvo que começava ATRÁS da barra (topo da página
+        // já rolada) não contava como "fora da tela" e o recorte saía cortado —
+        // o cabeçalho do prontuário aparecia sem o nome do paciente.
+        const barra = document.querySelector("[data-barra-topo]")?.getBoundingClientRect().bottom ?? 56;
+        const topoLivre = barra + 16;
         const alturaCard = (cardRef.current?.getBoundingClientRect().height ?? 220) + 24;
         const fundoLivre = window.innerHeight - alturaCard;
-        const foraDaTela = r.top < 0 || r.top > fundoLivre;
+        const foraDaTela = r.top < barra + 4 || r.top > fundoLivre;
         const cabe = r.height <= fundoLivre - topoLivre;
         if (passo.alinharPeloFim && !cabe) {
           // O que importa está no FIM do alvo (o campo de escrever, no fim do chat
