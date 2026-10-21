@@ -10,6 +10,7 @@ import {
 import { exportProntuarioPDF, exportProntuarioDOCX, exportTclePDF } from "@/lib/prontuario-export";
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
 import EditorDeAnotacao from "@/components/EditorDeAnotacao";
+import { LinhaDoTempoEvolucao } from "@/components/LinhaDoTempoEvolucao";
 import {
   ANAMNESE_CAMPOS,
   TCLE_CAMPOS,
@@ -454,8 +455,9 @@ export default function PatientDetail() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
+        {/* flex-wrap: no celular os botões passavam da tela (rolava para o lado). */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-4">
             <Button variant="ghost" onClick={() => setLocation("/records")} className="p-0">
               <ArrowLeft className="w-6 h-6" />
             </Button>
@@ -559,10 +561,11 @@ export default function PatientDetail() {
 
         {/* Tabs */}
         <Tabs defaultValue="info" className="w-full">
-          <TabsList className="grid h-auto w-full grid-cols-3 lg:grid-cols-6">
+          <TabsList className="grid h-auto w-full grid-cols-3 sm:grid-cols-4 lg:grid-cols-7">
             <TabsTrigger value="info">Informações</TabsTrigger>
             <TabsTrigger value="anamnese">Anamnese</TabsTrigger>
             <TabsTrigger value="sessions">Sessões</TabsTrigger>
+            <TabsTrigger value="evolucao">Evolução</TabsTrigger>
             <TabsTrigger value="documents">Documentos</TabsTrigger>
             <TabsTrigger value="tcle">TCLE</TabsTrigger>
             <TabsTrigger value="pagamentos">Pagamentos</TabsTrigger>
@@ -733,6 +736,11 @@ export default function PatientDetail() {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          {/* Evolução — linha do tempo das sessões (um cartão por momento). */}
+          <TabsContent value="evolucao">
+            <LinhaDoTempoEvolucao sessoes={patientSessions} aoNovaSessao={() => setIsSessionOpen(true)} />
           </TabsContent>
 
           {/* Documents Tab — upload/lista via Supabase Storage */}

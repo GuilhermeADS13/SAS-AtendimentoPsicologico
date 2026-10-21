@@ -51,7 +51,7 @@ const therapistSteps: Step[] = [
     path: "/records",
     icon: Users,
     title: "Cadastrar pacientes",
-    body: "Comece por aqui: toque em “Novo Paciente” para cadastrar. Depois, o ícone de olho abre o prontuário, com histórico, sessões, documentos e TCLE.",
+    body: "Comece por aqui: toque em “Novo Paciente” para cadastrar. Depois, o ícone de olho abre o prontuário, com histórico, sessões, a evolução em linha do tempo, documentos e TCLE.",
     target: '[data-tour="novo-paciente"]',
   },
   {
