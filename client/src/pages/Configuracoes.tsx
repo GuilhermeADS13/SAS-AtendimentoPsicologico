@@ -273,7 +273,9 @@ export default function Configuracoes() {
             abaixo não aparece para o paciente (evita dois campos de telefone). */}
         {!isTherapist && <PatientProfile embedded />}
 
-        <Card data-tour="config-acesso">
+        {/* O tour destaca Acesso E Contato juntos: o texto do passo fala dos dois. */}
+        <div className="space-y-6" data-tour="config-acesso">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-primary" />
@@ -400,6 +402,7 @@ export default function Configuracoes() {
           </CardContent>
         </Card>
         )}
+        </div>
       </div>
 
       <Dialog open={dialogoEmail} onOpenChange={(o) => (o ? setDialogoEmail(true) : fecharDialogoEmail())}>

@@ -92,7 +92,12 @@ export function prontuarioDeExemplo() {
   };
   // Mais recente primeiro, como vem do servidor.
   const sessoes = [
-    sessao(8, 7, { moodScore: 8, mood: "estável", clinicalNotes: "Sono regular (7h). Conversamos sobre espaçar para quinzenal." }),
+    sessao(8, 7, {
+      moodScore: 8,
+      mood: "estável",
+      // Em markdown, como sai do editor de anotações (negrito e lista).
+      clinicalNotes: "**Evolução**\n\nSono regular (7h). Conversamos sobre espaçar para quinzenal.\n\n- Manter o registro de sono\n- Revisar as conquistas na próxima sessão",
+    }),
     sessao(7, 14, { moodScore: 7, fase: "manutencao", mood: "estável", subjective: "Conseguiu dizer não a uma demanda extra no trabalho.", plan: "Manter os registros e revisar as conquistas." }),
     sessao(6, 21, { moodScore: 7, clinicalNotes: "Identificou pensamentos automáticos no trabalho. Boa adesão às tarefas." }),
     sessao(5, 28, { moodScore: 6, mood: "mais calma", subjective: "Voltou das férias e diz que o sono melhorou.", plan: "Reestruturação cognitiva." }),

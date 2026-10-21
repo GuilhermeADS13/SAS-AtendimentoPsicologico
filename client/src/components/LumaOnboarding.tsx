@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { LumaOwlIcon } from "./Logo";
-import { Calendar, CircleHelp, ClipboardList, FileText, FolderOpen, MessageSquare, Settings, Stethoscope, TrendingUp, Users, Wallet, X, type LucideIcon } from "lucide-react";
+import { Calendar, CircleHelp, ClipboardList, FileText, Filter, FolderOpen, MessageSquare, Settings, Stethoscope, TrendingUp, Users, Wallet, X, type LucideIcon } from "lucide-react";
 
 /**
  * Tour de boas-vindas da Luma na PRIMEIRA entrada (paciente ou psicóloga).
@@ -148,8 +148,15 @@ const therapistSteps: Step[] = [
     path: "/appointments",
     icon: Calendar,
     title: "Agendamentos e videochamada",
-    body: "Toque em “Nova Consulta” para marcar. As setas mostram a semana ou o mês, inclusive os próximos. Na hora, toque em “Entrar na videochamada” na consulta. O que você escrever em “Anotações” durante a chamada pode ir para o prontuário ao encerrar.",
+    body: "Toque em “Nova Consulta” para marcar. Semana, Mês e Todas escolhem o período, e as setas andam para trás ou para a frente. Na hora, toque em “Entrar na videochamada” na consulta.",
     target: '[data-tour="nova-consulta"]',
+  },
+  {
+    path: "/appointments",
+    icon: Filter,
+    title: "Filtros",
+    body: "Ache uma consulta rápido: busque pelo nome do paciente e filtre por situação (agendadas, a confirmar, realizadas, canceladas), por pagamento e por data. Para mudar o pagamento, toque em “Pagamento pendente · alterar”.",
+    target: '[data-tour="filtros-agenda"]',
   },
   {
     path: "/financeiro",

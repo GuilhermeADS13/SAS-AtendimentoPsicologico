@@ -215,3 +215,27 @@ export function diffMinimo(antigo: string, novo: string): { de: number; ate: num
   while (j < antigo.length - i && j < novo.length - i && antigo[antigo.length - 1 - j] === novo[novo.length - 1 - j]) j++;
   return { de: i, ate: antigo.length - j, texto: novo.slice(i, novo.length - j) };
 }
+
+/**
+ * A anotação sem as marcas de formatação, para resumos de uma linha e busca
+ * (o cartão da aba "Evolução" mostrava "**Evolução**" cru). Tira títulos (#),
+ * negrito/itálico/tachado, sublinhado (<u>), citação (>), marcadores de lista e
+ * caixas de tarefa; o texto em si fica.
+ */
+export function textoSemMarkdown(md: string): string {
+  return md
+    .replace(/<\/?u>/gi, "")
+    .split("\n")
+    .map((linha) =>
+      linha
+        .replace(/^\s*#{1,6}\s+/, "")
+        .replace(/^\s*>\s?/, "")
+        .replace(/^\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?/, "")
+        .replace(/(\*\*|__|~~)(.+?)\1/g, "$2")
+        .replace(/(^|[^*\w])[*_](?=\S)(.+?)(?<=\S)[*_](?![*\w])/g, "$1$2")
+        .trimEnd(),
+    )
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}

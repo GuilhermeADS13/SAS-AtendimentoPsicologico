@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import { Streamdown } from "streamdown";
+import { PLUGINS_REHYPE_SEGUROS } from "@/lib/markdownSeguro";
+import { textoSemMarkdown } from "@shared/notasMarkdown";
 import { toast } from "sonner";
 import { Award, CalendarDays, ChevronDown, ChevronUp, Clock, Flag, Layers, Plus, Repeat, RotateCcw, Search, SlidersHorizontal, TrendingUp } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -97,7 +100,7 @@ export function LinhaDoTempoEvolucao({
   const resumo = useMemo(() => resumoDaEvolucao(sessoes), [sessoes]);
   const momentos = useMemo(() => momentosDaEvolucao(sessoes), [sessoes]);
   const visiveis = momentos.filter((m) =>
-    contemTodos([m.sessao.mood ?? "", ...camposDaSessao(m.sessao).map((c) => c.texto)].join("\n"), termos),
+    contemTodos([m.sessao.mood ?? "", ...camposDaSessao(m.sessao).map((c) => textoSemMarkdown(c.texto))].join("\n"), termos),
   );
 
   // Separa por mês mantendo a ordem (mais recente primeiro).
@@ -282,17 +285,27 @@ export function LinhaDoTempoEvolucao({
                               <p className="text-sm italic text-muted-foreground">Sessão sem evolução escrita.</p>
                             ) : aberto ? (
                               <div className="space-y-2">
-                                {campos.map((c, i) => (
-                                  <p key={i} className="whitespace-pre-wrap text-sm text-foreground">
-                                    {c.rotulo && <span className="font-medium">{c.rotulo}: </span>}
-                                    <Destacado texto={c.texto} termos={termos} />
-                                  </p>
-                                ))}
+                                {campos.map((c, i) =>
+                                  // Buscando: texto limpo com o trecho destacado. Sem busca: a
+                                  // anotação FORMATADA (negrito, listas), como no "Ver formatado".
+                                  termos.length > 0 ? (
+                                    <p key={i} className="whitespace-pre-wrap text-sm text-foreground">
+                                      {c.rotulo && <span className="font-medium">{c.rotulo}: </span>}
+                                      <Destacado texto={textoSemMarkdown(c.texto)} termos={termos} />
+                                    </p>
+                                  ) : (
+                                    <div key={i} className="text-sm text-foreground [&_ol]:pl-5 [&_ul]:pl-5">
+                                      {c.rotulo && <p className="font-medium">{c.rotulo}</p>}
+                                      <Streamdown rehypePlugins={PLUGINS_REHYPE_SEGUROS}>{c.texto}</Streamdown>
+                                    </div>
+                                  ),
+                                )}
                               </div>
                             ) : (
+                              // Resumo SEM as marcas: mostrava "**Evolução**" cru.
                               <p className="line-clamp-3 whitespace-pre-wrap text-sm text-muted-foreground">
                                 {campos[0].rotulo && <span className="font-medium text-foreground">{campos[0].rotulo}: </span>}
-                                {campos[0].texto}
+                                {textoSemMarkdown(campos[0].texto)}
                               </p>
                             )}
 

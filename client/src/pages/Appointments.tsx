@@ -660,7 +660,7 @@ export default function Appointments() {
           </CardHeader>
           <CardContent>
             {vista === "tabela" && (
-              <div className="mb-4 space-y-3 rounded-lg border border-border bg-muted/20 p-3">
+              <div className="mb-4 space-y-3 rounded-lg border border-border bg-muted/20 p-3" data-tour="filtros-agenda">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-2 text-sm text-muted-foreground">
                     <Filter className="mt-0.5 h-4 w-4 shrink-0 text-primary" />

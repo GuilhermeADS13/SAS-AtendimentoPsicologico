@@ -10,6 +10,8 @@ import {
 import { exportProntuarioPDF, exportProntuarioDOCX, exportTclePDF } from "@/lib/prontuario-export";
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
 import EditorDeAnotacao from "@/components/EditorDeAnotacao";
+import { Streamdown } from "streamdown";
+import { PLUGINS_REHYPE_SEGUROS } from "@/lib/markdownSeguro";
 import { LinhaDoTempoEvolucao } from "@/components/LinhaDoTempoEvolucao";
 import { ID_EXEMPLO, prontuarioDeExemplo } from "@/lib/prontuarioExemplo";
 import { ABA_DO_TOUR_EVENT } from "@/components/LumaOnboarding";
@@ -760,9 +762,11 @@ export default function PatientDetail() {
                         ) : null}
                       </div>
                       {session.clinicalNotes ? (
-                        <p className="text-sm text-foreground whitespace-pre-wrap">
-                          {session.clinicalNotes}
-                        </p>
+                        // Formatada (negrito, listas): o texto vem do editor em markdown
+                        // e aparecia com os "**" crus.
+                        <div className="text-sm text-foreground [&_ol]:pl-5 [&_ul]:pl-5">
+                          <Streamdown rehypePlugins={PLUGINS_REHYPE_SEGUROS}>{session.clinicalNotes}</Streamdown>
+                        </div>
                       ) : null}
                       {/* Evolução SOAP (quando registrada). */}
                       {SOAP_CAMPOS.map((campo) => {

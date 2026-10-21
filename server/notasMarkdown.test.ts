@@ -7,12 +7,31 @@ import {
   continuarLista,
   diffMinimo,
   inserirModelo,
+  textoSemMarkdown,
 } from "../shared/notasMarkdown";
 
 /**
  * A barra de anotações da videochamada e do prontuário. Os casos aqui são os que
  * falhavam na versão anterior, que não tinha teste nenhum.
  */
+describe("textoSemMarkdown (resumo do cartão da Evolução)", () => {
+  it("tira as marcas e deixa o texto", () => {
+    expect(textoSemMarkdown("**Evolução**\n\nPaciente *calma*, sono ~~ruim~~ <u>bom</u>.")).toBe(
+      "Evolução\n\nPaciente calma, sono ruim bom.",
+    );
+  });
+
+  it("títulos, citação, listas e tarefas", () => {
+    expect(textoSemMarkdown("## Plano\n> observação\n- item um\n1. passo\n- [x] feito")).toBe(
+      "Plano\nobservação\nitem um\npasso\nfeito",
+    );
+  });
+
+  it("não come asterisco solto nem palavras com sublinhado", () => {
+    expect(textoSemMarkdown("nota 5 * 2 e nome_do_arquivo")).toBe("nota 5 * 2 e nome_do_arquivo");
+  });
+});
+
 describe("barra de anotações", () => {
   describe("negrito/itálico/tachado", () => {
     it("envolve a seleção", () => {
