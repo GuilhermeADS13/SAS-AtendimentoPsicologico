@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -11,6 +11,7 @@ import { exportProntuarioPDF, exportProntuarioDOCX, exportTclePDF } from "@/lib/
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
 import EditorDeAnotacao from "@/components/EditorDeAnotacao";
 import { LinhaDoTempoEvolucao } from "@/components/LinhaDoTempoEvolucao";
+import { ID_EXEMPLO, prontuarioDeExemplo } from "@/lib/prontuarioExemplo";
 import { ABA_DO_TOUR_EVENT } from "@/components/LumaOnboarding";
 import { ClassificacaoDaSessao, type Classificacao } from "@/components/ClassificacaoDaSessao";
 import {
@@ -116,15 +117,27 @@ function ehMenorDeIdade(dataNascimento: string): boolean {
 export default function PatientDetail() {
   const [, setLocation] = useLocation();
   const params = useParams();
-  const patientId = Number(params.id);
+  // Prontuário de EXEMPLO (/records/exemplo, dados fictícios — ver
+  // prontuarioExemplo.ts): é por ele que o tour passa. Nada é buscado (as
+  // consultas ficam desligadas com patientId 0) nem gravado (avisoExemplo).
+  const exemplo = params.id === ID_EXEMPLO;
+  const dadosExemplo = useMemo(() => (exemplo ? prontuarioDeExemplo() : null), [exemplo]);
+  const patientId = exemplo ? 0 : Number(params.id);
+  /** No exemplo, toda ação que gravaria algo só avisa. true = é exemplo, pare. */
+  const avisoExemplo = () => {
+    if (!exemplo) return false;
+    toast.info("Este é um prontuário de exemplo: nada aqui é salvo.");
+    return true;
+  };
   const utils = trpc.useUtils();
   const { user } = useAuth();
   const [baixando, setBaixando] = useState<null | "pdf" | "docx">(null);
 
-  const { data: patient, isLoading } = trpc.patients.get.useQuery(
+  const { data: pacienteDoServidor, isLoading } = trpc.patients.get.useQuery(
     { id: patientId },
     { enabled: patientId > 0 },
   );
+  const patient = dadosExemplo ? (dadosExemplo.paciente as unknown as typeof pacienteDoServidor) : pacienteDoServidor;
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [form, setForm] = useState({
@@ -196,6 +209,7 @@ export default function PatientDetail() {
   });
 
   const handleSave = () => {
+    if (avisoExemplo()) return;
     // Paciente com conta: manda só o que é da psicóloga. Reenviar os dados
     // pessoais gravaria por cima do que ele mantém no "Meu Cadastro".
     const pessoais = patient?.userId
@@ -227,10 +241,14 @@ export default function PatientDetail() {
     });
   };
 
-  const salvarAnamnese = () =>
+  const salvarAnamnese = () => {
+    if (avisoExemplo()) return;
     salvarProntuario.mutate({ id: patientId, anamnesis: anamnese as AnamneseData });
-  const salvarTcle = () =>
+  };
+  const salvarTcle = () => {
+    if (avisoExemplo()) return;
     salvarProntuario.mutate({ id: patientId, tcle: tcle as TcleData, tcleSigned });
+  };
   const baixarTcle = async () => {
     try {
       await exportTclePDF({ patient: patient!, terms: tcle as TcleData, emitidoPor: user?.name });
@@ -240,10 +258,11 @@ export default function PatientDetail() {
   };
 
   // Sessões reais do paciente (evolução clínica).
-  const { data: patientSessions = [] } = trpc.sessions.getByPatient.useQuery(
+  const { data: sessoesDoServidor = [] } = trpc.sessions.getByPatient.useQuery(
     { patientId },
     { enabled: patientId > 0 },
   );
+  const patientSessions = dadosExemplo ? (dadosExemplo.sessoes as unknown as typeof sessoesDoServidor) : sessoesDoServidor;
   const [isSessionOpen, setIsSessionOpen] = useState(false);
   // Aba aberta. Controlada para o tour da Luma poder abrir cada uma (evento).
   const [aba, setAba] = useState("info");
@@ -277,6 +296,7 @@ export default function PatientDetail() {
     onError: (e) => toast.error(e.message || "Erro ao registrar sessão"),
   });
   const handleSaveSession = () => {
+    if (avisoExemplo()) return;
     const preenchido = [
       sessionForm.subjective,
       sessionForm.objective,
@@ -313,6 +333,9 @@ export default function PatientDetail() {
     { patientId },
     { enabled: patientId > 0 },
   );
+  const documentos = dadosExemplo
+    ? (dadosExemplo.documentos as unknown as NonNullable<typeof documentsQuery.data>)
+    : documentsQuery.data;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const createDocument = trpc.documents.create.useMutation();
@@ -323,7 +346,9 @@ export default function PatientDetail() {
   // psicóloga; filtramos por este paciente. "Falta pagar" = pendentes que não
   // foram canceladas/faltadas; cobrar por consulta que não houve não faz sentido.
   const { data: todasConsultas = [] } = trpc.appointments.list.useQuery();
-  const consultasDoPaciente = todasConsultas.filter((a) => a.patientId === patientId);
+  const consultasDoPaciente = dadosExemplo
+    ? (dadosExemplo.consultas as unknown as typeof todasConsultas)
+    : todasConsultas.filter((a) => a.patientId === patientId);
   const ativa = (a: (typeof todasConsultas)[number]) =>
     a.status !== "cancelled" && a.status !== "no_show";
   const faltaPagar = consultasDoPaciente
@@ -343,6 +368,7 @@ export default function PatientDetail() {
   });
 
   const handleUpload = async (file: File) => {
+    if (avisoExemplo()) return;
     setUploading(true);
     try {
       const fileKey = await uploadDocumentFile(patientId, file);
@@ -382,6 +408,7 @@ export default function PatientDetail() {
   };
 
   const handleDownload = async (fileKey: string) => {
+    if (avisoExemplo()) return;
     const url = await getDocumentSignedUrl(fileKey);
     if (url) window.open(url, "_blank", "noopener");
     else toast.error("Não foi possível gerar o link do documento.");
@@ -401,6 +428,7 @@ export default function PatientDetail() {
    * escondido no bucket.
    */
   const handleDeleteDoc = async (id: number, fileKey: string) => {
+    if (avisoExemplo()) return;
     try {
       await removeDocumentFile(fileKey);
       await deleteDocument.mutateAsync({ id });
@@ -456,7 +484,7 @@ export default function PatientDetail() {
       const dados = {
         patient,
         sessions: patientSessions,
-        documents: documentsQuery.data ?? [],
+        documents: documentos ?? [],
         emitidoPor: user?.name,
       };
       if (formato === "pdf") await exportProntuarioPDF(dados);
@@ -514,6 +542,16 @@ export default function PatientDetail() {
             </Button>
           </div>
         </div>
+
+        {exemplo && (
+          <div
+            role="note"
+            className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+          >
+            <strong>Prontuário de exemplo</strong> — dados fictícios, para você ver como tudo funciona. Nada aqui é
+            salvo.
+          </div>
+        )}
 
         {/* Patient Info cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -760,6 +798,7 @@ export default function PatientDetail() {
             <LinhaDoTempoEvolucao
               patientId={patientId}
               frequencia={patient.frequencia}
+              exemplo={exemplo}
               sessoes={patientSessions}
               aoNovaSessao={() => setIsSessionOpen(true)}
             />
@@ -788,7 +827,7 @@ export default function PatientDetail() {
               </Button>
             </div>
 
-            {(documentsQuery.data?.length ?? 0) === 0 ? (
+            {(documentos?.length ?? 0) === 0 ? (
               <Card>
                 <CardContent className="text-muted-foreground">
                   <FileText className="w-5 h-5 mb-2" />
@@ -797,7 +836,7 @@ export default function PatientDetail() {
               </Card>
             ) : (
               <div className="space-y-3">
-                {documentsQuery.data?.map((doc) => (
+                {documentos?.map((doc) => (
                   <Card key={doc.id}>
                     <CardContent className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
@@ -931,9 +970,10 @@ export default function PatientDetail() {
                         </div>
                         {/* Clicável: alterna pago/pendente na hora. */}
                         <button
-                          onClick={() =>
-                            setPayment.mutate({ id: a.id, paid: !a.paid })
-                          }
+                          onClick={() => {
+                            if (avisoExemplo()) return;
+                            setPayment.mutate({ id: a.id, paid: !a.paid });
+                          }}
                           disabled={setPayment.isPending}
                           title="Clique para alternar pago/pendente"
                           className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${

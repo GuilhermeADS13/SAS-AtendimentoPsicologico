@@ -24,7 +24,16 @@ const opcao = (ativa: boolean) =>
  * A psicóloga escolhe a frequência do paciente: um padrão (semanal, quinzenal,
  * mensal) OU os dias da semana. "Automática" volta ao cálculo pelas sessões.
  */
-export function EscolherFrequencia({ patientId, atual }: { patientId: number; atual: string | null | undefined }) {
+export function EscolherFrequencia({
+  patientId,
+  atual,
+  exemplo = false,
+}: {
+  patientId: number;
+  atual: string | null | undefined;
+  /** Prontuário de exemplo: salvar só avisa. */
+  exemplo?: boolean;
+}) {
   const utils = trpc.useUtils();
   const [aberto, setAberto] = useState(false);
   const [rascunho, setRascunho] = useState<Frequencia | null>(null);
@@ -109,7 +118,11 @@ export function EscolherFrequencia({ patientId, atual }: { patientId: number; at
           <Button
             size="sm"
             disabled={salvar.isPending}
-            onClick={() => salvar.mutate({ patientId, frequencia: gravarFrequencia(rascunho) })}
+            onClick={() =>
+              exemplo
+                ? toast.info("Este é um prontuário de exemplo: nada aqui é salvo.")
+                : salvar.mutate({ patientId, frequencia: gravarFrequencia(rascunho) })
+            }
           >
             {salvar.isPending ? "Salvando..." : "Salvar"}
           </Button>

@@ -69,8 +69,11 @@ export function LinhaDoTempoEvolucao({
   frequencia,
   sessoes,
   aoNovaSessao,
+  exemplo = false,
 }: {
   patientId: number;
+  /** Prontuário de exemplo: classificar e alterar só avisam, nada é gravado. */
+  exemplo?: boolean;
   /** A escolhida pela psicóloga (patients.frequencia); sem ela, calculada pelas sessões. */
   frequencia: string | null | undefined;
   sessoes: readonly SessaoDaEvolucao[];
@@ -154,7 +157,7 @@ export function LinhaDoTempoEvolucao({
                 // A escolhida pela psicóloga vale mais que a calculada pelas sessões.
                 valor: frequenciaDefinida ? descreverFrequencia(frequenciaDefinida) : (resumo.frequencia ?? "—"),
                 nota: "",
-                acao: <EscolherFrequencia patientId={patientId} atual={frequencia} />,
+                acao: <EscolherFrequencia patientId={patientId} atual={frequencia} exemplo={exemplo} />,
               },
               { icone: Clock, rotulo: "Última sessão", valor: formatarData(resumo.ultima), nota: "" },
             ].map(({ icone: Icone, rotulo, valor, nota, acao }) => (
@@ -308,7 +311,9 @@ export function LinhaDoTempoEvolucao({
                                     size="sm"
                                     disabled={classificar.isPending}
                                     onClick={() =>
-                                      classificar.mutate({
+                                      exemplo
+                                        ? toast.info("Este é um prontuário de exemplo: nada aqui é salvo.")
+                                        : classificar.mutate({
                                         sessionId: m.sessao.id,
                                         moodScore: classificando.valor.moodScore,
                                         fase: classificando.valor.fase,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -30,8 +30,8 @@ export const OPEN_ONBOARDING_EVENT = "luma:onboarding";
  * porque a página pode montar depois da navegação.
  */
 export const ABA_DO_TOUR_EVENT = "luma:aba-do-prontuario";
-/** Marca dos passos que acontecem DENTRO de um prontuário (ver `steps`). */
-const PRONTUARIO = "/records/:paciente";
+/** Passos que acontecem DENTRO de um prontuário: o de exemplo (ver prontuarioExemplo.ts). */
+const PRONTUARIO = "/records/exemplo";
 const STEP_PREFIX = "luma-onboarding-step:";
 
 type Role = "therapist" | "patient";
@@ -70,8 +70,8 @@ const therapistSteps: Step[] = [
     body: "Tem um modelo de prontuário seu? Envie aqui (PDF ou Word) e eu passo a escrever nesse formato. Aqui também você cria textos prontos para inserir nas anotações com um clique.",
     target: '[data-tour="modelos-prontuario"]',
   },
-  // Dentro do prontuário: abre o do 1º paciente da lista (PRONTUARIO vira
-  // /records/<id> na hora). Sem paciente cadastrado, estes passos são pulados.
+  // Dentro do prontuário: o de EXEMPLO (dados fictícios), para quem ainda não
+  // tem paciente também ver — e para o tour não expor um prontuário real na tela.
   {
     path: PRONTUARIO,
     icon: FileText,
@@ -250,19 +250,7 @@ function recorteAbaixoDaBarra(r: { top: number; height: number }): { top: number
 
 export default function LumaOnboarding({ role, userId }: { role: Role; userId?: number | string }) {
   const stepKey = userId != null ? `${STEP_PREFIX}${userId}` : null;
-  // O tour da psicóloga entra num prontuário de verdade: o do 1º paciente da
-  // lista. Sem paciente cadastrado, os passos do prontuário saem do tour.
-  const pacientes = trpc.patients.list.useQuery(undefined, { enabled: role === "therapist" });
-  const primeiroPaciente = pacientes.data?.[0]?.id;
-  const steps = useMemo(() => {
-    if (role !== "therapist") return patientSteps;
-    return therapistSteps
-      .filter((s) => s.path !== PRONTUARIO || primeiroPaciente != null)
-      .map((s) => (s.path === PRONTUARIO ? { ...s, path: `/records/${primeiroPaciente}` } : s));
-  }, [role, primeiroPaciente]);
-  // Enquanto a lista não chega, o tour espera: começar antes mudaria a
-  // quantidade de passos no meio do caminho (e o passo salvo apontaria errado).
-  const aguardandoPacientes = role === "therapist" && pacientes.isPending;
+  const steps = role === "therapist" ? therapistSteps : patientSteps;
   const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
@@ -342,7 +330,7 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
   // Retoma o tour depois da navegação (o layout remonta a cada tela) ou inicia na
   // primeira entrada.
   useEffect(() => {
-    if (!stepKey || aguardandoPacientes) return;
+    if (!stepKey) return;
     const salvo = lerPasso();
     if (salvo !== null && Number.isFinite(salvo)) {
       setIndex(Math.min(Math.max(0, salvo), steps.length - 1));
@@ -353,7 +341,7 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
     // faria o tour "piscar" para quem já viu.
     if (onboarding.isPending || onboarding.isError) return;
     if (onboarding.data && !onboarding.data.visto) irPara(0);
-  }, [stepKey, lerPasso, irPara, steps.length, onboarding.isPending, onboarding.isError, onboarding.data, aguardandoPacientes]);
+  }, [stepKey, lerPasso, irPara, steps.length, onboarding.isPending, onboarding.isError, onboarding.data]);
 
   // Rever depois (botão na página de Ajuda).
   useEffect(() => {
@@ -414,7 +402,13 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
           el.scrollIntoView({ block: "end", inline: "nearest" });
           el.style.scrollMarginBottom = margemAnterior;
           r = el.getBoundingClientRect();
-        } else if (foraDaTela || (cabe && r.bottom > fundoLivre)) {
+        } else if (
+          foraDaTela ||
+          (cabe && r.bottom > fundoLivre) ||
+          // Alvo maior que a faixa começando lá embaixo (o conteúdo de uma aba do
+          // prontuário): sobe até o topo, senão o card do tour cobria quase tudo.
+          (!cabe && r.top > topoLivre + 40)
+        ) {
           const margemAnterior = el.style.scrollMarginTop;
           el.style.scrollMarginTop = `${topoLivre}px`;
           el.scrollIntoView({ block: "start", inline: "nearest" });
