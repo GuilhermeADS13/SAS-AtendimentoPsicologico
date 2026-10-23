@@ -116,6 +116,19 @@ function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
     };
   }
 
+  // Chamada em GRUPO (terapia de casal; os responsáveis + a criança). Vem antes do
+  // vídeo genérico, que não diz como a OUTRA pessoa entra.
+  // "outra pessoa" só com chamada/consulta junto: sozinha, roubava perguntas de
+  // sigilo ("outra pessoa pode ver meu prontuário?").
+  if (/(casal|em grupo|mais (?:de duas )?pessoas|outra pessoa (?:na|para a|entrar na) (?:chamada|consulta|sessao|sala)|(?:meu|minha) (?:marido|esposa|mulher|companheir[oa]|namorad[oa]|conjuge)|(?:o|a|os) (?:outro|outra|dois) (?:pai|mae|responsave)|convidar|participantes?\b)/.test(normalized)) {
+    return {
+      model: "site-help-local",
+      topic: "video",
+      content:
+        "Consultas com mais pessoas (terapia de casal, ou os responsáveis junto com a criança) são organizadas pela sua psicóloga: ela inclui cada pessoa na consulta, em “Convidar participantes”. Quem foi incluído vê a consulta em “Minhas Consultas” e entra pela sala com a própria conta — por isso cada pessoa precisa ter cadastro. Cabem até 4 pessoas na chamada, contando a psicóloga.",
+    };
+  }
+
   // "compartilhar" sozinho puxava "compartilhar um arquivo" para cá; só tela.
   if (/(video|sala|chamada|entr(?:ar|o|a)\s+na\s+(?:consulta|sala|sessao|chamada)|acessar a consulta|camera|microfone|compartilhar (?:a |minha )?tela)/.test(normalized)) {
     return {

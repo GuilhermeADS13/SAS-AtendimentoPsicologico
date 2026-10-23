@@ -63,8 +63,19 @@ describe("separação de papéis da Luma", () => {
     ["ja paguei a consulta?", "payments"],
     ["tem emoji?", "mensagens"],
     ["como mando um gif?", "mensagens"],
+    // Chamada em grupo (2026-10-23).
+    ["terapia de casal: como meu marido entra na consulta?", "video"],
+    ["posso convidar outra pessoa para a chamada?", "video"],
+    ["outra pessoa pode ver meu prontuario?", "privacy"],
   ])("roteia %s para o tópico %s", (pergunta, topico) => {
     expect(answerSiteHelp(pergunta).topic).toBe(topico);
+  });
+
+  it("chamada em grupo: diz como a outra pessoa entra (conta própria, Minhas Consultas)", () => {
+    const r = answerSiteHelp("é terapia de casal, como meu marido entra?");
+    expect(r.content).toMatch(/Convidar participantes/);
+    expect(r.content).toMatch(/Minhas Consultas/);
+    expect(r.content).toMatch(/própria conta/);
   });
 
   // Editar/apagar mensagem (como no WhatsApp) chegou depois do texto de ajuda:

@@ -325,6 +325,25 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
     ),
   },
   {
+    pergunta: "Como faço uma chamada com mais pessoas (casal, pais e criança)",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Ao marcar em <strong>“Nova Consulta”</strong>, escolha o paciente e toque nas pessoas em{" "}
+          <strong>“Convidar participantes”</strong>. Vale para todas as semanas repetidas.
+        </li>
+        <li>
+          Já na chamada, use o botão <strong>“Convidar participantes”</strong> para incluir alguém na hora.
+        </li>
+        <li>
+          Até <strong>4 pessoas</strong> na chamada, contando você. Cada uma precisa estar cadastrada como
+          paciente e entra com a própria conta, pela sala em <strong>“Minhas Consultas”</strong>.
+        </li>
+        <li>A evolução da sessão fica no prontuário do paciente principal.</li>
+      </ul>
+    ),
+  },
+  {
     pergunta: "Como aviso o paciente da consulta",
     resposta: (
       <ul className="list-disc pl-5 space-y-1">

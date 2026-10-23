@@ -148,7 +148,7 @@ const therapistSteps: Step[] = [
     path: "/appointments",
     icon: Calendar,
     title: "Agendamentos e videochamada",
-    body: "Toque em “Nova Consulta” para marcar. Semana, Mês e Todas escolhem o período, e as setas andam para trás ou para a frente. Na hora, toque em “Entrar na videochamada” na consulta.",
+    body: "Toque em “Nova Consulta” para marcar. Terapia de casal ou com os responsáveis da criança? Use “Convidar participantes”: até 4 pessoas na chamada. Na hora, toque em “Entrar na videochamada” na consulta.",
     target: '[data-tour="nova-consulta"]',
   },
   {
