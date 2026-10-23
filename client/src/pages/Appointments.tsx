@@ -574,7 +574,7 @@ export default function Appointments() {
                   CRIAR; numa consulta já marcada, convida-se de dentro da chamada. */}
               {editingId == null && formData.patientId && (
                 <div className="space-y-2">
-                  <Label>Participantes (opcional)</Label>
+                  <Label>Convidar participantes (opcional)</Label>
                   <div className="flex flex-wrap gap-2" role="group" aria-label="Participantes da consulta">
                     {patients
                       .filter((p) => String(p.id) !== formData.patientId)
