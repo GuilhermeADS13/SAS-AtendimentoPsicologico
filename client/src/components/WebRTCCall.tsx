@@ -29,11 +29,14 @@ import {
   type ControleFundo,
 } from "@/lib/virtualBackground";
 import { videoDaCamera } from "@/lib/camera";
+import { reducaoDeResolucao, tetoDeVideoPorPessoa } from "@shared/chamadaEmGrupo";
 
 /**
- * Videochamada 1:1 peer-to-peer (WebRTC), sem provedor externo nem cartão.
+ * Videochamada peer-to-peer (WebRTC), sem provedor externo nem cartão — a dois
+ * ou em GRUPO (até 4: terapia de casal; pais separados + criança).
  *
- * O vídeo/áudio trafega direto entre terapeuta e paciente; o servidor só repassa
+ * Em grupo é uma MALHA: uma conexão direta com cada outra pessoa (um "par" por
+ * pessoa, em paresRef). O vídeo/áudio nunca passa pelo servidor, que só repassa
  * o handshake (/api/ws/rtc — ver server/signaling.ts). NAT é atravessado por STUN
  * grátis do Google; o TURN (opcional) cobre as redes mais fechadas e vem do
  * SERVIDOR com credenciais temporárias — ver server/turn.ts.
@@ -44,6 +47,23 @@ import { videoDaCamera } from "@/lib/camera";
 
 type Role = "therapist" | "patient";
 
+/** Uma pessoa do outro lado: a conexão direta com ela e o que ela envia. */
+type Par = {
+  id: string;
+  nome: string;
+  role: Role;
+  pc: RTCPeerConnection;
+  /** O áudio e o vídeo que chegam dela. */
+  stream: MediaStream;
+  /** Canal de "mostrar arquivo" com ela. */
+  dc: RTCDataChannel | null;
+  /** Candidatos ICE que chegaram antes da descrição remota. */
+  pendentes: RTCIceCandidateInit[];
+  /** Fui eu que ofereci? (quem entra por último oferece — ver signaling.ts). */
+  ofertante: boolean;
+  tentativasIce: number;
+  avisoDeQueda: ReturnType<typeof setTimeout> | null;
+};
 
 const LS = {
   mic: "sas-video-mic",
@@ -157,7 +177,10 @@ function BadgeConfig({
  *  - ao compartilhar a TELA a preferência inverte: aí o que importa é enxergar o
  *    texto, então preserva-se resolução em vez de fluidez.
  */
-async function ajustarQualidade(pc: RTCPeerConnection, modo: "camera" | "tela") {
+//
+// Em GRUPO a banda de subida é uma só e vai para N-1 pessoas: o teto é repartido
+// e, com 4 pessoas, a resolução enviada cai um pouco (ver shared/chamadaEmGrupo).
+async function ajustarQualidade(pc: RTCPeerConnection, modo: "camera" | "tela", pessoas = 2) {
   for (const sender of pc.getSenders()) {
     const tipo = sender.track?.kind;
     if (!tipo) continue;
@@ -166,7 +189,9 @@ async function ajustarQualidade(pc: RTCPeerConnection, modo: "camera" | "tela") 
       if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
       if (tipo === "video") {
         params.degradationPreference = modo === "tela" ? "maintain-resolution" : "balanced";
-        params.encodings[0].maxBitrate = modo === "tela" ? 1_500_000 : 2_500_000;
+        params.encodings[0].maxBitrate =
+          modo === "tela" ? Math.max(500_000, Math.round(1_500_000 / Math.max(1, pessoas - 1))) : tetoDeVideoPorPessoa(pessoas);
+        params.encodings[0].scaleResolutionDownBy = modo === "tela" ? 1 : reducaoDeResolucao(pessoas);
       } else {
         params.encodings[0].networkPriority = "high";
       }
@@ -230,28 +255,29 @@ export default function WebRTCCall({
   const utils = trpc.useUtils();
   const containerRef = useRef<HTMLDivElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const pcRef = useRef<RTCPeerConnection | null>(null);
+  // Uma conexão por pessoa do outro lado (id da sinalização → par).
+  const paresRef = useRef(new Map<string, Par>());
+  // O <video> de cada pessoa na grade (id → elemento).
+  const videosRemotosRef = useRef(new Map<string, HTMLVideoElement>());
   const wsRef = useRef<WebSocket | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
-  const remoteStreamRef = useRef<MediaStream | null>(null);
   const telaStreamRef = useRef<MediaStream | null>(null);
   // Pipeline de fundo virtual (null = desligado) e a trilha de vídeo do "lado da
   // câmera" atualmente enviada — câmera crua OU o canvas do fundo. É a que o
   // compartilhamento de tela restaura ao parar.
   const fundoRef = useRef<ControleFundo | null>(null);
   const trilhaCameraRef = useRef<MediaStreamTrack | null>(null);
-  // Canal de dados (P2P) para "mostrar arquivo": envia imagem/PDF direto ao outro
-  // lado, sem passar pelo servidor. recebendoRef junta os pedaços que chegam;
-  // arquivoUrlRef guarda a URL do blob atual para liberar depois.
-  const dcRef = useRef<RTCDataChannel | null>(null);
-  const recebendoRef = useRef<{ mime: string; nome: string; partes: ArrayBuffer[] } | null>(null);
+  // Canal de dados (P2P) para "mostrar arquivo": envia imagem/PDF direto a cada
+  // pessoa, sem passar pelo servidor (um canal por par). arquivoUrlRef guarda a
+  // URL do blob atual para liberar depois.
   const arquivoUrlRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Candidatos ICE que chegam antes de termos a descrição remota ficam na fila.
-  const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
 
-  const [connected, setConnected] = useState(false);
+  // Quem está do outro lado (para a grade). `conectado`: o vídeo já chegou.
+  const [remotos, setRemotos] = useState<{ id: string; nome: string; role: Role; conectado: boolean }[]>([]);
+  // Muda quando chega uma trilha nova: o detector de fala refaz os medidores.
+  const [trilhasRemotas, setTrilhasRemotas] = useState(0);
+  const connected = remotos.some((r) => r.conectado);
   // Estado inicial vem da preferência escolhida no lobby (só é "off" se salvou "0").
   const [micOn, setMicOn] = useState(() => readLS(LS.micOn) !== "0");
   const [camOn, setCamOn] = useState(() => readLS(LS.camOn) !== "0");
@@ -291,10 +317,12 @@ export default function WebRTCCall({
   // miniatura da própria câmera precisa subir junto para não ficar por cima.
   const barraRef = useRef<HTMLDivElement>(null);
   const [alturaBarra, setAlturaBarra] = useState(48);
-  const [remoteFalando, setRemoteFalando] = useState(false);
+  // Quem está falando, por pessoa (id → falando).
+  const [falando, setFalando] = useState<Record<string, boolean>>({});
   // Volume do OUTRO lado (0–100), só no SEU aparelho — mexe no <video>, não na
   // trilha. Em 0 você para de ouvir a pessoa mesmo com o mic dela ligado.
   const [volumeRemoto, setVolumeRemoto] = useState(100);
+  const volumeRef = useRef(100);
 
   // Compartilhar tela usa getDisplayMedia, uma API só de DESKTOP: o iOS Safari não
   // tem e o Chrome no Android não a suporta. Sem esta checagem, o botão aparecia no
@@ -312,27 +340,196 @@ export default function WebRTCCall({
   const podeTrocarAltoFalante =
     typeof HTMLMediaElement !== "undefined" && "setSinkId" in HTMLMediaElement.prototype;
 
+  /** O vídeo que este aparelho está enviando AGORA: a tela, o fundo virtual ou a câmera. */
+  const videoEnviado = () =>
+    telaStreamRef.current?.getVideoTracks()[0] ??
+    trilhaCameraRef.current ??
+    localStreamRef.current?.getVideoTracks()[0] ??
+    null;
+
+  /** Troca a trilha enviada para TODAS as pessoas (replaceTrack: sem renegociar). */
+  const trocarEnvio = async (tipo: "audio" | "video", trilha: MediaStreamTrack) => {
+    await Promise.all(
+      Array.from(paresRef.current.values()).map((par) =>
+        par.pc
+          .getSenders()
+          .find((s) => s.track?.kind === tipo)
+          ?.replaceTrack(trilha)
+          .catch(() => {}),
+      ),
+    );
+  };
+
+  /** Teto de banda/resolução de cada envio, conforme quantas pessoas há na chamada. */
+  const reajustarQualidade = () => {
+    const pessoas = paresRef.current.size + 1;
+    const modo = telaStreamRef.current ? "tela" : "camera";
+    paresRef.current.forEach((par) => {
+      if (par.pc.connectionState === "connected") void ajustarQualidade(par.pc, modo, pessoas);
+    });
+  };
+
+  const atualizarCanalPronto = () =>
+    setCanalPronto(Array.from(paresRef.current.values()).some((p) => p.dc?.readyState === "open"));
+
+  /** Liga o <video> de uma pessoa ao que chega dela, com o alto-falante e o volume escolhidos. */
+  const ligarVideo = (el: HTMLVideoElement, stream: MediaStream) => {
+    if (el.srcObject !== stream) el.srcObject = stream;
+    el.volume = volumeRef.current / 100;
+    el.muted = volumeRef.current === 0;
+    const spkId = readLS(LS.spk);
+    const comSaida = el as HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> };
+    if (spkId && comSaida.setSinkId) comSaida.setSinkId(spkId).catch(() => {});
+    el.play?.().catch(() => {});
+  };
+
   useEffect(() => {
     let disposed = false;
     const onErr = onError;
-    let tentativasIce = 0;
-    let avisoDeQueda: ReturnType<typeof setTimeout> | null = null;
+    const pares = paresRef.current;
+    // Os servidores ICE vêm do servidor (credenciais TURN temporárias) em setup().
+    let servidoresIce: RTCIceServer[] = STUN_RESERVA;
 
     const send = (payload: unknown) => {
       const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
     };
 
-    const drainCandidates = async (pc: RTCPeerConnection) => {
-      const fila = pendingCandidates.current;
-      pendingCandidates.current = [];
+    const drainCandidates = async (par: Par) => {
+      const fila = par.pendentes;
+      par.pendentes = [];
       for (const cand of fila) {
         try {
-          await pc.addIceCandidate(new RTCIceCandidate(cand));
+          await par.pc.addIceCandidate(new RTCIceCandidate(cand));
         } catch {
           /* candidato inválido/duplicado — ignora */
         }
       }
+    };
+
+    /** Fecha a conexão com uma pessoa (ela saiu da sala). */
+    const fecharPar = (id: string) => {
+      const par = pares.get(id);
+      if (!par) return;
+      if (par.avisoDeQueda) clearTimeout(par.avisoDeQueda);
+      try {
+        par.pc.close();
+      } catch {
+        /* já fechada */
+      }
+      pares.delete(id);
+      videosRemotosRef.current.delete(id);
+      setRemotos((rs) => rs.filter((r) => r.id !== id));
+      setFalando(({ [id]: _saiu, ...resto }) => resto);
+      atualizarCanalPronto();
+      // Uma pessoa a menos: sobra banda para cada uma das outras.
+      reajustarQualidade();
+    };
+
+    /**
+     * Abre a conexão direta com uma pessoa. `ofertante`: sou eu quem oferece — o
+     * que acontece quando EU cheguei depois dela (ver server/signaling.ts).
+     */
+    const criarPar = (id: string, nome: string, papel: Role, ofertante: boolean): Par => {
+      const existente = pares.get(id);
+      if (existente) return existente;
+      const pc = new RTCPeerConnection({ iceServers: servidoresIce });
+      const par: Par = {
+        id,
+        nome,
+        role: papel,
+        pc,
+        stream: new MediaStream(),
+        dc: null,
+        pendentes: [],
+        ofertante,
+        tentativasIce: 0,
+        avisoDeQueda: null,
+      };
+      pares.set(id, par);
+
+      // Envia o que está saindo AGORA: quem entra no meio de um compartilhamento
+      // de tela (ou com o fundo virtual ligado) já recebe a tela / o fundo.
+      const local = localStreamRef.current;
+      const audio = local?.getAudioTracks()[0];
+      const video = videoEnviado();
+      if (local && audio) pc.addTrack(audio, local);
+      if (local && video) pc.addTrack(video, local);
+      preferirAudioRedundante(pc);
+
+      // Canal de "mostrar arquivo". Quem oferece cria, ANTES da oferta, para já ir
+      // na negociação; o outro lado recebe por ondatachannel.
+      if (ofertante) configurarCanal(par, pc.createDataChannel("arquivos"));
+      else pc.ondatachannel = (e) => configurarCanal(par, e.channel);
+
+      pc.ontrack = (event) => {
+        par.stream.addTrack(event.track);
+        const el = videosRemotosRef.current.get(id);
+        if (el) ligarVideo(el, par.stream);
+        setRemotos((rs) => rs.map((r) => (r.id === id ? { ...r, conectado: true } : r)));
+        setTrilhasRemotas((n) => n + 1);
+      };
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) send({ type: "candidate", to: id, candidate: event.candidate.toJSON() });
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === "connected") {
+          par.tentativasIce = 0;
+          if (par.avisoDeQueda) clearTimeout(par.avisoDeQueda);
+          par.avisoDeQueda = null;
+          setRemotos((rs) => rs.map((r) => (r.id === id ? { ...r, conectado: true } : r)));
+          // Só depois de conectar os parâmetros do remetente existem de fato. E o
+          // teto de cada envio depende de quantas pessoas há: reajusta todos.
+          reajustarQualidade();
+        }
+        if (pc.connectionState === "failed") {
+          // A rede caiu (troca de Wi-Fi para 4G, por exemplo). Antes a chamada
+          // morria aqui e era preciso sair e entrar. Agora quem ofereceu esta
+          // conexão renegocia só o caminho de rede (ICE restart): a mídia e a
+          // sala continuam as mesmas. O outro lado responde pelo fluxo normal.
+          if (par.ofertante && par.tentativasIce < 3 && pc.signalingState === "stable") {
+            par.tentativasIce++;
+            void (async () => {
+              try {
+                const offer = await pc.createOffer({ iceRestart: true });
+                await pc.setLocalDescription(offer);
+                send({ type: "offer", to: id, sdp: offer.sdp });
+              } catch {
+                /* a pc foi fechada no meio do caminho */
+              }
+            })();
+          }
+          // Só desiste e avisa se nem a reconexão resolver. A dois, a chamada
+          // acabou; em grupo, só a ligação com ESSA pessoa — as outras seguem.
+          par.avisoDeQueda ??= setTimeout(() => {
+            if (disposed || pc.connectionState === "connected") return;
+            if (pares.size <= 1) {
+              onErr?.("A conexão de vídeo caiu. Tente sair e entrar de novo.");
+              return;
+            }
+            // Em grupo, tira o quadro dela: se a pessoa fechou o navegador e o
+            // aviso de saída não chegou (o Cloudflare do Render às vezes engole o
+            // "close"), o quadro ficaria preso em "Conectando…" para sempre. Se
+            // ela voltar, entra de novo como qualquer um.
+            toast.error(`A conexão com ${par.nome || "um participante"} caiu.`);
+            fecharPar(id);
+          }, 20_000);
+        }
+        if (pc.connectionState === "disconnected") {
+          setRemotos((rs) => rs.map((r) => (r.id === id ? { ...r, conectado: false } : r)));
+        }
+      };
+
+      setRemotos((rs) => [...rs.filter((r) => r.id !== id), { id, nome, role: papel, conectado: false }]);
+      return par;
+    };
+
+    const oferecer = async (par: Par) => {
+      const offer = await par.pc.createOffer();
+      await par.pc.setLocalDescription(offer);
+      send({ type: "offer", to: par.id, sdp: offer.sdp });
     };
 
     const setup = async () => {
@@ -378,9 +575,8 @@ export default function WebRTCCall({
       const atInicial = stream.getAudioTracks()[0];
       if (atInicial) atInicial.enabled = readLS(LS.micOn) !== "0";
 
-      // 2) Conexão peer-to-peer. Os servidores ICE vêm do servidor (credenciais
-      //    TURN temporárias); se a busca falhar, segue com STUN em vez de abortar.
-      let servidoresIce: RTCIceServer[] = STUN_RESERVA;
+      // 2) Servidores ICE do servidor (credenciais TURN temporárias); se a busca
+      //    falhar, segue com STUN em vez de abortar.
       try {
         const config = await utils.videoCalls.iceServers.fetch();
         if (config?.iceServers?.length) servidoresIce = config.iceServers as RTCIceServer[];
@@ -391,76 +587,9 @@ export default function WebRTCCall({
         stream.getTracks().forEach(t => t.stop());
         return;
       }
-      const pc = new RTCPeerConnection({ iceServers: servidoresIce });
-      pcRef.current = pc;
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-      preferirAudioRedundante(pc);
 
-      // Canal de dados para "mostrar arquivo". Quem cria é a ofertante (terapeuta),
-      // ANTES da oferta, para já ir na negociação; o paciente recebe por ondatachannel.
-      if (role === "therapist") {
-        configurarCanal(pc.createDataChannel("arquivos"));
-      } else {
-        pc.ondatachannel = (e) => configurarCanal(e.channel);
-      }
-
-      pc.ontrack = (event) => {
-        if (!remoteStreamRef.current) remoteStreamRef.current = new MediaStream();
-        remoteStreamRef.current.addTrack(event.track);
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = remoteStreamRef.current;
-          // Aplica o alto-falante escolhido no lobby, quando o navegador permite.
-          const spkId = readLS(LS.spk);
-          const el = remoteVideoRef.current as HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> };
-          if (spkId && el.setSinkId) el.setSinkId(spkId).catch(() => {});
-          el.play?.().catch(() => {});
-        }
-        setConnected(true);
-      };
-
-      pc.onicecandidate = (event) => {
-        if (event.candidate) send({ type: "candidate", candidate: event.candidate.toJSON() });
-      };
-
-      pc.onconnectionstatechange = () => {
-        if (pc.connectionState === "connected") {
-          tentativasIce = 0;
-          if (avisoDeQueda) clearTimeout(avisoDeQueda);
-          avisoDeQueda = null;
-          setConnected(true);
-          // Só depois de conectar os parâmetros do remetente existem de fato. Pode
-          // ser uma RECONEXÃO no meio do compartilhamento: aí a tela continua tela.
-          void ajustarQualidade(pc, telaStreamRef.current ? "tela" : "camera");
-        }
-        if (pc.connectionState === "failed") {
-          // A rede caiu (troca de Wi-Fi para 4G, por exemplo). Antes a chamada
-          // morria aqui e era preciso sair e entrar. Agora a psicóloga, que é quem
-          // faz a oferta, renegocia só o caminho de rede (ICE restart): a mídia e
-          // a sala continuam as mesmas. O paciente responde pelo fluxo normal.
-          if (role === "therapist" && tentativasIce < 3 && pc.signalingState === "stable") {
-            tentativasIce++;
-            void (async () => {
-              try {
-                const offer = await pc.createOffer({ iceRestart: true });
-                await pc.setLocalDescription(offer);
-                send({ type: "offer", sdp: offer.sdp });
-              } catch {
-                /* a pc foi fechada no meio do caminho */
-              }
-            })();
-          }
-          // Só desiste e avisa se nem a reconexão resolver.
-          avisoDeQueda ??= setTimeout(() => {
-            if (!disposed && pc.connectionState !== "connected") {
-              onErr?.("A conexão de vídeo caiu. Tente sair e entrar de novo.");
-            }
-          }, 20_000);
-        }
-        if (pc.connectionState === "disconnected") setConnected(false);
-      };
-
-      // 3) Sinalização. Abre DEPOIS da mídia/pc prontos: quando o "start" ou a
-      //    oferta chegar, já está tudo montado para responder.
+      // 3) Sinalização. Abre DEPOIS da mídia pronta: quando a lista de pessoas ou
+      //    uma oferta chegar, já dá para montar as conexões.
       const proto = window.location.protocol === "https:" ? "wss" : "ws";
       // Sem `role` na URL: o servidor deriva o papel de quem é o usuário. O token
       // também não vai na query (evita vazar em log de acesso) — segue na 1ª
@@ -471,63 +600,81 @@ export default function WebRTCCall({
       wsRef.current = ws;
 
       // Autentica antes de qualquer negociação: o servidor confere no banco que
-      // esta pessoa é a psicóloga ou o paciente DESTA consulta e só então repassa
-      // offer/answer/ICE. Sem sessão válida, não há como iniciar a chamada.
+      // esta pessoa é da consulta e só então repassa offer/answer/ICE.
       ws.onopen = () => {
         if (token) ws.send(JSON.stringify({ type: "auth", token }));
         else onErr?.("Sua sessão expirou. Entre novamente para iniciar a chamada.");
       };
 
       ws.onmessage = async (event) => {
-        let msg: { type?: string; sdp?: string; candidate?: RTCIceCandidateInit };
+        let msg: {
+          type?: string;
+          id?: string;
+          from?: string;
+          nome?: string;
+          role?: Role;
+          sdp?: string;
+          candidate?: RTCIceCandidateInit;
+          peers?: { id: string; nome: string; role: Role }[];
+        };
         try {
           msg = JSON.parse(event.data);
         } catch {
           return;
         }
-        const conn = pcRef.current;
-        if (!conn) return;
+        if (disposed) return;
 
-        // Terapeuta é o iniciador: cria a oferta quando os dois estão presentes.
-        if (msg.type === "start" && role === "therapist" && conn.signalingState === "stable") {
-          const offer = await conn.createOffer();
-          await conn.setLocalDescription(offer);
-          send({ type: "offer", sdp: offer.sdp });
+        // Cheguei: ofereço para cada pessoa que já estava na sala.
+        if (msg.type === "welcome") {
+          for (const p of msg.peers ?? []) await oferecer(criarPar(p.id, p.nome, p.role, true));
           return;
         }
+        // Alguém chegou depois de mim: ele vai oferecer; preparo a conexão.
+        if (msg.type === "peer-joined" && msg.id) {
+          criarPar(msg.id, msg.nome ?? "", msg.role ?? "patient", false);
+          return;
+        }
+        if (msg.type === "peer-left" && msg.id) {
+          fecharPar(msg.id);
+          return;
+        }
+
+        const de = msg.from;
+        if (!de) return;
         if (msg.type === "offer" && msg.sdp) {
-          await conn.setRemoteDescription({ type: "offer", sdp: msg.sdp });
-          await drainCandidates(conn);
-          const answer = await conn.createAnswer();
-          await conn.setLocalDescription(answer);
-          send({ type: "answer", sdp: answer.sdp });
+          const par = criarPar(de, "", "patient", false);
+          await par.pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
+          await drainCandidates(par);
+          const answer = await par.pc.createAnswer();
+          await par.pc.setLocalDescription(answer);
+          send({ type: "answer", to: de, sdp: answer.sdp });
           return;
         }
+        const par = pares.get(de);
+        if (!par) return;
         if (msg.type === "answer" && msg.sdp) {
-          await conn.setRemoteDescription({ type: "answer", sdp: msg.sdp });
-          await drainCandidates(conn);
+          await par.pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
+          await drainCandidates(par);
           return;
         }
         if (msg.type === "candidate" && msg.candidate) {
-          if (conn.remoteDescription) {
+          if (par.pc.remoteDescription) {
             try {
-              await conn.addIceCandidate(new RTCIceCandidate(msg.candidate));
+              await par.pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
             } catch {
               /* ignora */
             }
           } else {
-            pendingCandidates.current.push(msg.candidate);
-          }
-          return;
-        }
-        if (msg.type === "peer-left") {
-          setConnected(false);
-          if (remoteStreamRef.current) {
-            remoteStreamRef.current.getTracks().forEach((t) => remoteStreamRef.current?.removeTrack(t));
+            par.pendentes.push(msg.candidate);
           }
         }
       };
 
+      ws.onclose = (e) => {
+        if (disposed) return;
+        if (e.code === 4009) onErr?.("Esta chamada já está com 4 pessoas, o máximo.");
+        else if (e.code === 4000) onErr?.("Você entrou nesta chamada em outra aba ou aparelho.");
+      };
       ws.onerror = () => onErr?.("Falha na conexão de sinalização da videochamada.");
     };
 
@@ -535,27 +682,28 @@ export default function WebRTCCall({
 
     return () => {
       disposed = true;
-      if (avisoDeQueda) clearTimeout(avisoDeQueda);
       try {
         wsRef.current?.close();
       } catch {
         /* já fechado */
       }
-      try {
-        pcRef.current?.close();
-      } catch {
-        /* já fechado */
-      }
+      pares.forEach((par) => {
+        if (par.avisoDeQueda) clearTimeout(par.avisoDeQueda);
+        try {
+          par.pc.close();
+        } catch {
+          /* já fechada */
+        }
+      });
+      pares.clear();
+      videosRemotosRef.current.clear();
       fundoRef.current?.parar();
       fundoRef.current = null;
       if (arquivoUrlRef.current) URL.revokeObjectURL(arquivoUrlRef.current);
       arquivoUrlRef.current = null;
-      dcRef.current = null;
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
       wsRef.current = null;
-      pcRef.current = null;
       localStreamRef.current = null;
-      remoteStreamRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomName, role]);
@@ -584,10 +732,11 @@ export default function WebRTCCall({
     });
   const aplicarVolumeRemoto = (v: number) => {
     setVolumeRemoto(v);
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.volume = v / 100;
-      remoteVideoRef.current.muted = v === 0;
-    }
+    volumeRef.current = v;
+    videosRemotosRef.current.forEach((el) => {
+      el.volume = v / 100;
+      el.muted = v === 0;
+    });
   };
 
   /**
@@ -601,11 +750,11 @@ export default function WebRTCCall({
     // Volta ao "lado da câmera" atual: o fundo virtual, se estiver ligado, ou a
     // câmera crua.
     const volta = trilhaCameraRef.current ?? localStreamRef.current?.getVideoTracks()[0];
-    const sender = pcRef.current?.getSenders().find(s => s.track?.kind === "video");
-    if (volta && sender) await sender.replaceTrack(volta);
+    if (volta) await trocarEnvio("video", volta);
     // Voltou a camera: prioridade e a fluidez do rosto de novo.
-    if (pcRef.current) await ajustarQualidade(pcRef.current, "camera");
+    reajustarQualidade();
     setCompartilhando(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const compartilharTela = async () => {
@@ -629,15 +778,15 @@ export default function WebRTCCall({
       // derruba quadros em vez de borrar a letra. Complementa o
       // "maintain-resolution" de ajustarQualidade.
       if (trilha && "contentHint" in trilha) trilha.contentHint = "detail";
-      const sender = pcRef.current?.getSenders().find(s => s.track?.kind === "video");
-      if (!trilha || !sender) {
+      if (!trilha) {
         tela.getTracks().forEach(t => t.stop());
         return;
       }
       telaStreamRef.current = tela;
-      await sender.replaceTrack(trilha);
+      // Para TODAS as pessoas da chamada.
+      await trocarEnvio("video", trilha);
       // Tela: preservar resolucao (ler texto) em vez de fluidez.
-      if (pcRef.current) await ajustarQualidade(pcRef.current, "tela");
+      reajustarQualidade();
       setCompartilhando(true);
       // O navegador tem o próprio botão "parar de compartilhar": sem isto, a
       // pessoa pararia por lá e o outro lado ficaria vendo a tela congelada.
@@ -655,7 +804,6 @@ export default function WebRTCCall({
   const trocarFundo = async (url: string | null) => {
     const camera = localStreamRef.current;
     if (!camera) return;
-    const sender = pcRef.current?.getSenders().find(s => s.track?.kind === "video");
     try {
       if (url === null) {
         fundoRef.current?.parar();
@@ -663,7 +811,7 @@ export default function WebRTCCall({
         const trilhaCam = camera.getVideoTracks()[0] ?? null;
         trilhaCameraRef.current = trilhaCam;
         if (localVideoRef.current) localVideoRef.current.srcObject = camera;
-        if (!compartilhando && sender && trilhaCam) await sender.replaceTrack(trilhaCam);
+        if (!compartilhando && trilhaCam) await trocarEnvio("video", trilhaCam);
         setFundoAtual(null);
         return;
       }
@@ -676,7 +824,7 @@ export default function WebRTCCall({
         fundoRef.current = controle;
         trilhaCameraRef.current = controle.trilha;
         if (localVideoRef.current) localVideoRef.current.srcObject = controle.stream;
-        if (!compartilhando && sender) await sender.replaceTrack(controle.trilha);
+        if (!compartilhando) await trocarEnvio("video", controle.trilha);
         setFundoCarregando(false);
       }
       setFundoAtual(url);
@@ -719,8 +867,7 @@ export default function WebRTCCall({
     if (!nova) return;
     const antiga = stream.getAudioTracks()[0];
     nova.enabled = antiga ? antiga.enabled : micOn; // preserva mudo/ligado
-    const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === "audio");
-    if (sender) await sender.replaceTrack(nova);
+    await trocarEnvio("audio", nova);
     if (antiga) {
       stream.removeTrack(antiga);
       antiga.stop();
@@ -764,11 +911,10 @@ export default function WebRTCCall({
     stream.addTrack(nova);
     trilhaCameraRef.current = nova;
     if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-    const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === "video");
     if (tinhaFundo) {
       await trocarFundo(tinhaFundo); // reinicia o fundo com a câmera nova
-    } else if (!compartilhando && sender) {
-      await sender.replaceTrack(nova);
+    } else if (!compartilhando) {
+      await trocarEnvio("video", nova);
     }
     const id = nova.getSettings().deviceId;
     if (id) {
@@ -777,14 +923,15 @@ export default function WebRTCCall({
     }
   };
 
-  // Troca o ALTO-FALANTE (só onde o navegador oferece setSinkId).
+  // Troca o ALTO-FALANTE (só onde o navegador oferece setSinkId) — de todas as
+  // pessoas da chamada.
   const aplicarAltoFalante = async (deviceId: string) => {
-    const el = remoteVideoRef.current as
-      | (HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> })
-      | null;
-    if (!el?.setSinkId) return;
     try {
-      await el.setSinkId(deviceId);
+      await Promise.all(
+        Array.from(videosRemotosRef.current.values()).map((el) =>
+          (el as HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> }).setSinkId?.(deviceId),
+        ),
+      );
       writeLS(LS.spk, deviceId);
       setSpkAtual(deviceId);
     } catch {
@@ -821,25 +968,31 @@ export default function WebRTCCall({
     setArquivo({ url, tipo: mime === "application/pdf" ? "pdf" : "imagem", nome });
   };
 
-  /** Fecha o arquivo em exibição. `notificar` avisa o outro lado para fechar também. */
+  /** Os canais de arquivo abertos (um por pessoa). */
+  const canaisAbertos = () =>
+    Array.from(paresRef.current.values())
+      .map((p) => p.dc)
+      .filter((dc): dc is RTCDataChannel => dc?.readyState === "open");
+
+  /** Fecha o arquivo em exibição. `notificar` avisa as outras pessoas para fechar também. */
   const fecharArquivo = (notificar = true) => {
     if (arquivoUrlRef.current) {
       URL.revokeObjectURL(arquivoUrlRef.current);
       arquivoUrlRef.current = null;
     }
     setArquivo(null);
-    if (notificar && dcRef.current?.readyState === "open") {
-      dcRef.current.send(JSON.stringify({ t: "fechar" }));
-    }
+    if (notificar) canaisAbertos().forEach((dc) => dc.send(JSON.stringify({ t: "fechar" })));
   };
 
-  // Prepara o canal de dados: recebe os metadados (JSON) e depois os pedaços
-  // binários, remonta o arquivo e o exibe. Usado nos dois lados.
-  const configurarCanal = (dc: RTCDataChannel) => {
+  // Prepara o canal de dados com uma pessoa: recebe os metadados (JSON) e depois
+  // os pedaços binários, remonta o arquivo e o exibe. Cada canal junta os pedaços
+  // do SEU arquivo (em grupo, duas pessoas podem mandar ao mesmo tempo).
+  const configurarCanal = (par: Par, dc: RTCDataChannel) => {
     dc.binaryType = "arraybuffer";
-    dcRef.current = dc;
-    dc.onopen = () => setCanalPronto(true);
-    dc.onclose = () => setCanalPronto(false);
+    par.dc = dc;
+    let recebendo: { mime: string; nome: string; partes: ArrayBuffer[] } | null = null;
+    dc.onopen = () => atualizarCanalPronto();
+    dc.onclose = () => atualizarCanalPronto();
     dc.onmessage = (e: MessageEvent) => {
       if (typeof e.data === "string") {
         let msg: { t?: string; mime?: string; nome?: string };
@@ -849,24 +1002,23 @@ export default function WebRTCCall({
           return;
         }
         if (msg.t === "inicio") {
-          recebendoRef.current = { mime: msg.mime || "", nome: msg.nome || "arquivo", partes: [] };
-        } else if (msg.t === "fim" && recebendoRef.current) {
-          const r = recebendoRef.current;
-          mostrarArquivo(new Blob(r.partes, { type: r.mime }), r.mime, r.nome);
-          recebendoRef.current = null;
+          recebendo = { mime: msg.mime || "", nome: msg.nome || "arquivo", partes: [] };
+        } else if (msg.t === "fim" && recebendo) {
+          mostrarArquivo(new Blob(recebendo.partes, { type: recebendo.mime }), recebendo.mime, recebendo.nome);
+          recebendo = null;
         } else if (msg.t === "fechar") {
           fecharArquivo(false);
         }
-      } else if (recebendoRef.current) {
-        recebendoRef.current.partes.push(e.data as ArrayBuffer);
+      } else if (recebendo) {
+        recebendo.partes.push(e.data as ArrayBuffer);
       }
     };
   };
 
-  /** Envia um arquivo (imagem/PDF) pelo canal de dados, em pedaços, e mostra localmente. */
+  /** Envia um arquivo (imagem/PDF) a todas as pessoas, em pedaços, e mostra localmente. */
   const enviarArquivo = async (file: File) => {
-    const dc = dcRef.current;
-    if (!dc || dc.readyState !== "open") {
+    const canais = canaisAbertos();
+    if (canais.length === 0) {
       toast.error("O envio de arquivos fica disponível quando a chamada conecta.");
       return;
     }
@@ -882,16 +1034,22 @@ export default function WebRTCCall({
     }
     try {
       const buf = await file.arrayBuffer();
-      dc.send(JSON.stringify({ t: "inicio", nome: file.name, mime: file.type }));
       const CHUNK = 16 * 1024;
-      for (let off = 0; off < buf.byteLength; off += CHUNK) {
-        // Se o canal fechar no meio (a pessoa saiu), para sem derrubar a chamada.
-        if (dc.readyState !== "open") throw new Error("canal fechado");
-        // Espera a fila baixar antes de continuar (evita estourar o buffer do canal).
-        while (dc.bufferedAmount > 1_000_000) await new Promise((r) => setTimeout(r, 20));
-        dc.send(buf.slice(off, off + CHUNK));
+      for (const dc of canais) {
+        // Se uma pessoa sair no meio, as outras ainda recebem.
+        try {
+          dc.send(JSON.stringify({ t: "inicio", nome: file.name, mime: file.type }));
+          for (let off = 0; off < buf.byteLength; off += CHUNK) {
+            if (dc.readyState !== "open") throw new Error("canal fechado");
+            // Espera a fila baixar antes de continuar (evita estourar o buffer do canal).
+            while (dc.bufferedAmount > 1_000_000) await new Promise((r) => setTimeout(r, 20));
+            dc.send(buf.slice(off, off + CHUNK));
+          }
+          dc.send(JSON.stringify({ t: "fim" }));
+        } catch {
+          /* este canal fechou: segue para os outros */
+        }
       }
-      dc.send(JSON.stringify({ t: "fim" }));
       mostrarArquivo(new Blob([buf], { type: file.type }), file.type, file.name);
     } catch {
       toast.error("Não foi possível enviar o arquivo. A chamada continua normalmente.");
@@ -1080,8 +1238,9 @@ export default function WebRTCCall({
     return () => obs.disconnect();
   }, []);
 
-  // Detector de fala: mede o nível de áudio de cada lado e acende o brilho verde
-  // de quem está falando. Só depois de conectar (aí a trilha remota existe).
+  // Detector de fala: mede o nível de áudio de cada pessoa e acende o brilho
+  // verde de quem está falando. Refaz quando chega trilha nova ou alguém sai.
+  const chaveDosRemotos = remotos.filter((r) => r.conectado).map((r) => r.id).join(",");
   useEffect(() => {
     if (!connected) return;
     const AC =
@@ -1104,7 +1263,7 @@ export default function WebRTCCall({
       }
     };
     criar(localStreamRef.current, setLocalFalando);
-    criar(remoteStreamRef.current, setRemoteFalando);
+    paresRef.current.forEach((par, id) => criar(par.stream, (v) => setFalando((f) => ({ ...f, [id]: v }))));
     const id = window.setInterval(() => {
       const agora = Date.now();
       for (const it of itens) {
@@ -1127,9 +1286,9 @@ export default function WebRTCCall({
       window.clearInterval(id);
       void ctx.close().catch(() => {});
       setLocalFalando(false);
-      setRemoteFalando(false);
+      setFalando({});
     };
-  }, [connected]);
+  }, [connected, chaveDosRemotos, trilhasRemotas]);
 
   return (
     <div
@@ -1146,20 +1305,67 @@ export default function WebRTCCall({
         telaCheiaPorCss && "fixed inset-0 z-[60] h-[100dvh] w-screen rounded-none",
       )}
     >
-      {/* Vídeo do outro lado ocupa a tela toda. */}
-      <video
-        ref={remoteVideoRef}
-        autoPlay
-        playsInline
-        className="h-full w-full object-contain"
-      />
-
-      {/* Brilho verde quando o OUTRO lado está falando. */}
+      {/* As pessoas do outro lado. Uma só: ocupa a tela toda, como sempre foi.
+          Em grupo: grade (2 lado a lado — no celular em pé, uma sobre a outra;
+          3 = duas em cima e uma larga embaixo), com o nome e o brilho de quem fala. */}
       <div
-        className={`pointer-events-none absolute inset-0 rounded-lg ring-4 ring-inset ring-green-400/80 transition-opacity duration-150 ${
-          remoteFalando ? "opacity-100" : "opacity-0"
-        }`}
-      />
+        className={cn(
+          "grid h-full w-full auto-rows-fr",
+          remotos.length <= 1 ? "grid-cols-1" : "gap-1 p-1",
+          remotos.length === 2 && "grid-cols-1 sm:grid-cols-2",
+          remotos.length >= 3 && "grid-cols-2",
+        )}
+      >
+        {remotos.map((r, i) => {
+          const emGrupo = remotos.length > 1;
+          return (
+            <div
+              key={r.id}
+              data-pessoa={r.id}
+              className={cn(
+                "relative min-h-0 overflow-hidden bg-black",
+                emGrupo && "rounded-md bg-neutral-900",
+                remotos.length === 3 && i === 2 && "col-span-2",
+              )}
+            >
+              <video
+                ref={(el) => {
+                  if (el) {
+                    videosRemotosRef.current.set(r.id, el);
+                    const par = paresRef.current.get(r.id);
+                    if (par) ligarVideo(el, par.stream);
+                  } else {
+                    videosRemotosRef.current.delete(r.id);
+                  }
+                }}
+                autoPlay
+                playsInline
+                className={cn("h-full w-full", emGrupo ? "object-cover" : "object-contain")}
+              />
+              {/* Brilho verde quando ESSA pessoa está falando. */}
+              <div
+                className={cn(
+                  "pointer-events-none absolute inset-0 ring-4 ring-inset ring-green-400/80 transition-opacity duration-150",
+                  emGrupo ? "rounded-md" : "rounded-lg",
+                  falando[r.id] ? "opacity-100" : "opacity-0",
+                )}
+              />
+              {emGrupo && (
+                <span className="pointer-events-none absolute left-2 top-2 max-w-[80%] truncate rounded-full bg-black/60 px-2.5 py-0.5 text-xs font-medium text-white">
+                  {r.nome || (r.role === "therapist" ? "Psicóloga" : "Participante")}
+                </span>
+              )}
+              {emGrupo && !r.conectado && (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <span className="flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1 text-xs text-white">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Conectando…
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
       {/* Enquanto o outro lado não conecta, um aviso discreto. */}
       {!connected && (

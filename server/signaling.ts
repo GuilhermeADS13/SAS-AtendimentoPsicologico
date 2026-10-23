@@ -1,32 +1,44 @@
+import { randomUUID } from "node:crypto";
 import { WebSocketServer, WebSocket } from "ws";
 import { verifySupabaseToken } from "./supabaseAuth";
 import { getDb, getUserByOpenId } from "./db";
 import { resolverAcessoSala } from "./roomAccess";
+import { MAX_PESSOAS_NA_CHAMADA } from "../shared/chamadaEmGrupo";
 
 /**
- * Sinalização WebRTC 1:1 das salas de videochamada.
+ * Sinalização WebRTC das salas de videochamada — a dois ou em GRUPO (até
+ * MAX_PESSOAS_NA_CHAMADA: terapia de casal; pais separados + criança).
  *
- * O vídeo em si é peer-to-peer (terapeuta <-> paciente, com STUN grátis); este
- * servidor só repassa os metadados da negociação (offer/answer/ICE) entre os dois
- * lados da MESMA sala. Não vê nem grava mídia — só o handshake.
+ * O vídeo em si é peer-to-peer em MALHA (cada pessoa conecta direto com cada
+ * outra, com STUN grátis); este servidor só repassa os metadados da negociação
+ * (offer/answer/ICE) entre as pessoas da MESMA sala. Não vê nem grava mídia.
  *
  * Autenticação: abrir o WebSocket não basta. O cliente precisa mandar, como
  * PRIMEIRA mensagem, `{ type: "auth", token }` com o access token do Supabase.
  * O servidor valida o token, resolve quem é a pessoa e confere no banco que ela
- * é a psicóloga dona ou o paciente DAQUELA consulta (ver ./roomAccess). Sem isso,
- * saber o nome da sala não dava para conectar — o papel também vem do servidor,
- * então um paciente não consegue se declarar "therapist". O token vai numa
- * mensagem (não na URL) para não vazar em log de acesso.
+ * é a psicóloga dona, o paciente ou um participante DAQUELA consulta (ver
+ * ./roomAccess). O papel também vem do servidor, nunca do cliente. O token vai
+ * numa mensagem (não na URL) para não vazar em log de acesso.
  *
- * Papel do iniciador: a terapeuta cria a oferta (evita "glare" — o paciente nunca
- * oferece, só responde), disparada quando os dois lados estão presentes.
+ * Protocolo (cada pessoa ganha um `id` na sala):
+ *  - quem entra recebe `welcome { id, peers: [{ id, role, nome }] }`, e os que
+ *    já estavam recebem `peer-joined { id, role, nome }`;
+ *  - QUEM CHEGOU POR ÚLTIMO oferece para cada um que já estava. Só um lado sabe
+ *    que é o novo, então nunca os dois oferecem ao mesmo tempo ("glare"); quem
+ *    recarrega a página vira o novo de novo;
+ *  - offer/answer/candidate levam `to` (o destino) e chegam com `from`
+ *    carimbado pelo servidor — ninguém se passa por outro;
+ *  - ao sair, os outros recebem `peer-left { id }`.
  */
 
 type Role = "therapist" | "patient";
 
 interface Client {
   ws: WebSocket;
+  id: string;
   role: Role;
+  userId: number;
+  nome: string;
 }
 
 // room -> clientes conectados naquela sala.
@@ -34,6 +46,9 @@ const rooms = new Map<string, Set<Client>>();
 
 // Tempo para o cliente mandar a mensagem de auth antes de o servidor desistir.
 const AUTH_TIMEOUT_MS = 5000;
+
+/** Fechamento com este código = sala cheia (o cliente mostra a mensagem certa). */
+export const CODIGO_SALA_CHEIA = 4009;
 
 function sendTo(client: Client, payload: unknown) {
   if (client.ws.readyState === WebSocket.OPEN) {
@@ -66,36 +81,62 @@ export function createSignalingWss(): WebSocketServer {
       if (!client) ws.close(4001, "auth timeout");
     }, AUTH_TIMEOUT_MS);
 
-    // Entra na sala com o papel DERIVADO do servidor e dispara o fluxo de início.
-    const entrar = (role: Role) => {
-      const c: Client = { ws, role };
-      client = c;
-      let existing = rooms.get(room);
-      if (!existing) {
-        existing = new Set();
-        rooms.set(room, existing);
+    /** Tira o cliente da sala e avisa os outros. */
+    const sair = (c: Client) => {
+      const clients = rooms.get(room);
+      if (!clients || !clients.delete(c)) return;
+      if (clients.size === 0) {
+        rooms.delete(room);
+        return;
       }
-      const clients = existing;
-      clients.add(c);
+      clients.forEach((o) => sendTo(o, { type: "peer-left", id: c.id }));
+    };
 
-      // Com os dois lados presentes, manda a terapeuta iniciar a oferta. Roda a
-      // cada entrada (inclusive quando o paciente reconecta), sempre com a
-      // terapeuta como único iniciador — então não há oferta cruzada.
-      let hasTherapist = false;
-      let hasPatient = false;
-      clients.forEach((o) => {
-        if (o.role === "therapist") hasTherapist = true;
-        else hasPatient = true;
-      });
-      if (hasTherapist && hasPatient) {
-        clients.forEach((o) => {
-          if (o.role === "therapist") sendTo(o, { type: "start" });
-        });
+    // Entra na sala com o papel DERIVADO do servidor.
+    const entrar = (role: Role, userId: number, nome: string) => {
+      let clients = rooms.get(room);
+      if (!clients) {
+        clients = new Set();
+        rooms.set(room, clients);
       }
+      // A MESMA pessoa entrando de novo (recarregou a página, outra aba): derruba
+      // a conexão antiga. Pelo Cloudflare do Render o "close" de um WebSocket nem
+      // sempre chega — a antiga ficaria na sala como fantasma, e os outros
+      // tentariam conectar com ela para sempre ("conectando…" num quadro vazio).
+      Array.from(clients)
+        .filter((o) => o.userId === userId)
+        .forEach((velho) => {
+          sair(velho);
+          try {
+            velho.ws.close(4000, "substituído");
+          } catch {
+            /* já fechado */
+          }
+        });
+      clients = rooms.get(room) ?? new Set<Client>();
+      rooms.set(room, clients);
+
+      if (clients.size >= MAX_PESSOAS_NA_CHAMADA) {
+        ws.close(CODIGO_SALA_CHEIA, "sala cheia");
+        return;
+      }
+
+      const c: Client = { ws, id: randomUUID(), role, userId, nome };
+      const quemJaEstava = Array.from(clients);
+      client = c;
+      clients.add(c);
+      // Primeiro avisa quem já estava (para eles esperarem a oferta), depois
+      // dá as boas-vindas ao novo — que é quem oferece.
+      quemJaEstava.forEach((o) => sendTo(o, { type: "peer-joined", id: c.id, role, nome }));
+      sendTo(c, {
+        type: "welcome",
+        id: c.id,
+        peers: quemJaEstava.map((o) => ({ id: o.id, role: o.role, nome: o.nome })),
+      });
     };
 
     ws.on("message", async (raw) => {
-      let msg: { type?: string; token?: unknown };
+      let msg: { type?: string; token?: unknown; to?: unknown };
       try {
         msg = JSON.parse(raw.toString());
       } catch {
@@ -126,31 +167,21 @@ export function createSignalingWss(): WebSocketServer {
           ws.close(4003, "forbidden");
           return;
         }
-        entrar(acesso.role);
+        entrar(acesso.role, user.id, (user.name ?? "").trim());
         return;
       }
 
-      // Fase 2: já autenticado. Só repassa os tipos da negociação.
-      if (msg.type === "offer" || msg.type === "answer" || msg.type === "candidate") {
-        const clients = rooms.get(room);
-        clients?.forEach((c) => {
-          if (c !== client) sendTo(c, msg);
-        });
+      // Fase 2: já autenticado. Só repassa a negociação, para UM destino da sala,
+      // com o remetente carimbado aqui.
+      if ((msg.type === "offer" || msg.type === "answer" || msg.type === "candidate") && typeof msg.to === "string") {
+        const destino = Array.from(rooms.get(room) ?? []).find((c) => c.id === msg.to);
+        if (destino && destino !== client) sendTo(destino, { ...msg, to: undefined, from: client.id });
       }
     });
 
     ws.on("close", () => {
       clearTimeout(authTimer);
-      if (!client) return; // nunca autenticou: não entrou em nenhuma sala.
-      const clients = rooms.get(room);
-      if (!clients) return;
-      clients.delete(client);
-      if (clients.size === 0) {
-        rooms.delete(room);
-        return;
-      }
-      // Avisa o outro lado para voltar ao estado de espera/reconexão.
-      clients.forEach((c) => sendTo(c, { type: "peer-left" }));
+      if (client) sair(client); // nunca autenticou: não entrou em nenhuma sala.
     });
 
     // Ignora erros de socket individuais; o "close" cuida da limpeza.

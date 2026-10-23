@@ -1,5 +1,5 @@
 import { and, eq, isNull } from "drizzle-orm";
-import { appointments, patients, therapists } from "../drizzle/schema";
+import { appointmentParticipants, appointments, patients, therapists } from "../drizzle/schema";
 import type { getDb } from "./db";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -119,15 +119,25 @@ export async function resolverAcessoSala(
 
   // O paciente daquela consulta (vincula o convite se ainda faltar).
   const paciente = await pacienteDoUsuario(db, user);
-  if (paciente && paciente.id === a.patientId) {
-    return {
-      role: "patient",
-      appointmentId,
-      patientId: a.patientId,
-      scheduledAt: a.scheduledAt,
-      duration: a.duration,
-    };
-  }
+  if (!paciente) return null;
+  const acessoDePaciente = {
+    role: "patient" as const,
+    appointmentId,
+    patientId: a.patientId,
+    scheduledAt: a.scheduledAt,
+    duration: a.duration,
+  };
+  if (paciente.id === a.patientId) return acessoDePaciente;
+
+  // Paciente EXTRA (chamada em grupo: casal; pais + criança), adicionado pela
+  // psicóloga. Entra como paciente; o `patientId` segue sendo o principal (é o
+  // prontuário onde a sessão fica).
+  const extra = await db
+    .select({ id: appointmentParticipants.id })
+    .from(appointmentParticipants)
+    .where(and(eq(appointmentParticipants.appointmentId, appointmentId), eq(appointmentParticipants.patientId, paciente.id)))
+    .limit(1);
+  if (extra.length) return acessoDePaciente;
 
   return null;
 }

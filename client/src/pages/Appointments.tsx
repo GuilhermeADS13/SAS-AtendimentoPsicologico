@@ -48,6 +48,7 @@ import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { CalendarioAgenda } from "@/components/CalendarioAgenda";
 import AddToCalendar from "@/components/AddToCalendar";
 import { AvatarDaPessoa } from "@/components/AvatarDaPessoa";
+import { ParticipantesDaConsulta } from "@/components/ParticipantesDaConsulta";
 import { reaisParaCentavos, centavosParaInput, formatarBRL } from "@shared/dinheiro";
 
 type Status = "scheduled" | "completed" | "cancelled" | "no_show";
@@ -846,6 +847,12 @@ export default function Appointments() {
                             <Button variant="outline" size="sm" onClick={() => startEdit(appointment)} className="h-10 justify-center gap-1.5" title="Editar data, hora, duração ou valor">
                               <Pencil className="h-4 w-4" /> Editar
                             </Button>
+                            <ParticipantesDaConsulta
+                              appointmentId={appointment.id}
+                              pacientePrincipalId={appointment.patientId}
+                              pacientes={patients}
+                              className="h-10 justify-center"
+                            />
                             <Button variant="outline" size="sm" onClick={() => setLocation(roomUrl)} className="h-10 justify-center gap-1.5 text-primary" title="Entrar na videochamada">
                               <ExternalLink className="h-4 w-4" /> Entrar na videochamada
                             </Button>
@@ -1073,6 +1080,12 @@ export default function Appointments() {
                                     <Pencil className="h-4 w-4" />
                                     <span>Editar</span>
                                   </Button>
+                                  <ParticipantesDaConsulta
+                                    appointmentId={appointment.id}
+                                    pacientePrincipalId={appointment.patientId}
+                                    pacientes={patients}
+                                    className="h-auto min-h-8 w-full justify-start whitespace-normal text-left"
+                                  />
                                   <Button
                                     variant="outline"
                                     size="sm"

@@ -231,12 +231,14 @@ export default function MyAppointments() {
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {a.duration} min
-                          {a.confirmedAt ? " · presença confirmada ✓" : ""}
+                          {/* Participante (casal; pais + criança): a consulta é de outro
+                              paciente, e a presença é confirmada por ele. */}
+                          {a.participante ? " · você foi incluído(a) nesta consulta" : a.confirmedAt ? " · presença confirmada ✓" : ""}
                         </p>
                       </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        {!a.confirmedAt && (
+                        {!a.confirmedAt && !a.participante && (
                           <Button
                             variant="outline"
                             onClick={() => confirmar.mutate({ appointmentId: a.id })}

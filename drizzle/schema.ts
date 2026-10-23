@@ -267,6 +267,29 @@ export type Appointment = typeof appointments.$inferSelect;
 export type InsertAppointment = typeof appointments.$inferInsert;
 
 /**
+ * Pacientes EXTRAS de uma consulta (chamada em grupo: casal; pais + criança),
+ * além do principal (appointments.patientId). Migração 0039. A sessão continua
+ * registrada no prontuário do paciente principal.
+ */
+export const appointmentParticipants = pgTable(
+  "appointmentParticipants",
+  {
+    id: serial("id").primaryKey(),
+    appointmentId: integer("appointmentId")
+      .notNull()
+      .references(() => appointments.id, { onDelete: "cascade" }),
+    patientId: integer("patientId")
+      .notNull()
+      .references(() => patients.id, { onDelete: "cascade" }),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("appointmentParticipants_unico").on(table.appointmentId, table.patientId),
+    index("appointmentParticipants_patientId_idx").on(table.patientId),
+  ],
+);
+
+/**
  * Sessões (registros de consultas realizadas).
  */
 export const sessions = pgTable("sessions", {

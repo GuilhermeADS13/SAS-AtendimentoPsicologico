@@ -6,7 +6,7 @@ import { publicProcedure, protectedProcedure, therapistProcedure, adminProcedure
 import { z } from "zod";
 import { iceServersParaChamada } from "./turn";
 import { getDb } from "./db";
-import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessageFeedback, patients, appointments, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users, chatMessages } from "../drizzle/schema";
+import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessageFeedback, patients, appointments, appointmentParticipants, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users, chatMessages } from "../drizzle/schema";
 import { signDocumentUrl, downloadDocumentFile, removeDocumentFile as removeStorageFile, assinarFotos } from "./storage";
 import { extractClinicalDocument } from "./ai/document-ingestion";
 import { sendEmail } from "./mailer";
@@ -16,11 +16,12 @@ import { CRP_REGEX } from "../shared/crp";
 import { celularValido, soDigitos } from "../shared/telefone";
 import { FASES_VALORES } from "../shared/evolucao";
 import { FREQUENCIA_REGEX } from "../shared/frequencia";
+import { motivoParaRecusarParticipante } from "../shared/chamadaEmGrupo";
 import { faixaDoHibp, MENSAGEM_SENHA_VAZADA, PREFIXO_HIBP, senhaVazada } from "../shared/senhaVazada";
 import { emailComMarca } from "./emailLayout";
 import { identificarCliente } from "./_core/seguranca";
 import { randomInt, createHash } from "node:crypto";
-import { eq, and, asc, desc, isNull, isNotNull, ne, inArray, getTableColumns, sql, ilike } from "drizzle-orm";
+import { eq, and, or, asc, desc, isNull, isNotNull, ne, inArray, getTableColumns, sql, ilike } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { runOpenSourceAgent } from "./ai/llm";
 import { answerSiteHelp } from "./ai/site-help";
@@ -276,6 +277,18 @@ export function montarHistoricoDoBanco(
     else historico.push({ role: linha.role, content });
   }
   return historico;
+}
+
+/** A consulta, só se for da psicóloga logada (therapistId no WHERE). */
+async function consultaDaPsicologa(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, userId: number, appointmentId: number) {
+  const therapist = await db.select({ id: therapists.id }).from(therapists).where(eq(therapists.userId, userId)).limit(1);
+  if (!therapist.length) return null;
+  const linhas = await db
+    .select({ id: appointments.id, patientId: appointments.patientId, therapistId: appointments.therapistId })
+    .from(appointments)
+    .where(and(eq(appointments.id, appointmentId), eq(appointments.therapistId, therapist[0].id)))
+    .limit(1);
+  return linhas[0] ?? null;
 }
 
 export const appRouter = router({
@@ -1264,9 +1277,16 @@ export const appRouter = router({
       const paciente = await pacienteDoUsuario(db, ctx.user);
       if (!paciente) return [];
 
+      // Consultas em que ele é paciente EXTRA (chamada em grupo).
+      const extras = await db
+        .select({ id: appointmentParticipants.appointmentId })
+        .from(appointmentParticipants)
+        .where(eq(appointmentParticipants.patientId, paciente.id));
+      const idsExtras = extras.map((e) => e.id);
+
       // Traz o nome da psicóloga junto: sem isso a tela mostraria só data e
       // hora, e o paciente não saberia com quem é a consulta.
-      return db
+      const linhas = await db
         .select({
           id: appointments.id,
           patientId: appointments.patientId,
@@ -1284,8 +1304,15 @@ export const appRouter = router({
         .from(appointments)
         .leftJoin(therapists, eq(therapists.id, appointments.therapistId))
         .leftJoin(users, eq(users.id, therapists.userId))
-        .where(eq(appointments.patientId, paciente.id))
+        .where(
+          idsExtras.length
+            ? or(eq(appointments.patientId, paciente.id), inArray(appointments.id, idsExtras))
+            : eq(appointments.patientId, paciente.id),
+        )
         .orderBy(desc(appointments.scheduledAt));
+      // `participante`: a consulta é de outro paciente e ele foi adicionado. A
+      // tela não oferece "Confirmar presença" (é do paciente principal).
+      return linhas.map((l) => ({ ...l, participante: l.patientId !== paciente.id }));
     }),
 
     /**
@@ -2198,6 +2225,74 @@ export const appRouter = router({
 
         if (!updated.length) throw new Error("Appointment not found");
         return { success: true, appointment: updated[0] } as const;
+      }),
+
+    /**
+     * Pacientes EXTRAS da consulta (chamada em grupo: casal; pais + criança).
+     * Cada um entra na sala logado com a própria conta — ver roomAccess.ts.
+     */
+    participantes: therapistProcedure
+      .input(z.object({ appointmentId: z.number().int() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const consulta = await consultaDaPsicologa(db, ctx.user.id, input.appointmentId);
+        if (!consulta) return [];
+        return db
+          .select({ patientId: patients.id, firstName: patients.firstName, lastName: patients.lastName })
+          .from(appointmentParticipants)
+          .innerJoin(patients, eq(patients.id, appointmentParticipants.patientId))
+          .where(eq(appointmentParticipants.appointmentId, input.appointmentId))
+          .orderBy(asc(appointmentParticipants.createdAt));
+      }),
+
+    adicionarParticipante: therapistProcedure
+      .input(z.object({ appointmentId: z.number().int(), patientId: z.number().int() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const consulta = await consultaDaPsicologa(db, ctx.user.id, input.appointmentId);
+        if (!consulta) throw new Error("Consulta não encontrada.");
+        // Só paciente DELA (therapistId no WHERE).
+        const paciente = await db
+          .select({ id: patients.id })
+          .from(patients)
+          .where(and(eq(patients.id, input.patientId), eq(patients.therapistId, consulta.therapistId)))
+          .limit(1);
+        if (!paciente.length) throw new Error("Paciente não encontrado.");
+        const atuais = await db
+          .select({ patientId: appointmentParticipants.patientId })
+          .from(appointmentParticipants)
+          .where(eq(appointmentParticipants.appointmentId, input.appointmentId));
+        const motivo = motivoParaRecusarParticipante({
+          ehPrincipal: consulta.patientId === input.patientId,
+          jaParticipa: atuais.some((a) => a.patientId === input.patientId),
+          extras: atuais.length,
+        });
+        if (motivo) throw new Error(motivo);
+        await db
+          .insert(appointmentParticipants)
+          .values({ appointmentId: input.appointmentId, patientId: input.patientId })
+          .onConflictDoNothing();
+        return { ok: true } as const;
+      }),
+
+    removerParticipante: therapistProcedure
+      .input(z.object({ appointmentId: z.number().int(), patientId: z.number().int() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const consulta = await consultaDaPsicologa(db, ctx.user.id, input.appointmentId);
+        if (!consulta) throw new Error("Consulta não encontrada.");
+        await db
+          .delete(appointmentParticipants)
+          .where(
+            and(
+              eq(appointmentParticipants.appointmentId, input.appointmentId),
+              eq(appointmentParticipants.patientId, input.patientId),
+            ),
+          );
+        return { ok: true } as const;
       }),
   }),
 
