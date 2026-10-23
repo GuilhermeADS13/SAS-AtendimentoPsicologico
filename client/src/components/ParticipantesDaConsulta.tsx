@@ -20,11 +20,14 @@ export function ParticipantesDaConsulta({
   pacientePrincipalId,
   pacientes,
   className,
+  rotulo = "Participantes",
 }: {
   appointmentId: number;
   pacientePrincipalId: number;
   pacientes: readonly Paciente[];
   className?: string;
+  /** Texto do botão ("Convidar" na chamada). */
+  rotulo?: string;
 }) {
   const [aberto, setAberto] = useState(false);
   const [escolhido, setEscolhido] = useState("");
@@ -61,7 +64,7 @@ export function ParticipantesDaConsulta({
           className={cn("gap-1.5", className)}
           title="Incluir mais pessoas na chamada (casal, responsáveis)"
         >
-          <Users className="h-4 w-4" /> <span>Participantes</span>
+          <Users className="h-4 w-4" /> <span>{rotulo}</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">

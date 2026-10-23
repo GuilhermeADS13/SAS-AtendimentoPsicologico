@@ -16,7 +16,7 @@ import { CRP_REGEX } from "../shared/crp";
 import { celularValido, soDigitos } from "../shared/telefone";
 import { FASES_VALORES } from "../shared/evolucao";
 import { FREQUENCIA_REGEX } from "../shared/frequencia";
-import { motivoParaRecusarParticipante } from "../shared/chamadaEmGrupo";
+import { MAX_PARTICIPANTES_EXTRAS, motivoParaRecusarParticipante } from "../shared/chamadaEmGrupo";
 import { faixaDoHibp, MENSAGEM_SENHA_VAZADA, PREFIXO_HIBP, senhaVazada } from "../shared/senhaVazada";
 import { emailComMarca } from "./emailLayout";
 import { identificarCliente } from "./_core/seguranca";
@@ -2056,6 +2056,9 @@ export const appRouter = router({
          * mais horário de verão.
          */
         repetirSemanas: z.number().int().min(1).max(12).default(1),
+        /** Pacientes EXTRAS (chamada em grupo: casal; responsáveis + criança).
+         *  Valem para todas as semanas criadas juntas. */
+        participantes: z.array(z.number().int()).max(MAX_PARTICIPANTES_EXTRAS).default([]),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
@@ -2077,6 +2080,19 @@ export const appRouter = router({
           .limit(1);
 
         if (!patient.length) throw new Error("Patient not found for this therapist");
+
+        // Participantes: sem repetir, sem o principal, e só pacientes DELA.
+        const participantes = Array.from(new Set(input.participantes));
+        if (participantes.includes(input.patientId)) {
+          throw new Error("O paciente principal já está na consulta; escolha outra pessoa como participante.");
+        }
+        if (participantes.length) {
+          const dela = await db
+            .select({ id: patients.id })
+            .from(patients)
+            .where(and(inArray(patients.id, participantes), eq(patients.therapistId, therapist[0].id)));
+          if (dela.length !== participantes.length) throw new Error("Paciente não encontrado.");
+        }
 
         const base = new Date(input.scheduledAt);
         const SEMANA_MS = 7 * 24 * 60 * 60 * 1000;
@@ -2103,7 +2119,13 @@ export const appRouter = router({
             ? "Todos os horários já têm consulta na agenda. Escolha outro horário."
             : "Já existe uma consulta nesse horário. Escolha outro.");
         }
-        await db.insert(appointments).values(linhas);
+        const criadas = await db.insert(appointments).values(linhas).returning({ id: appointments.id });
+        if (participantes.length) {
+          await db
+            .insert(appointmentParticipants)
+            .values(criadas.flatMap((c) => participantes.map((patientId) => ({ appointmentId: c.id, patientId }))))
+            .onConflictDoNothing();
+        }
         // Avisa o paciente NA HORA (antes esperava o ciclo de até 15 min).
         if (process.env.NOTIFICATIONS_ENABLED === "true") void rodarCicloDeNotificacoes();
         return { criadas: linhas.length } as const;

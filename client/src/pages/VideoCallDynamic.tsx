@@ -26,6 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MODELOS_INTERNOS } from "@shared/prontuario";
 import EditorDeAnotacao from "@/components/EditorDeAnotacao";
 import ChatConversa from "@/components/ChatConversa";
+import { ParticipantesDaConsulta } from "@/components/ParticipantesDaConsulta";
 
 interface VideoCallDynamicProps {
   /** Nome da sala (apt<id>-<token>), sempre vindo da rota /videocall/:roomId. */
@@ -83,6 +84,8 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
   // Prontuário/anotações/gravação são exclusivos da psicóloga DESTA consulta.
   const isTherapist = access?.allowed ? access.role === "therapist" : false;
   const notesEnabled = isTherapist && appointmentId > 0 && patientId > 0;
+  // Para o "Convidar" (chamada em grupo): os pacientes da psicóloga.
+  const pacientesDaPsicologa = trpc.patients.list.useQuery(undefined, { enabled: isTherapist });
 
   // Chat DENTRO da chamada (estilo Meet), no MESMO thread da aba Mensagens
   // (conectados). Disponível quando há thread: psicóloga com paciente, ou o
@@ -396,6 +399,16 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
               >
                 Prontuário
               </Button>
+            )}
+            {/* Chamada em grupo: a psicóloga inclui alguém NA HORA (o cônjuge, o
+                outro responsável). A pessoa entra pela sala em "Minhas Consultas". */}
+            {isTherapist && appointmentId > 0 && patientId > 0 && (
+              <ParticipantesDaConsulta
+                appointmentId={appointmentId}
+                pacientePrincipalId={patientId}
+                pacientes={pacientesDaPsicologa.data ?? []}
+                rotulo="Convidar"
+              />
             )}
             {/* Só a psicóloga compartilha a sala — o link não serve ao paciente. */}
             {isTherapist && (

@@ -48,7 +48,7 @@ import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { CalendarioAgenda } from "@/components/CalendarioAgenda";
 import AddToCalendar from "@/components/AddToCalendar";
 import { AvatarDaPessoa } from "@/components/AvatarDaPessoa";
-import { ParticipantesDaConsulta } from "@/components/ParticipantesDaConsulta";
+import { MAX_PARTICIPANTES_EXTRAS } from "@shared/chamadaEmGrupo";
 import { reaisParaCentavos, centavosParaInput, formatarBRL } from "@shared/dinheiro";
 
 type Status = "scheduled" | "completed" | "cancelled" | "no_show";
@@ -63,7 +63,7 @@ const PERIODOS: { valor: Periodo | "todas"; rotulo: string }[] = [
 // link, e duas cópias divergiriam em silêncio.
 const roomUrlFor = urlDaSala;
 
-const emptyForm = { patientId: "", date: "", time: "", duration: "60", repetir: "1", valor: "" };
+const emptyForm = { patientId: "", date: "", time: "", duration: "60", repetir: "1", valor: "", participantes: [] as number[] };
 
 export default function Appointments() {
   const [, setLocation] = useLocation();
@@ -284,6 +284,8 @@ export default function Appointments() {
       duration: dur,
       repetirSemanas: parseInt(formData.repetir) || 1,
       price: reaisParaCentavos(formData.valor),
+      // Chamada em grupo: valem para todas as semanas criadas juntas.
+      participantes: formData.participantes.filter((id) => String(id) !== formData.patientId),
     });
   };
 
@@ -298,6 +300,7 @@ export default function Appointments() {
       duration: String(appointment.duration ?? 60),
       repetir: "1",
       valor: centavosParaInput(appointment.price),
+      participantes: [], // ao editar, convida-se de dentro da chamada
     });
     setEditingId(appointment.id);
     setIsOpen(true);
@@ -465,7 +468,10 @@ export default function Appointments() {
                 ) : (
                   <Select
                     value={formData.patientId}
-                    onValueChange={(value) => setFormData({ ...formData, patientId: value })}
+                    onValueChange={(value) =>
+                      // O novo principal não pode continuar marcado como participante.
+                      setFormData({ ...formData, patientId: value, participantes: formData.participantes.filter((id) => String(id) !== value) })
+                    }
                     disabled={editingId != null}
                   >
                     <SelectTrigger id="patient">
@@ -564,6 +570,48 @@ export default function Appointments() {
                   Já vem do preço padrão do seu perfil. Deixe vazio se não quiser registrar valor.
                 </p>
               </div>
+              {/* Chamada em grupo (terapia de casal; responsáveis + criança). Só ao
+                  CRIAR; numa consulta já marcada, convida-se de dentro da chamada. */}
+              {editingId == null && formData.patientId && (
+                <div className="space-y-2">
+                  <Label>Participantes (opcional)</Label>
+                  <div className="flex flex-wrap gap-2" role="group" aria-label="Participantes da consulta">
+                    {patients
+                      .filter((p) => String(p.id) !== formData.patientId)
+                      .map((p) => {
+                        const marcado = formData.participantes.includes(p.id);
+                        const cheio = !marcado && formData.participantes.length >= MAX_PARTICIPANTES_EXTRAS;
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            aria-pressed={marcado}
+                            disabled={cheio}
+                            onClick={() =>
+                              setFormData((f) => ({
+                                ...f,
+                                participantes: marcado
+                                  ? f.participantes.filter((id) => id !== p.id)
+                                  : [...f.participantes, p.id],
+                              }))
+                            }
+                            className={`rounded-full border px-3 py-1 text-sm transition-colors disabled:opacity-40 ${
+                              marcado
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-border bg-background text-foreground hover:bg-muted"
+                            }`}
+                          >
+                            {p.firstName} {p.lastName}
+                          </button>
+                        );
+                      })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Para terapia de casal ou para os responsáveis acompanharem a criança: até{" "}
+                    {MAX_PARTICIPANTES_EXTRAS} pessoas além do paciente. Cada uma entra na chamada com a própria conta.
+                  </p>
+                </div>
+              )}
               <Button
                 onClick={editingId ? handleEditAppointment : handleAddAppointment}
                 disabled={createAppt.isPending || editarAppt.isPending}
@@ -847,12 +895,6 @@ export default function Appointments() {
                             <Button variant="outline" size="sm" onClick={() => startEdit(appointment)} className="h-10 justify-center gap-1.5" title="Editar data, hora, duração ou valor">
                               <Pencil className="h-4 w-4" /> Editar
                             </Button>
-                            <ParticipantesDaConsulta
-                              appointmentId={appointment.id}
-                              pacientePrincipalId={appointment.patientId}
-                              pacientes={patients}
-                              className="h-10 justify-center"
-                            />
                             <Button variant="outline" size="sm" onClick={() => setLocation(roomUrl)} className="h-10 justify-center gap-1.5 text-primary" title="Entrar na videochamada">
                               <ExternalLink className="h-4 w-4" /> Entrar na videochamada
                             </Button>
@@ -1080,12 +1122,6 @@ export default function Appointments() {
                                     <Pencil className="h-4 w-4" />
                                     <span>Editar</span>
                                   </Button>
-                                  <ParticipantesDaConsulta
-                                    appointmentId={appointment.id}
-                                    pacientePrincipalId={appointment.patientId}
-                                    pacientes={patients}
-                                    className="h-auto min-h-8 w-full justify-start whitespace-normal text-left"
-                                  />
                                   <Button
                                     variant="outline"
                                     size="sm"

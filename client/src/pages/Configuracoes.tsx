@@ -161,7 +161,13 @@ export default function Configuracoes() {
     try {
       if (!(await conferirSenhaAtual(senhaParaEmail))) return;
       await pedirCodigoEmail.mutateAsync({ novoEmail: alvo });
-      toast.success("Enviamos um código para o e-mail novo e para o atual.");
+      // Maior e por mais tempo: era um aviso pequeno no canto, que sumia antes de a
+      // pessoa ler para onde o código foi.
+      toast.success("Código enviado!", {
+        description: "Confira a caixa de entrada (e o spam) do e-mail novo e do atual.",
+        duration: 12_000,
+        classNames: { title: "text-base font-semibold", description: "text-sm" },
+      });
       setEtapaEmail("codigo");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Não foi possível enviar o código.");

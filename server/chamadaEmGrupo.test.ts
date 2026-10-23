@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { appRouter } from "./routers";
 import {
   MAX_PARTICIPANTES_EXTRAS,
   TETO_VIDEO_BPS,
@@ -17,6 +18,19 @@ describe("chamada em grupo: participantes", () => {
   it("não deixa repetir nem adicionar o próprio paciente principal", () => {
     expect(motivoParaRecusarParticipante({ ehPrincipal: true, jaParticipa: false, extras: 0 })).toMatch(/principal/);
     expect(motivoParaRecusarParticipante({ ehPrincipal: false, jaParticipa: true, extras: 1 })).toMatch(/já participa/);
+  });
+});
+
+describe("chamada em grupo: participantes ao agendar", () => {
+  it("o servidor recusa mais de 2 participantes na Nova Consulta", async () => {
+    const psicologa = appRouter.createCaller({
+      user: { id: 1, role: "therapist", openId: "x", name: "Beatriz", email: "b@exemplo.com" },
+      req: { get: () => undefined, headers: {}, socket: { remoteAddress: "127.0.0.1" } },
+      res: {},
+    } as never);
+    await expect(
+      psicologa.appointments.create({ patientId: 1, scheduledAt: new Date().toISOString(), participantes: [2, 3, 4] }),
+    ).rejects.toThrow();
   });
 });
 
