@@ -407,7 +407,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                 appointmentId={appointmentId}
                 pacientePrincipalId={patientId}
                 pacientes={pacientesDaPsicologa.data ?? []}
-                rotulo="Convidar"
+                rotulo="Convidar participantes"
               />
             )}
             {/* Só a psicóloga compartilha a sala — o link não serve ao paciente. */}
