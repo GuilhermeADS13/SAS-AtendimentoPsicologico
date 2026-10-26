@@ -495,6 +495,10 @@ export default function Login() {
         <a href="/ajuda" className="text-primary underline underline-offset-4">
           Veja a ajuda
         </a>
+        {" · "}
+        <a href="/precos" className="text-primary underline underline-offset-4">
+          Planos e preços
+        </a>
       </p>
     </div>
   );

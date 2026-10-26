@@ -75,9 +75,14 @@ export default function Home() {
       <nav className="sticky top-0 z-50 bg-background/85 backdrop-blur-md border-b border-border">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           <LogoLockup markClassName="w-8 h-8" />
-          <Button onClick={() => setLocation("/login")} size="sm">
-            Entrar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setLocation("/precos")} size="sm" variant="ghost">
+              Preços
+            </Button>
+            <Button onClick={() => setLocation("/login")} size="sm">
+              Entrar
+            </Button>
+          </div>
         </div>
       </nav>
 

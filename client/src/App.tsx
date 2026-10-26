@@ -33,6 +33,7 @@ import {
   MyAppointments,
   MyTherapist,
   PatientDetail,
+  Precos,
   Privacidade,
   Profile,
   Records,
@@ -66,6 +67,8 @@ function Router() {
       <Route path={"/ajuda"} component={Ajuda} />
       {/* Pública: o consentimento do cadastro aponta para cá. */}
       <Route path={"/privacidade"} component={Privacidade} />
+      {/* Pública: é a vitrine para quem ainda não tem conta. */}
+      <Route path={"/precos"} component={Precos} />
       {import.meta.env.VITE_E2E === "true" && (
         <Route path={"/__e2e__/agent-chat"} component={E2EAgentChat} />
       )}

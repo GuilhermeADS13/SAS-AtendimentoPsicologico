@@ -14,15 +14,8 @@ import { LogoLockup, LumaOwlIcon } from "@/components/Logo";
 import { OPEN_ONBOARDING_EVENT } from "@/components/LumaOnboarding";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useRole } from "@/hooks/useRole";
+import { linkWhatsAppDoSuporte } from "@/lib/suporte";
 import { ArrowLeft, CircleHelp, Mail } from "lucide-react";
-
-/**
- * Número do suporte técnico, em dígitos com DDD (o 55 do Brasil é acrescentado
- * na hora de montar o link). É informação pública — por isso fica no código, e
- * não numa variável VITE_*, que exigiria mexer no Dockerfile e nos build args do
- * Render para um dado que muda uma vez na vida. Vazio = mostra o e-mail no lugar.
- */
-const SUPORTE_WHATSAPP = "81992419511";
 
 const MENSAGEM_PRONTA = "Olá! Preciso de ajuda com o VozInterior.";
 
@@ -49,10 +42,7 @@ function linkEmail(): string | null {
 }
 
 function linkWhatsApp(): string | null {
-  const digitos = SUPORTE_WHATSAPP.replace(/\D/g, "");
-  if (!digitos) return null;
-  const numero = digitos.startsWith("55") ? digitos : `55${digitos}`;
-  return `https://wa.me/${numero}?text=${encodeURIComponent(MENSAGEM_PRONTA)}`;
+  return linkWhatsAppDoSuporte(MENSAGEM_PRONTA);
 }
 
 type Duvida = { pergunta: string; resposta: React.ReactNode };
