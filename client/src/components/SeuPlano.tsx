@@ -1,15 +1,17 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { formatarData } from "@shared/datas";
 import { DIAS_DE_VENCIMENTO } from "@shared/assinatura";
+import { pixComValor } from "@shared/pix";
 import { DESCONTO_FUNDADOR, formatarReais, valorDaCobranca, type Ciclo } from "@shared/precos";
 import { trpc } from "@/lib/trpc";
-import { linkWhatsAppDoSuporte } from "@/lib/suporte";
+import { PIX_COPIA_E_COLA, linkWhatsAppDoSuporte } from "@/lib/suporte";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
-import { AlertTriangle, CreditCard } from "lucide-react";
+import { AlertTriangle, Copy, CreditCard } from "lucide-react";
 
 type Situacao = { liberado: boolean; motivo: string; ate: Date | string | null; diasRestantes: number | null };
 
@@ -100,9 +102,10 @@ export function SeuPlano() {
 
         {data.valorCentavos !== null && (
           <div className="grid gap-4 rounded-xl border bg-secondary/40 p-4 sm:grid-cols-[auto_1fr]">
-            {/* QR estático da conta (sem valor embutido): a psicóloga digita o
-                valor no app do banco. Recortado e invertido para preto sobre
-                branco — alguns apps de banco não leem o QR claro sobre escuro. */}
+            {/* QR estático da conta (sem valor embutido): quem escaneia digita o
+                valor. Recortado e invertido para preto sobre branco — alguns apps
+                de banco não leem o QR claro sobre escuro. No celular, o caminho é o
+                "copia e cola", que já leva o valor. */}
             <img
               src="/pix-qrcode.png"
               alt="QR code do Pix para pagar o VozInterior"
@@ -110,23 +113,25 @@ export function SeuPlano() {
               height={176}
               className="mx-auto h-44 w-44 rounded-md bg-white [image-rendering:pixelated]"
             />
-            <ol className="space-y-3 text-sm">
-              <li>
-                <strong>1.</strong> No app do banco, vá em <strong>Pix → Pagar com QR code</strong>.
-              </li>
-              <li>
-                <strong>2.</strong> Digite o valor:
-                <ul className="mt-1 space-y-0.5 tabular-nums">
-                  {opcoes.map(({ ciclo, rotulo }) => (
-                    <li key={ciclo}>
-                      {rotulo}: <strong>{formatarReais(valorDaCobranca(data.pacientes, { fundador: data.fundador, ciclo }) ?? 0)}</strong>
-                    </li>
-                  ))}
-                </ul>
+            <ol className="min-w-0 space-y-3 text-sm">
+              <li className="space-y-2">
+                <p>
+                  <strong>1.</strong> Copie o código Pix (o valor já vai junto) e cole no app do
+                  banco, em <strong>Pix → Copia e Cola</strong>:
+                </p>
+                <CopiarPix
+                  opcoes={opcoes.map(({ ciclo }) => ({
+                    ciclo,
+                    centavos: valorDaCobranca(data.pacientes, { fundador: data.fundador, ciclo }) ?? 0,
+                  }))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  No computador? Escaneie o QR com o celular e digite o valor.
+                </p>
               </li>
               <li className="space-y-2">
                 <p>
-                  <strong>3.</strong> Mande o comprovante — a liberação é feita assim que ele chega:
+                  <strong>2.</strong> Mande o comprovante — a liberação é feita assim que ele chega:
                 </p>
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                   {opcoes.map(({ ciclo }) => {
@@ -156,6 +161,60 @@ export function SeuPlano() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Botões "Copiar código Pix" (mês e ano), com o valor embutido no código. A
+ * área de transferência pode não existir ou ser negada (navegador embutido,
+ * página sem HTTPS): aí o código aparece num campo para copiar na mão, em vez
+ * de o botão não fazer nada.
+ */
+function CopiarPix({ opcoes }: { opcoes: Array<{ ciclo: Ciclo; centavos: number }> }) {
+  const [manual, setManual] = useState<string | null>(null);
+  const copiar = async (codigo: string) => {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("sem área de transferência");
+      await navigator.clipboard.writeText(codigo);
+      setManual(null);
+      toast.success("Código Pix copiado. Cole no app do banco, em Pix → Copia e Cola.");
+    } catch {
+      setManual(codigo);
+    }
+  };
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        {opcoes.map(({ ciclo, centavos }) => (
+          <Button
+            key={ciclo}
+            type="button"
+            size="sm"
+            variant={ciclo === "mensal" ? "default" : "outline"}
+            className="gap-2 tabular-nums"
+            onClick={() => void copiar(pixComValor(PIX_COPIA_E_COLA, centavos))}
+          >
+            <Copy className="w-4 h-4" />
+            Copiar Pix de {ciclo === "mensal" ? "1 mês" : "1 ano"}: {formatarReais(centavos)}
+          </Button>
+        ))}
+      </div>
+      {manual && (
+        <div className="space-y-1">
+          <label htmlFor="pix-manual" className="text-xs text-muted-foreground">
+            Não deu para copiar sozinho. Selecione o código abaixo e copie:
+          </label>
+          <textarea
+            id="pix-manual"
+            readOnly
+            rows={3}
+            value={manual}
+            onFocus={(e) => e.currentTarget.select()}
+            className="w-full rounded-md border bg-card p-2 font-mono text-xs break-all"
+          />
+        </div>
+      )}
+    </div>
   );
 }
 
