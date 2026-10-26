@@ -37,7 +37,7 @@ export function AssinaturasAdmin() {
   });
   const fundador = trpc.admin.definirFundador.useMutation({
     onSuccess: () => utils.admin.assinaturas.invalidate(),
-    onError: (e) => toast.error(e.message || "Erro ao mudar fundadora"),
+    onError: (e) => toast.error(e.message || "Erro ao mudar Psicóloga Fundadora"),
   });
 
   const pagantes = linhas.filter((l) => !l.isento);
@@ -67,7 +67,7 @@ export function AssinaturasAdmin() {
                 <p className="text-sm text-muted-foreground tabular-nums">
                   {l.pacientes} paciente{l.pacientes === 1 ? "" : "s"} · {l.plano} ·{" "}
                   {mensal === null ? "valor combinado" : `${formatarReais(mensal)}/mês`}
-                  {l.fundador && " · fundadora"}
+                  {l.fundador && " · Psicóloga Fundadora"}
                   {l.diaVencimento && ` · vence dia ${l.diaVencimento}`}
                 </p>
                 <p className={`text-sm font-medium ${s.liberado ? "text-foreground" : "text-destructive"}`}>{situacao}</p>
@@ -96,7 +96,7 @@ export function AssinaturasAdmin() {
                   disabled={fundador.isPending}
                   onClick={() => fundador.mutate({ therapistId: l.therapistId, fundador: !l.fundador })}
                 >
-                  {l.fundador ? "Tirar fundadora" : "Tornar fundadora"}
+                  {l.fundador ? "Tirar Fundadora" : "Tornar Fundadora"}
                 </Button>
               </div>
             </CardContent>

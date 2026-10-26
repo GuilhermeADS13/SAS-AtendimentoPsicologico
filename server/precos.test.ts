@@ -28,12 +28,15 @@ describe("tabela de preços por paciente", () => {
     }
   });
 
-  it("acima de 30 pacientes o preço é combinado (Unlimited)", () => {
+  it("acima de 30 pacientes o preço é combinado (Coro)", () => {
     expect(mensalidadeEmCentavos(31)).toBeNull();
     expect(planoPara(31).id).toBe("unlimited");
   });
 
-  it("separa Pro (até 10) de Max (11 a 30)", () => {
+  it("separa Sussurro (até 10) de Voz (11 a 30)", () => {
+    expect(planoPara(1).nome).toBe("Sussurro");
+    expect(planoPara(11).nome).toBe("Voz");
+    expect(planoPara(31).nome).toBe("Coro");
     expect(planoPara(1).id).toBe("pro");
     expect(planoPara(10).id).toBe("pro");
     expect(planoPara(11).id).toBe("max");

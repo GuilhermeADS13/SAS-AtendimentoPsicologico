@@ -98,7 +98,7 @@ export async function resumoDaAssinatura(db: Db, user: { id: number; role: strin
     diaVencimento: assinatura?.diaVencimento ?? null,
     valorCentavos: valorDaCobranca(pacientes, { fundador, ciclo }),
     lumaHoje: await perguntasDaLumaHoje(db, user.id),
-    /** Null = sem limite (admin). O Unlimited usa a cota do Max até combinar outra. */
+    /** Null = sem limite (admin). O Coro usa a cota do Voz até combinar outra. */
     lumaLimite: isento ? null : (plano.perguntasLumaPorDia ?? 15),
     anexoMaxMb: isento ? null : (plano.anexoMaxMb ?? 10),
   };

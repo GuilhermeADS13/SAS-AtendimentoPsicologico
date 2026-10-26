@@ -494,7 +494,7 @@ export const appRouter = router({
           { role: "user", content: latestUserMessage.content },
         ]);
 
-        // Cota diária do plano (Pro 5, Max 15 — shared/precos.ts). Fica DEPOIS do
+        // Cota diária do plano (Sussurro 5, Voz 15 — shared/precos.ts). Fica DEPOIS do
         // replay acima: repetir uma pergunta já respondida não gasta cota. A Groq
         // grátis aguenta ~80 perguntas/dia somando todas as clientes.
         if (ctx.user.role !== "admin" && accessContext.therapistId) {
@@ -3375,7 +3375,7 @@ export const appRouter = router({
         if (input.fileKey && !chavePertenceAoUsuario(input.fileKey, ctx.user.openId, "chat")) {
           throw new Error("Arquivo inválido.");
         }
-        // Tamanho do anexo pelo plano da psicóloga (Pro 5 MB, Max 10 MB), valendo
+        // Tamanho do anexo pelo plano da psicóloga (Sussurro 5 MB, Voz 10 MB), valendo
         // para os dois lados da conversa. O teto duro de 20 MB fica no bucket.
         if (input.fileKey && input.fileSize) {
           const maxMb = await anexoMaxMbDaPsicologa(db, part.therapistId);

@@ -55,7 +55,7 @@ export function SeuPlano() {
       <CardHeader>
         <CardTitle className="flex flex-wrap items-center gap-2">
           <CreditCard className="w-5 h-5 text-primary" /> Seu plano: {data.plano.nome}
-          {data.fundador && <Badge variant="secondary">Fundadora · {DESCONTO_FUNDADOR * 100}% off</Badge>}
+          {data.fundador && <Badge variant="secondary">Psicóloga Fundadora · {DESCONTO_FUNDADOR * 100}% off</Badge>}
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0 space-y-4">

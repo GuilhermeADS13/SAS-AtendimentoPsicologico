@@ -117,7 +117,7 @@ export default function ChatConversa({
   const jaRolouRef = useRef(false);
 
   const q = trpc.chat.messages.useQuery({ patientId }, { refetchInterval: ativo ? 5000 : false, enabled: ativo });
-  // Teto do anexo pelo plano da psicóloga (Pro 5 MB, Max 10 MB); 20 enquanto carrega.
+  // Teto do anexo pelo plano da psicóloga (Sussurro 5 MB, Voz 10 MB); 20 enquanto carrega.
   const maxAnexoMb = trpc.chat.limiteDeAnexo.useQuery({ patientId }, { enabled: ativo }).data?.maxMb ?? MAX_ANEXO_MB;
   const role = q.data?.role ?? null;
   const mensagens = q.data?.messages ?? [];

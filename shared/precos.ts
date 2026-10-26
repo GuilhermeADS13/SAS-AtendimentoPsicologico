@@ -13,7 +13,7 @@
  * Supabase grátis tem 1 GB de arquivos no total. Ver o histórico de 2026-10-26.
  */
 
-/** Acima disso o plano é o Unlimited, negociado direto ("Fale comigo"). */
+/** Acima disso o plano é o Coro, negociado direto ("Fale comigo"). */
 export const MAX_PACIENTES_NA_TABELA = 30;
 
 /** Preço de cada paciente dentro da faixa, em centavos. `ate` é inclusivo. */
@@ -38,14 +38,16 @@ export type Plano = {
 };
 
 export const PLANOS: readonly Plano[] = [
-  { id: "pro", nome: "Pro", de: 1, ate: 10, perguntasLumaPorDia: 5, anexoMaxMb: 5 },
-  { id: "max", nome: "Max", de: 11, ate: MAX_PACIENTES_NA_TABELA, perguntasLumaPorDia: 15, anexoMaxMb: 10 },
-  { id: "unlimited", nome: "Unlimited", de: MAX_PACIENTES_NA_TABELA + 1, ate: null, perguntasLumaPorDia: null, anexoMaxMb: null },
+  // Nomes no tema VozInterior (2026-10-26): a voz cresce com o consultório.
+  // Os ids continuam pro/max/unlimited — só o nome aparece na tela.
+  { id: "pro", nome: "Sussurro", de: 1, ate: 10, perguntasLumaPorDia: 5, anexoMaxMb: 5 },
+  { id: "max", nome: "Voz", de: 11, ate: MAX_PACIENTES_NA_TABELA, perguntasLumaPorDia: 15, anexoMaxMb: 10 },
+  { id: "unlimited", nome: "Coro", de: MAX_PACIENTES_NA_TABELA + 1, ate: null, perguntasLumaPorDia: null, anexoMaxMb: null },
 ];
 
 /**
  * Mensalidade em centavos para `pacientes` cadastrados. Null acima da tabela
- * (Unlimited, preço combinado). Centavos para não somar float de dinheiro.
+ * (Coro, preço combinado). Centavos para não somar float de dinheiro.
  */
 export function mensalidadeEmCentavos(pacientes: number): number | null {
   if (!Number.isInteger(pacientes) || pacientes < 1) return 0;
@@ -69,7 +71,7 @@ export function planoPara(pacientes: number): Plano {
 export const DIAS_DE_TESTE_GRATIS = 14;
 /** Plano anual: paga 10 meses e leva 12 ("2 meses grátis"). */
 export const MESES_PAGOS_NO_ANUAL = 10;
-/** Preço de fundadora: as 20 primeiras pagam 20% a menos, para sempre. */
+/** Psicóloga Fundadora: as 20 primeiras pagam 20% a menos, para sempre. */
 export const DESCONTO_FUNDADOR = 0.2;
 export const VAGAS_DE_FUNDADOR = 20;
 
@@ -77,7 +79,7 @@ export type Ciclo = "mensal" | "anual";
 
 /**
  * O que a psicóloga paga por ciclo, já com fundador e anual. Null acima da tabela
- * (Unlimited, combinado). Fundador antes do anual: no anual ela paga 10 meses do
+ * (Coro, combinado). Fundador antes do anual: no anual ela paga 10 meses do
  * valor JÁ com desconto.
  */
 export function valorDaCobranca(

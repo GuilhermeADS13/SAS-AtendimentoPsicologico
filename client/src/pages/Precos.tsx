@@ -45,7 +45,7 @@ const DUVIDAS = [
   {
     pergunta: "E se eu passar de 10 pacientes?",
     resposta:
-      "Você passa para o Max. O preço continua seguindo a mesma tabela, sem salto: o 11º paciente custa R$ 2,50.",
+      "Você passa para o Voz. O preço continua seguindo a mesma tabela, sem salto: o 11º paciente custa R$ 2,50.",
   },
   {
     pergunta: "Como funciona o teste grátis?",
@@ -56,13 +56,13 @@ const DUVIDAS = [
     resposta: `Por Pix, todo mês ou uma vez por ano. No anual você paga ${MESES_PAGOS_NO_ANUAL} meses e leva 12. Por enquanto não aceitamos cartão.`,
   },
   {
-    pergunta: "O que é o preço de fundadora?",
-    resposta: `As ${VAGAS_DE_FUNDADOR} primeiras psicólogas pagam ${DESCONTO_FUNDADOR * 100}% a menos que a tabela, para sempre, enquanto forem clientes.`,
+    pergunta: "O que é a Psicóloga Fundadora?",
+    resposta: `É o desconto de lançamento: as ${VAGAS_DE_FUNDADOR} primeiras psicólogas a entrar no VozInterior viram Psicólogas Fundadoras e pagam ${DESCONTO_FUNDADOR * 100}% a menos que a tabela, para sempre, enquanto forem clientes. Depois dessas vagas, vale o preço normal.`,
   },
   {
     pergunta: "A Luma tem limite?",
     resposta:
-      "A Luma que consulta os prontuários sim: 5 perguntas por dia no Pro e 15 no Max. A Luma que tira dúvidas dos seus pacientes sobre o site não tem limite.",
+      "A Luma que consulta os prontuários sim: 5 perguntas por dia no Sussurro e 15 no Voz. A Luma que tira dúvidas dos seus pacientes sobre o site não tem limite.",
   },
   {
     pergunta: "O paciente paga alguma coisa?",
@@ -88,7 +88,7 @@ function pacientesDoPlano(plano: Plano): string {
 
 function itensDoPlano(plano: Plano): string[] {
   if (plano.perguntasLumaPorDia === null) {
-    return ["Tudo do Max", "Cota da Luma e anexos sob medida", "Condições combinadas pelo WhatsApp"];
+    return ["Tudo do Voz", "Cota da Luma e anexos sob medida", "Condições combinadas pelo WhatsApp"];
   }
   return [
     ...INCLUSO_EM_TODOS,
@@ -98,7 +98,7 @@ function itensDoPlano(plano: Plano): string[] {
 }
 
 export default function Precos() {
-  // O controle vai até 31, que representa "mais de 30" (Unlimited).
+  // O controle vai até 31, que representa "mais de 30" (Coro).
   const [pacientes, setPacientes] = useState(8);
   const [ciclo, setCiclo] = useState<Ciclo>("mensal");
   const plano = planoPara(pacientes);
@@ -110,7 +110,7 @@ export default function Precos() {
   const porPeriodo = ciclo === "anual" ? "/ano" : "/mês";
 
   const mensagem = acimaDaTabela
-    ? "Olá! Atendo mais de 30 pacientes e quero conversar sobre o plano Unlimited do VozInterior."
+    ? "Olá! Atendo mais de 30 pacientes e quero conversar sobre o plano Coro do VozInterior."
     : `Olá! Quero assinar o VozInterior: ${pacientes} paciente${pacientes > 1 ? "s" : ""}, plano ${plano.nome}, ${ciclo} (${formatarReais(valor)}${porPeriodo}).`;
   const whats = linkWhatsAppDoSuporte(mensagem);
 
@@ -148,7 +148,7 @@ export default function Precos() {
               <li className="flex gap-2">
                 <Check className="w-5 h-5 mt-0.5 shrink-0 text-primary" />
                 <span>
-                  As {VAGAS_DE_FUNDADOR} primeiras psicólogas ganham{" "}
+                  As {VAGAS_DE_FUNDADOR} primeiras viram <strong>Psicóloga Fundadora</strong>:{" "}
                   <strong>{DESCONTO_FUNDADOR * 100}% de desconto para sempre</strong>
                 </span>
               </li>
@@ -221,7 +221,7 @@ export default function Precos() {
                       : `${formatarReais(Math.round(centavos / pacientes))} por paciente · pago por Pix`}
                   </p>
                   <p className="text-sm text-primary tabular-nums">
-                    Fundadoras pagam {formatarReais(valorFundadora)}
+                    Psicólogas Fundadoras pagam {formatarReais(valorFundadora)}
                     {porPeriodo}
                   </p>
                 </>
