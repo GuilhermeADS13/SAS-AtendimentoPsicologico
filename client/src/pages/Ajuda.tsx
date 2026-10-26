@@ -520,12 +520,12 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
           <Link href="/precos" className="text-primary underline underline-offset-4">Preços</Link>.
         </li>
         <li>
-          Em <strong>Configurações da conta → Seu plano</strong> você vê quantos pacientes
+          Na aba <strong>Assinatura</strong>, no menu, você vê quantos pacientes
           contam, o valor, até quando está liberada e quantas perguntas à Luma já fez hoje.
         </li>
         <li>
           O pagamento é por <strong>Pix</strong>, mensal ou anual (o anual dá 2 meses
-          grátis): em “Seu plano” tem o QR code e o valor certo. Depois de pagar, toque em
+          grátis): na aba Assinatura tem o QR code, o “Copiar Pix” e o valor certo. Depois de pagar, toque em
           “Enviar comprovante” — abre o WhatsApp com a mensagem pronta.
         </li>
         <li>

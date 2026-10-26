@@ -42,6 +42,7 @@ export const Appointments = paginaSobDemanda(() => import("@/pages/Appointments"
 export const PatientDetail = paginaSobDemanda(() => import("@/pages/PatientDetail"));
 export const Profile = paginaSobDemanda(() => import("@/pages/Profile"));
 export const Configuracoes = paginaSobDemanda(() => import("@/pages/Configuracoes"));
+export const Assinatura = paginaSobDemanda(() => import("@/pages/Assinatura"));
 export const MyAppointments = paginaSobDemanda(() => import("@/pages/MyAppointments"));
 export const MyTherapist = paginaSobDemanda(() => import("@/pages/MyTherapist"));
 export const TherapistRequests = paginaSobDemanda(() => import("@/pages/TherapistRequests"));
@@ -54,7 +55,7 @@ export const Financeiro = paginaSobDemanda(() => import("@/pages/Financeiro"));
 
 // Na ordem de quem tem mais chance de ser aberto primeiro. A sala de vídeo fica
 // por último: é a maior, e quem vai para ela normalmente chega por link direto.
-const DA_PSICOLOGA = [Dashboard, Appointments, Records, Mensagens, PatientDetail, Luma, Financeiro, Profile, Configuracoes, Ajuda, VideoCallDynamic];
+const DA_PSICOLOGA = [Dashboard, Appointments, Records, Mensagens, PatientDetail, Luma, Financeiro, Assinatura, Profile, Configuracoes, Ajuda, VideoCallDynamic];
 const DO_PACIENTE = [MyAppointments, Mensagens, Luma, MyTherapist, Profile, Configuracoes, Ajuda, VideoCallDynamic];
 
 /**

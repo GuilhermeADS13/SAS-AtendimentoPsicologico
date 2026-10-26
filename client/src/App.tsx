@@ -24,6 +24,7 @@ import NotFound from "@/pages/NotFound";
 import {
   Ajuda,
   Appointments,
+  Assinatura,
   Configuracoes,
   Dashboard,
   E2EAgentChat,
@@ -110,6 +111,13 @@ function Router() {
         {() => (
           <TherapistOnly>
             <Financeiro />
+          </TherapistOnly>
+        )}
+      </Route>
+      <Route path={"/assinatura"}>
+        {() => (
+          <TherapistOnly>
+            <Assinatura />
           </TherapistOnly>
         )}
       </Route>

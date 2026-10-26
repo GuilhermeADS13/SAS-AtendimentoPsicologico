@@ -24,31 +24,17 @@ function textoDaSituacao(s: Situacao): string {
   return "Sem assinatura";
 }
 
-/** Plano, valor e situação da psicóloga, com o Pix pelo WhatsApp. Em Configurações. */
+/** Plano, valor e situação da psicóloga, com o pagamento por Pix. Na aba Assinatura. */
 export function SeuPlano() {
   const { data } = trpc.assinatura.minha.useQuery();
   if (!data) return null;
-
-  if (data.isento) {
-    return (
-      <Card id="plano">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-primary" /> Seu plano
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0 text-sm text-muted-foreground">
-          Conta de administradora — sem cobrança e sem cota da Luma.
-        </CardContent>
-      </Card>
-    );
-  }
 
   const opcoes: Array<{ ciclo: Ciclo; rotulo: string }> = [
     { ciclo: "mensal", rotulo: "1 mês" },
     { ciclo: "anual", rotulo: "1 ano (2 meses grátis)" },
   ];
-  const vencido = !data.situacao.liberado;
+  // Admin nunca é bloqueada: o vermelho de "venceu" seria falso para ela.
+  const vencido = !data.situacao.liberado && !data.isento;
 
   return (
     <Card id="plano" className={vencido ? "border-destructive/50" : undefined}>
@@ -59,6 +45,13 @@ export function SeuPlano() {
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0 space-y-4">
+        {/* A admin vê a tela inteira para testar — é exatamente o que as psicólogas veem. */}
+        {data.isento && (
+          <p className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-foreground">
+            Você é administradora: nada é bloqueado nem cobrado na sua conta, e a Luma não tem cota.
+            Esta é a tela que as psicólogas veem.
+          </p>
+        )}
         <p className={`flex items-center gap-2 text-sm font-medium ${vencido ? "text-destructive" : "text-foreground"}`}>
           {vencido && <AlertTriangle className="w-4 h-4" />}
           {textoDaSituacao(data.situacao)}
@@ -223,7 +216,7 @@ function DiaDoVencimento({ atual }: { atual: number | null }) {
 
 /**
  * Aviso no topo de todas as telas da psicóloga: teste/Pix vencendo em até 3 dias
- * ou já vencido. Leva a Configurações, onde "Seu plano" é o primeiro cartão.
+ * ou já vencido. Leva à aba Assinatura.
  */
 export function AvisoDoPlano() {
   const { data } = trpc.assinatura.minha.useQuery(undefined, { staleTime: 5 * 60_000 });
@@ -245,7 +238,7 @@ export function AvisoDoPlano() {
           ? `${s.motivo === "teste" ? "Seu teste grátis" : "Seu plano"} ${s.diasRestantes === 0 ? "vence hoje" : `vence em ${s.diasRestantes} dia${s.diasRestantes === 1 ? "" : "s"}`}.`
           : "Seu acesso venceu: agendar, chamada e Luma estão bloqueados. Seus prontuários continuam abertos."}
       </span>
-      <Link href="/configuracoes" className="font-medium underline underline-offset-4">
+      <Link href="/assinatura" className="font-medium underline underline-offset-4">
         Renovar pelo Pix
       </Link>
     </div>

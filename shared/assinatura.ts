@@ -35,7 +35,7 @@ export function situacaoDaAssinatura(
 
 /** Mensagem única do bloqueio (servidor e tela falam a mesma coisa). */
 export const MENSAGEM_ASSINATURA_VENCIDA =
-  "Seu acesso venceu. Renove pelo Pix em Configurações → Seu plano. Seus prontuários continuam disponíveis para leitura.";
+  "Seu acesso venceu. Renove pelo Pix na aba Assinatura. Seus prontuários continuam disponíveis para leitura.";
 
 /** CRP e celular em dígitos: "06/123456" e "06123456" são o mesmo CRP. */
 export const normalizarDocumento = (valor: string | null | undefined) => (valor ?? "").replace(/\D/g, "");

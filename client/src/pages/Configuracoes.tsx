@@ -7,7 +7,6 @@ import { iniciais } from "@/lib/iniciais";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import PatientProfile from "./PatientProfile";
-import { SeuPlano } from "@/components/SeuPlano";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -273,10 +272,6 @@ export default function Configuracoes() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Psicóloga: plano, valor, situação do teste/Pix e o botão do Pix. É para
-            cá que o aviso de vencimento no topo das telas leva. */}
-        {isTherapist && <SeuPlano />}
 
         {/* Paciente: o cadastro (nome, telefone, nascimento, endereço, foto) vive
             AQUI, não numa aba separada — por isso a aba "Meu Cadastro" saiu do

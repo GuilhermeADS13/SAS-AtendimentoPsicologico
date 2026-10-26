@@ -725,8 +725,8 @@ export async function avisarVencimentosDePlano(agora: Date = new Date()): Promis
         ["Pacientes", String(pacientes)],
         ["Valor", valor === null ? "combinado" : `${esc(formatarReais(valor))} (${l.ciclo})`],
       ])}<p>Se não renovar, seus prontuários continuam abertos para leitura — só o uso novo pausa.</p>`,
-      botao: { texto: "Ver meu plano e pagar", url: `${base}/configuracoes` },
-      observacao: "Em “Seu plano” você também escolhe o dia do mês em que o Pix vence.",
+      botao: { texto: "Ver meu plano e pagar", url: `${base}/assinatura` },
+      observacao: "Na aba Assinatura você também escolhe o dia do mês em que o Pix vence.",
       base,
     });
     const ok = await sendEmail(l.email, `${oQue} vence ${quando} — VozInterior`, html).catch(() => false);

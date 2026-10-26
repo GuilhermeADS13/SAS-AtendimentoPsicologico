@@ -83,9 +83,9 @@ export async function resumoDaAssinatura(db: Db, user: { id: number; role: strin
     : [];
   const pacientes = perfil ? await contarPacientesCobrados(db, perfil.id) : 0;
   const plano = planoPara(Math.max(1, pacientes));
-  const situacao = isento
-    ? { liberado: true, motivo: "pago" as const, ate: null, diasRestantes: null }
-    : situacaoDaAssinatura(assinatura ?? null);
+  // A admin vê a situação real da assinatura dela (para testar a tela), mas
+  // nunca é bloqueada: quem decide o bloqueio é exigirAssinaturaAtiva/psicologaLiberada.
+  const situacao = situacaoDaAssinatura(assinatura ?? null);
   const ciclo = assinatura?.ciclo ?? "mensal";
   const fundador = assinatura?.fundador ?? false;
   return {
