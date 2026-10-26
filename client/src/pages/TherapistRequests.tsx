@@ -3,6 +3,7 @@ import { formatarData } from "@shared/datas";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
+import { AssinaturasAdmin } from "@/components/AssinaturasAdmin";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -28,12 +29,21 @@ export default function TherapistRequests() {
   const review = trpc.admin.reviewTherapistRequest.useMutation({
     onSuccess: (r) => {
       utils.admin.therapistRequests.invalidate();
+      utils.admin.assinaturas.invalidate();
       setConfirmar(null);
-      toast.success(
-        r.action === "approved"
-          ? "Aprovado! A psicóloga já tem acesso clínico e foi avisada por e-mail."
-          : "Solicitação recusada. A pessoa foi avisada por e-mail.",
-      );
+      if (r.action !== "approved") {
+        toast.success("Solicitação recusada. A pessoa foi avisada por e-mail.");
+      } else if (r.ganhouTeste) {
+        toast.success(
+          `Aprovado! A psicóloga já tem acesso, com 14 dias grátis${r.fundador ? " e vaga de fundadora" : ""}, e foi avisada por e-mail.`,
+        );
+      } else {
+        // Um teste por pessoa: CRP ou celular já usados por outra conta.
+        toast.warning(
+          "Aprovado, mas SEM teste grátis: esse CRP ou celular já usou o teste em outra conta. O acesso só libera depois do Pix.",
+          { duration: 10_000 },
+        );
+      }
     },
     onError: (e) => toast.error(e.message || "Erro ao processar a solicitação"),
   });
@@ -146,6 +156,8 @@ export default function TherapistRequests() {
                 ))
               )}
             </div>
+
+            <AssinaturasAdmin />
 
             {analisadas.length > 0 && (
               <div className="space-y-3">

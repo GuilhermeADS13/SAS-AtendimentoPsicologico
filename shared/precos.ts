@@ -65,6 +65,31 @@ export function planoPara(pacientes: number): Plano {
   return PLANOS.find((p) => p.ate === null || pacientes <= p.ate) ?? PLANOS[PLANOS.length - 1];
 }
 
+/** Teste grátis, um por CRP e por celular (ver shared/assinatura.ts). */
+export const DIAS_DE_TESTE_GRATIS = 14;
+/** Plano anual: paga 10 meses e leva 12 ("2 meses grátis"). */
+export const MESES_PAGOS_NO_ANUAL = 10;
+/** Preço de fundadora: as 20 primeiras pagam 20% a menos, para sempre. */
+export const DESCONTO_FUNDADOR = 0.2;
+export const VAGAS_DE_FUNDADOR = 20;
+
+export type Ciclo = "mensal" | "anual";
+
+/**
+ * O que a psicóloga paga por ciclo, já com fundador e anual. Null acima da tabela
+ * (Unlimited, combinado). Fundador antes do anual: no anual ela paga 10 meses do
+ * valor JÁ com desconto.
+ */
+export function valorDaCobranca(
+  pacientes: number,
+  { fundador = false, ciclo = "mensal" }: { fundador?: boolean; ciclo?: Ciclo } = {},
+): number | null {
+  const base = mensalidadeEmCentavos(Math.max(1, pacientes));
+  if (base === null) return null;
+  const mensal = fundador ? Math.round(base * (1 - DESCONTO_FUNDADOR)) : base;
+  return ciclo === "anual" ? mensal * MESES_PAGOS_NO_ANUAL : mensal;
+}
+
 /** "R$ 57,50" / "R$ 40" (sem ",00" quando é inteiro, para o preço ler limpo). */
 export function formatarReais(centavos: number): string {
   const inteiro = centavos % 100 === 0;

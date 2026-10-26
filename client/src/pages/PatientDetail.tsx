@@ -196,6 +196,21 @@ export default function PatientDetail() {
     onError: (e) => toast.error(e.message || "Erro ao salvar alterações"),
   });
 
+  // Encerrou o acompanhamento? Inativo sai da conta da mensalidade.
+  const mudarStatus = trpc.patients.update.useMutation({
+    onSuccess: (_r, vars) => {
+      utils.patients.get.invalidate({ id: patientId });
+      utils.patients.list.invalidate();
+      utils.assinatura.minha.invalidate();
+      toast.success(
+        vars.status === "inactive"
+          ? "Paciente marcado como inativo. Ele não conta mais na sua mensalidade."
+          : "Paciente reativado.",
+      );
+    },
+    onError: (e) => toast.error(e.message || "Erro ao mudar o status"),
+  });
+
   // Anamnese e TCLE têm formulários próprios (abas), salvos sem fechar o diálogo
   // de edição. Reusam patients.update, que aceita salvar só esses campos.
   const [anamnese, setAnamnese] = useState<Record<string, string>>({});
@@ -577,6 +592,21 @@ export default function PatientDetail() {
             <CardContent>
               <p className="text-sm text-muted-foreground">Status</p>
               <p className={`text-lg font-semibold ${statusInfo.cor}`}>{statusInfo.label}</p>
+              {/* Inativo não entra na mensalidade (preço por paciente, shared/precos.ts). */}
+              {patient.status !== "archived" && (
+                <button
+                  type="button"
+                  disabled={mudarStatus.isPending}
+                  onClick={() => {
+                    if (avisoExemplo()) return;
+                    mudarStatus.mutate({ id: patientId, status: patient.status === "inactive" ? "active" : "inactive" });
+                  }}
+                  className="mt-1 text-xs text-primary underline underline-offset-4 disabled:opacity-50"
+                  title={patient.status === "inactive" ? undefined : "Paciente inativo não conta na sua mensalidade"}
+                >
+                  {patient.status === "inactive" ? "Reativar paciente" : "Marcar como inativo"}
+                </button>
+              )}
             </CardContent>
           </Card>
           <Card>

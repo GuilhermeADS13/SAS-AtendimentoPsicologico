@@ -30,7 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { Ban, Check, CheckCheck, ChevronDown, Download, FileText, Loader2, MessageCircle, Paperclip, Pencil, Search, Send, Trash2, X } from "lucide-react";
 
-const MAX_ANEXO = 20 * 1024 * 1024; // 20 MB
+const MAX_ANEXO_MB = 20;
 // Mensagens do mesmo lado com menos que isso de intervalo formam um "bloco" (ficam
 // coladas, sem repetir o espaçamento), como em qualquer mensageiro.
 const JANELA_DO_BLOCO_MS = 5 * 60 * 1000;
@@ -117,6 +117,8 @@ export default function ChatConversa({
   const jaRolouRef = useRef(false);
 
   const q = trpc.chat.messages.useQuery({ patientId }, { refetchInterval: ativo ? 5000 : false, enabled: ativo });
+  // Teto do anexo pelo plano da psicóloga (Pro 5 MB, Max 10 MB); 20 enquanto carrega.
+  const maxAnexoMb = trpc.chat.limiteDeAnexo.useQuery({ patientId }, { enabled: ativo }).data?.maxMb ?? MAX_ANEXO_MB;
   const role = q.data?.role ?? null;
   const mensagens = q.data?.messages ?? [];
 
@@ -263,8 +265,8 @@ export default function ChatConversa({
   };
 
   const handleAnexo = async (file: File) => {
-    if (file.size > MAX_ANEXO) {
-      toast.error("Arquivo muito grande (máximo 20 MB).");
+    if (file.size > maxAnexoMb * 1024 * 1024) {
+      toast.error(`Arquivo muito grande (máximo ${maxAnexoMb} MB).`);
       return;
     }
     setEnviando(true);
@@ -438,7 +440,7 @@ export default function ChatConversa({
             <p className="mt-1 max-w-xs text-sm text-muted-foreground">
               {buscaAtiva
                 ? "Tente outra palavra ou feche a busca para ver a conversa inteira."
-                : "Escreva abaixo para começar. Você também pode enviar arquivos de até 20 MB."}
+                : `Escreva abaixo para começar. Você também pode enviar arquivos de até ${maxAnexoMb} MB.`}
             </p>
           </div>
         ) : (
@@ -677,7 +679,7 @@ export default function ChatConversa({
               className="size-8 shrink-0 rounded-xl text-muted-foreground hover:text-foreground sm:size-9"
               disabled={enviando}
               onClick={() => fileRef.current?.click()}
-              title="Anexar arquivo (até 20 MB)"
+              title={`Anexar arquivo (até ${maxAnexoMb} MB)`}
               aria-label="Anexar arquivo"
             >
               {enviando ? <Loader2 className="size-5 animate-spin" /> : <Paperclip className="size-5" />}

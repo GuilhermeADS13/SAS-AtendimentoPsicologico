@@ -6,11 +6,21 @@ import { publicProcedure, protectedProcedure, therapistProcedure, adminProcedure
 import { z } from "zod";
 import { iceServersParaChamada } from "./turn";
 import { getDb } from "./db";
-import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessageFeedback, patients, appointments, appointmentParticipants, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users, chatMessages } from "../drizzle/schema";
+import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessageFeedback, patients, appointments, appointmentParticipants, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users, chatMessages, assinaturas } from "../drizzle/schema";
 import { signDocumentUrl, downloadDocumentFile, removeDocumentFile as removeStorageFile, assinarFotos } from "./storage";
 import { extractClinicalDocument } from "./ai/document-ingestion";
 import { sendEmail } from "./mailer";
-import { gerarLinkDeCadastro, gerarLinkDeRecuperacao, trocarEmailSupabase } from "./supabaseAdmin";
+import { celularDaConta, gerarLinkDeCadastro, gerarLinkDeRecuperacao, trocarEmailSupabase } from "./supabaseAdmin";
+import {
+  anexoMaxMbDaPsicologa,
+  contarPacientesCobrados,
+  criarAssinaturaNaAprovacao,
+  exigirAssinaturaAtiva,
+  perguntasDaLumaHoje,
+  resumoDaAssinatura,
+} from "./assinaturas";
+import { novoPagoAte, situacaoDaAssinatura } from "../shared/assinatura";
+import { planoPara, valorDaCobranca } from "../shared/precos";
 import { PASSWORD_MAX_LENGTH, validatePassword } from "../shared/passwordPolicy";
 import { CRP_REGEX } from "../shared/crp";
 import { celularValido, soDigitos } from "../shared/telefone";
@@ -23,6 +33,7 @@ import { identificarCliente } from "./_core/seguranca";
 import { randomInt, createHash } from "node:crypto";
 import { eq, and, or, asc, desc, isNull, isNotNull, ne, inArray, getTableColumns, sql, ilike } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { TRPCError } from "@trpc/server";
 import { runOpenSourceAgent } from "./ai/llm";
 import { answerSiteHelp } from "./ai/site-help";
 import { executarAcaoAgenda, horarioEmConflito, resolveAiAccessContext } from "./ai/clinical-tools";
@@ -435,6 +446,7 @@ export const appRouter = router({
         const assistantRequestId = `${requestId}:assistant`;
         const latestUserMessage = [...input.messages].reverse().find(message => message.role === "user");
         if (!latestUserMessage) throw new Error("A conversa precisa conter uma mensagem do usuário");
+        await exigirAssinaturaAtiva(db, ctx.user);
         const accessContext = await resolveAiAccessContext(db, { id: ctx.user.id, role: ctx.user.role });
         const scopedPatientId = input.patientId ?? accessContext.patientId ?? null;
         // Escopo comum da conversa (paciente/terapeuta), reusado abaixo.
@@ -481,6 +493,20 @@ export const appRouter = router({
           ...historicoDoBanco,
           { role: "user", content: latestUserMessage.content },
         ]);
+
+        // Cota diária do plano (Pro 5, Max 15 — shared/precos.ts). Fica DEPOIS do
+        // replay acima: repetir uma pergunta já respondida não gasta cota. A Groq
+        // grátis aguenta ~80 perguntas/dia somando todas as clientes.
+        if (ctx.user.role !== "admin" && accessContext.therapistId) {
+          const plano = planoPara(Math.max(1, await contarPacientesCobrados(db, accessContext.therapistId)));
+          const limite = plano.perguntasLumaPorDia ?? 15;
+          if ((await perguntasDaLumaHoje(db, ctx.user.id)) >= limite) {
+            throw new TRPCError({
+              code: "TOO_MANY_REQUESTS",
+              message: `Você já fez as ${limite} perguntas de hoje à Luma (plano ${plano.nome}). A cota volta à meia-noite.`,
+            });
+          }
+        }
 
         // Chama o agente ANTES de qualquer escrita. Se der timeout/erro, o mutation
         // lança e NADA é persistido — sem conversa órfã nem mensagem de usuário
@@ -629,6 +655,7 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new Error("Database not available");
+        await exigirAssinaturaAtiva(db, ctx.user);
         const accessContext = await resolveAiAccessContext(db, { id: ctx.user.id, role: ctx.user.role });
         if (!accessContext.therapistId) {
           throw new Error("Apenas profissionais com escopo de terapeuta podem confirmar ações da agenda");
@@ -1542,9 +1569,17 @@ export const appRouter = router({
           .where(eq(therapists.userId, req.userId))
           .limit(1);
 
-        if (!perfil.length) {
-          await db.insert(therapists).values({ userId: req.userId, crp: req.crp });
-        }
+        const therapistId = perfil.length
+          ? perfil[0].id
+          : (await db.insert(therapists).values({ userId: req.userId, crp: req.crp }).returning({ id: therapists.id }))[0].id;
+
+        // Teste grátis de 14 dias — UM por CRP e por celular (o celular do
+        // cadastro mora nos dados da conta do Supabase).
+        const [conta] = await db.select({ openId: users.openId }).from(users).where(eq(users.id, req.userId)).limit(1);
+        const celular = conta?.openId?.startsWith("sb:")
+          ? await celularDaConta(conta.openId.slice(3)).catch(() => null)
+          : null;
+        const assinatura = await criarAssinaturaNaAprovacao(db, { therapistId, crp: req.crp, celular });
 
         await db
           .update(therapistRequests)
@@ -1557,8 +1592,93 @@ export const appRouter = router({
           approved: true,
         }).catch((e) => console.warn("[TherapistRequest] e-mail de aprovação falhou:", e));
 
-        return { action: "approved" as const };
+        return { action: "approved" as const, ganhouTeste: assinatura.ganhouTeste, fundador: assinatura.fundador };
       }),
+
+    /** Todas as psicólogas com plano, valor e até quando estão liberadas. */
+    assinaturas: adminProcedure.query(async () => {
+      const db = await getDb();
+      if (!db) return [];
+      const linhas = await db
+        .select({
+          therapistId: therapists.id,
+          nome: users.name,
+          email: users.email,
+          role: users.role,
+          crp: therapists.crp,
+          testeAte: assinaturas.testeAte,
+          pagoAte: assinaturas.pagoAte,
+          ciclo: assinaturas.ciclo,
+          fundador: assinaturas.fundador,
+          temAssinatura: assinaturas.id,
+        })
+        .from(therapists)
+        .innerJoin(users, eq(users.id, therapists.userId))
+        .leftJoin(assinaturas, eq(assinaturas.therapistId, therapists.id))
+        .orderBy(asc(users.name));
+      return Promise.all(linhas.map(async (l) => {
+        const pacientes = await contarPacientesCobrados(db, l.therapistId);
+        const ciclo = l.ciclo ?? "mensal";
+        const fundador = l.fundador ?? false;
+        return {
+          therapistId: l.therapistId,
+          nome: l.nome,
+          email: l.email,
+          crp: l.crp,
+          isento: l.role === "admin",
+          pacientes,
+          plano: planoPara(Math.max(1, pacientes)).nome,
+          ciclo,
+          fundador,
+          valorCentavos: valorDaCobranca(pacientes, { fundador, ciclo }),
+          situacao: situacaoDaAssinatura(l.temAssinatura ? { testeAte: l.testeAte, pagoAte: l.pagoAte } : null),
+        };
+      }));
+    }),
+
+    /** Registra um Pix recebido: soma 1 mês (ou 12, no anual) ao que já estava pago. */
+    registrarPix: adminProcedure
+      .input(z.object({ therapistId: z.number().int().positive(), ciclo: z.enum(["mensal", "anual"]) }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const [a] = await db.select().from(assinaturas).where(eq(assinaturas.therapistId, input.therapistId)).limit(1);
+        if (!a) {
+          // Psicóloga sem assinatura (aprovada antes de existir a tabela): cria já paga.
+          const [perfil] = await db.select({ crp: therapists.crp, phone: therapists.phone }).from(therapists).where(eq(therapists.id, input.therapistId)).limit(1);
+          if (!perfil) throw new Error("Psicóloga não encontrada.");
+          const pagoAte = novoPagoAte({ testeAte: null, pagoAte: null }, input.ciclo);
+          await db.insert(assinaturas).values({
+            therapistId: input.therapistId,
+            crp: perfil.crp.replace(/\D/g, ""),
+            celular: (perfil.phone ?? "").replace(/\D/g, "") || null,
+            pagoAte,
+            ciclo: input.ciclo,
+          });
+          return { pagoAte };
+        }
+        const pagoAte = novoPagoAte(a, input.ciclo);
+        await db.update(assinaturas).set({ pagoAte, ciclo: input.ciclo }).where(eq(assinaturas.id, a.id));
+        return { pagoAte };
+      }),
+
+    definirFundador: adminProcedure
+      .input(z.object({ therapistId: z.number().int().positive(), fundador: z.boolean() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        await db.update(assinaturas).set({ fundador: input.fundador }).where(eq(assinaturas.therapistId, input.therapistId));
+        return { success: true } as const;
+      }),
+  }),
+
+  /** A assinatura da psicóloga logada (tela "Seu plano" e avisos de vencimento). */
+  assinatura: router({
+    minha: therapistProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return null;
+      return resumoDaAssinatura(db, ctx.user);
+    }),
   }),
 
   // Perfil profissional da psicóloga (dados de therapists).
@@ -2009,7 +2129,12 @@ export const appRouter = router({
 
         // Mesma regra usada pela sinalização/presença do vídeo (ver ./roomAccess).
         const acesso = await resolverAcessoSala(db, ctx.user, input.roomId);
-        if (!acesso) return negar;
+        if (!acesso) {
+          // A sala recusa a psicóloga com o acesso vencido (resolverAcessoSala);
+          // aqui ela recebe o PORQUÊ, em vez do "sem acesso" genérico.
+          if (ctx.user.role === "therapist") await exigirAssinaturaAtiva(db, ctx.user);
+          return negar;
+        }
         return { allowed: true as const, ...acesso };
       }),
 
@@ -2063,7 +2188,8 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new Error("Database not available");
-        
+        await exigirAssinaturaAtiva(db, ctx.user);
+
         const therapist = await db
           .select()
           .from(therapists)
@@ -3164,6 +3290,18 @@ export const appRouter = router({
       .input(z.object({ busca: z.string().trim().max(50).optional() }))
       .query(({ input }) => buscarGifs(input.busca)),
 
+    // Tamanho máximo do anexo nesta conversa, pelo plano da psicóloga. Separado
+    // de `messages`, que é consultado a cada poucos segundos.
+    limiteDeAnexo: protectedProcedure
+      .input(z.object({ patientId: z.number().optional() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return { maxMb: 20 };
+        const part = await resolverParticipanteChat(db, ctx.user, input.patientId);
+        if (!part) return { maxMb: 20 };
+        return { maxMb: (await anexoMaxMbDaPsicologa(db, part.therapistId)) ?? 20 };
+      }),
+
     // Mensagens do thread (cronológico). patientId só é usado pela psicóloga.
     messages: protectedProcedure
       .input(z.object({ patientId: z.number().optional(), search: z.string().trim().max(120).optional() }))
@@ -3217,6 +3355,15 @@ export const appRouter = router({
         // download do arquivo de outra pessoa.
         if (input.fileKey && !chavePertenceAoUsuario(input.fileKey, ctx.user.openId, "chat")) {
           throw new Error("Arquivo inválido.");
+        }
+        // Tamanho do anexo pelo plano da psicóloga (Pro 5 MB, Max 10 MB), valendo
+        // para os dois lados da conversa. O teto duro de 20 MB fica no bucket.
+        if (input.fileKey && input.fileSize) {
+          const maxMb = await anexoMaxMbDaPsicologa(db, part.therapistId);
+          if (maxMb !== null && input.fileSize > maxMb * 1024 * 1024) {
+            await removeStorageFile(input.fileKey).catch(() => undefined);
+            throw new Error(`Arquivo muito grande (máximo ${maxMb} MB).`);
+          }
         }
         const inserted = await db
           .insert(chatMessages)

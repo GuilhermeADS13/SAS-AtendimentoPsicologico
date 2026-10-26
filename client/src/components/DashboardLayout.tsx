@@ -28,6 +28,7 @@ import { NotificationsBell } from "./NotificationsBell";
 import { PatientNotificationsBell } from "./PatientNotificationsBell";
 import { LogoFull, LogoLockup, LumaOwlIcon } from "./Logo";
 import LumaOnboarding from "./LumaOnboarding";
+import { AvisoDoPlano } from "./SeuPlano";
 import { BadgeCheck, Brain, Calendar, CircleHelp, LayoutDashboard, LogOut, MessageSquare, PanelLeft, Settings, Stethoscope, UserRound, Users, Video, Wallet } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -360,7 +361,10 @@ function DashboardLayoutContent({
           </div>
           {isTherapist ? <NotificationsBell /> : <PatientNotificationsBell />}
         </div>
-        <main className="flex-1 p-4">{children}</main>
+        <main className="flex-1 p-4">
+          {isTherapist && <AvisoDoPlano />}
+          {children}
+        </main>
       </SidebarInset>
 
       {/* Tour de boas-vindas na primeira entrada (paciente ou psicóloga). */}

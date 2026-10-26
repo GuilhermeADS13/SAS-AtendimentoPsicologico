@@ -173,6 +173,36 @@ export type Therapist = typeof therapists.$inferSelect;
 export type InsertTherapist = typeof therapists.$inferInsert;
 
 /**
+ * Assinatura da psicóloga (preço por paciente, Pix). Ver migração 0040 e
+ * shared/assinatura.ts. CRP e celular em dígitos, para um teste grátis por pessoa;
+ * `therapistId` SET NULL para o registro sobreviver à conta apagada.
+ */
+export const assinaturas = pgTable(
+  "assinaturas",
+  {
+    id: serial("id").primaryKey(),
+    therapistId: integer("therapistId").unique().references(() => therapists.id, { onDelete: "set null" }),
+    crp: varchar("crp", { length: 64 }).notNull(),
+    celular: varchar("celular", { length: 20 }),
+    testeAte: timestamp("testeAte", { withTimezone: true, mode: "date" }),
+    pagoAte: timestamp("pagoAte", { withTimezone: true, mode: "date" }),
+    ciclo: varchar("ciclo", { length: 10 }).$type<"mensal" | "anual">().default("mensal").notNull(),
+    fundador: boolean("fundador").default(false).notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("assinaturas_crp_idx").on(table.crp),
+    index("assinaturas_celular_idx").on(table.celular),
+  ],
+);
+
+export type Assinatura = typeof assinaturas.$inferSelect;
+
+/**
  * Pacientes.
  */
 export const patients = pgTable("patients", {

@@ -11,13 +11,19 @@ import { LogoLockup } from "@/components/Logo";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { linkWhatsAppDoSuporte } from "@/lib/suporte";
 import {
+  DESCONTO_FUNDADOR,
+  DIAS_DE_TESTE_GRATIS,
   FAIXAS_DE_PRECO,
   MAX_PACIENTES_NA_TABELA,
+  MESES_PAGOS_NO_ANUAL,
   PLANOS,
+  VAGAS_DE_FUNDADOR,
+  type Ciclo,
   type Plano,
   formatarReais,
   mensalidadeEmCentavos,
   planoPara,
+  valorDaCobranca,
 } from "@shared/precos";
 import { ArrowRight, Check } from "lucide-react";
 
@@ -42,9 +48,16 @@ const DUVIDAS = [
       "Você passa para o Max. O preço continua seguindo a mesma tabela, sem salto: o 11º paciente custa R$ 2,50.",
   },
   {
+    pergunta: "Como funciona o teste grátis?",
+    resposta: `São ${DIAS_DE_TESTE_GRATIS} dias com tudo liberado, sem cartão, a partir da aprovação do seu CRP. É um teste por pessoa (por CRP e por celular). Se você não renovar, agenda, chamada e Luma pausam — seus prontuários continuam abertos.`,
+  },
+  {
     pergunta: "Como eu pago?",
-    resposta:
-      "Por Pix, uma vez por mês. Por enquanto não aceitamos cartão.",
+    resposta: `Por Pix, todo mês ou uma vez por ano. No anual você paga ${MESES_PAGOS_NO_ANUAL} meses e leva 12. Por enquanto não aceitamos cartão.`,
+  },
+  {
+    pergunta: "O que é o preço de fundadora?",
+    resposta: `As ${VAGAS_DE_FUNDADOR} primeiras psicólogas pagam ${DESCONTO_FUNDADOR * 100}% a menos que a tabela, para sempre, enquanto forem clientes.`,
   },
   {
     pergunta: "A Luma tem limite?",
@@ -87,14 +100,18 @@ function itensDoPlano(plano: Plano): string[] {
 export default function Precos() {
   // O controle vai até 31, que representa "mais de 30" (Unlimited).
   const [pacientes, setPacientes] = useState(8);
+  const [ciclo, setCiclo] = useState<Ciclo>("mensal");
   const plano = planoPara(pacientes);
   const centavos = mensalidadeEmCentavos(pacientes);
   const acimaDaTabela = centavos === null;
   const rotuloPacientes = acimaDaTabela ? `${MAX_PACIENTES_NA_TABELA}+` : String(pacientes);
+  const valor = valorDaCobranca(pacientes, { ciclo }) ?? 0;
+  const valorFundadora = valorDaCobranca(pacientes, { ciclo, fundador: true }) ?? 0;
+  const porPeriodo = ciclo === "anual" ? "/ano" : "/mês";
 
   const mensagem = acimaDaTabela
     ? "Olá! Atendo mais de 30 pacientes e quero conversar sobre o plano Unlimited do VozInterior."
-    : `Olá! Quero assinar o VozInterior: ${pacientes} paciente${pacientes > 1 ? "s" : ""}, plano ${plano.nome} (${formatarReais(centavos)}/mês).`;
+    : `Olá! Quero assinar o VozInterior: ${pacientes} paciente${pacientes > 1 ? "s" : ""}, plano ${plano.nome}, ${ciclo} (${formatarReais(valor)}${porPeriodo}).`;
   const whats = linkWhatsAppDoSuporte(mensagem);
 
   return (
@@ -121,6 +138,21 @@ export default function Precos() {
               Você paga por paciente cadastrado — e quanto mais pacientes, menor o
               valor de cada um.
             </p>
+            <ul className="space-y-2 text-foreground">
+              <li className="flex gap-2">
+                <Check className="w-5 h-5 mt-0.5 shrink-0 text-primary" />
+                <span>
+                  <strong>{DIAS_DE_TESTE_GRATIS} dias grátis</strong>, sem cartão
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <Check className="w-5 h-5 mt-0.5 shrink-0 text-primary" />
+                <span>
+                  As {VAGAS_DE_FUNDADOR} primeiras psicólogas ganham{" "}
+                  <strong>{DESCONTO_FUNDADOR * 100}% de desconto para sempre</strong>
+                </span>
+              </li>
+            </ul>
           </div>
 
           <div className="rounded-2xl border bg-card p-6 md:p-8 shadow-sm space-y-6">
@@ -148,6 +180,24 @@ export default function Precos() {
               <span>30+</span>
             </div>
 
+            {/* Mensal ou anual: o anual é 10 meses pelo preço de 12. */}
+            <div role="radiogroup" aria-label="Forma de pagamento" className="grid grid-cols-2 gap-1 rounded-lg bg-secondary/60 p-1 text-sm">
+              {(["mensal", "anual"] as const).map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  role="radio"
+                  aria-checked={ciclo === c}
+                  onClick={() => setCiclo(c)}
+                  className={`rounded-md px-3 py-1.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    ciclo === c ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {c === "mensal" ? "Mensal" : "Anual · 2 meses grátis"}
+                </button>
+              ))}
+            </div>
+
             <div className="rounded-xl bg-secondary/60 p-5 space-y-1" aria-live="polite">
               <p className="text-sm font-semibold uppercase tracking-wider text-primary">
                 Plano {plano.nome}
@@ -162,11 +212,17 @@ export default function Precos() {
               ) : (
                 <>
                   <p className="text-4xl font-bold text-foreground tabular-nums">
-                    {formatarReais(centavos)}
-                    <span className="text-base font-normal text-muted-foreground"> /mês</span>
+                    {formatarReais(valor)}
+                    <span className="text-base font-normal text-muted-foreground"> {porPeriodo}</span>
                   </p>
                   <p className="text-sm text-muted-foreground tabular-nums">
-                    {formatarReais(Math.round(centavos / pacientes))} por paciente · pago por Pix
+                    {ciclo === "anual"
+                      ? `Sai a ${formatarReais(Math.round(valor / 12))} por mês · pago por Pix`
+                      : `${formatarReais(Math.round(centavos / pacientes))} por paciente · pago por Pix`}
+                  </p>
+                  <p className="text-sm text-primary tabular-nums">
+                    Fundadoras pagam {formatarReais(valorFundadora)}
+                    {porPeriodo}
                   </p>
                 </>
               )}
@@ -183,7 +239,7 @@ export default function Precos() {
               )}
               <Button asChild size="lg" variant="outline" className="gap-2 sm:flex-1">
                 <Link href="/login">
-                  Criar conta
+                  Testar {DIAS_DE_TESTE_GRATIS} dias grátis
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </Button>
@@ -272,9 +328,9 @@ export default function Precos() {
             <h2 className="text-2xl font-bold tracking-tight text-foreground">Como assinar</h2>
             <ol className="space-y-4">
               {[
-                ["Crie sua conta", "O acesso de psicóloga é liberado depois da verificação do CRP."],
+                ["Crie sua conta", `Depois da verificação do CRP, você usa tudo por ${DIAS_DE_TESTE_GRATIS} dias, de graça.`],
                 ["Chame no WhatsApp", "Diga quantos pacientes você atende e receba a chave Pix."],
-                ["Pague por Pix todo mês", "O valor segue a tabela ao lado."],
+                ["Pague por Pix", "Todo mês, ou uma vez por ano com 2 meses grátis. O valor segue a tabela ao lado."],
               ].map(([titulo, texto], i) => (
                 <li key={titulo} className="flex gap-4">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">

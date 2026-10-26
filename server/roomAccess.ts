@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { appointmentParticipants, appointments, patients, therapists } from "../drizzle/schema";
 import type { getDb } from "./db";
+import { psicologaLiberada } from "./assinaturas";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 type Usuario = { id: number; email?: string | null };
@@ -108,6 +109,9 @@ export async function resolverAcessoSala(
     .where(eq(therapists.userId, user.id))
     .limit(1);
   if (therapist.length && therapist[0].id === a.therapistId) {
+    // Teste/Pix vencido bloqueia iniciar chamada (shared/assinatura.ts). Aqui, e
+    // não só na tela, porque a sinalização também passa por esta função.
+    if (!(await psicologaLiberada(db, a.therapistId))) return null;
     return {
       role: "therapist",
       appointmentId,

@@ -58,6 +58,19 @@ export async function gerarLinkDeCadastro(
   return data.properties?.action_link ?? null;
 }
 
+/**
+ * Celular que a pessoa informou no cadastro (user_metadata.telefone). Usado na
+ * aprovação da psicóloga para dar UM teste grátis por celular. Null se não houver.
+ */
+export async function celularDaConta(authUid: string): Promise<string | null> {
+  const client = adminClient();
+  if (!client) return null;
+  const { data, error } = await client.auth.admin.getUserById(authUid);
+  if (error) return null;
+  const telefone = (data.user?.user_metadata as Record<string, unknown> | undefined)?.telefone;
+  return typeof telefone === "string" ? telefone : null;
+}
+
 /** Troca o e-mail de um usuário do Supabase (pelo uid), já marcado como confirmado. */
 export async function trocarEmailSupabase(authUid: string, novoEmail: string): Promise<void> {
   const client = adminClient();

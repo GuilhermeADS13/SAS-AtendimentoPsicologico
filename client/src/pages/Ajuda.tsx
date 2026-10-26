@@ -470,6 +470,35 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
     ),
   },
   {
+    pergunta: "Como funciona o meu plano e o pagamento",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Você paga <strong>por paciente cadastrado</strong>, e cada paciente a mais custa
+          menos. A tabela completa está em{" "}
+          <Link href="/precos" className="text-primary underline underline-offset-4">Preços</Link>.
+        </li>
+        <li>
+          Em <strong>Configurações da conta → Seu plano</strong> você vê quantos pacientes
+          contam, o valor, até quando está liberada e quantas perguntas à Luma já fez hoje.
+        </li>
+        <li>
+          O pagamento é por <strong>Pix</strong>, mensal ou anual (o anual dá 2 meses
+          grátis): os botões de “Seu plano” abrem o WhatsApp com a mensagem pronta.
+        </li>
+        <li>
+          Paciente que encerrou o acompanhamento não precisa contar: abra a ficha dele e
+          toque em <strong>“Marcar como inativo”</strong>. Quem só entra nas chamadas em
+          grupo também não conta.
+        </li>
+        <li>
+          Se o teste ou o Pix vencer, agendar, iniciar chamada e a Luma pausam até a
+          renovação — seus prontuários continuam abertos para ler e baixar.
+        </li>
+      </ul>
+    ),
+  },
+  {
     pergunta: "Como troco meu e-mail de acesso, minha senha ou meu telefone",
     resposta: (
       <ul className="list-disc pl-5 space-y-1">
