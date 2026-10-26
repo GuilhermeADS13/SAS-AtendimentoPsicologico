@@ -121,6 +121,32 @@ export default function Financeiro() {
     return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
   };
 
+  // O paciente tocou em "Já paguei" (Pix direto para ela). Só vira pago quando
+  // ela confere no banco e confirma aqui; "Não recebi" devolve para em aberto.
+  const informados = appointments
+    .filter((a) => a.pagamentoInformadoEm && !a.paid)
+    .sort((a, b) => +new Date(a.pagamentoInformadoEm!) - +new Date(b.pagamentoInformadoEm!));
+  const atualizarPagamentos = () => {
+    utils.appointments.list.invalidate();
+    utils.appointments.pagamentosInformados.invalidate();
+  };
+  const recusar = trpc.appointments.recusarPagamentoInformado.useMutation({
+    onSuccess: () => {
+      atualizarPagamentos();
+      toast.success("Pronto: a consulta voltou a ficar em aberto para o paciente.");
+    },
+    onError: (e) => toast.error(e.message || "Não foi possível atualizar"),
+  });
+  const confirmarRecebimento = async (id: number, nome: string) => {
+    try {
+      await setPayment.mutateAsync({ id, paid: true });
+      atualizarPagamentos();
+      toast.success(`${nome}: pagamento confirmado.`);
+    } catch {
+      /* o onError da mutation já avisa */
+    }
+  };
+
   // Lembrete de pagamento pelo WhatsApp — semiautomático, igual aos outros
   // avisos: abre no aparelho da psicóloga com a mensagem pronta, ela revisa e
   return (
@@ -212,6 +238,55 @@ export default function Financeiro() {
         </div>
 
         <div className="border-t" />
+
+        {informados.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="flex items-center gap-2 text-xl font-semibold text-foreground">
+              <Clock className="size-5 text-amber-600" aria-hidden /> Pagamentos para confirmar
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Estes pacientes avisaram que pagaram por Pix. Confira no app do seu banco se o valor caiu.
+            </p>
+            <div className="space-y-2">
+              {informados.map((a) => {
+                const nome = nomePaciente(a.patientId);
+                return (
+                  <Card key={a.id} className="border-amber-300 dark:border-amber-700">
+                    <CardContent className="flex flex-wrap items-center gap-x-5 gap-y-3">
+                      <div className="flex w-full min-w-0 items-center gap-3 sm:w-auto sm:flex-1">
+                        <AvatarDaPessoa url={fotos[a.patientId]} nome={nome} className="size-11" />
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-foreground">{nome}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Consulta de {formatarData(a.scheduledAt)} · avisou em {formatarData(a.pagamentoInformadoEm)}
+                          </p>
+                        </div>
+                        <span className="ml-auto shrink-0 border-l pl-3 text-lg font-bold tabular-nums text-foreground sm:pl-5">
+                          {formatarBRL(a.price ?? 0)}
+                        </span>
+                      </div>
+                      <div className="flex w-full items-center gap-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-9"
+                          disabled={recusar.isPending}
+                          onClick={() => recusar.mutate({ id: a.id })}
+                        >
+                          Não recebi
+                        </Button>
+                        <Button size="sm" className="h-9" disabled={setPayment.isPending} onClick={() => confirmarRecebimento(a.id, nome)}>
+                          <CheckCircle2 className="mr-2 size-4" />
+                          Confirmar recebimento
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Quem ainda não pagou (todo o histórico) */}
         <div className="space-y-3">

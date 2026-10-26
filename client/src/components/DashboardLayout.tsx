@@ -183,6 +183,13 @@ function DashboardLayoutContent({
     retry: false,
   });
 
+  // Pacientes que avisaram "Já paguei" e esperam a confirmação (badge do Financeiro).
+  const { data: pagamentosInformados = [] } = trpc.appointments.pagamentosInformados.useQuery(undefined, {
+    enabled: isTherapist,
+    refetchInterval: 60_000,
+    retry: false,
+  });
+
   // Logout: encerra a sessão do Supabase e a do backend, e volta ao login.
   const handleLogout = async () => {
     try {
@@ -296,6 +303,14 @@ function DashboardLayoutContent({
                       {item.path === "/solicitacoes" && solicitacoesPendentes > 0 && (
                         <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium flex items-center justify-center">
                           {solicitacoesPendentes}
+                        </span>
+                      )}
+                      {item.path === "/financeiro" && pagamentosInformados.length > 0 && (
+                        <span
+                          className="ml-auto min-w-5 h-5 px-1.5 rounded-full bg-amber-500 text-white text-xs font-medium flex items-center justify-center"
+                          title="Pagamentos para confirmar"
+                        >
+                          {pagamentosInformados.length}
                         </span>
                       )}
                       {item.path === "/mensagens" && chatNaoLidas > 0 && (

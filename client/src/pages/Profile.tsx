@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AvatarUpload } from "@/components/AvatarUpload";
+import { PixParaReceber } from "@/components/PixParaReceber";
 import { AcoesDoPaciente, CartaoPsicologa, listaDeTexto } from "@/components/CartaoPsicologa";
 import { getAvatarSignedUrl } from "@/lib/supabase";
 import { maskCrp } from "@shared/crp";
@@ -558,6 +559,9 @@ function TherapistProfile() {
                     </Button>
                   </div>
                 </div>
+
+                {/* Fora do formulário do perfil: a chave tem o próprio salvar. */}
+                <PixParaReceber />
               </>
             )}
           </div>

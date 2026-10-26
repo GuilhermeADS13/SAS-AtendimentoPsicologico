@@ -737,6 +737,45 @@ export async function avisarVencimentosDePlano(agora: Date = new Date()): Promis
   return enviados;
 }
 
+/**
+ * E-mail para a psicóloga quando o paciente toca em "Já paguei". Ela confere no
+ * banco e confirma (ou recusa) no Financeiro — o sistema não vê o Pix, que vai
+ * direto para a conta dela. Melhor esforço: o aviso também aparece no menu.
+ */
+export async function avisarPsicologaDoPagamentoInformado(appointmentId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const [l] = await db
+    .select({
+      price: appointments.price,
+      scheduledAt: appointments.scheduledAt,
+      pacienteNome: patients.firstName,
+      pacienteSobrenome: patients.lastName,
+      psicologaNome: users.name,
+      psicologaEmail: users.email,
+    })
+    .from(appointments)
+    .innerJoin(patients, eq(patients.id, appointments.patientId))
+    .innerJoin(therapists, eq(therapists.id, appointments.therapistId))
+    .innerJoin(users, eq(users.id, therapists.userId))
+    .where(eq(appointments.id, appointmentId))
+    .limit(1);
+  if (!l?.psicologaEmail) return;
+  const paciente = `${l.pacienteNome} ${l.pacienteSobrenome}`.trim();
+  const base = appUrl();
+  const html = emailComMarca({
+    nome: l.psicologaNome,
+    titulo: `${paciente} informou um pagamento`,
+    corpo: `<p>${esc(paciente)} avisou que pagou a consulta por Pix. Confira no seu banco se o valor caiu e confirme no Financeiro — até lá ela continua como pendente.</p>${detalhesDoEmail([
+      ["Consulta", esc(formatarQuando(l.scheduledAt) ?? "")],
+      ["Valor", l.price ? esc(formatarReais(l.price)) : null],
+    ])}`,
+    botao: { texto: "Abrir o Financeiro", url: `${base}/financeiro` },
+    base,
+  });
+  await sendEmail(l.psicologaEmail, `${paciente} informou um pagamento — VozInterior`, html);
+}
+
 export function rodarCicloDeNotificacoes(): Promise<void> {
   if (cicloEmCurso) {
     rodarDeNovo = true;

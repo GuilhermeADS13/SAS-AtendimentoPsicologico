@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { formatarData } from "@shared/datas";
@@ -11,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
-import { AlertTriangle, Copy, CreditCard } from "lucide-react";
+import { CopiarPix } from "@/components/CopiarPix";
+import { AlertTriangle, CreditCard } from "lucide-react";
 
 type Situacao = { liberado: boolean; motivo: string; ate: Date | string | null; diasRestantes: number | null };
 
@@ -126,10 +126,15 @@ export function SeuPlano() {
                   banco, em <strong>Pix → Copia e Cola</strong>:
                 </p>
                 <CopiarPix
-                  opcoes={opcoes.map(({ ciclo }) => ({
-                    ciclo,
-                    centavos: valorDaCobranca(data.pacientes, { fundador: data.fundador, ciclo }) ?? 0,
-                  }))}
+                  opcoes={opcoes.map(({ ciclo }) => {
+                    const centavos = valorDaCobranca(data.pacientes, { fundador: data.fundador, ciclo }) ?? 0;
+                    return {
+                      chave: ciclo,
+                      rotulo: `Copiar Pix de ${ciclo === "mensal" ? "1 mês" : "1 ano"}: ${formatarReais(centavos)}`,
+                      codigo: pixComValor(PIX_COPIA_E_COLA, centavos),
+                      destaque: ciclo === "mensal",
+                    };
+                  })}
                 />
                 <p className="text-xs text-muted-foreground">
                   No computador? Escaneie o QR com o celular e digite o valor.
@@ -170,59 +175,6 @@ export function SeuPlano() {
   );
 }
 
-/**
- * Botões "Copiar código Pix" (mês e ano), com o valor embutido no código. A
- * área de transferência pode não existir ou ser negada (navegador embutido,
- * página sem HTTPS): aí o código aparece num campo para copiar na mão, em vez
- * de o botão não fazer nada.
- */
-function CopiarPix({ opcoes }: { opcoes: Array<{ ciclo: Ciclo; centavos: number }> }) {
-  const [manual, setManual] = useState<string | null>(null);
-  const copiar = async (codigo: string) => {
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error("sem área de transferência");
-      await navigator.clipboard.writeText(codigo);
-      setManual(null);
-      toast.success("Código Pix copiado. Cole no app do banco, em Pix → Copia e Cola.");
-    } catch {
-      setManual(codigo);
-    }
-  };
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        {opcoes.map(({ ciclo, centavos }) => (
-          <Button
-            key={ciclo}
-            type="button"
-            size="sm"
-            variant={ciclo === "mensal" ? "default" : "outline"}
-            className="gap-2 tabular-nums"
-            onClick={() => void copiar(pixComValor(PIX_COPIA_E_COLA, centavos))}
-          >
-            <Copy className="w-4 h-4" />
-            Copiar Pix de {ciclo === "mensal" ? "1 mês" : "1 ano"}: {formatarReais(centavos)}
-          </Button>
-        ))}
-      </div>
-      {manual && (
-        <div className="space-y-1">
-          <label htmlFor="pix-manual" className="text-xs text-muted-foreground">
-            Não deu para copiar sozinho. Selecione o código abaixo e copie:
-          </label>
-          <textarea
-            id="pix-manual"
-            readOnly
-            rows={3}
-            value={manual}
-            onFocus={(e) => e.currentTarget.select()}
-            className="w-full rounded-md border bg-card p-2 font-mono text-xs break-all"
-          />
-        </div>
-      )}
-    </div>
-  );
-}
 
 /**
  * Dia do mês em que o Pix vence. Vale a partir do próximo Pix: ele cobre até esse

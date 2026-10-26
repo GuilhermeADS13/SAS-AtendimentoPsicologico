@@ -20,6 +20,8 @@ import {
   resumoDaAssinatura,
 } from "./assinaturas";
 import { DIAS_DE_VENCIMENTO, novoPagoAte, situacaoDaAssinatura } from "../shared/assinatura";
+import { TIPOS_DE_CHAVE_PIX, montarPixEstatico, normalizarChavePix } from "../shared/pix";
+import { pagamentoDaConsulta } from "../shared/pagamentoDaConsulta";
 import { planoPara, valorDaCobranca } from "../shared/precos";
 import { PASSWORD_MAX_LENGTH, validatePassword } from "../shared/passwordPolicy";
 import { CRP_REGEX } from "../shared/crp";
@@ -42,6 +44,7 @@ import { recordAiAuditEvent } from "./ai/audit";
 import { enqueueDocumentIndexing, getDocumentIndexingStatus } from "./ai/document-queue";
 import { getDocumentQueueMetrics, queueMetricsToPrometheus } from "./ai/queue-metrics";
 import {
+  avisarPsicologaDoPagamentoInformado,
   notifyAdminOfTherapistRequest,
   notifyTherapistRequestReviewed,
   rodarCicloDeNotificacoes,
@@ -1327,6 +1330,9 @@ export const appRouter = router({
           roomToken: appointments.roomToken,
           therapistName: users.name,
           therapistCrp: therapists.crp,
+          price: appointments.price,
+          paid: appointments.paid,
+          pagamentoInformadoEm: appointments.pagamentoInformadoEm,
         })
         .from(appointments)
         .leftJoin(therapists, eq(therapists.id, appointments.therapistId))
@@ -1339,8 +1345,63 @@ export const appRouter = router({
         .orderBy(desc(appointments.scheduledAt));
       // `participante`: a consulta é de outro paciente e ele foi adicionado. A
       // tela não oferece "Confirmar presença" (é do paciente principal).
-      return linhas.map((l) => ({ ...l, participante: l.patientId !== paciente.id }));
+      // `pagamento` só nas que já aconteceram e são dele (shared/pagamentoDaConsulta);
+      // valor e situação não vão para quem é só participante.
+      return linhas.map(({ price, paid, pagamentoInformadoEm, ...l }) => {
+        const participante = l.patientId !== paciente.id;
+        return {
+          ...l,
+          participante,
+          pagamento: pagamentoDaConsulta({ ...l, price, paid, pagamentoInformadoEm, participante }),
+        };
+      });
     }),
+
+    /**
+     * "Pix copia e cola" da psicóloga do paciente, SEM valor (a tela embute o de
+     * cada consulta). Null se ela ainda não cadastrou a chave.
+     */
+    pixDaPsicologa: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return { codigo: null };
+      const paciente = await pacienteDoUsuario(db, ctx.user);
+      if (!paciente) return { codigo: null };
+      const [psi] = await db
+        .select({ nome: users.name, chave: therapists.pixChave, cidade: therapists.pixCidade })
+        .from(therapists)
+        .innerJoin(users, eq(users.id, therapists.userId))
+        .where(eq(therapists.id, paciente.therapistId))
+        .limit(1);
+      if (!psi?.chave) return { codigo: null };
+      return { codigo: montarPixEstatico({ chave: psi.chave, nome: psi.nome ?? "", cidade: psi.cidade ?? "" }) };
+    }),
+
+    /**
+     * O paciente avisa que pagou. NÃO marca como pago: a psicóloga confere no
+     * banco e confirma (ou recusa) no Financeiro. Avisa a psicóloga por e-mail.
+     */
+    informarPagamento: protectedProcedure
+      .input(z.object({ appointmentId: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const paciente = await pacienteDoUsuario(db, ctx.user);
+        if (!paciente) throw new Error("Cadastro não encontrado.");
+        const [a] = await db
+          .select()
+          .from(appointments)
+          .where(and(eq(appointments.id, input.appointmentId), eq(appointments.patientId, paciente.id)))
+          .limit(1);
+        if (!a) throw new Error("Consulta não encontrada.");
+        const pagamento = pagamentoDaConsulta({ ...a, participante: false });
+        if (!pagamento) throw new Error("Esta consulta não tem pagamento em aberto.");
+        if (pagamento.situacao !== "em_aberto") return { situacao: pagamento.situacao };
+        await db.update(appointments).set({ pagamentoInformadoEm: new Date() }).where(eq(appointments.id, a.id));
+        void avisarPsicologaDoPagamentoInformado(a.id).catch((e) =>
+          console.warn("[Pagamento] aviso à psicóloga falhou:", e instanceof Error ? e.message : e),
+        );
+        return { situacao: "aguardando" as const };
+      }),
 
     /**
      * O paciente confirma que vai comparecer a uma consulta agendada.
@@ -1764,6 +1825,41 @@ export const appRouter = router({
         });
         return { success: true, action: "created" as const };
       }),
+
+    /**
+     * Chave Pix para receber dos pacientes. Separado do `upsert` de propósito:
+     * aquele regrava o perfil inteiro, e salvar a bio não pode apagar a chave.
+     * O dinheiro vai direto do paciente para ela — o VozInterior não intermedia.
+     */
+    definirPix: therapistProcedure
+      .input(z.object({
+        tipo: z.enum(TIPOS_DE_CHAVE_PIX),
+        chave: z.string().trim().min(1).max(120),
+        cidade: z.string().trim().min(2).max(60),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const chave = normalizarChavePix(input.tipo, input.chave);
+        if (!chave) {
+          const exemplo = { cpf_cnpj: "CPF ou CNPJ", celular: "celular com DDD", email: "e-mail", aleatoria: "chave aleatória (formato 123e4567-...)" }[input.tipo];
+          throw new Error(`Essa chave não parece um ${exemplo} válido. Confira e tente de novo.`);
+        }
+        const atualizadas = await db
+          .update(therapists)
+          .set({ pixTipo: input.tipo, pixChave: chave, pixCidade: input.cidade.slice(0, 15) })
+          .where(eq(therapists.userId, ctx.user.id))
+          .returning({ id: therapists.id });
+        if (!atualizadas.length) throw new Error("Complete seu perfil profissional antes de cadastrar o Pix.");
+        return { chave };
+      }),
+
+    removerPix: therapistProcedure.mutation(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      await db.update(therapists).set({ pixTipo: null, pixChave: null, pixCidade: null }).where(eq(therapists.userId, ctx.user.id));
+      return { success: true } as const;
+    }),
   }),
 
   patients: router({
@@ -2372,6 +2468,9 @@ export const appRouter = router({
         if (input.paid !== undefined) {
           set.paid = input.paid;
           set.paidAt = input.paid ? new Date() : null;
+          // Voltar para "não pago" também desfaz o "Já paguei" do paciente; senão
+          // a consulta reapareceria como "aguardando confirmação".
+          if (!input.paid) set.pagamentoInformadoEm = null;
         }
         if (input.price !== undefined) set.price = input.price ?? null;
         if (input.paid !== undefined || input.price !== undefined) {
@@ -2392,6 +2491,36 @@ export const appRouter = router({
 
         if (!updated.length) throw new Error("Appointment not found");
         return { success: true, appointment: updated[0] } as const;
+      }),
+
+    /** Consultas em que o paciente disse "Já paguei" e ela ainda não confirmou. */
+    pagamentosInformados: therapistProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return [];
+      return db
+        .select({
+          id: appointments.id,
+          patientId: appointments.patientId,
+          scheduledAt: appointments.scheduledAt,
+          price: appointments.price,
+          pagamentoInformadoEm: appointments.pagamentoInformadoEm,
+        })
+        .from(appointments)
+        .innerJoin(therapists, eq(therapists.id, appointments.therapistId))
+        .where(and(eq(therapists.userId, ctx.user.id), isNotNull(appointments.pagamentoInformadoEm), eq(appointments.paid, false)))
+        .orderBy(asc(appointments.pagamentoInformadoEm));
+    }),
+
+    /** "Não recebi": desfaz o "Já paguei" e a consulta volta a ficar em aberto para o paciente. */
+    recusarPagamentoInformado: therapistProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const consulta = await consultaDaPsicologa(db, ctx.user.id, input.id);
+        if (!consulta) throw new Error("Consulta não encontrada.");
+        await db.update(appointments).set({ pagamentoInformadoEm: null }).where(eq(appointments.id, input.id));
+        return { success: true } as const;
       }),
 
     /**

@@ -101,6 +101,26 @@ const DUVIDAS_PACIENTE: Duvida[] = [
     ),
   },
   {
+    pergunta: "Como pago a consulta",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Depois que a consulta acontece, ela mostra o <strong>valor</strong> em{" "}
+          <strong>Minhas Consultas</strong>.
+        </li>
+        <li>
+          Se a sua psicóloga cadastrou a chave Pix, toque em <strong>“Copiar Pix”</strong> — o
+          valor já vai junto — e cole no app do banco, em <strong>Pix → Copia e Cola</strong>.
+          O dinheiro vai direto para ela.
+        </li>
+        <li>
+          Depois de pagar, toque em <strong>“Já paguei”</strong>. A consulta fica “aguardando a
+          psicóloga confirmar” até ela ver o pagamento no banco.
+        </li>
+      </ul>
+    ),
+  },
+  {
     pergunta: "O que é “Confirmar presença”?",
     resposta: (
       <ul className="list-disc pl-5 space-y-1">
@@ -466,6 +486,27 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
           <strong>“Mensagens”</strong>.
         </li>
         <li>Mensagens não lidas aparecem com um número ao lado de “Mensagens”, no menu.</li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Como recebo dos pacientes por Pix",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Em <strong>Perfil</strong>, no fim da página, cadastre a sua chave Pix em{" "}
+          <strong>“Receber dos pacientes por Pix”</strong>.
+        </li>
+        <li>
+          O paciente vê o valor das consultas que já aconteceram e copia um Pix com o valor
+          certo. O dinheiro cai <strong>direto na sua conta</strong> — o VozInterior não passa
+          por ele e não cobra taxa.
+        </li>
+        <li>
+          Quando ele tocar em “Já paguei”, você recebe um e-mail e um número aparece no menu{" "}
+          <strong>Financeiro</strong>. Confira no banco e toque em{" "}
+          <strong>“Confirmar recebimento”</strong> (ou “Não recebi”).
+        </li>
       </ul>
     ),
   },

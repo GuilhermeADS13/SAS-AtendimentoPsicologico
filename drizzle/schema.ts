@@ -1,6 +1,7 @@
 import { boolean, customType, index, integer, jsonb, pgEnum, pgTable, serial, smallint, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import type { AnamneseData, TcleData, NoteTemplate } from "../shared/prontuario";
+import type { TipoChavePix } from "../shared/pix";
 
 /**
  * Schema Postgres (Supabase). Colunas em camelCase para casar com os tipos gerados.
@@ -162,6 +163,10 @@ export const therapists = pgTable("therapists", {
    *  profissional, nunca vaza para outro). `prontuarioModelName` = nome do arquivo. */
   prontuarioModel: text("prontuarioModel"),
   prontuarioModelName: varchar("prontuarioModelName", { length: 256 }),
+  /** Chave Pix para receber dos pacientes (migração 0042). Ver shared/pix.ts. */
+  pixTipo: varchar("pixTipo", { length: 12 }).$type<TipoChavePix>(),
+  pixChave: varchar("pixChave", { length: 77 }),
+  pixCidade: varchar("pixCidade", { length: 15 }),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
     .defaultNow()
@@ -290,6 +295,9 @@ export const appointments = pgTable("appointments", {
   paidAt: timestamp("paidAt", { withTimezone: true, mode: "date" }),
   /** Usuário autenticado que registrou a última alteração do pagamento. */
   paymentUpdatedBy: integer("paymentUpdatedBy").references(() => users.id, { onDelete: "set null" }),
+  /** O paciente tocou em "Já paguei" (migração 0042). Só vira `paid` quando a
+   *  psicóloga confirma; "Não recebi" volta para nulo. */
+  pagamentoInformadoEm: timestamp("pagamentoInformadoEm", { withTimezone: true, mode: "date" }),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
     .defaultNow()

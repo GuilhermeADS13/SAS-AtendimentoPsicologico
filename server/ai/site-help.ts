@@ -98,7 +98,7 @@ function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
       model: "site-help-local",
       topic: "payments",
       content:
-        "Os valores e a forma de pagamento são combinados diretamente com a sua psicóloga. Suas consultas ficam em “Minhas Consultas”.",
+        "Os valores são combinados com a sua psicóloga. Em “Minhas Consultas”, nas consultas que já aconteceram, aparece o valor de cada uma. Se ela cadastrou a chave Pix, toque em “Copiar Pix” (o valor já vai junto), cole no app do banco em Pix → Copia e Cola e, depois de pagar, toque em “Já paguei”. O dinheiro vai direto para ela, que confirma quando cair.",
     };
   }
 

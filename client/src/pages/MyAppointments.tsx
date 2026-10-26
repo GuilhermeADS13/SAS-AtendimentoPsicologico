@@ -43,6 +43,7 @@ import { Input } from "@/components/ui/input";
 import { Calendar, MessageCircle, Search, Video, UserRound, CheckCircle2 } from "lucide-react";
 import { LumaOwlIcon } from "@/components/Logo";
 import AddToCalendar from "@/components/AddToCalendar";
+import { PagamentoDaConsulta } from "@/components/PagamentoDaConsulta";
 import { AvatarDaPessoa } from "@/components/AvatarDaPessoa";
 import { getAvatarSignedUrl } from "@/lib/supabase";
 
@@ -77,6 +78,10 @@ export default function MyAppointments() {
     };
   }, [psi?.photoKey]);
   const [busca, setBusca] = useState("");
+  // Pix da psicóloga, só se há consulta com pagamento em aberto (Minhas Consultas
+  // mostra o pagamento das que já aconteceram — shared/pagamentoDaConsulta).
+  const temEmAberto = appointments.some((a) => a.pagamento?.situacao === "em_aberto");
+  const { data: pix } = trpc.me.pixDaPsicologa.useQuery(undefined, { enabled: temEmAberto });
 
   const confirmar = trpc.me.confirmAppointment.useMutation({
     onSuccess: () => {
@@ -275,6 +280,9 @@ export default function MyAppointments() {
                           }}
                         />
                       </div>
+                      {a.pagamento && (
+                        <PagamentoDaConsulta appointmentId={a.id} pagamento={a.pagamento} pixDaPsicologa={pix?.codigo ?? null} />
+                      )}
                     </CardContent>
                   </Card>
                 ))}
@@ -301,6 +309,9 @@ export default function MyAppointments() {
                       <span className="text-xs text-muted-foreground">
                         {STATUS_LABEL[a.status] ?? a.status}
                       </span>
+                      {a.pagamento && (
+                        <PagamentoDaConsulta appointmentId={a.id} pagamento={a.pagamento} pixDaPsicologa={pix?.codigo ?? null} />
+                      )}
                     </CardContent>
                   </Card>
                 ))}
