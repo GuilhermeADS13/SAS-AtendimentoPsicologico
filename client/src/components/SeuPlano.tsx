@@ -43,8 +43,8 @@ export function SeuPlano() {
   }
 
   const opcoes: Array<{ ciclo: Ciclo; rotulo: string }> = [
-    { ciclo: "mensal", rotulo: "Pagar 1 mês" },
-    { ciclo: "anual", rotulo: "Pagar 1 ano (2 meses grátis)" },
+    { ciclo: "mensal", rotulo: "1 mês" },
+    { ciclo: "anual", rotulo: "1 ano (2 meses grátis)" },
   ];
   const vencido = !data.situacao.liberado;
 
@@ -99,22 +99,54 @@ export function SeuPlano() {
         </p>
 
         {data.valorCentavos !== null && (
-          <div className="flex flex-col gap-2 sm:flex-row">
-            {opcoes.map(({ ciclo, rotulo }) => {
-              const valor = valorDaCobranca(data.pacientes, { fundador: data.fundador, ciclo }) ?? 0;
-              const link = linkWhatsAppDoSuporte(
-                `Olá! Quero pagar o VozInterior por Pix: ${data.pacientes} paciente${data.pacientes === 1 ? "" : "s"}, plano ${data.plano.nome}, ${ciclo} — ${formatarReais(valor)}.`,
-              );
-              if (!link) return null;
-              return (
-                <Button key={ciclo} asChild variant={ciclo === "mensal" ? "default" : "outline"} className="gap-2">
-                  <a href={link} target="_blank" rel="noopener noreferrer">
-                    <WhatsAppIcon className="w-4 h-4" />
-                    {rotulo}: {formatarReais(valor)}
-                  </a>
-                </Button>
-              );
-            })}
+          <div className="grid gap-4 rounded-xl border bg-secondary/40 p-4 sm:grid-cols-[auto_1fr]">
+            {/* QR estático da conta (sem valor embutido): a psicóloga digita o
+                valor no app do banco. Recortado e invertido para preto sobre
+                branco — alguns apps de banco não leem o QR claro sobre escuro. */}
+            <img
+              src="/pix-qrcode.png"
+              alt="QR code do Pix para pagar o VozInterior"
+              width={176}
+              height={176}
+              className="mx-auto h-44 w-44 rounded-md bg-white [image-rendering:pixelated]"
+            />
+            <ol className="space-y-3 text-sm">
+              <li>
+                <strong>1.</strong> No app do banco, vá em <strong>Pix → Pagar com QR code</strong>.
+              </li>
+              <li>
+                <strong>2.</strong> Digite o valor:
+                <ul className="mt-1 space-y-0.5 tabular-nums">
+                  {opcoes.map(({ ciclo, rotulo }) => (
+                    <li key={ciclo}>
+                      {rotulo}: <strong>{formatarReais(valorDaCobranca(data.pacientes, { fundador: data.fundador, ciclo }) ?? 0)}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+              <li className="space-y-2">
+                <p>
+                  <strong>3.</strong> Mande o comprovante — a liberação é feita assim que ele chega:
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                  {opcoes.map(({ ciclo }) => {
+                    const valor = valorDaCobranca(data.pacientes, { fundador: data.fundador, ciclo }) ?? 0;
+                    const link = linkWhatsAppDoSuporte(
+                      `Olá! Paguei o Pix do VozInterior: ${data.pacientes} paciente${data.pacientes === 1 ? "" : "s"}, plano ${data.plano.nome}, ${ciclo} — ${formatarReais(valor)}. Segue o comprovante.`,
+                    );
+                    if (!link) return null;
+                    return (
+                      <Button key={ciclo} asChild size="sm" variant={ciclo === "mensal" ? "default" : "outline"} className="gap-2">
+                        <a href={link} target="_blank" rel="noopener noreferrer">
+                          <WhatsAppIcon className="w-4 h-4" />
+                          {ciclo === "mensal" ? "Enviar comprovante do mês" : "Enviar comprovante do ano"}
+                        </a>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </li>
+            </ol>
           </div>
         )}
         {data.valorCentavos === null && (

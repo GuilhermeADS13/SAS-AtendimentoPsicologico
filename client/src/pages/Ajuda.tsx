@@ -484,7 +484,8 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
         </li>
         <li>
           O pagamento é por <strong>Pix</strong>, mensal ou anual (o anual dá 2 meses
-          grátis): os botões de “Seu plano” abrem o WhatsApp com a mensagem pronta.
+          grátis): em “Seu plano” tem o QR code e o valor certo. Depois de pagar, toque em
+          “Enviar comprovante” — abre o WhatsApp com a mensagem pronta.
         </li>
         <li>
           Paciente que encerrou o acompanhamento não precisa contar: abra a ficha dele e

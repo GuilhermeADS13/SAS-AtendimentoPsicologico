@@ -329,8 +329,8 @@ export default function Precos() {
             <ol className="space-y-4">
               {[
                 ["Crie sua conta", `Depois da verificação do CRP, você usa tudo por ${DIAS_DE_TESTE_GRATIS} dias, de graça.`],
-                ["Chame no WhatsApp", "Diga quantos pacientes você atende e receba a chave Pix."],
-                ["Pague por Pix", "Todo mês, ou uma vez por ano com 2 meses grátis. O valor segue a tabela ao lado."],
+                ["Pague por Pix", "Em Configurações → Seu plano tem o QR code e o valor certo. Todo mês, ou uma vez por ano com 2 meses grátis."],
+                ["Mande o comprovante", "Pelo WhatsApp, com um toque. A liberação é feita assim que ele chega."],
               ].map(([titulo, texto], i) => (
                 <li key={titulo} className="flex gap-4">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
