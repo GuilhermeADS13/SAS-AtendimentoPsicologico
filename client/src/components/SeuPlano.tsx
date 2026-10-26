@@ -100,7 +100,13 @@ export function SeuPlano() {
           <Link href="/precos" className="text-primary underline underline-offset-4">Ver a tabela</Link>
         </p>
 
-        {data.valorCentavos !== null && (
+        {data.valorCentavos === 0 && (
+          <p className="rounded-xl border bg-secondary/40 p-4 text-sm text-muted-foreground">
+            Você ainda não tem pacientes que contam, então não há nada a pagar agora. A
+            mensalidade começa no 1º paciente ({formatarReais(valorDaCobranca(1, { fundador: data.fundador }) ?? 0)}).
+          </p>
+        )}
+        {!!data.valorCentavos && (
           <div className="grid gap-4 rounded-xl border bg-secondary/40 p-4 sm:grid-cols-[auto_1fr]">
             {/* QR estático da conta (sem valor embutido): quem escaneia digita o
                 valor. Recortado e invertido para preto sobre branco — alguns apps

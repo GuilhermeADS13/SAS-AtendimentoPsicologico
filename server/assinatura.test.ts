@@ -77,6 +77,12 @@ describe("Pix e valores", () => {
     expect(valorDaCobranca(10, { fundador: true, ciclo: "anual" })).toBe(84000);
     expect(valorDaCobranca(31)).toBeNull();
   });
+
+  it("sem paciente não há o que cobrar (a cobrança começa no 1º)", () => {
+    expect(valorDaCobranca(0)).toBe(0);
+    expect(valorDaCobranca(0, { fundador: true, ciclo: "anual" })).toBe(0);
+    expect(valorDaCobranca(1)).toBe(2000);
+  });
 });
 
 describe("dia de vencimento escolhido", () => {

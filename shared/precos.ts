@@ -80,13 +80,14 @@ export type Ciclo = "mensal" | "anual";
 /**
  * O que a psicóloga paga por ciclo, já com fundador e anual. Null acima da tabela
  * (Coro, combinado). Fundador antes do anual: no anual ela paga 10 meses do
- * valor JÁ com desconto.
+ * valor JÁ com desconto. Sem paciente, não há o que cobrar: 0 pacientes = R$ 0
+ * (decisão de 2026-10-26) — a cobrança começa no 1º paciente.
  */
 export function valorDaCobranca(
   pacientes: number,
   { fundador = false, ciclo = "mensal" }: { fundador?: boolean; ciclo?: Ciclo } = {},
 ): number | null {
-  const base = mensalidadeEmCentavos(Math.max(1, pacientes));
+  const base = mensalidadeEmCentavos(pacientes);
   if (base === null) return null;
   const mensal = fundador ? Math.round(base * (1 - DESCONTO_FUNDADOR)) : base;
   return ciclo === "anual" ? mensal * MESES_PAGOS_NO_ANUAL : mensal;

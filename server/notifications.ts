@@ -711,6 +711,8 @@ export async function avisarVencimentosDePlano(agora: Date = new Date()): Promis
     if (!precisaAvisarVencimento(s, l.avisoEnviadoPara, agora) || !s.ate) continue;
 
     const pacientes = await contarPacientesCobrados(db, l.therapistId);
+    // Sem paciente não há o que pagar (R$ 0): um e-mail pedindo Pix não faz sentido.
+    if (pacientes === 0) continue;
     const valor = valorDaCobranca(pacientes, { fundador: l.fundador, ciclo: l.ciclo });
     const quando = s.diasRestantes === 0 ? "hoje" : `em ${s.diasRestantes} dia${s.diasRestantes === 1 ? "" : "s"}`;
     const oQue = s.motivo === "teste" ? "Seu teste grátis" : "Seu plano";
