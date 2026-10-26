@@ -1,5 +1,7 @@
 import { Link } from "wouter";
+import { toast } from "sonner";
 import { formatarData } from "@shared/datas";
+import { DIAS_DE_VENCIMENTO } from "@shared/assinatura";
 import { DESCONTO_FUNDADOR, formatarReais, valorDaCobranca, type Ciclo } from "@shared/precos";
 import { trpc } from "@/lib/trpc";
 import { linkWhatsAppDoSuporte } from "@/lib/suporte";
@@ -88,6 +90,8 @@ export function SeuPlano() {
           </div>
         </dl>
 
+        <DiaDoVencimento atual={data.diaVencimento} />
+
         <p className="text-xs text-muted-foreground">
           Paciente que encerrou o acompanhamento não precisa contar: abra a ficha dele e toque em
           “Marcar como inativo”. Quem só entra nas chamadas em grupo também não conta.{" "}
@@ -120,6 +124,51 @@ export function SeuPlano() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Dia do mês em que o Pix vence. Vale a partir do próximo Pix: ele cobre até esse
+ * dia do mês seguinte (nunca menos de 1 mês). Ver novoPagoAte.
+ */
+function DiaDoVencimento({ atual }: { atual: number | null }) {
+  const utils = trpc.useUtils();
+  const definir = trpc.assinatura.definirVencimento.useMutation({
+    onSuccess: (r) => {
+      utils.assinatura.minha.invalidate();
+      toast.success(`Pronto: seu Pix passa a vencer todo dia ${r.dia}.`);
+    },
+    onError: (e) => toast.error(e.message || "Não foi possível salvar o dia."),
+  });
+  return (
+    <div className="space-y-2">
+      <p id="dia-vencimento" className="text-sm font-medium text-foreground">
+        Dia do vencimento
+      </p>
+      <div role="radiogroup" aria-labelledby="dia-vencimento" className="flex flex-wrap gap-2">
+        {DIAS_DE_VENCIMENTO.map((dia) => (
+          <button
+            key={dia}
+            type="button"
+            role="radio"
+            aria-checked={atual === dia}
+            disabled={definir.isPending}
+            onClick={() => atual !== dia && definir.mutate({ dia })}
+            className={`h-9 min-w-12 rounded-md border px-3 text-sm font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 ${
+              atual === dia ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:border-primary/60"
+            }`}
+          >
+            {dia}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {atual
+          ? `Seu Pix vence todo dia ${atual}. O próximo Pix vale até o dia ${atual} do mês seguinte (nunca menos de 1 mês).`
+          : "Escolha o dia do mês que fica melhor para pagar. O próximo Pix já vale até esse dia."}{" "}
+        Três dias antes de vencer, mandamos um lembrete por e-mail.
+      </p>
+    </div>
   );
 }
 

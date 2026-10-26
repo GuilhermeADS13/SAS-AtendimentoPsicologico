@@ -6,9 +6,13 @@ import {
   therapists,
   users,
   therapistRequests,
+  assinaturas,
 } from "../drizzle/schema";
 import { eq, and, lt, gte, gt, isNull, inArray, asc } from "drizzle-orm";
 import { sendEmail } from "./mailer";
+import { contarPacientesCobrados } from "./assinaturas";
+import { precisaAvisarVencimento, situacaoDaAssinatura } from "../shared/assinatura";
+import { formatarReais, valorDaCobranca } from "../shared/precos";
 import { googleCalendarUrl } from "../shared/calendario";
 import { detalhesDoEmail, emailComMarca, esc, primeiroNome } from "./emailLayout";
 
@@ -674,6 +678,63 @@ export async function sendTherapistAlerts() {
  */
 let cicloEmCurso: Promise<void> | null = null;
 let rodarDeNovo = false;
+/**
+ * E-mail "seu plano vence em X dias" para a psicóloga, até 3 dias antes do fim
+ * do teste ou do Pix (decisão de 2026-10-26). Uma vez por vencimento: grava a
+ * data avisada em `avisoEnviadoPara`; se o envio falhar, tenta no próximo ciclo.
+ * Admin não paga, não recebe.
+ */
+export async function avisarVencimentosDePlano(agora: Date = new Date()): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const linhas = await db
+    .select({
+      id: assinaturas.id,
+      therapistId: assinaturas.therapistId,
+      testeAte: assinaturas.testeAte,
+      pagoAte: assinaturas.pagoAte,
+      fundador: assinaturas.fundador,
+      ciclo: assinaturas.ciclo,
+      avisoEnviadoPara: assinaturas.avisoEnviadoPara,
+      nome: users.name,
+      email: users.email,
+      role: users.role,
+    })
+    .from(assinaturas)
+    .innerJoin(therapists, eq(therapists.id, assinaturas.therapistId))
+    .innerJoin(users, eq(users.id, therapists.userId));
+
+  let enviados = 0;
+  for (const l of linhas) {
+    if (l.role === "admin" || !l.email || !l.therapistId) continue;
+    const s = situacaoDaAssinatura(l, agora);
+    if (!precisaAvisarVencimento(s, l.avisoEnviadoPara, agora) || !s.ate) continue;
+
+    const pacientes = await contarPacientesCobrados(db, l.therapistId);
+    const valor = valorDaCobranca(pacientes, { fundador: l.fundador, ciclo: l.ciclo });
+    const quando = s.diasRestantes === 0 ? "hoje" : `em ${s.diasRestantes} dia${s.diasRestantes === 1 ? "" : "s"}`;
+    const oQue = s.motivo === "teste" ? "Seu teste grátis" : "Seu plano";
+    const data = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, day: "2-digit", month: "long" }).format(s.ate);
+    const base = appUrl();
+    const html = emailComMarca({
+      nome: l.nome,
+      titulo: `${oQue} vence ${quando}`,
+      corpo: `<p>${esc(oQue)} no VozInterior vai até <strong>${esc(data)}</strong>. Para continuar agendando, atendendo por vídeo e usando a Luma, renove pelo Pix.</p>${detalhesDoEmail([
+        ["Pacientes", String(pacientes)],
+        ["Valor", valor === null ? "combinado" : `${esc(formatarReais(valor))} (${l.ciclo})`],
+      ])}<p>Se não renovar, seus prontuários continuam abertos para leitura — só o uso novo pausa.</p>`,
+      botao: { texto: "Ver meu plano e pagar", url: `${base}/configuracoes` },
+      observacao: "Em “Seu plano” você também escolhe o dia do mês em que o Pix vence.",
+      base,
+    });
+    const ok = await sendEmail(l.email, `${oQue} vence ${quando} — VozInterior`, html).catch(() => false);
+    if (!ok) continue;
+    await db.update(assinaturas).set({ avisoEnviadoPara: s.ate }).where(eq(assinaturas.id, l.id));
+    enviados++;
+  }
+  return enviados;
+}
+
 export function rodarCicloDeNotificacoes(): Promise<void> {
   if (cicloEmCurso) {
     rodarDeNovo = true;
@@ -687,8 +748,9 @@ export function rodarCicloDeNotificacoes(): Promise<void> {
         await sendTherapistAlerts();
         await sendCancellationAlerts();
         const pedidos = await notifyPendingTherapistRequests();
+        const vencimentos = await avisarVencimentosDePlano();
         const result = await processPendingNotifications();
-        console.log("[Notifications] ciclo:", { ...result, solicitacoes: pedidos });
+        console.log("[Notifications] ciclo:", { ...result, solicitacoes: pedidos, vencimentos });
       } while (rodarDeNovo);
     } catch (error) {
       console.error("[Notifications] erro no ciclo:", error);

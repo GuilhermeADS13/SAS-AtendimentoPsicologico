@@ -68,6 +68,7 @@ export function AssinaturasAdmin() {
                   {l.pacientes} paciente{l.pacientes === 1 ? "" : "s"} · {l.plano} ·{" "}
                   {mensal === null ? "valor combinado" : `${formatarReais(mensal)}/mês`}
                   {l.fundador && " · fundadora"}
+                  {l.diaVencimento && ` · vence dia ${l.diaVencimento}`}
                 </p>
                 <p className={`text-sm font-medium ${s.liberado ? "text-foreground" : "text-destructive"}`}>{situacao}</p>
               </div>

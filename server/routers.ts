@@ -19,7 +19,7 @@ import {
   perguntasDaLumaHoje,
   resumoDaAssinatura,
 } from "./assinaturas";
-import { novoPagoAte, situacaoDaAssinatura } from "../shared/assinatura";
+import { DIAS_DE_VENCIMENTO, novoPagoAte, situacaoDaAssinatura } from "../shared/assinatura";
 import { planoPara, valorDaCobranca } from "../shared/precos";
 import { PASSWORD_MAX_LENGTH, validatePassword } from "../shared/passwordPolicy";
 import { CRP_REGEX } from "../shared/crp";
@@ -1610,6 +1610,7 @@ export const appRouter = router({
           pagoAte: assinaturas.pagoAte,
           ciclo: assinaturas.ciclo,
           fundador: assinaturas.fundador,
+          diaVencimento: assinaturas.diaVencimento,
           temAssinatura: assinaturas.id,
         })
         .from(therapists)
@@ -1630,6 +1631,7 @@ export const appRouter = router({
           plano: planoPara(Math.max(1, pacientes)).nome,
           ciclo,
           fundador,
+          diaVencimento: l.diaVencimento,
           valorCentavos: valorDaCobranca(pacientes, { fundador, ciclo }),
           situacao: situacaoDaAssinatura(l.temAssinatura ? { testeAte: l.testeAte, pagoAte: l.pagoAte } : null),
         };
@@ -1679,6 +1681,23 @@ export const appRouter = router({
       if (!db) return null;
       return resumoDaAssinatura(db, ctx.user);
     }),
+
+    /** Dia do mês em que o Pix vence; vale a partir do próximo Pix registrado. */
+    definirVencimento: therapistProcedure
+      .input(z.object({ dia: z.number().int().refine((d) => (DIAS_DE_VENCIMENTO as readonly number[]).includes(d)) }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const [perfil] = await db.select({ id: therapists.id }).from(therapists).where(eq(therapists.userId, ctx.user.id)).limit(1);
+        if (!perfil) throw new Error("Perfil profissional não encontrado.");
+        const atualizadas = await db
+          .update(assinaturas)
+          .set({ diaVencimento: input.dia })
+          .where(eq(assinaturas.therapistId, perfil.id))
+          .returning({ id: assinaturas.id });
+        if (!atualizadas.length) throw new Error("Você ainda não tem assinatura. Fale com o suporte.");
+        return { dia: input.dia };
+      }),
   }),
 
   // Perfil profissional da psicóloga (dados de therapists).

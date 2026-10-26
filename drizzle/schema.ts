@@ -188,6 +188,10 @@ export const assinaturas = pgTable(
     pagoAte: timestamp("pagoAte", { withTimezone: true, mode: "date" }),
     ciclo: varchar("ciclo", { length: 10 }).$type<"mensal" | "anual">().default("mensal").notNull(),
     fundador: boolean("fundador").default(false).notNull(),
+    /** Dia do mês em que o Pix vence (5, 10, 15, 20, 25). Nulo = conta pelo dia do pagamento. */
+    diaVencimento: smallint("diaVencimento"),
+    /** Vencimento que já recebeu o e-mail "vence em 3 dias" (migração 0041). */
+    avisoEnviadoPara: timestamp("avisoEnviadoPara", { withTimezone: true, mode: "date" }),
     createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
     updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
       .defaultNow()

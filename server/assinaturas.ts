@@ -95,6 +95,7 @@ export async function resumoDaAssinatura(db: Db, user: { id: number; role: strin
     situacao,
     ciclo,
     fundador,
+    diaVencimento: assinatura?.diaVencimento ?? null,
     valorCentavos: valorDaCobranca(pacientes, { fundador, ciclo }),
     lumaHoje: await perguntasDaLumaHoje(db, user.id),
     /** Null = sem limite (admin). O Unlimited usa a cota do Max até combinar outra. */

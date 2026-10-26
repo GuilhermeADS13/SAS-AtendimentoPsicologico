@@ -68,17 +68,49 @@ export function decidirTesteEFundador(
   };
 }
 
+/** Dias de vencimento que a psicóloga pode escolher (sem 29–31, que nem todo mês tem). */
+export const DIAS_DE_VENCIMENTO = [5, 10, 15, 20, 25] as const;
+
+/** Fim do dia `dia` em Brasília (23:59:59, UTC−3) no mês/ano dados (mês 0–11). */
+function fimDoDiaEmBrasilia(ano: number, mes: number, dia: number): Date {
+  return new Date(Date.UTC(ano, mes, dia + 1, 2, 59, 59));
+}
+
 /**
  * Novo "pago até" ao registrar um Pix: soma o ciclo a partir do que for mais
  * tarde entre hoje, o fim do teste e o Pix anterior — pagar adiantado não perde dia.
+ *
+ * Com dia de vencimento escolhido, vai até esse dia: o primeiro dia escolhido
+ * DEPOIS de completar o ciclo (decisão de 2026-10-26: nunca menos de 1 mês; no
+ * Pix que ajusta a data ela ganha alguns dias, uma vez só — os seguintes caem
+ * certinho no mesmo dia).
  */
 export function novoPagoAte(
-  a: { testeAte: Date | null; pagoAte: Date | null },
+  a: { testeAte: Date | null; pagoAte: Date | null; diaVencimento?: number | null },
   ciclo: Ciclo,
   agora: Date = new Date(),
 ): Date {
   const base = new Date(Math.max(agora.getTime(), a.testeAte?.getTime() ?? 0, a.pagoAte?.getTime() ?? 0));
   const fim = new Date(base);
   fim.setMonth(fim.getMonth() + (ciclo === "anual" ? 12 : 1));
-  return fim;
+  const dia = a.diaVencimento;
+  if (!dia) return fim;
+  // Mês/ano do `fim` em Brasília (o UTC vira o dia 3h antes).
+  const local = new Date(fim.getTime() - 3 * 60 * 60 * 1000);
+  let alvo = fimDoDiaEmBrasilia(local.getUTCFullYear(), local.getUTCMonth(), dia);
+  // Margem de 1 dia: "venceu dia 10 e paga de novo" não deve pular um mês inteiro.
+  if (alvo.getTime() < fim.getTime() - DIA_MS) {
+    alvo = fimDoDiaEmBrasilia(local.getUTCFullYear(), local.getUTCMonth() + 1, dia);
+  }
+  return alvo;
+}
+
+/**
+ * Manda o e-mail "seu plano vence em breve"? Sim quando está liberada, faltam
+ * até 3 dias e ESTE vencimento ainda não foi avisado (o ciclo roda a cada 15 min).
+ */
+export function precisaAvisarVencimento(s: Situacao, avisoEnviadoPara: Date | null, agora: Date = new Date()): boolean {
+  if (!s.liberado || !s.ate) return false;
+  if (s.ate.getTime() - agora.getTime() > 3 * DIA_MS) return false;
+  return !avisoEnviadoPara || avisoEnviadoPara.getTime() !== s.ate.getTime();
 }

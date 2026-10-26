@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { decidirTesteEFundador, novoPagoAte, normalizarDocumento, situacaoDaAssinatura } from "../shared/assinatura";
+import {
+  decidirTesteEFundador,
+  novoPagoAte,
+  normalizarDocumento,
+  precisaAvisarVencimento,
+  situacaoDaAssinatura,
+} from "../shared/assinatura";
 import { valorDaCobranca } from "../shared/precos";
 import { inicioDoDiaEmBrasilia } from "./assinaturas";
 
@@ -70,6 +76,53 @@ describe("Pix e valores", () => {
     expect(valorDaCobranca(10, { ciclo: "anual" })).toBe(105000);
     expect(valorDaCobranca(10, { fundador: true, ciclo: "anual" })).toBe(84000);
     expect(valorDaCobranca(31)).toBeNull();
+  });
+});
+
+describe("dia de vencimento escolhido", () => {
+  // Fim do dia D em Brasília = D+1 às 02:59:59 UTC.
+  const fimDoDia = (iso: string) => new Date(`${iso}T02:59:59.000Z`);
+
+  it("o exemplo combinado: teste acaba 09/11, escolhe dia 25 → liberada até 25/12", () => {
+    const testeAte = new Date("2026-11-09T15:00:00Z");
+    expect(novoPagoAte({ testeAte, pagoAte: null, diaVencimento: 25 }, "mensal", agora)).toEqual(fimDoDia("2026-12-26"));
+  });
+
+  it("nunca menos de 1 mês: dia 5 depois de 09/12 cai em 05/01", () => {
+    const testeAte = new Date("2026-11-09T15:00:00Z");
+    expect(novoPagoAte({ testeAte, pagoAte: null, diaVencimento: 5 }, "mensal", agora)).toEqual(fimDoDia("2027-01-06"));
+  });
+
+  it("depois de ajustado, cada Pix cai no mesmo dia do mês seguinte", () => {
+    const pagoAte = fimDoDia("2027-01-06"); // vence 05/01
+    const pagandoNoDia = new Date("2027-01-05T12:00:00Z");
+    expect(novoPagoAte({ testeAte: null, pagoAte, diaVencimento: 5 }, "mensal", pagandoNoDia)).toEqual(fimDoDia("2027-02-06"));
+  });
+
+  it("pagou atrasado: conta a partir de hoje e volta para o dia escolhido", () => {
+    const pagoAte = fimDoDia("2026-10-11"); // venceu 10/10
+    expect(novoPagoAte({ testeAte: null, pagoAte, diaVencimento: 10 }, "mensal", agora)).toEqual(fimDoDia("2026-12-11"));
+  });
+
+  it("anual com dia escolhido", () => {
+    const pagoAte = fimDoDia("2026-11-16"); // vence 15/11
+    expect(novoPagoAte({ testeAte: null, pagoAte, diaVencimento: 15 }, "anual", agora)).toEqual(fimDoDia("2027-11-16"));
+  });
+});
+
+describe("e-mail de vencimento", () => {
+  const s = (ate: Date) => situacaoDaAssinatura({ testeAte: null, pagoAte: ate }, agora);
+
+  it("avisa com até 3 dias de antecedência, uma vez por vencimento", () => {
+    expect(precisaAvisarVencimento(s(dias(5)), null, agora)).toBe(false);
+    expect(precisaAvisarVencimento(s(dias(2)), null, agora)).toBe(true);
+    expect(precisaAvisarVencimento(s(dias(2)), dias(2), agora)).toBe(false);
+    // Renovou: o vencimento novo é outro, mas só avisa quando chegar perto.
+    expect(precisaAvisarVencimento(s(dias(32)), dias(2), agora)).toBe(false);
+  });
+
+  it("não avisa quem já venceu (o aviso vermelho do topo cuida disso)", () => {
+    expect(precisaAvisarVencimento(s(dias(-1)), null, agora)).toBe(false);
   });
 });
 
