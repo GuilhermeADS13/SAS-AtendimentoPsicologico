@@ -16,13 +16,15 @@ import {
   contarPacientesCobrados,
   criarAssinaturaNaAprovacao,
   exigirAssinaturaAtiva,
+  exigirVagaNoPlano,
   perguntasDaLumaHoje,
+  planoDaPsicologa,
   resumoDaAssinatura,
 } from "./assinaturas";
 import { DIAS_DE_VENCIMENTO, novoPagoAte, situacaoDaAssinatura } from "../shared/assinatura";
 import { TIPOS_DE_CHAVE_PIX, montarPixEstatico, normalizarChavePix } from "../shared/pix";
 import { pagamentoDaConsulta } from "../shared/pagamentoDaConsulta";
-import { planoPara, valorDaCobranca } from "../shared/precos";
+import { planoEfetivo, planoPorId, valorDoPlano } from "../shared/precos";
 import { PASSWORD_MAX_LENGTH, validatePassword } from "../shared/passwordPolicy";
 import { CRP_REGEX } from "../shared/crp";
 import { celularValido, soDigitos } from "../shared/telefone";
@@ -501,7 +503,7 @@ export const appRouter = router({
         // replay acima: repetir uma pergunta já respondida não gasta cota. A Groq
         // grátis aguenta ~80 perguntas/dia somando todas as clientes.
         if (ctx.user.role !== "admin" && accessContext.therapistId) {
-          const plano = planoPara(Math.max(1, await contarPacientesCobrados(db, accessContext.therapistId)));
+          const { plano } = await planoDaPsicologa(db, accessContext.therapistId);
           const limite = plano.perguntasLumaPorDia ?? 15;
           if ((await perguntasDaLumaHoje(db, ctx.user.id)) >= limite) {
             throw new TRPCError({
@@ -1671,6 +1673,7 @@ export const appRouter = router({
           pagoAte: assinaturas.pagoAte,
           ciclo: assinaturas.ciclo,
           fundador: assinaturas.fundador,
+          planoEscolhido: assinaturas.plano,
           diaVencimento: assinaturas.diaVencimento,
           temAssinatura: assinaturas.id,
         })
@@ -1682,6 +1685,7 @@ export const appRouter = router({
         const pacientes = await contarPacientesCobrados(db, l.therapistId);
         const ciclo = l.ciclo ?? "mensal";
         const fundador = l.fundador ?? false;
+        const escolhido = l.planoEscolhido ?? "pro";
         return {
           therapistId: l.therapistId,
           nome: l.nome,
@@ -1689,11 +1693,11 @@ export const appRouter = router({
           crp: l.crp,
           isento: l.role === "admin",
           pacientes,
-          plano: planoPara(Math.max(1, pacientes)).nome,
+          plano: planoEfetivo(escolhido, pacientes).nome,
           ciclo,
           fundador,
           diaVencimento: l.diaVencimento,
-          valorCentavos: valorDaCobranca(pacientes, { fundador, ciclo }),
+          valorCentavos: valorDoPlano(pacientes, escolhido, { fundador, ciclo }),
           situacao: situacaoDaAssinatura(l.temAssinatura ? { testeAte: l.testeAte, pagoAte: l.pagoAte } : null),
         };
       }));
@@ -1742,6 +1746,34 @@ export const appRouter = router({
       if (!db) return null;
       return resumoDaAssinatura(db, ctx.user);
     }),
+
+    /**
+     * Troca de plano ("como a Netflix"): os bônus valem na hora; o novo valor,
+     * a partir do próximo Pix. Coro não se escolhe aqui (é combinado). Voltar
+     * para o Sussurro só cabendo no teto dele.
+     */
+    mudarPlano: therapistProcedure
+      .input(z.object({ plano: z.enum(["pro", "max"]) }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const [perfil] = await db.select({ id: therapists.id }).from(therapists).where(eq(therapists.userId, ctx.user.id)).limit(1);
+        if (!perfil) throw new Error("Perfil profissional não encontrado.");
+        const pacientes = await contarPacientesCobrados(db, perfil.id);
+        const novo = planoPorId(input.plano);
+        if (novo.ate !== null && pacientes > novo.ate) {
+          throw new Error(
+            `Você tem ${pacientes} pacientes que contam; o ${novo.nome} vai até ${novo.ate}. Marque como inativos os que encerraram para voltar.`,
+          );
+        }
+        const atualizadas = await db
+          .update(assinaturas)
+          .set({ plano: input.plano })
+          .where(eq(assinaturas.therapistId, perfil.id))
+          .returning({ id: assinaturas.id });
+        if (!atualizadas.length) throw new Error("Você ainda não tem assinatura. Fale com o suporte.");
+        return { plano: novo.nome };
+      }),
 
     /** Dia do mês em que o Pix vence; vale a partir do próximo Pix registrado. */
     definirVencimento: therapistProcedure
@@ -1981,6 +2013,9 @@ export const appRouter = router({
           throw new Error("Já existe um paciente cadastrado com esse e-mail.");
         }
 
+        // Teto do plano escolhido (Sussurro até 10): sobe de plano antes.
+        await exigirVagaNoPlano(db, therapist[0].id);
+
         const result = await db.insert(patients).values({
           therapistId: therapist[0].id,
           firstName: input.firstName,
@@ -2100,6 +2135,11 @@ export const appRouter = router({
           .limit(1);
 
         if (!owned.length) throw new Error("Patient not found for this therapist");
+
+        // Reativar um inativo/arquivado volta a contar: respeita o teto do plano.
+        if (input.status === "active" && (owned[0].status === "inactive" || owned[0].status === "archived")) {
+          await exigirVagaNoPlano(db, therapist[0].id);
+        }
 
         // Mesmo guard do create: não deixar dois pacientes desta psicóloga com o
         // mesmo e-mail. O vínculo paciente↔conta é por e-mail, então duplicata o

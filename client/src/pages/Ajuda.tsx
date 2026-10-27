@@ -529,6 +529,11 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
           “Enviar comprovante” — abre o WhatsApp com a mensagem pronta.
         </li>
         <li>
+          Em <strong>“Escolha seu plano”</strong> você troca entre Sussurro (até 10 pacientes)
+          e Voz (até 30) com um clique — os bônus valem na hora e o valor novo entra no
+          próximo Pix. Para o Coro (mais de 30), é só conversar pelo WhatsApp.
+        </li>
+        <li>
           Paciente que encerrou o acompanhamento não precisa contar: abra a ficha dele e
           toque em <strong>“Marcar como inativo”</strong>. Quem só entra nas chamadas em
           grupo também não conta.

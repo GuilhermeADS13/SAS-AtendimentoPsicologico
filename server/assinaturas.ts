@@ -16,7 +16,7 @@ import {
   normalizarDocumento,
   situacaoDaAssinatura,
 } from "../shared/assinatura";
-import { planoPara, valorDaCobranca } from "../shared/precos";
+import { cabeMaisUmPaciente, planoEfetivo, planoPorId, valorDoPlano } from "../shared/precos";
 import type { getDb } from "./db";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -82,7 +82,9 @@ export async function resumoDaAssinatura(db: Db, user: { id: number; role: strin
     ? await db.select().from(assinaturas).where(eq(assinaturas.therapistId, perfil.id)).limit(1)
     : [];
   const pacientes = perfil ? await contarPacientesCobrados(db, perfil.id) : 0;
-  const plano = planoPara(Math.max(1, pacientes));
+  // Plano escolhido por ela; o efetivo só é maior se os pacientes já passaram do teto.
+  const planoEscolhido = assinatura?.plano ?? "pro";
+  const plano = planoEfetivo(planoEscolhido, pacientes);
   // A admin vê a situação real da assinatura dela (para testar a tela), mas
   // nunca é bloqueada: quem decide o bloqueio é exigirAssinaturaAtiva/psicologaLiberada.
   const situacao = situacaoDaAssinatura(assinatura ?? null);
@@ -92,11 +94,12 @@ export async function resumoDaAssinatura(db: Db, user: { id: number; role: strin
     isento,
     pacientes,
     plano,
+    planoEscolhido,
     situacao,
     ciclo,
     fundador,
     diaVencimento: assinatura?.diaVencimento ?? null,
-    valorCentavos: valorDaCobranca(pacientes, { fundador, ciclo }),
+    valorCentavos: valorDoPlano(pacientes, planoEscolhido, { fundador, ciclo }),
     lumaHoje: await perguntasDaLumaHoje(db, user.id),
     /** Null = sem limite (admin). O Coro usa a cota do Voz até combinar outra. */
     lumaLimite: isento ? null : (plano.perguntasLumaPorDia ?? 15),
@@ -129,16 +132,42 @@ export async function psicologaLiberada(db: Db, therapistId: number): Promise<bo
   return situacaoDaAssinatura(linha.temAssinatura ? { testeAte: linha.testeAte, pagoAte: linha.pagoAte } : null).liberado;
 }
 
-/** Limite de anexo (MB) das conversas desta psicóloga; null = sem limite do plano. */
-export async function anexoMaxMbDaPsicologa(db: Db, therapistId: number): Promise<number | null> {
-  const [dona] = await db
-    .select({ role: users.role })
+/**
+ * Plano que vale para esta psicóloga (escolhido, ou maior se os pacientes já
+ * passaram do teto), com a contagem. `admin` = isenta de cotas.
+ */
+export async function planoDaPsicologa(db: Db, therapistId: number) {
+  const [linha] = await db
+    .select({ role: users.role, escolhido: assinaturas.plano })
     .from(therapists)
     .innerJoin(users, eq(users.id, therapists.userId))
+    .leftJoin(assinaturas, eq(assinaturas.therapistId, therapists.id))
     .where(eq(therapists.id, therapistId))
     .limit(1);
-  if (dona?.role === "admin") return null;
-  return planoPara(Math.max(1, await contarPacientesCobrados(db, therapistId))).anexoMaxMb ?? 10;
+  const pacientes = await contarPacientesCobrados(db, therapistId);
+  const escolhido = linha?.escolhido ?? "pro";
+  return { admin: linha?.role === "admin", escolhido, pacientes, plano: planoEfetivo(escolhido, pacientes) };
+}
+
+/** Limite de anexo (MB) das conversas desta psicóloga; null = sem limite do plano. */
+export async function anexoMaxMbDaPsicologa(db: Db, therapistId: number): Promise<number | null> {
+  const p = await planoDaPsicologa(db, therapistId);
+  if (p.admin) return null;
+  return p.plano.anexoMaxMb ?? 10;
+}
+
+/**
+ * Barra cadastrar (ou reativar) um paciente acima do teto do plano ESCOLHIDO —
+ * ela sobe de plano na aba Assinatura antes. Admin não tem teto.
+ */
+export async function exigirVagaNoPlano(db: Db, therapistId: number): Promise<void> {
+  const p = await planoDaPsicologa(db, therapistId);
+  if (p.admin || cabeMaisUmPaciente(p.escolhido, p.pacientes)) return;
+  const atual = planoPorId(p.escolhido);
+  throw new TRPCError({
+    code: "FORBIDDEN",
+    message: `Seu plano ${atual.nome} vai até ${atual.ate} pacientes. Para cadastrar mais, mude de plano na aba Assinatura.`,
+  });
 }
 
 /**

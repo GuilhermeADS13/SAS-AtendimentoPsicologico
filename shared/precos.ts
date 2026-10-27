@@ -93,6 +93,52 @@ export function valorDaCobranca(
   return ciclo === "anual" ? mensal * MESES_PAGOS_NO_ANUAL : mensal;
 }
 
+/**
+ * PLANO ESCOLHIDO (decisão de 2026-10-26, "como a Netflix"): a psicóloga escolhe
+ * Sussurro ou Voz e ganha os bônus do plano na hora; continua pagando por
+ * paciente, mas cada plano tem um valor MÍNIMO (o Voz custa no mínimo o preço de
+ * 11 pacientes). Coro é combinado com o Guilherme, não se escolhe sozinha.
+ */
+export function planoPorId(id: string | null | undefined): Plano {
+  return PLANOS.find((p) => p.id === id) ?? PLANOS[0];
+}
+
+/**
+ * O plano que vale de fato: o escolhido, ou um maior se os pacientes já passaram
+ * do teto dele (conta antiga, ou paciente reativado). Nunca cobra abaixo do que
+ * ela usa.
+ */
+export function planoEfetivo(escolhido: string | null | undefined, pacientes: number): Plano {
+  const a = planoPorId(escolhido);
+  const b = planoPara(Math.max(1, pacientes));
+  return PLANOS.indexOf(b) > PLANOS.indexOf(a) ? b : a;
+}
+
+/** Valor do ciclo no plano escolhido: tabela por paciente, com o mínimo do plano. */
+export function valorDoPlano(
+  pacientes: number,
+  escolhido: string | null | undefined,
+  { fundador = false, ciclo = "mensal" }: { fundador?: boolean; ciclo?: Ciclo } = {},
+): number | null {
+  const plano = planoEfetivo(escolhido, pacientes);
+  if (plano.ate === null) return null;
+  const porPaciente = mensalidadeEmCentavos(pacientes) ?? 0;
+  // Sussurro não tem mínimo: 0 pacientes = R$ 0. Os outros, o preço do 1º do plano.
+  const minimo = plano === PLANOS[0] ? 0 : (mensalidadeEmCentavos(plano.de) ?? 0);
+  const base = Math.max(porPaciente, minimo);
+  const mensal = fundador ? Math.round(base * (1 - DESCONTO_FUNDADOR)) : base;
+  return ciclo === "anual" ? mensal * MESES_PAGOS_NO_ANUAL : mensal;
+}
+
+/**
+ * Pode cadastrar (ou reativar) mais um paciente no plano ESCOLHIDO? Se não, ela
+ * sobe de plano antes. O Coro não tem teto.
+ */
+export function cabeMaisUmPaciente(escolhido: string | null | undefined, pacientesAtuais: number): boolean {
+  const teto = planoPorId(escolhido).ate;
+  return teto === null || pacientesAtuais + 1 <= teto;
+}
+
 /** "R$ 57,50" / "R$ 40" (sem ",00" quando é inteiro, para o preço ler limpo). */
 export function formatarReais(centavos: number): string {
   const inteiro = centavos % 100 === 0;

@@ -12,7 +12,7 @@ import { eq, and, lt, gte, gt, isNull, inArray, asc } from "drizzle-orm";
 import { sendEmail } from "./mailer";
 import { contarPacientesCobrados } from "./assinaturas";
 import { precisaAvisarVencimento, situacaoDaAssinatura } from "../shared/assinatura";
-import { formatarReais, valorDaCobranca } from "../shared/precos";
+import { formatarReais, valorDoPlano } from "../shared/precos";
 import { googleCalendarUrl } from "../shared/calendario";
 import { detalhesDoEmail, emailComMarca, esc, primeiroNome } from "./emailLayout";
 
@@ -695,6 +695,7 @@ export async function avisarVencimentosDePlano(agora: Date = new Date()): Promis
       pagoAte: assinaturas.pagoAte,
       fundador: assinaturas.fundador,
       ciclo: assinaturas.ciclo,
+      plano: assinaturas.plano,
       avisoEnviadoPara: assinaturas.avisoEnviadoPara,
       nome: users.name,
       email: users.email,
@@ -711,9 +712,9 @@ export async function avisarVencimentosDePlano(agora: Date = new Date()): Promis
     if (!precisaAvisarVencimento(s, l.avisoEnviadoPara, agora) || !s.ate) continue;
 
     const pacientes = await contarPacientesCobrados(db, l.therapistId);
-    // Sem paciente não há o que pagar (R$ 0): um e-mail pedindo Pix não faz sentido.
-    if (pacientes === 0) continue;
-    const valor = valorDaCobranca(pacientes, { fundador: l.fundador, ciclo: l.ciclo });
+    const valor = valorDoPlano(pacientes, l.plano, { fundador: l.fundador, ciclo: l.ciclo });
+    // Nada a pagar (Sussurro sem paciente): um e-mail pedindo Pix não faz sentido.
+    if (valor === 0) continue;
     const quando = s.diasRestantes === 0 ? "hoje" : `em ${s.diasRestantes} dia${s.diasRestantes === 1 ? "" : "s"}`;
     const oQue = s.motivo === "teste" ? "Seu teste grátis" : "Seu plano";
     const data = new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, day: "2-digit", month: "long" }).format(s.ate);

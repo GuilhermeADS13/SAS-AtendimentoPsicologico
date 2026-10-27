@@ -45,7 +45,7 @@ const DUVIDAS = [
   {
     pergunta: "E se eu passar de 10 pacientes?",
     resposta:
-      "Você passa para o Voz. O preço continua seguindo a mesma tabela, sem salto: o 11º paciente custa R$ 2,50.",
+      "Para cadastrar o 11º, você muda para o Voz na aba Assinatura, com um clique. Também dá para escolher o Voz antes, só pelos bônus (Luma 15 perguntas por dia, anexos de 10 MB) — aí você paga o mínimo dele, o preço de 11 pacientes.",
   },
   {
     pergunta: "Como funciona o teste grátis?",

@@ -11,15 +11,26 @@ import {
   MESES_PAGOS_NO_ANUAL,
   PLANOS,
   formatarReais,
-  valorDaCobranca,
+  valorDoPlano,
   type Ciclo,
+  type Plano,
 } from "@shared/precos";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { PIX_COPIA_E_COLA, linkWhatsAppDoSuporte } from "@/lib/suporte";
 import { Button } from "@/components/ui/button";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { CopiarPix } from "@/components/CopiarPix";
-import { AlertTriangle, CalendarDays, Gauge, Paperclip, ShieldCheck, Sparkles, Users } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { AlertTriangle, CalendarDays, Check, Gauge, Paperclip, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { LumaOwlIcon } from "@/components/Logo";
 
 type Resumo = NonNullable<RouterOutputs["assinatura"]["minha"]>;
@@ -52,8 +63,8 @@ function OndaSonora() {
 function CartaoDoPlano({ data }: { data: Resumo }) {
   const s = data.situacao;
   const vencido = !s.liberado && !data.isento;
-  const cheio = valorDaCobranca(data.pacientes) ?? null;
-  const mensal = valorDaCobranca(data.pacientes, { fundador: data.fundador });
+  const cheio = valorDoPlano(data.pacientes, data.planoEscolhido);
+  const mensal = valorDoPlano(data.pacientes, data.planoEscolhido, { fundador: data.fundador });
   const total = s.motivo === "teste" ? DIAS_DE_TESTE_GRATIS : data.ciclo === "anual" ? 365 : 30;
   const resta = s.diasRestantes === null ? 0 : Math.min(1, Math.max(0, (s.diasRestantes + 1) / total));
   const rotuloPeriodo =
@@ -132,84 +143,156 @@ function CartaoDoPlano({ data }: { data: Resumo }) {
   );
 }
 
-/** A trilha Sussurro → Voz → Coro, com a posição dela e o custo do próximo paciente. */
-function TrilhaDosPlanos({ data }: { data: Resumo }) {
+/**
+ * Os 3 planos lado a lado ("como a Netflix", decisão de 2026-10-26): os bônus de
+ * cada um, o atual marcado e a troca. Os bônus valem na hora; o valor novo, no
+ * próximo Pix. O Coro é combinado — o botão abre o WhatsApp.
+ */
+function EscolherPlano({ data }: { data: Resumo }) {
+  const utils = trpc.useUtils();
+  const [confirmar, setConfirmar] = useState<Plano | null>(null);
+  const mudar = trpc.assinatura.mudarPlano.useMutation({
+    onSuccess: (r) => {
+      utils.assinatura.minha.invalidate();
+      setConfirmar(null);
+      toast.success(`Pronto: agora você está no ${r.plano}. Os bônus já valem.`);
+    },
+    onError: (e) => toast.error(e.message || "Não foi possível mudar de plano."),
+  });
+  const coro = linkWhatsAppDoSuporte("Olá! Quero conversar sobre o plano Coro do VozInterior.");
   const n = data.pacientes;
-  // Escala VISUAL da trilha: o Coro (31+) não tem fim, então ganha um trecho
-  // fixo de 6 "pacientes" — com 1/31 da largura o nome dele nem cabia.
-  const fim = MAX_PACIENTES_NA_TABELA + 6;
-  const larguraDe = (p: (typeof PLANOS)[number]) => ((p.ate ?? fim) - (p.de - 1)) / fim;
-  const pos = (n > MAX_PACIENTES_NA_TABELA ? MAX_PACIENTES_NA_TABELA + 3 : Math.max(n, 0)) / fim;
-  const agora = valorDaCobranca(n, { fundador: data.fundador });
-  const depois = valorDaCobranca(n + 1, { fundador: data.fundador });
+  const agora = valorDoPlano(n, data.planoEscolhido, { fundador: data.fundador });
+  const depois = valorDoPlano(n + 1, data.planoEscolhido, { fundador: data.fundador });
   const proximo = agora !== null && depois !== null ? depois - agora : null;
-  const seguinte = PLANOS.find((p) => p.de > n);
+  const valorNovo = confirmar ? valorDoPlano(n, confirmar.id, { fundador: data.fundador }) : null;
 
   return (
-    <section className="space-y-5 rounded-2xl border bg-card p-6">
-      <div className="space-y-1">
-        <h3 className="font-semibold text-foreground">Sua voz cresce com o consultório</h3>
-        <p className="text-sm text-muted-foreground">
-          O plano acompanha quantos pacientes você atende — e cada paciente a mais custa menos.
+    <section className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div className="space-y-1">
+          <h3 className="text-lg font-semibold text-foreground">Escolha seu plano</h3>
+          <p className="text-sm text-muted-foreground">
+            Os bônus valem na hora. O valor acompanha seus pacientes e o novo entra no próximo Pix.
+          </p>
+        </div>
+        <p className="text-sm text-muted-foreground tabular-nums">
+          {plural(n, "paciente conta", "pacientes contam")} hoje
+          {proximo !== null && proximo > 0 && ` · o próximo custa + ${formatarReais(proximo)}/mês`}
         </p>
       </div>
 
-      <div className="space-y-2">
-        <div className="relative pt-7">
-          {/* Marcador da posição atual */}
-          <div className="absolute top-0 -translate-x-1/2 text-center" style={{ left: `${pos * 100}%` }}>
-            <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground tabular-nums">
-              {n > MAX_PACIENTES_NA_TABELA ? `${MAX_PACIENTES_NA_TABELA}+` : n}
-            </span>
-          </div>
-          <div className="flex h-3 overflow-hidden rounded-full">
-            {PLANOS.map((p) => (
-              <div
-                key={p.id}
-                className={`h-full border-r-2 border-card last:border-r-0 ${p.id === data.plano.id ? "bg-primary" : "bg-primary/15"}`}
-                style={{ width: `${larguraDe(p) * 100}%` }}
-              />
-            ))}
-          </div>
-        </div>
-        <div className="flex text-xs">
-          {PLANOS.map((p) => {
-            const ativo = p.id === data.plano.id;
-            return (
-              <div key={p.id} style={{ width: `${larguraDe(p) * 100}%` }} className="min-w-0 pr-1">
-                <p className={`truncate font-semibold ${ativo ? "text-primary" : "text-muted-foreground"}`}>{p.nome}</p>
-                <p className="truncate text-muted-foreground tabular-nums">{p.ate === null ? `${p.de}+` : `${p.de}–${p.ate}`}</p>
+      <div className="grid gap-4 md:grid-cols-3">
+        {PLANOS.map((p) => {
+          const atual = p.id === data.planoEscolhido;
+          const ehCoro = p.ate === null;
+          const naoCabe = !ehCoro && n > (p.ate ?? 0);
+          const valor = valorDoPlano(n, p.id, { fundador: data.fundador });
+          // Mínimo com o desconto DELA: sem isso, a Fundadora via "R$ 86 para você"
+          // ao lado de "mínimo de R$ 107,50", que parece contradição.
+          const minimo = p === PLANOS[0] || ehCoro ? null : valorDoPlano(0, p.id, { fundador: data.fundador });
+          const bonus = [
+            ehCoro ? `Mais de ${MAX_PACIENTES_NA_TABELA} pacientes` : `Até ${p.ate} pacientes`,
+            p.perguntasLumaPorDia ? `Luma: ${p.perguntasLumaPorDia} perguntas por dia` : "Luma sob medida",
+            p.anexoMaxMb ? `Anexos de até ${p.anexoMaxMb} MB` : "Anexos sob medida",
+            "Videochamada em grupo (até 4 pessoas)",
+            "Prontuário, agenda, mensagens e financeiro",
+          ];
+          return (
+            <article
+              key={p.id}
+              aria-current={atual ? "true" : undefined}
+              className={`relative flex flex-col rounded-2xl border bg-card p-5 transition-shadow ${
+                atual ? "border-2 border-primary shadow-md" : "hover:shadow-sm"
+              }`}
+            >
+              {atual && (
+                <span className="absolute -top-3 left-5 rounded-full bg-primary px-3 py-0.5 text-xs font-semibold text-primary-foreground">
+                  Seu plano
+                </span>
+              )}
+              <div className="space-y-1">
+                <h4 className="text-2xl font-bold tracking-tight text-foreground">{p.nome}</h4>
+                <p className="text-sm text-muted-foreground">{LEMA[p.id]}</p>
               </div>
-            );
-          })}
-        </div>
+              <div className="my-4 min-h-14">
+                {valor === null ? (
+                  <p className="text-2xl font-bold text-foreground">Fale comigo</p>
+                ) : (
+                  <p className="tabular-nums">
+                    <span className="text-2xl font-bold text-foreground">{formatarReais(valor)}</span>
+                    <span className="text-sm text-muted-foreground"> /mês para você</span>
+                  </p>
+                )}
+                {minimo !== null && (
+                  <p className="text-xs text-muted-foreground tabular-nums">mínimo de {formatarReais(minimo)} (o preço de {p.de} pacientes)</p>
+                )}
+                {ehCoro && <p className="text-xs text-muted-foreground">clínicas e equipes</p>}
+              </div>
+              <ul className="mb-5 flex-1 space-y-2 text-sm text-foreground/90">
+                {bonus.map((b) => (
+                  <li key={b} className="flex gap-2">
+                    <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+                    <span>{b}</span>
+                  </li>
+                ))}
+              </ul>
+              {atual ? (
+                <Button variant="secondary" disabled className="w-full">
+                  Plano atual
+                </Button>
+              ) : ehCoro ? (
+                coro && (
+                  <Button asChild variant="outline" className="w-full gap-2">
+                    <a href={coro} target="_blank" rel="noopener noreferrer">
+                      <WhatsAppIcon className="size-4" /> Conversar
+                    </a>
+                  </Button>
+                )
+              ) : naoCabe ? (
+                <Button variant="outline" disabled className="w-full whitespace-normal">
+                  Seus {n} pacientes passam do limite
+                </Button>
+              ) : (
+                <Button className="w-full" onClick={() => setConfirmar(p)}>
+                  Mudar para {p.nome}
+                </Button>
+              )}
+            </article>
+          );
+        })}
       </div>
 
-      <dl className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl bg-secondary/50 p-3">
-          <dt className="text-xs text-muted-foreground">O próximo paciente custa</dt>
-          <dd className="text-lg font-semibold tabular-nums text-foreground">
-            {proximo === null ? "valor combinado" : `+ ${formatarReais(proximo)}/mês`}
-          </dd>
-        </div>
-        <div className="rounded-xl bg-secondary/50 p-3">
-          <dt className="text-xs text-muted-foreground">Próximo plano</dt>
-          <dd className="text-sm font-medium text-foreground">
-            {seguinte
-              ? `${seguinte.nome} a partir de ${seguinte.de} pacientes${
-                  seguinte.perguntasLumaPorDia ? ` · Luma ${seguinte.perguntasLumaPorDia}/dia` : " · condições combinadas"
-                }`
-              : "Você está no maior plano"}
-          </dd>
-        </div>
-      </dl>
       <p className="text-xs text-muted-foreground">
-        Não contam: pacientes marcados como inativos (na ficha do paciente) e quem só entra nas chamadas em
-        grupo.{" "}
+        Não contam: pacientes marcados como inativos (na ficha do paciente) e quem só entra nas chamadas em grupo.{" "}
         <Link href="/precos" className="text-primary underline underline-offset-4">
           Ver a tabela completa
         </Link>
       </p>
+
+      <AlertDialog open={!!confirmar} onOpenChange={(o) => !o && setConfirmar(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mudar para o {confirmar?.nome}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Os bônus do {confirmar?.nome} valem agora.{" "}
+              {valorNovo !== null &&
+                `Sua mensalidade passa a ser ${formatarReais(valorNovo)} a partir do próximo Pix (hoje, com ${plural(n, "paciente", "pacientes")}).`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={mudar.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                if (confirmar && (confirmar.id === "pro" || confirmar.id === "max")) mudar.mutate({ plano: confirmar.id });
+              }}
+            >
+              {mudar.isPending ? "Mudando..." : `Mudar para ${confirmar?.nome ?? ""}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }
@@ -291,14 +374,14 @@ function PagarAssinatura({ data }: { data: Resumo }) {
         <h3 className="font-semibold text-foreground">Pagamento</h3>
         <p className="text-sm text-muted-foreground">
           Você ainda não tem pacientes que contam, então não há nada a pagar agora. A mensalidade começa no 1º
-          paciente ({formatarReais(valorDaCobranca(1, { fundador: data.fundador }) ?? 0)}).
+          paciente ({formatarReais(valorDoPlano(1, data.planoEscolhido, { fundador: data.fundador }) ?? 0)}).
         </p>
       </section>
     );
   }
 
-  const valor = valorDaCobranca(data.pacientes, { fundador: data.fundador, ciclo }) ?? 0;
-  const mensal = valorDaCobranca(data.pacientes, { fundador: data.fundador }) ?? 0;
+  const valor = valorDoPlano(data.pacientes, data.planoEscolhido, { fundador: data.fundador, ciclo }) ?? 0;
+  const mensal = valorDoPlano(data.pacientes, data.planoEscolhido, { fundador: data.fundador }) ?? 0;
   const economia = mensal * 12 - mensal * MESES_PAGOS_NO_ANUAL;
   const comprovante = linkWhatsAppDoSuporte(
     `Olá! Paguei o Pix do VozInterior: ${plural(data.pacientes, "paciente", "pacientes")}, plano ${data.plano.nome}, ${ciclo} — ${formatarReais(valor)}. Segue o comprovante.`,
@@ -413,13 +496,13 @@ export function SeuPlano() {
         </p>
       )}
       <CartaoDoPlano data={data} />
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-start">
-        <TrilhaDosPlanos data={data} />
-        <UsoDoPlano data={data} />
-      </div>
+      <EscolherPlano data={data} />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-start">
         <PagarAssinatura data={data} />
-        <DiaDoVencimento atual={data.diaVencimento} />
+        <div className="space-y-6">
+          <UsoDoPlano data={data} />
+          <DiaDoVencimento atual={data.diaVencimento} />
+        </div>
       </div>
     </div>
   );
