@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import { formatarData } from "@shared/datas";
-import { DIAS_DE_VENCIMENTO } from "@shared/assinatura";
+import { diaDoVencimentoNoMes, diasNoMes, novoPagoAte } from "@shared/assinatura";
 import { pixComValor } from "@shared/pix";
 import {
   DESCONTO_FUNDADOR,
@@ -30,7 +30,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { AlertTriangle, CalendarDays, Check, Gauge, Paperclip, ShieldCheck, Sparkles, Users } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarDays,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Gauge,
+  Paperclip,
+  ShieldCheck,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import { LumaOwlIcon } from "@/components/Logo";
 import { LumaDoPlano, LumaFlutuante } from "@/components/LumaDoPlano";
 
@@ -509,18 +520,24 @@ export function SeuPlano() {
         <PagarAssinatura data={data} />
         <div className="space-y-6">
           <UsoDoPlano data={data} />
-          <DiaDoVencimento atual={data.diaVencimento} />
+          <DiaDoVencimento atual={data.diaVencimento} ate={data.situacao.ate} ciclo={data.ciclo} />
         </div>
       </div>
     </div>
   );
 }
 
+const SEMANA = ["D", "S", "T", "Q", "Q", "S", "S"];
+const TRES_HORAS = 3 * 60 * 60 * 1000;
+
 /**
- * Dia do mês em que o Pix vence. Vale a partir do próximo Pix: ele cobre até esse
- * dia do mês seguinte (nunca menos de 1 mês). Ver novoPagoAte.
+ * Dia do mês em que o Pix vence, escolhido num calendário (qualquer dia de 1 a
+ * 31). Mostra o mês do PRÓXIMO vencimento, e as setas deixam ver os outros —
+ * em fevereiro, o 30 ou 31 vira o último dia do mês (shared/assinatura.ts). O
+ * dia vale a partir do próximo Pix: ele cobre até esse dia do mês seguinte
+ * (nunca menos de 1 mês). Ver novoPagoAte.
  */
-function DiaDoVencimento({ atual }: { atual: number | null }) {
+function DiaDoVencimento({ atual, ate, ciclo }: { atual: number | null; ate: Date | string | null; ciclo: Ciclo }) {
   const utils = trpc.useUtils();
   const definir = trpc.assinatura.definirVencimento.useMutation({
     onSuccess: (r) => {
@@ -529,38 +546,106 @@ function DiaDoVencimento({ atual }: { atual: number | null }) {
     },
     onError: (e) => toast.error(e.message || "Não foi possível salvar o dia."),
   });
+  const [deslocamento, setDeslocamento] = useState(0);
+
+  // Até quando fica liberada se pagar agora — e é esse o mês que o calendário abre.
+  const proximo = novoPagoAte({ testeAte: null, pagoAte: ate ? new Date(ate) : null, diaVencimento: atual }, ciclo);
+  const base = new Date(proximo.getTime() - TRES_HORAS); // data em Brasília
+  const mesVisto = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + deslocamento, 1));
+  const ano = mesVisto.getUTCFullYear();
+  const mes = mesVisto.getUTCMonth();
+  const total = diasNoMes(ano, mes);
+  const vazios = mesVisto.getUTCDay();
+  const marcado = atual ? diaDoVencimentoNoMes(ano, mes, atual) : null;
+  const soMes = mesVisto.toLocaleDateString("pt-BR", { month: "long", timeZone: "UTC" });
+  const nomeDoMes = `${soMes.charAt(0).toUpperCase()}${soMes.slice(1)} de ${ano}`;
+
   return (
     <section className="space-y-4 rounded-2xl border bg-card p-6">
       <div className="space-y-1">
         <h3 id="dia-vencimento" className="flex items-center gap-2 font-semibold text-foreground">
           <CalendarDays className="size-4 text-muted-foreground" aria-hidden /> Dia do vencimento
         </h3>
-        <p className="text-sm text-muted-foreground">O dia do mês que fica melhor para você pagar.</p>
+        <p className="text-sm text-muted-foreground">Toque no dia do mês que fica melhor para você pagar.</p>
       </div>
-      <div role="radiogroup" aria-labelledby="dia-vencimento" className="grid grid-cols-5 gap-2">
-        {DIAS_DE_VENCIMENTO.map((dia) => (
-          <button
-            key={dia}
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Button
             type="button"
-            role="radio"
-            aria-checked={atual === dia}
-            disabled={definir.isPending}
-            onClick={() => atual !== dia && definir.mutate({ dia })}
-            className={`flex aspect-square flex-col items-center justify-center rounded-xl border text-lg font-semibold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 ${
-              atual === dia ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:border-primary/60"
-            }`}
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            onClick={() => setDeslocamento((d) => d - 1)}
+            aria-label="Mês anterior"
           >
-            {dia}
-            <span className={`text-[10px] font-normal ${atual === dia ? "opacity-80" : "text-muted-foreground"}`}>dia</span>
-          </button>
-        ))}
+            <ChevronLeft className="size-4" />
+          </Button>
+          <p className="text-sm font-semibold text-foreground" aria-live="polite">
+            {nomeDoMes}
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            onClick={() => setDeslocamento((d) => d + 1)}
+            aria-label="Próximo mês"
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+        <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-muted-foreground" aria-hidden>
+          {SEMANA.map((d, i) => (
+            <span key={i}>{d}</span>
+          ))}
+        </div>
+        <div role="radiogroup" aria-labelledby="dia-vencimento" className="grid grid-cols-7 gap-1">
+          {Array.from({ length: vazios }, (_, i) => (
+            <span key={`v${i}`} aria-hidden />
+          ))}
+          {Array.from({ length: total }, (_, i) => {
+            const dia = i + 1;
+            const escolhido = dia === marcado;
+            return (
+              <button
+                key={dia}
+                type="button"
+                role="radio"
+                aria-checked={escolhido}
+                aria-label={`Dia ${dia}`}
+                disabled={definir.isPending}
+                onClick={() => atual !== dia && definir.mutate({ dia })}
+                className={`aspect-square rounded-lg text-sm font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 ${
+                  escolhido ? "bg-primary text-primary-foreground shadow-sm" : "text-foreground hover:bg-primary/10"
+                }`}
+              >
+                {dia}
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <p className="text-xs text-muted-foreground">
-        {atual
-          ? `Seu Pix vence todo dia ${atual}. O próximo vale até o dia ${atual} do mês seguinte (nunca menos de 1 mês).`
-          : "Escolha um dia: o próximo Pix já vale até ele."}{" "}
-        Três dias antes, mandamos um lembrete por e-mail.
-      </p>
+
+      <div className="space-y-1 text-xs text-muted-foreground">
+        {atual ? (
+          <>
+            <p>
+              Seu Pix vence <strong className="text-foreground">todo dia {atual}</strong>. Se pagar agora, fica
+              liberada até <strong className="text-foreground">{formatarData(proximo)}</strong>.
+            </p>
+            {marcado !== null && marcado !== atual && (
+              <p>
+                Em {soMes} o mês só tem {total} dias: vence no dia {marcado}.
+              </p>
+            )}
+            {atual > 28 && marcado === atual && <p>Nos meses mais curtos, como fevereiro, vence no último dia do mês.</p>}
+          </>
+        ) : (
+          <p>O próximo Pix já vale até o dia que você escolher (nunca menos de 1 mês).</p>
+        )}
+        <p>Três dias antes de vencer, você recebe um e-mail e um aviso aqui no sistema.</p>
+      </div>
     </section>
   );
 }

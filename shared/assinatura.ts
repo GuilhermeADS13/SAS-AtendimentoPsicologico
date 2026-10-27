@@ -68,12 +68,57 @@ export function decidirTesteEFundador(
   };
 }
 
-/** Dias de vencimento que a psicóloga pode escolher (sem 29–31, que nem todo mês tem). */
-export const DIAS_DE_VENCIMENTO = [5, 10, 15, 20, 25] as const;
+/**
+ * Dia de vencimento: qualquer dia de 1 a 31, escolhido num calendário
+ * (2026-10-27; antes eram só 5/10/15/20/25). Mês sem esse dia — fevereiro com
+ * 28 ou 29, abril com 30 — vence no ÚLTIMO dia do mês; o dia escolhido fica
+ * guardado, então em março volta a ser 31.
+ */
+const TRES_HORAS = 3 * 60 * 60 * 1000;
 
-/** Fim do dia `dia` em Brasília (23:59:59, UTC−3) no mês/ano dados (mês 0–11). */
+export const diaDeVencimentoValido =(dia: number) => Number.isInteger(dia) && dia >= 1 && dia <= 31;
+
+/** Quantos dias tem o mês (mês 0–11; aceita mês 12 = janeiro do ano seguinte). */
+export function diasNoMes(ano: number, mes: number): number {
+  return new Date(Date.UTC(ano, mes + 1, 0)).getUTCDate();
+}
+
+/** O dia escolhido dentro do mês dado: 31 em fevereiro vira 28 (ou 29). */
+export function diaDoVencimentoNoMes(ano: number, mes: number, dia: number): number {
+  return Math.min(dia, diasNoMes(ano, mes));
+}
+
+/**
+ * Fim do dia `dia` em Brasília (23:59:59, UTC−3) no mês/ano dados (mês 0–11).
+ * Sem o limite, Date.UTC(2027, 1, 31) "transbordaria" para 3 de março.
+ */
 function fimDoDiaEmBrasilia(ano: number, mes: number, dia: number): Date {
-  return new Date(Date.UTC(ano, mes, dia + 1, 2, 59, 59));
+  const real = new Date(Date.UTC(ano, mes, 1));
+  const d = diaDoVencimentoNoMes(real.getUTCFullYear(), real.getUTCMonth(), dia);
+  return new Date(Date.UTC(real.getUTCFullYear(), real.getUTCMonth(), d + 1, 2, 59, 59));
+}
+
+/**
+ * Soma meses no calendário de Brasília, sem transbordar: 31/01 + 1 mês = 28/02.
+ * O `setMonth` do JavaScript fazia 31/01 → 03/03 e ainda dependia do fuso da
+ * máquina (o servidor é UTC, o navegador é Brasília) — com vencimento no dia 31,
+ * fevereiro era pulado.
+ */
+function somarMesesEmBrasilia(data: Date, meses: number): Date {
+  const local = new Date(data.getTime() - TRES_HORAS);
+  const alvo = new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth() + meses, 1));
+  const dia = diaDoVencimentoNoMes(alvo.getUTCFullYear(), alvo.getUTCMonth(), local.getUTCDate());
+  return new Date(
+    Date.UTC(
+      alvo.getUTCFullYear(),
+      alvo.getUTCMonth(),
+      dia,
+      local.getUTCHours(),
+      local.getUTCMinutes(),
+      local.getUTCSeconds(),
+      local.getUTCMilliseconds(),
+    ) + TRES_HORAS,
+  );
 }
 
 /**
@@ -91,12 +136,11 @@ export function novoPagoAte(
   agora: Date = new Date(),
 ): Date {
   const base = new Date(Math.max(agora.getTime(), a.testeAte?.getTime() ?? 0, a.pagoAte?.getTime() ?? 0));
-  const fim = new Date(base);
-  fim.setMonth(fim.getMonth() + (ciclo === "anual" ? 12 : 1));
+  const fim = somarMesesEmBrasilia(base, ciclo === "anual" ? 12 : 1);
   const dia = a.diaVencimento;
   if (!dia) return fim;
   // Mês/ano do `fim` em Brasília (o UTC vira o dia 3h antes).
-  const local = new Date(fim.getTime() - 3 * 60 * 60 * 1000);
+  const local = new Date(fim.getTime() - TRES_HORAS);
   let alvo = fimDoDiaEmBrasilia(local.getUTCFullYear(), local.getUTCMonth(), dia);
   // Margem de 1 dia: "venceu dia 10 e paga de novo" não deve pular um mês inteiro.
   if (alvo.getTime() < fim.getTime() - DIA_MS) {

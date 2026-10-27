@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  diaDeVencimentoValido,
+  diaDoVencimentoNoMes,
+  diasNoMes,
   decidirTesteEFundador,
   novoPagoAte,
   normalizarDocumento,
@@ -113,6 +116,39 @@ describe("dia de vencimento escolhido", () => {
   it("anual com dia escolhido", () => {
     const pagoAte = fimDoDia("2026-11-16"); // vence 15/11
     expect(novoPagoAte({ testeAte: null, pagoAte, diaVencimento: 15 }, "anual", agora)).toEqual(fimDoDia("2027-11-16"));
+  });
+});
+
+describe("dia de vencimento no calendário (1 a 31)", () => {
+  const fimDoDia = (iso: string) => new Date(`${iso}T02:59:59.000Z`);
+
+  it("fevereiro não tem dia 31: vence no último dia do mês", () => {
+    expect(diasNoMes(2027, 1)).toBe(28);
+    expect(diasNoMes(2028, 1)).toBe(29); // bissexto
+    expect(diaDoVencimentoNoMes(2027, 1, 31)).toBe(28);
+    expect(diaDoVencimentoNoMes(2028, 1, 30)).toBe(29);
+    expect(diaDoVencimentoNoMes(2027, 3, 31)).toBe(30); // abril
+    expect(diaDoVencimentoNoMes(2027, 0, 31)).toBe(31);
+  });
+
+  it("dia 31 escolhido: o Pix que cai em fevereiro vai até 28/02 (não transborda para março)", () => {
+    const pagoAte = fimDoDia("2027-02-01"); // venceu 31/01
+    const fev = novoPagoAte({ testeAte: null, pagoAte, diaVencimento: 31 }, "mensal", new Date("2027-01-31T12:00:00Z"));
+    expect(fev).toEqual(fimDoDia("2027-03-01")); // fim do dia 28/02 em Brasília
+  });
+
+  it("depois de fevereiro, volta a vencer no dia 31", () => {
+    const pagoAte = fimDoDia("2027-03-01"); // vence 28/02
+    const mar = novoPagoAte({ testeAte: null, pagoAte, diaVencimento: 31 }, "mensal", new Date("2027-02-28T12:00:00Z"));
+    expect(mar).toEqual(fimDoDia("2027-04-01")); // fim do dia 31/03
+  });
+
+  it("aceita qualquer dia de 1 a 31", () => {
+    expect(diaDeVencimentoValido(1)).toBe(true);
+    expect(diaDeVencimentoValido(31)).toBe(true);
+    expect(diaDeVencimentoValido(0)).toBe(false);
+    expect(diaDeVencimentoValido(32)).toBe(false);
+    expect(diaDeVencimentoValido(7.5)).toBe(false);
   });
 });
 

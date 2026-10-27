@@ -21,7 +21,7 @@ import {
   planoDaPsicologa,
   resumoDaAssinatura,
 } from "./assinaturas";
-import { DIAS_DE_VENCIMENTO, novoPagoAte, situacaoDaAssinatura } from "../shared/assinatura";
+import { diaDeVencimentoValido, novoPagoAte, situacaoDaAssinatura } from "../shared/assinatura";
 import { TIPOS_DE_CHAVE_PIX, montarPixEstatico, normalizarChavePix } from "../shared/pix";
 import { pagamentoDaConsulta } from "../shared/pagamentoDaConsulta";
 import { planoEfetivo, planoPorId, valorDoPlano } from "../shared/precos";
@@ -1777,7 +1777,7 @@ export const appRouter = router({
 
     /** Dia do mês em que o Pix vence; vale a partir do próximo Pix registrado. */
     definirVencimento: therapistProcedure
-      .input(z.object({ dia: z.number().int().refine((d) => (DIAS_DE_VENCIMENTO as readonly number[]).includes(d)) }))
+      .input(z.object({ dia: z.number().int().refine(diaDeVencimentoValido, "Escolha um dia de 1 a 31.") }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new Error("Database not available");
