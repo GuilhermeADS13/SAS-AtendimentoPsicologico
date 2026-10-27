@@ -1,12 +1,13 @@
 /**
- * Tabela de preços: a psicóloga paga POR PACIENTE cadastrado, e cada paciente a
- * mais custa menos que o anterior (como faixa de imposto: o total nunca dá salto).
+ * Preços: PREÇO FIXO POR PLANO, estilo Netflix (decisão de 2026-10-27, no lugar
+ * do preço por paciente). Cada plano tem um valor mensal e um limite de
+ * pacientes; dentro do limite, o valor não muda.
  *
- * Os valores das primeiras faixas vêm do exemplo do Guilherme (2 pacientes =
- * R$ 40, 4 = R$ 75). Depois o desconto acelera de propósito: no ritmo de R$ 20
- * por paciente, 30 pacientes custariam ~R$ 277, o dobro do mercado (iClinic,
- * PsicoManager cobram R$ 89 a 129 com pacientes ilimitados). Com estas faixas,
- * 30 pacientes ficam em R$ 145 — menos que uma sessão por mês.
+ * - Sussurro: R$ 69/mês, até 10 pacientes.
+ * - Voz: R$ 129/mês, até 30 pacientes.
+ * - Coro: combinado com o Guilherme (sob medida, ver valorDoPlano).
+ *
+ * Referência de mercado: iClinic e PsicoManager cobram R$ 89 a 129.
  *
  * As cotas da Luma (por dia) e o tamanho dos anexos saem do plano grátis da
  * infraestrutura: a Groq dá ~80 perguntas/dia somando TODOS os clientes, e o
@@ -16,15 +17,6 @@
 /** Acima disso o plano é o Coro, negociado direto ("Fale comigo"). */
 export const MAX_PACIENTES_NA_TABELA = 30;
 
-/** Preço de cada paciente dentro da faixa, em centavos. `ate` é inclusivo. */
-export const FAIXAS_DE_PRECO = [
-  { ate: 2, centavos: 2000 },
-  { ate: 4, centavos: 1750 },
-  { ate: 10, centavos: 500 },
-  { ate: 20, centavos: 250 },
-  { ate: 30, centavos: 150 },
-] as const;
-
 export type PlanoId = "pro" | "max" | "unlimited";
 
 export type Plano = {
@@ -33,6 +25,8 @@ export type Plano = {
   /** Faixa de pacientes do plano; `ate` null = sem teto. */
   de: number;
   ate: number | null;
+  /** Mensalidade fixa, em centavos; null = combinada (Coro). */
+  precoCentavos: number | null;
   perguntasLumaPorDia: number | null;
   anexoMaxMb: number | null;
 };
@@ -40,29 +34,20 @@ export type Plano = {
 export const PLANOS: readonly Plano[] = [
   // Nomes no tema VozInterior (2026-10-26): a voz cresce com o consultório.
   // Os ids continuam pro/max/unlimited — só o nome aparece na tela.
-  { id: "pro", nome: "Sussurro", de: 1, ate: 10, perguntasLumaPorDia: 5, anexoMaxMb: 5 },
-  { id: "max", nome: "Voz", de: 11, ate: MAX_PACIENTES_NA_TABELA, perguntasLumaPorDia: 15, anexoMaxMb: 10 },
-  { id: "unlimited", nome: "Coro", de: MAX_PACIENTES_NA_TABELA + 1, ate: null, perguntasLumaPorDia: null, anexoMaxMb: null },
+  { id: "pro", nome: "Sussurro", de: 1, ate: 10, precoCentavos: 6900, perguntasLumaPorDia: 5, anexoMaxMb: 5 },
+  { id: "max", nome: "Voz", de: 11, ate: MAX_PACIENTES_NA_TABELA, precoCentavos: 12900, perguntasLumaPorDia: 15, anexoMaxMb: 10 },
+  {
+    id: "unlimited",
+    nome: "Coro",
+    de: MAX_PACIENTES_NA_TABELA + 1,
+    ate: null,
+    precoCentavos: null,
+    perguntasLumaPorDia: null,
+    anexoMaxMb: null,
+  },
 ];
 
-/**
- * Mensalidade em centavos para `pacientes` cadastrados. Null acima da tabela
- * (Coro, preço combinado). Centavos para não somar float de dinheiro.
- */
-export function mensalidadeEmCentavos(pacientes: number): number | null {
-  if (!Number.isInteger(pacientes) || pacientes < 1) return 0;
-  if (pacientes > MAX_PACIENTES_NA_TABELA) return null;
-  let total = 0;
-  let anterior = 0;
-  for (const faixa of FAIXAS_DE_PRECO) {
-    const nestaFaixa = Math.min(pacientes, faixa.ate) - anterior;
-    if (nestaFaixa <= 0) break;
-    total += nestaFaixa * faixa.centavos;
-    anterior = faixa.ate;
-  }
-  return total;
-}
-
+/** O menor plano em que cabem `pacientes`. */
 export function planoPara(pacientes: number): Plano {
   return PLANOS.find((p) => p.ate === null || pacientes <= p.ate) ?? PLANOS[PLANOS.length - 1];
 }
@@ -78,26 +63,23 @@ export const VAGAS_DE_FUNDADOR = 20;
 export type Ciclo = "mensal" | "anual";
 
 /**
- * O que a psicóloga paga por ciclo, já com fundador e anual. Null acima da tabela
- * (Coro, combinado). Fundador antes do anual: no anual ela paga 10 meses do
- * valor JÁ com desconto. Sem paciente, não há o que cobrar: 0 pacientes = R$ 0
- * (decisão de 2026-10-26) — a cobrança começa no 1º paciente.
+ * Preço de tabela de um plano no ciclo, com o desconto de Fundadora se for o
+ * caso (desconto antes do anual: no anual ela paga 10 meses do valor JÁ com
+ * desconto). Null no Coro (combinado). É o que a página /precos mostra.
  */
-export function valorDaCobranca(
-  pacientes: number,
+export function precoDoPlano(
+  id: string | null | undefined,
   { fundador = false, ciclo = "mensal" }: { fundador?: boolean; ciclo?: Ciclo } = {},
 ): number | null {
-  const base = mensalidadeEmCentavos(pacientes);
+  const base = planoPorId(id).precoCentavos;
   if (base === null) return null;
   const mensal = fundador ? Math.round(base * (1 - DESCONTO_FUNDADOR)) : base;
   return ciclo === "anual" ? mensal * MESES_PAGOS_NO_ANUAL : mensal;
 }
 
 /**
- * PLANO ESCOLHIDO (decisão de 2026-10-26, "como a Netflix"): a psicóloga escolhe
- * Sussurro ou Voz e ganha os bônus do plano na hora; continua pagando por
- * paciente, mas cada plano tem um valor MÍNIMO (o Voz custa no mínimo o preço de
- * 11 pacientes). Coro é combinado com o Guilherme, não se escolhe sozinha.
+ * PLANO ESCOLHIDO ("como a Netflix", 2026-10-26): ela escolhe Sussurro ou Voz e
+ * ganha os bônus na hora. Coro é combinado com o Guilherme, não se escolhe sozinha.
  */
 export function planoPorId(id: string | null | undefined): Plano {
   return PLANOS.find((p) => p.id === id) ?? PLANOS[0];
@@ -114,7 +96,12 @@ export function planoEfetivo(escolhido: string | null | undefined, pacientes: nu
   return PLANOS.indexOf(b) > PLANOS.indexOf(a) ? b : a;
 }
 
-/** Valor do ciclo no plano escolhido: tabela por paciente, com o mínimo do plano. */
+/**
+ * O que ELA paga no ciclo: o preço fixo do plano efetivo (com Fundadora e anual).
+ * No Sussurro sem nenhum paciente não há o que cobrar (R$ 0 — decisão de
+ * 2026-10-26, mantida): a cobrança começa no 1º paciente. Quem escolheu o Voz
+ * paga o Voz mesmo com poucos pacientes — escolheu pelos bônus.
+ */
 export function valorDoPlano(
   pacientes: number,
   escolhido: string | null | undefined,
@@ -136,12 +123,8 @@ export function valorDoPlano(
     if (combinado === null || combinado === undefined) return null;
     return ciclo === "anual" ? combinado * MESES_PAGOS_NO_ANUAL : combinado;
   }
-  const porPaciente = mensalidadeEmCentavos(pacientes) ?? 0;
-  // Sussurro não tem mínimo: 0 pacientes = R$ 0. Os outros, o preço do 1º do plano.
-  const minimo = plano === PLANOS[0] ? 0 : (mensalidadeEmCentavos(plano.de) ?? 0);
-  const base = Math.max(porPaciente, minimo);
-  const mensal = fundador ? Math.round(base * (1 - DESCONTO_FUNDADOR)) : base;
-  return ciclo === "anual" ? mensal * MESES_PAGOS_NO_ANUAL : mensal;
+  if (plano === PLANOS[0] && pacientes < 1) return 0;
+  return precoDoPlano(plano.id, { fundador, ciclo });
 }
 
 /**

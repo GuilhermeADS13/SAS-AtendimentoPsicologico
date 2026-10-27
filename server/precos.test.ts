@@ -1,50 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { formatarReais, mensalidadeEmCentavos, planoPara } from "../shared/precos";
+import { formatarReais, planoPara, precoDoPlano } from "../shared/precos";
 
-describe("tabela de preços por paciente", () => {
-  // Os dois primeiros pontos são o exemplo do Guilherme; os outros são os que a
-  // página de preços mostra e foram aprovados.
-  it.each([
-    [1, 2000],
-    [2, 4000],
-    [4, 7500],
-    [10, 10500],
-    [20, 13000],
-    [30, 14500],
-  ])("%i pacientes custam %i centavos", (pacientes, centavos) => {
-    expect(mensalidadeEmCentavos(pacientes)).toBe(centavos);
+// Preço FIXO por plano, estilo Netflix (decisão de 2026-10-27).
+describe("tabela de preços", () => {
+  it("Sussurro R$ 69 e Voz R$ 129 por mês; Coro combinado", () => {
+    expect(precoDoPlano("pro")).toBe(6900);
+    expect(precoDoPlano("max")).toBe(12900);
+    expect(precoDoPlano("unlimited")).toBeNull();
   });
 
-  it("cada paciente a mais nunca baixa o total nem encarece o anterior", () => {
-    let anterior = 0;
-    let custoAnterior = Infinity;
-    for (let n = 1; n <= 30; n++) {
-      const total = mensalidadeEmCentavos(n)!;
-      const custoDoNovo = total - anterior;
-      expect(custoDoNovo).toBeGreaterThan(0);
-      expect(custoDoNovo).toBeLessThanOrEqual(custoAnterior);
-      anterior = total;
-      custoAnterior = custoDoNovo;
-    }
+  it("Psicóloga Fundadora paga 20% a menos; anual = 10 meses do valor com desconto", () => {
+    expect(precoDoPlano("pro", { fundador: true })).toBe(5520);
+    expect(precoDoPlano("max", { fundador: true })).toBe(10320);
+    expect(precoDoPlano("pro", { ciclo: "anual" })).toBe(69000);
+    expect(precoDoPlano("max", { fundador: true, ciclo: "anual" })).toBe(103200);
   });
 
-  it("acima de 30 pacientes o preço é combinado (Coro)", () => {
-    expect(mensalidadeEmCentavos(31)).toBeNull();
+  it("o plano indicado acompanha o número de pacientes", () => {
+    expect(planoPara(1).nome).toBe("Sussurro");
+    expect(planoPara(10).nome).toBe("Sussurro");
+    expect(planoPara(11).nome).toBe("Voz");
+    expect(planoPara(30).nome).toBe("Voz");
+    expect(planoPara(31).nome).toBe("Coro");
+    expect(planoPara(1).id).toBe("pro");
     expect(planoPara(31).id).toBe("unlimited");
   });
 
-  it("separa Sussurro (até 10) de Voz (11 a 30)", () => {
-    expect(planoPara(1).nome).toBe("Sussurro");
-    expect(planoPara(11).nome).toBe("Voz");
-    expect(planoPara(31).nome).toBe("Coro");
-    expect(planoPara(1).id).toBe("pro");
-    expect(planoPara(10).id).toBe("pro");
-    expect(planoPara(11).id).toBe("max");
-    expect(planoPara(30).id).toBe("max");
-  });
-
   it("formata em reais sem centavos quando é inteiro", () => {
-    expect(formatarReais(4000)).toMatch(/^R\$\s?40$/);
-    expect(formatarReais(5750)).toMatch(/^R\$\s?57,50$/);
+    expect(formatarReais(6900)).toMatch(/^R\$\s?69$/);
+    expect(formatarReais(5520)).toMatch(/^R\$\s?55,20$/);
   });
 });

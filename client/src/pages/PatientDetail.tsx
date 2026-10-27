@@ -197,7 +197,7 @@ export default function PatientDetail() {
     onError: (e) => toast.error(e.message || "Erro ao salvar alterações"),
   });
 
-  // Encerrou o acompanhamento? Inativo sai da conta da mensalidade.
+  // Encerrou o acompanhamento? Inativo sai da conta do limite do plano.
   const mudarStatus = trpc.patients.update.useMutation({
     onSuccess: (_r, vars) => {
       utils.patients.get.invalidate({ id: patientId });
@@ -205,7 +205,7 @@ export default function PatientDetail() {
       utils.assinatura.minha.invalidate();
       toast.success(
         vars.status === "inactive"
-          ? "Paciente marcado como inativo. Ele não conta mais na sua mensalidade."
+          ? "Paciente marcado como inativo. Ele não conta mais no limite do seu plano."
           : "Paciente reativado.",
       );
     },
@@ -598,7 +598,7 @@ export default function PatientDetail() {
             <CardContent>
               <p className="text-sm text-muted-foreground">Status</p>
               <p className={`text-lg font-semibold ${statusInfo.cor}`}>{statusInfo.label}</p>
-              {/* Inativo não entra na mensalidade (preço por paciente, shared/precos.ts). */}
+              {/* Inativo não conta no limite de pacientes do plano (shared/precos.ts). */}
               {patient.status !== "archived" && (
                 <button
                   type="button"
@@ -608,7 +608,7 @@ export default function PatientDetail() {
                     mudarStatus.mutate({ id: patientId, status: patient.status === "inactive" ? "active" : "inactive" });
                   }}
                   className="mt-1 text-xs text-primary underline underline-offset-4 disabled:opacity-50"
-                  title={patient.status === "inactive" ? undefined : "Paciente inativo não conta na sua mensalidade"}
+                  title={patient.status === "inactive" ? undefined : "Paciente inativo não conta no limite do seu plano"}
                 >
                   {patient.status === "inactive" ? "Reativar paciente" : "Marcar como inativo"}
                 </button>

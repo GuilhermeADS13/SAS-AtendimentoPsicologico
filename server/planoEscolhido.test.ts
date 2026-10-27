@@ -2,26 +2,29 @@ import { describe, expect, it } from "vitest";
 import { cabeMaisUmPaciente, planoEfetivo, planoPorId, valorDoPlano } from "../shared/precos";
 import { limitesDoPlano } from "./assinaturas";
 
-// Plano escolhido "como a Netflix" (decisão de 2026-10-26): ela escolhe Sussurro
-// ou Voz, ganha os bônus na hora e continua pagando por paciente, com o mínimo
-// do plano.
+// Plano escolhido "como a Netflix": ela escolhe Sussurro ou Voz, ganha os bônus
+// na hora e paga o PREÇO FIXO do plano (decisão de 2026-10-27).
 describe("plano escolhido", () => {
-  it("Sussurro cobra pela tabela, sem mínimo (0 pacientes = R$ 0)", () => {
+  it("dentro do limite, o valor não muda com o número de pacientes", () => {
+    expect(valorDoPlano(1, "pro")).toBe(6900);
+    expect(valorDoPlano(2, "pro")).toBe(6900);
+    expect(valorDoPlano(10, "pro")).toBe(6900);
+    expect(valorDoPlano(11, "max")).toBe(12900);
+    expect(valorDoPlano(30, "max")).toBe(12900);
+  });
+
+  it("Sussurro sem nenhum paciente: R$ 0 (a cobrança começa no 1º)", () => {
     expect(valorDoPlano(0, "pro")).toBe(0);
-    expect(valorDoPlano(2, "pro")).toBe(4000);
-    expect(valorDoPlano(10, "pro")).toBe(10500);
   });
 
-  it("Voz escolhido cedo, só pelos bônus: paga o mínimo (preço de 11 pacientes)", () => {
-    expect(valorDoPlano(5, "max")).toBe(10750);
-    expect(valorDoPlano(0, "max")).toBe(10750);
-    // Passando do mínimo, volta a seguir a tabela.
-    expect(valorDoPlano(20, "max")).toBe(13000);
+  it("Voz escolhido cedo, pelos bônus: paga o Voz mesmo com poucos pacientes", () => {
+    expect(valorDoPlano(5, "max")).toBe(12900);
+    expect(valorDoPlano(0, "max")).toBe(12900);
   });
 
-  it("Fundadora e anual valem por cima do mínimo", () => {
-    expect(valorDoPlano(5, "max", { fundador: true })).toBe(8600);
-    expect(valorDoPlano(5, "max", { fundador: true, ciclo: "anual" })).toBe(86000);
+  it("Fundadora e anual valem por cima do preço fixo", () => {
+    expect(valorDoPlano(5, "max", { fundador: true })).toBe(10320);
+    expect(valorDoPlano(5, "max", { fundador: true, ciclo: "anual" })).toBe(103200);
   });
 
   it("Coro é combinado", () => {
@@ -36,8 +39,8 @@ describe("plano escolhido", () => {
   });
 
   it("valor combinado só vale no Coro (decisão de 2026-10-27)", () => {
-    expect(valorDoPlano(5, "pro", { combinado: 1 })).toBe(valorDoPlano(5, "pro"));
-    expect(valorDoPlano(5, "max", { combinado: 1 })).toBe(10750);
+    expect(valorDoPlano(5, "pro", { combinado: 1 })).toBe(6900);
+    expect(valorDoPlano(5, "max", { combinado: 1 })).toBe(12900);
   });
 
   it("Luma e anexo sob medida só no Coro; sem nada combinado, o do Voz", () => {
@@ -51,7 +54,7 @@ describe("plano escolhido", () => {
   it("nunca cobra abaixo do uso: pacientes acima do teto sobem o plano efetivo", () => {
     expect(planoEfetivo("pro", 15).id).toBe("max");
     expect(planoEfetivo("max", 3).id).toBe("max");
-    expect(valorDoPlano(15, "pro")).toBe(valorDoPlano(15, "max"));
+    expect(valorDoPlano(15, "pro")).toBe(12900);
   });
 
   it("teto para cadastrar: o 11º paciente no Sussurro pede para subir de plano", () => {

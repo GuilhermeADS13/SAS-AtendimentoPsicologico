@@ -515,8 +515,8 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
     resposta: (
       <ul className="list-disc pl-5 space-y-1">
         <li>
-          Você paga <strong>por paciente cadastrado</strong>, e cada paciente a mais custa
-          menos. A tabela completa está em{" "}
+          Cada plano tem um <strong>preço fixo por mês</strong> e um limite de pacientes:
+          Sussurro até 10, Voz até 30. Os valores estão em{" "}
           <Link href="/precos" className="text-primary underline underline-offset-4">Preços</Link>.
         </li>
         <li>

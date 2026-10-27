@@ -9,7 +9,7 @@ import {
   precisaAvisarVencimento,
   situacaoDaAssinatura,
 } from "../shared/assinatura";
-import { valorDaCobranca } from "../shared/precos";
+import { valorDoPlano } from "../shared/precos";
 import { inicioDoDiaEmBrasilia } from "./assinaturas";
 
 const agora = new Date("2026-10-26T15:00:00Z");
@@ -74,17 +74,17 @@ describe("Pix e valores", () => {
   });
 
   it("fundadora paga 20% a menos; anual = 10 meses", () => {
-    expect(valorDaCobranca(10)).toBe(10500);
-    expect(valorDaCobranca(10, { fundador: true })).toBe(8400);
-    expect(valorDaCobranca(10, { ciclo: "anual" })).toBe(105000);
-    expect(valorDaCobranca(10, { fundador: true, ciclo: "anual" })).toBe(84000);
-    expect(valorDaCobranca(31)).toBeNull();
+    expect(valorDoPlano(10, "pro")).toBe(6900);
+    expect(valorDoPlano(10, "pro", { fundador: true })).toBe(5520);
+    expect(valorDoPlano(10, "pro", { ciclo: "anual" })).toBe(69000);
+    expect(valorDoPlano(10, "pro", { fundador: true, ciclo: "anual" })).toBe(55200);
+    expect(valorDoPlano(31, "pro")).toBeNull();
   });
 
-  it("sem paciente não há o que cobrar (a cobrança começa no 1º)", () => {
-    expect(valorDaCobranca(0)).toBe(0);
-    expect(valorDaCobranca(0, { fundador: true, ciclo: "anual" })).toBe(0);
-    expect(valorDaCobranca(1)).toBe(2000);
+  it("Sussurro sem paciente não tem o que cobrar (a cobrança começa no 1º)", () => {
+    expect(valorDoPlano(0, "pro")).toBe(0);
+    expect(valorDoPlano(0, "pro", { fundador: true, ciclo: "anual" })).toBe(0);
+    expect(valorDoPlano(1, "pro")).toBe(6900);
   });
 });
 

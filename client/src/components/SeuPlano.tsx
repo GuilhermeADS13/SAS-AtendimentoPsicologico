@@ -178,9 +178,7 @@ function EscolherPlano({ data }: { data: Resumo }) {
   });
   const coro = linkWhatsAppDoSuporte("Olá! Quero conversar sobre o plano Coro do VozInterior.");
   const n = data.pacientes;
-  const agora = valorDoPlano(n, data.planoEscolhido, { fundador: data.fundador, combinado: data.valorCombinado });
-  const depois = valorDoPlano(n + 1, data.planoEscolhido, { fundador: data.fundador, combinado: data.valorCombinado });
-  const proximo = agora !== null && depois !== null ? depois - agora : null;
+  const teto = data.plano.ate;
   const valorNovo = confirmar ? valorDoPlano(n, confirmar.id, { fundador: data.fundador, combinado: data.valorCombinado }) : null;
 
   return (
@@ -189,12 +187,13 @@ function EscolherPlano({ data }: { data: Resumo }) {
         <div className="space-y-1">
           <h3 className="text-lg font-semibold text-foreground">Escolha seu plano</h3>
           <p className="text-sm text-muted-foreground">
-            Os bônus valem na hora. O valor acompanha seus pacientes e o novo entra no próximo Pix.
+            Preço fixo por plano. Os bônus valem na hora; o valor novo entra no próximo Pix.
           </p>
         </div>
+        {/* Preço fixo (2026-10-27): o que importa é quanto ainda cabe no plano. */}
         <p className="text-sm text-muted-foreground tabular-nums">
-          {plural(n, "paciente conta", "pacientes contam")} hoje
-          {proximo !== null && proximo > 0 && ` · o próximo custa + ${formatarReais(proximo)}/mês`}
+          Hoje: {plural(n, "paciente", "pacientes")}
+          {teto !== null && ` · cabem até ${teto} no ${data.plano.nome} (${n >= teto ? "plano cheio" : `faltam ${teto - n}`})`}.
         </p>
       </div>
 
@@ -203,10 +202,9 @@ function EscolherPlano({ data }: { data: Resumo }) {
           const atual = p.id === data.planoEscolhido;
           const ehCoro = p.ate === null;
           const naoCabe = !ehCoro && n > (p.ate ?? 0);
-          const valor = valorDoPlano(n, p.id, { fundador: data.fundador, combinado: data.valorCombinado });
-          // Mínimo com o desconto DELA: sem isso, a Fundadora via "R$ 86 para você"
-          // ao lado de "mínimo de R$ 107,50", que parece contradição.
-          const minimo = p === PLANOS[0] || ehCoro ? null : valorDoPlano(0, p.id, { fundador: data.fundador, combinado: data.valorCombinado });
+          // Preço do plano para ELA (com Fundadora). Usa ao menos 1 paciente: o R$ 0 de
+          // quem ainda não tem nenhum vale só para o plano atual, não para comparar.
+          const valor = valorDoPlano(Math.max(1, n), p.id, { fundador: data.fundador, combinado: data.valorCombinado });
           const bonus = [
             ehCoro ? `Mais de ${MAX_PACIENTES_NA_TABELA} pacientes` : `Até ${p.ate} pacientes`,
             p.perguntasLumaPorDia ? `Luma: ${p.perguntasLumaPorDia} perguntas por dia` : "Luma sob medida",
@@ -243,10 +241,11 @@ function EscolherPlano({ data }: { data: Resumo }) {
                     <span className="text-sm text-muted-foreground"> /mês para você</span>
                   </p>
                 )}
-                {minimo !== null && (
-                  <p className="text-xs text-muted-foreground tabular-nums">mínimo de {formatarReais(minimo)} (o preço de {p.de} pacientes)</p>
+                {ehCoro ? (
+                  <p className="text-xs text-muted-foreground">clínicas e equipes</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">fixo, até {p.ate} pacientes</p>
                 )}
-                {ehCoro && <p className="text-xs text-muted-foreground">clínicas e equipes</p>}
               </div>
               <ul className="mb-5 flex-1 space-y-2 text-sm text-foreground/90">
                 {bonus.map((b) => (
