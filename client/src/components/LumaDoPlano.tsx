@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 
 /**
  * Profundidade "3D" sem biblioteca: a Luma inclina seguindo o ponteiro em todo o
@@ -53,10 +53,8 @@ export function LumaFlutuante({ children }: { children: ReactNode }) {
  * - Voz: a coruja com três ondas — falando com firmeza.
  * - Coro: três corujas juntas, a clínica inteira.
  *
- * A coruja é o mesmo PNG da Luma (/luma-owl.png). O rosto dele é TRANSPARENTE,
- * então ela vai sempre num medalhão branco — sobre o cartão verde, sem o
- * medalhão, o rosto ficaria verde. As ondas usam `currentColor`: brancas no
- * cartão verde, verdes nos cartões claros.
+ * A coruja é a Luma 3D (/luma-3d.webp, ver Coruja). As ondas usam
+ * `currentColor`: brancas no cartão verde, verdes nos cartões claros.
  */
 export function LumaDoPlano({
   plano,
@@ -82,14 +80,26 @@ export function LumaDoPlano({
   );
 }
 
-/** Medalhão branco + a coruja da Luma, centrado em (cx, cy) com raio r. */
+/**
+ * A Luma 3D (render de frente, /luma-3d.webp, recortado da folha de personagem
+ * de 2026-10-27) num quadrado de cantos arredondados centrado em (cx, cy). Não é
+ * círculo de propósito: num círculo as pontas das orelhas seriam cortadas. O
+ * fundo verde-escuro do render fica — casa com o cartão do plano e vira um
+ * "ícone de app" nos cartões claros.
+ */
 function Coruja({ cx, cy, r }: { cx: number; cy: number; r: number }) {
-  const lado = r * 1.5;
+  // useId traz ":" ou "«»", que alguns navegadores não aceitam em url(#…).
+  const id = `luma${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const lado = r * 2;
+  const x = cx - r;
+  const y = cy - r;
   return (
     <g>
-      <circle cx={cx} cy={cy} r={r} fill="white" />
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="currentColor" strokeOpacity={0.2} strokeWidth={1.5} />
-      <image href="/luma-owl.png" x={cx - lado / 2} y={cy - lado / 2 + r * 0.04} width={lado} height={lado} />
+      <clipPath id={id}>
+        <rect x={x} y={y} width={lado} height={lado} rx={r * 0.45} />
+      </clipPath>
+      <image href="/luma-3d.webp" x={x} y={y} width={lado} height={lado} clipPath={`url(#${id})`} />
+      <rect x={x} y={y} width={lado} height={lado} rx={r * 0.45} fill="none" stroke="currentColor" strokeOpacity={0.25} strokeWidth={1.5} />
     </g>
   );
 }
