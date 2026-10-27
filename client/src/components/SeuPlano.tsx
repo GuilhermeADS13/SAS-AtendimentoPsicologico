@@ -124,7 +124,13 @@ function CartaoDoPlano({ data }: { data: Resumo }) {
               <span className="text-sm opacity-80"> /mês</span>
             </p>
           )}
-          <p className="text-sm opacity-85 tabular-nums">{plural(data.pacientes, "paciente que conta", "pacientes que contam")}</p>
+          {/* "N pacientes que contam" ninguém entendia: o que importa é quanto do
+              limite do plano ela já usa. */}
+          <p className="text-sm opacity-85 tabular-nums">
+            {data.plano.ate === null
+              ? `${plural(data.pacientes, "paciente ativo", "pacientes ativos")}`
+              : `${data.pacientes} de ${data.plano.ate} pacientes do plano em uso`}
+          </p>
         </div>
       </div>
 
@@ -337,10 +343,10 @@ function UsoDoPlano({ data }: { data: Resumo }) {
     },
     {
       icone: <Users className="size-5 text-primary" aria-hidden />,
-      rotulo: "Pacientes que contam",
-      valor: String(data.pacientes),
-      nota: "ativos e aguardando cadastro",
-      barra: null,
+      rotulo: "Pacientes no plano",
+      valor: data.plano.ate === null ? String(data.pacientes) : `${data.pacientes} de ${data.plano.ate}`,
+      nota: "cadastrados e ativos; quem você marca como inativo não conta",
+      barra: data.plano.ate === null ? null : Math.min(1, data.pacientes / data.plano.ate),
     },
   ];
   return (
@@ -392,7 +398,7 @@ function PagarAssinatura({ data }: { data: Resumo }) {
       <section className="space-y-2 rounded-2xl border bg-card p-6">
         <h3 className="font-semibold text-foreground">Pagamento</h3>
         <p className="text-sm text-muted-foreground">
-          Você ainda não tem pacientes que contam, então não há nada a pagar agora. A mensalidade começa no 1º
+          Você ainda não tem nenhum paciente cadastrado e ativo, então não há nada a pagar agora. A mensalidade começa no 1º
           paciente ({formatarReais(valorDoPlano(1, data.planoEscolhido, { fundador: data.fundador, combinado: data.valorCombinado }) ?? 0)}).
         </p>
       </section>

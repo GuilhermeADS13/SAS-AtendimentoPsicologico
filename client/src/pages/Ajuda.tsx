@@ -520,8 +520,9 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
           <Link href="/precos" className="text-primary underline underline-offset-4">Preços</Link>.
         </li>
         <li>
-          Na aba <strong>Assinatura</strong>, no menu, você vê quantos pacientes
-          contam, o valor, até quando está liberada e quantas perguntas à Luma já fez hoje.
+          Na aba <strong>Assinatura</strong>, no menu, você vê quantos pacientes do plano
+          já usa (ex.: 2 de 10), o valor, até quando está liberada e quantas perguntas à
+          Luma já fez hoje.
         </li>
         <li>
           O pagamento é por <strong>Pix</strong>, mensal ou anual (o anual dá 2 meses
