@@ -20,6 +20,7 @@ import { PIX_COPIA_E_COLA, linkWhatsAppDoSuporte } from "@/lib/suporte";
 import { Button } from "@/components/ui/button";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { CopiarPix } from "@/components/CopiarPix";
+import { QrDoPix } from "@/components/QrDoPix";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -481,19 +482,16 @@ function PagarAssinatura({ data }: { data: Resumo }) {
             )}
           </Passo>
         </ol>
-        {/* QR estático da conta (sem valor): para quem está no computador e paga
-            pelo celular. Recortado e invertido para preto sobre branco — alguns
-            apps de banco não leem o QR claro sobre escuro. */}
+        {/* QR com o VALOR embutido (o mesmo código do "Copiar Pix"): quem está no
+            computador escaneia com o celular e o banco já abre com o valor certo. */}
         <figure className="mx-auto space-y-2 text-center md:mx-0">
-          <img
-            src="/pix-qrcode.png"
-            alt="QR code do Pix para pagar o VozInterior"
-            width={168}
-            height={168}
-            className="mx-auto size-42 rounded-xl border bg-white p-2 [image-rendering:pixelated]"
+          <QrDoPix
+            codigo={pixComValor(PIX_COPIA_E_COLA, valor)}
+            titulo={`QR code do Pix de ${formatarReais(valor)} para pagar o VozInterior`}
+            className="mx-auto size-44 rounded-xl border"
           />
           <figcaption className="max-w-[11rem] text-xs text-muted-foreground">
-            No computador? Escaneie com o celular e digite {formatarReais(valor)}.
+            No computador? Escaneie com o celular: o valor de {formatarReais(valor)} já vem preenchido.
           </figcaption>
         </figure>
       </div>
