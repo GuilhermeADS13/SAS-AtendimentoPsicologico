@@ -195,6 +195,10 @@ export const assinaturas = pgTable(
     fundador: boolean("fundador").default(false).notNull(),
     /** Plano escolhido por ela (migração 0043): 'pro' Sussurro, 'max' Voz, 'unlimited' Coro. */
     plano: varchar("plano", { length: 10 }).$type<"pro" | "max" | "unlimited">().default("pro").notNull(),
+    /** Condições sob medida do admin (migração 0044); nulo = padrão do plano. */
+    valorCombinado: integer("valorCombinado"),
+    lumaPorDia: smallint("lumaPorDia"),
+    anexoMb: smallint("anexoMb"),
     /** Dia do mês em que o Pix vence (1 a 31; mês mais curto = último dia). Nulo = conta pelo dia do pagamento. */
     diaVencimento: smallint("diaVencimento"),
     /** Vencimento que já recebeu o e-mail "vence em 3 dias" (migração 0041). */

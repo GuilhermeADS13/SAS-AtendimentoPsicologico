@@ -75,8 +75,8 @@ function OndaSonora() {
 function CartaoDoPlano({ data }: { data: Resumo }) {
   const s = data.situacao;
   const vencido = !s.liberado && !data.isento;
-  const cheio = valorDoPlano(data.pacientes, data.planoEscolhido);
-  const mensal = valorDoPlano(data.pacientes, data.planoEscolhido, { fundador: data.fundador });
+  const cheio = valorDoPlano(data.pacientes, data.planoEscolhido, { combinado: data.valorCombinado });
+  const mensal = valorDoPlano(data.pacientes, data.planoEscolhido, { fundador: data.fundador, combinado: data.valorCombinado });
   const total = s.motivo === "teste" ? DIAS_DE_TESTE_GRATIS : data.ciclo === "anual" ? 365 : 30;
   const resta = s.diasRestantes === null ? 0 : Math.min(1, Math.max(0, (s.diasRestantes + 1) / total));
   const rotuloPeriodo =
@@ -116,7 +116,7 @@ function CartaoDoPlano({ data }: { data: Resumo }) {
             <p className="text-3xl font-bold">Combinada</p>
           ) : (
             <p className="tabular-nums">
-              {data.fundador && cheio !== null && cheio > 0 && (
+              {data.fundador && cheio !== null && cheio > 0 && cheio !== mensal && (
                 <span className="mr-2 text-lg line-through opacity-60">{formatarReais(cheio)}</span>
               )}
               <span className="text-4xl font-bold">{formatarReais(mensal)}</span>
@@ -177,10 +177,10 @@ function EscolherPlano({ data }: { data: Resumo }) {
   });
   const coro = linkWhatsAppDoSuporte("Olá! Quero conversar sobre o plano Coro do VozInterior.");
   const n = data.pacientes;
-  const agora = valorDoPlano(n, data.planoEscolhido, { fundador: data.fundador });
-  const depois = valorDoPlano(n + 1, data.planoEscolhido, { fundador: data.fundador });
+  const agora = valorDoPlano(n, data.planoEscolhido, { fundador: data.fundador, combinado: data.valorCombinado });
+  const depois = valorDoPlano(n + 1, data.planoEscolhido, { fundador: data.fundador, combinado: data.valorCombinado });
   const proximo = agora !== null && depois !== null ? depois - agora : null;
-  const valorNovo = confirmar ? valorDoPlano(n, confirmar.id, { fundador: data.fundador }) : null;
+  const valorNovo = confirmar ? valorDoPlano(n, confirmar.id, { fundador: data.fundador, combinado: data.valorCombinado }) : null;
 
   return (
     <section className="space-y-5">
@@ -202,10 +202,10 @@ function EscolherPlano({ data }: { data: Resumo }) {
           const atual = p.id === data.planoEscolhido;
           const ehCoro = p.ate === null;
           const naoCabe = !ehCoro && n > (p.ate ?? 0);
-          const valor = valorDoPlano(n, p.id, { fundador: data.fundador });
+          const valor = valorDoPlano(n, p.id, { fundador: data.fundador, combinado: data.valorCombinado });
           // Mínimo com o desconto DELA: sem isso, a Fundadora via "R$ 86 para você"
           // ao lado de "mínimo de R$ 107,50", que parece contradição.
-          const minimo = p === PLANOS[0] || ehCoro ? null : valorDoPlano(0, p.id, { fundador: data.fundador });
+          const minimo = p === PLANOS[0] || ehCoro ? null : valorDoPlano(0, p.id, { fundador: data.fundador, combinado: data.valorCombinado });
           const bonus = [
             ehCoro ? `Mais de ${MAX_PACIENTES_NA_TABELA} pacientes` : `Até ${p.ate} pacientes`,
             p.perguntasLumaPorDia ? `Luma: ${p.perguntasLumaPorDia} perguntas por dia` : "Luma sob medida",
@@ -393,14 +393,14 @@ function PagarAssinatura({ data }: { data: Resumo }) {
         <h3 className="font-semibold text-foreground">Pagamento</h3>
         <p className="text-sm text-muted-foreground">
           Você ainda não tem pacientes que contam, então não há nada a pagar agora. A mensalidade começa no 1º
-          paciente ({formatarReais(valorDoPlano(1, data.planoEscolhido, { fundador: data.fundador }) ?? 0)}).
+          paciente ({formatarReais(valorDoPlano(1, data.planoEscolhido, { fundador: data.fundador, combinado: data.valorCombinado }) ?? 0)}).
         </p>
       </section>
     );
   }
 
-  const valor = valorDoPlano(data.pacientes, data.planoEscolhido, { fundador: data.fundador, ciclo }) ?? 0;
-  const mensal = valorDoPlano(data.pacientes, data.planoEscolhido, { fundador: data.fundador }) ?? 0;
+  const valor = valorDoPlano(data.pacientes, data.planoEscolhido, { fundador: data.fundador, combinado: data.valorCombinado, ciclo }) ?? 0;
+  const mensal = valorDoPlano(data.pacientes, data.planoEscolhido, { fundador: data.fundador, combinado: data.valorCombinado }) ?? 0;
   const economia = mensal * 12 - mensal * MESES_PAGOS_NO_ANUAL;
   const comprovante = linkWhatsAppDoSuporte(
     `Olá! Paguei o Pix do VozInterior: ${plural(data.pacientes, "paciente", "pacientes")}, plano ${data.plano.nome}, ${ciclo} — ${formatarReais(valor)}. Segue o comprovante.`,

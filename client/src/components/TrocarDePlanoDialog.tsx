@@ -52,8 +52,8 @@ export function TrocarDePlanoDialog({
   const atual = planoPorId(data.planoEscolhido);
   const proximo = PLANOS[PLANOS.indexOf(atual) + 1];
   const n = data.pacientes;
-  const valorAgora = valorDoPlano(n, atual.id, { fundador: data.fundador });
-  const valorDepois = proximo ? valorDoPlano(n + 1, proximo.id, { fundador: data.fundador }) : null;
+  const valorAgora = valorDoPlano(n, atual.id, { fundador: data.fundador, combinado: data.valorCombinado });
+  const valorDepois = proximo ? valorDoPlano(n + 1, proximo.id, { fundador: data.fundador, combinado: data.valorCombinado }) : null;
   const ehCoro = !proximo || proximo.ate === null;
   const coro = linkWhatsAppDoSuporte(
     `Olá! Tenho ${n} pacientes no plano ${atual.nome} do VozInterior e quero passar para o Coro.`,

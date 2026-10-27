@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { cabeMaisUmPaciente, planoEfetivo, valorDoPlano } from "../shared/precos";
+import { cabeMaisUmPaciente, planoEfetivo, planoPorId, valorDoPlano } from "../shared/precos";
+import { limitesDoPlano } from "./assinaturas";
 
 // Plano escolhido "como a Netflix" (decisão de 2026-10-26): ela escolhe Sussurro
 // ou Voz, ganha os bônus na hora e continua pagando por paciente, com o mínimo
@@ -26,6 +27,25 @@ describe("plano escolhido", () => {
   it("Coro é combinado", () => {
     expect(valorDoPlano(5, "unlimited")).toBeNull();
     expect(valorDoPlano(31, "max")).toBeNull();
+  });
+
+  it("Coro sob medida: vale o valor combinado (sem desconto por cima); anual = 10x", () => {
+    expect(valorDoPlano(40, "unlimited", { combinado: 25000 })).toBe(25000);
+    expect(valorDoPlano(40, "unlimited", { combinado: 25000, fundador: true })).toBe(25000);
+    expect(valorDoPlano(40, "unlimited", { combinado: 25000, ciclo: "anual" })).toBe(250000);
+  });
+
+  it("valor combinado só vale no Coro (decisão de 2026-10-27)", () => {
+    expect(valorDoPlano(5, "pro", { combinado: 1 })).toBe(valorDoPlano(5, "pro"));
+    expect(valorDoPlano(5, "max", { combinado: 1 })).toBe(10750);
+  });
+
+  it("Luma e anexo sob medida só no Coro; sem nada combinado, o do Voz", () => {
+    const sm = { lumaPorDia: 40, anexoMb: 20 };
+    expect(limitesDoPlano(planoPorId("unlimited"), sm)).toEqual({ lumaPorDia: 40, anexoMb: 20 });
+    expect(limitesDoPlano(planoPorId("unlimited"), null)).toEqual({ lumaPorDia: 15, anexoMb: 10 });
+    expect(limitesDoPlano(planoPorId("max"), sm)).toEqual({ lumaPorDia: 15, anexoMb: 10 });
+    expect(limitesDoPlano(planoPorId("pro"), sm)).toEqual({ lumaPorDia: 5, anexoMb: 5 });
   });
 
   it("nunca cobra abaixo do uso: pacientes acima do teto sobem o plano efetivo", () => {

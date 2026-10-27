@@ -118,10 +118,24 @@ export function planoEfetivo(escolhido: string | null | undefined, pacientes: nu
 export function valorDoPlano(
   pacientes: number,
   escolhido: string | null | undefined,
-  { fundador = false, ciclo = "mensal" }: { fundador?: boolean; ciclo?: Ciclo } = {},
+  {
+    fundador = false,
+    ciclo = "mensal",
+    combinado = null,
+  }: {
+    fundador?: boolean;
+    ciclo?: Ciclo;
+    /** Mensalidade combinada pelo admin para o CORO; nos outros planos é ignorada. */
+    combinado?: number | null;
+  } = {},
 ): number | null {
   const plano = planoEfetivo(escolhido, pacientes);
-  if (plano.ate === null) return null;
+  if (plano.ate === null) {
+    // Coro: só tem valor quando o admin combinou (sob medida, já é o final —
+    // sem desconto por cima). Sussurro e Voz seguem a tabela (decisão de 2026-10-27).
+    if (combinado === null || combinado === undefined) return null;
+    return ciclo === "anual" ? combinado * MESES_PAGOS_NO_ANUAL : combinado;
+  }
   const porPaciente = mensalidadeEmCentavos(pacientes) ?? 0;
   // Sussurro não tem mínimo: 0 pacientes = R$ 0. Os outros, o preço do 1º do plano.
   const minimo = plano === PLANOS[0] ? 0 : (mensalidadeEmCentavos(plano.de) ?? 0);

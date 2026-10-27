@@ -17,6 +17,7 @@ import {
   criarAssinaturaNaAprovacao,
   exigirAssinaturaAtiva,
   exigirVagaNoPlano,
+  limitesDoPlano,
   perguntasDaLumaHoje,
   planoDaPsicologa,
   resumoDaAssinatura,
@@ -503,8 +504,8 @@ export const appRouter = router({
         // replay acima: repetir uma pergunta já respondida não gasta cota. A Groq
         // grátis aguenta ~80 perguntas/dia somando todas as clientes.
         if (ctx.user.role !== "admin" && accessContext.therapistId) {
-          const { plano } = await planoDaPsicologa(db, accessContext.therapistId);
-          const limite = plano.perguntasLumaPorDia ?? 15;
+          const { plano, limites } = await planoDaPsicologa(db, accessContext.therapistId);
+          const limite = limites.lumaPorDia;
           if ((await perguntasDaLumaHoje(db, ctx.user.id)) >= limite) {
             throw new TRPCError({
               code: "TOO_MANY_REQUESTS",
@@ -1675,6 +1676,9 @@ export const appRouter = router({
           fundador: assinaturas.fundador,
           planoEscolhido: assinaturas.plano,
           diaVencimento: assinaturas.diaVencimento,
+          valorCombinado: assinaturas.valorCombinado,
+          lumaPorDia: assinaturas.lumaPorDia,
+          anexoMb: assinaturas.anexoMb,
           temAssinatura: assinaturas.id,
         })
         .from(therapists)
@@ -1686,6 +1690,7 @@ export const appRouter = router({
         const ciclo = l.ciclo ?? "mensal";
         const fundador = l.fundador ?? false;
         const escolhido = l.planoEscolhido ?? "pro";
+        const plano = planoEfetivo(escolhido, pacientes);
         return {
           therapistId: l.therapistId,
           nome: l.nome,
@@ -1693,11 +1698,15 @@ export const appRouter = router({
           crp: l.crp,
           isento: l.role === "admin",
           pacientes,
-          plano: planoEfetivo(escolhido, pacientes).nome,
+          plano: plano.nome,
+          planoEscolhido: escolhido,
           ciclo,
           fundador,
           diaVencimento: l.diaVencimento,
-          valorCentavos: valorDoPlano(pacientes, escolhido, { fundador, ciclo }),
+          // Sob medida (o que o admin combinou) e o que vale de fato.
+          sobMedida: { valorCombinado: l.valorCombinado, lumaPorDia: l.lumaPorDia, anexoMb: l.anexoMb },
+          limites: limitesDoPlano(plano, l),
+          valorCentavos: valorDoPlano(pacientes, escolhido, { fundador, ciclo, combinado: l.valorCombinado }),
           situacao: situacaoDaAssinatura(l.temAssinatura ? { testeAte: l.testeAte, pagoAte: l.pagoAte } : null),
         };
       }));
@@ -1727,6 +1736,49 @@ export const appRouter = router({
         const pagoAte = novoPagoAte(a, input.ciclo);
         await db.update(assinaturas).set({ pagoAte, ciclo: input.ciclo }).where(eq(assinaturas.id, a.id));
         return { pagoAte };
+      }),
+
+    /**
+     * Plano Coro sob medida (só o Coro tem — decisão de 2026-10-27): coloca a
+     * psicóloga no Coro com o valor mensal combinado, a cota da Luma e o teto do
+     * anexo. `null` em cada campo = padrão (Luma 15/dia, anexo 10 MB; sem valor,
+     * o pagamento mostra "combinado"). O anexo para em 20 MB, o teto do bucket.
+     */
+    definirCoro: adminProcedure
+      .input(z.object({
+        therapistId: z.number().int().positive(),
+        valorCombinado: z.number().int().min(0).max(10_000_000).nullable(),
+        lumaPorDia: z.number().int().min(1).max(500).nullable(),
+        anexoMb: z.number().int().min(1).max(20).nullable(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const atualizadas = await db
+          .update(assinaturas)
+          .set({ plano: "unlimited", valorCombinado: input.valorCombinado, lumaPorDia: input.lumaPorDia, anexoMb: input.anexoMb })
+          .where(eq(assinaturas.therapistId, input.therapistId))
+          .returning({ id: assinaturas.id });
+        if (!atualizadas.length) throw new Error("Essa psicóloga ainda não tem assinatura.");
+        return { success: true } as const;
+      }),
+
+    /**
+     * Tira do Coro: volta ao plano que cabe nos pacientes dela (Sussurro ou Voz)
+     * e apaga as condições combinadas.
+     */
+    tirarDoCoro: adminProcedure
+      .input(z.object({ therapistId: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const pacientes = await contarPacientesCobrados(db, input.therapistId);
+        const volta = pacientes > 10 ? "max" : "pro";
+        await db
+          .update(assinaturas)
+          .set({ plano: volta, valorCombinado: null, lumaPorDia: null, anexoMb: null })
+          .where(eq(assinaturas.therapistId, input.therapistId));
+        return { plano: planoPorId(volta).nome };
       }),
 
     definirFundador: adminProcedure

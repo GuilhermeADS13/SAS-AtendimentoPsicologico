@@ -696,6 +696,7 @@ export async function avisarVencimentosDePlano(agora: Date = new Date()): Promis
       fundador: assinaturas.fundador,
       ciclo: assinaturas.ciclo,
       plano: assinaturas.plano,
+      valorCombinado: assinaturas.valorCombinado,
       avisoEnviadoPara: assinaturas.avisoEnviadoPara,
       nome: users.name,
       email: users.email,
@@ -712,7 +713,7 @@ export async function avisarVencimentosDePlano(agora: Date = new Date()): Promis
     if (!precisaAvisarVencimento(s, l.avisoEnviadoPara, agora) || !s.ate) continue;
 
     const pacientes = await contarPacientesCobrados(db, l.therapistId);
-    const valor = valorDoPlano(pacientes, l.plano, { fundador: l.fundador, ciclo: l.ciclo });
+    const valor = valorDoPlano(pacientes, l.plano, { fundador: l.fundador, ciclo: l.ciclo, combinado: l.valorCombinado });
     // Nada a pagar (Sussurro sem paciente): um e-mail pedindo Pix não faz sentido.
     if (valor === 0) continue;
     const quando = s.diasRestantes === 0 ? "hoje" : `em ${s.diasRestantes} dia${s.diasRestantes === 1 ? "" : "s"}`;

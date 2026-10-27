@@ -99,11 +99,29 @@ export async function resumoDaAssinatura(db: Db, user: { id: number; role: strin
     ciclo,
     fundador,
     diaVencimento: assinatura?.diaVencimento ?? null,
-    valorCentavos: valorDoPlano(pacientes, planoEscolhido, { fundador, ciclo }),
+    /** Mensalidade combinada pelo admin (sob medida); null = tabela do plano. */
+    valorCombinado: assinatura?.valorCombinado ?? null,
+    valorCentavos: valorDoPlano(pacientes, planoEscolhido, { fundador, ciclo, combinado: assinatura?.valorCombinado }),
     lumaHoje: await perguntasDaLumaHoje(db, user.id),
-    /** Null = sem limite (admin). O Coro usa a cota do Voz até combinar outra. */
-    lumaLimite: isento ? null : (plano.perguntasLumaPorDia ?? 15),
-    anexoMaxMb: isento ? null : (plano.anexoMaxMb ?? 10),
+    /** Null = sem limite (admin). Sob medida manda; sem ela, o Coro usa a cota do Voz. */
+    lumaLimite: isento ? null : limitesDoPlano(plano, assinatura).lumaPorDia,
+    anexoMaxMb: isento ? null : limitesDoPlano(plano, assinatura).anexoMb,
+  };
+}
+
+/**
+ * Cota da Luma e teto do anexo. Sob medida SÓ no Coro (decisão de 2026-10-27):
+ * vale o que o admin combinou, e sem nada combinado, o do Voz (15 perguntas,
+ * 10 MB). Sussurro e Voz usam sempre os do plano.
+ */
+export function limitesDoPlano(
+  plano: { ate: number | null; perguntasLumaPorDia: number | null; anexoMaxMb: number | null },
+  sobMedida: { lumaPorDia: number | null; anexoMb: number | null } | null | undefined,
+) {
+  const coro = plano.ate === null;
+  return {
+    lumaPorDia: (coro ? sobMedida?.lumaPorDia : null) ?? plano.perguntasLumaPorDia ?? 15,
+    anexoMb: (coro ? sobMedida?.anexoMb : null) ?? plano.anexoMaxMb ?? 10,
   };
 }
 
@@ -138,7 +156,12 @@ export async function psicologaLiberada(db: Db, therapistId: number): Promise<bo
  */
 export async function planoDaPsicologa(db: Db, therapistId: number) {
   const [linha] = await db
-    .select({ role: users.role, escolhido: assinaturas.plano })
+    .select({
+      role: users.role,
+      escolhido: assinaturas.plano,
+      lumaPorDia: assinaturas.lumaPorDia,
+      anexoMb: assinaturas.anexoMb,
+    })
     .from(therapists)
     .innerJoin(users, eq(users.id, therapists.userId))
     .leftJoin(assinaturas, eq(assinaturas.therapistId, therapists.id))
@@ -146,14 +169,15 @@ export async function planoDaPsicologa(db: Db, therapistId: number) {
     .limit(1);
   const pacientes = await contarPacientesCobrados(db, therapistId);
   const escolhido = linha?.escolhido ?? "pro";
-  return { admin: linha?.role === "admin", escolhido, pacientes, plano: planoEfetivo(escolhido, pacientes) };
+  const plano = planoEfetivo(escolhido, pacientes);
+  return { admin: linha?.role === "admin", escolhido, pacientes, plano, limites: limitesDoPlano(plano, linha) };
 }
 
 /** Limite de anexo (MB) das conversas desta psicóloga; null = sem limite do plano. */
 export async function anexoMaxMbDaPsicologa(db: Db, therapistId: number): Promise<number | null> {
   const p = await planoDaPsicologa(db, therapistId);
   if (p.admin) return null;
-  return p.plano.anexoMaxMb ?? 10;
+  return p.limites.anexoMb;
 }
 
 /**
