@@ -129,6 +129,17 @@
   --sidebar-ring: var(--brand);
 }
 
+/* A Luma da aba Assinatura flutua de leve (LumaFlutuante; só com motion-safe). */
+@keyframes luma-flutuar {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

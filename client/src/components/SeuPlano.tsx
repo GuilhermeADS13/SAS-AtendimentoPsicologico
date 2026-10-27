@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { AlertTriangle, CalendarDays, Check, Gauge, Paperclip, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { LumaOwlIcon } from "@/components/Logo";
+import { LumaDoPlano, LumaFlutuante } from "@/components/LumaDoPlano";
 
 type Resumo = NonNullable<RouterOutputs["assinatura"]["minha"]>;
 
@@ -51,7 +52,7 @@ const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um :
 const ONDA = Array.from({ length: 48 }, (_, i) => 0.25 + 0.75 * Math.abs(Math.sin(i * 0.55) * Math.cos(i * 0.17)));
 function OndaSonora() {
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-y-6 left-[40%] right-[34%] hidden items-center gap-[3px] opacity-15 lg:flex">
+    <div aria-hidden className="pointer-events-none absolute inset-y-6 left-[50%] right-[30%] hidden items-center gap-[3px] opacity-15 xl:flex">
       {ONDA.map((h, i) => (
         <span key={i} className="w-[3px] flex-1 rounded-full bg-current" style={{ height: `${Math.round(h * 70)}%` }} />
       ))}
@@ -83,7 +84,11 @@ function CartaoDoPlano({ data }: { data: Resumo }) {
     // destaque é só o selo "Venceu em…".
     <section className="relative overflow-hidden rounded-2xl bg-primary p-6 text-primary-foreground shadow-sm sm:p-8">
       <OndaSonora />
-      <div className="relative grid gap-6 sm:grid-cols-[1fr_auto] sm:items-end">
+      <div className="relative grid gap-6 sm:grid-cols-[auto_1fr_auto] sm:items-center">
+        {/* A Luma muda de forma com o plano (LumaDoPlano), com profundidade 3D. */}
+        <LumaFlutuante>
+          <LumaDoPlano plano={data.plano.id} className="h-28 w-40 sm:h-32 sm:w-44" titulo={`Luma do plano ${data.plano.nome}`} />
+        </LumaFlutuante>
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-80">Seu plano</p>
           <h2 className="text-4xl font-bold tracking-tight sm:text-5xl">{data.plano.nome}</h2>
@@ -210,9 +215,12 @@ function EscolherPlano({ data }: { data: Resumo }) {
                   Seu plano
                 </span>
               )}
-              <div className="space-y-1">
-                <h4 className="text-2xl font-bold tracking-tight text-foreground">{p.nome}</h4>
-                <p className="text-sm text-muted-foreground">{LEMA[p.id]}</p>
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <h4 className="text-2xl font-bold tracking-tight text-foreground">{p.nome}</h4>
+                  <p className="text-sm text-muted-foreground">{LEMA[p.id]}</p>
+                </div>
+                <LumaDoPlano plano={p.id} className="-mt-1 h-20 w-28 text-primary" />
               </div>
               <div className="my-4 min-h-14">
                 {valor === null ? (

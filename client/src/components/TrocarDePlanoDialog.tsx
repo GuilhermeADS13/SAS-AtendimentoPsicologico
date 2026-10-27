@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
+import { LumaDoPlano } from "@/components/LumaDoPlano";
 import { ArrowRight, Check } from "lucide-react";
 
 /** O servidor recusa o paciente acima do teto com esta frase (exigirVagaNoPlano). */
@@ -71,6 +72,20 @@ export function TrocarDePlanoDialog({
         </DialogHeader>
 
         <div className="space-y-4 text-sm">
+          {/* A Luma "cresce" junto com o plano: a de hoje → a do próximo. */}
+          {proximo && (
+            <div className="flex items-center justify-center gap-3 text-primary">
+              <figure className="text-center">
+                <LumaDoPlano plano={atual.id} className="h-16 w-24" />
+                <figcaption className="text-xs text-muted-foreground">{atual.nome}</figcaption>
+              </figure>
+              <ArrowRight className="size-5 text-muted-foreground" aria-hidden />
+              <figure className="text-center">
+                <LumaDoPlano plano={proximo.id} className="h-20 w-28" />
+                <figcaption className="text-xs font-medium text-foreground">{proximo.nome}</figcaption>
+              </figure>
+            </div>
+          )}
           <div className="rounded-xl bg-secondary/50 p-4">
             <p className="mb-2 font-medium text-foreground">Por que trocar?</p>
             <p className="text-muted-foreground">
