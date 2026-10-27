@@ -1,8 +1,17 @@
 import { useRef, useState, type ReactNode } from "react";
 import { Streamdown } from "streamdown";
 import { PLUGINS_REHYPE_SEGUROS } from "@/lib/markdownSeguro";
-import { ClipboardList, Eye, Heading2, List, ListChecks, ListOrdered, Quote, Redo2, Undo2 } from "lucide-react";
+import { ChevronDown, ClipboardList, Eye, Heading2, List, ListChecks, ListOrdered, Quote, Redo2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import {
   alternarLista,
@@ -16,7 +25,12 @@ import {
 } from "@shared/notasMarkdown";
 import { cn } from "@/lib/utils";
 
-export type ModeloDeAnotacao = { nome: string; corpo: string };
+/**
+ * `grupo` só nos modelos do sistema: "Rápidos" (e os do psicólogo, sem grupo)
+ * viram botões; os demais vão para o menu "Mais modelos", separados por grupo —
+ * com uma dúzia de modelos, botões lado a lado entulhavam o topo do campo.
+ */
+export type ModeloDeAnotacao = { nome: string; corpo: string; grupo?: string };
 
 /**
  * A barra, na ordem em que aparece.
@@ -76,6 +90,14 @@ export default function EditorDeAnotacao({
 }) {
   const campoRef = useRef<HTMLTextAreaElement>(null);
   const [verFormatado, setVerFormatado] = useState(false);
+
+  // Botões: os "Rápidos" do sistema e os criados pelo psicólogo. Menu: o resto, por grupo.
+  const rapidos = modelos.filter((m) => !m.grupo || m.grupo === "Rápidos");
+  const grupos = Array.from(
+    modelos
+      .filter((m) => m.grupo && m.grupo !== "Rápidos")
+      .reduce((mapa, m) => mapa.set(m.grupo!, [...(mapa.get(m.grupo!) ?? []), m]), new Map<string, ModeloDeAnotacao[]>()),
+  );
 
   /**
    * Última posição do cursor DENTRO do campo.
@@ -154,7 +176,7 @@ export default function EditorDeAnotacao({
             Começar por um modelo
           </p>
           <div className="flex flex-wrap items-center gap-1.5">
-            {modelos.map((m, i) => (
+            {rapidos.map((m, i) => (
               <Button
                 key={m.nome}
                 type="button"
@@ -168,6 +190,36 @@ export default function EditorDeAnotacao({
                 {m.nome}
               </Button>
             ))}
+            {grupos.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="outline" size="sm" className="h-8 rounded-full px-3 text-xs">
+                    Mais modelos
+                    <ChevronDown className="ml-1 size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="max-h-[60vh] w-64 overflow-y-auto">
+                  {grupos.map(([grupo, lista], gi) => (
+                    <DropdownMenuGroup key={grupo}>
+                      {gi > 0 && <DropdownMenuSeparator />}
+                      <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        {grupo}
+                      </DropdownMenuLabel>
+                      {lista.map((m) => (
+                        <DropdownMenuItem
+                          key={m.nome}
+                          // O menu tira o foco do campo; `editar` usa a última posição
+                          // do cursor (selecaoRef) ou o fim — nunca o começo.
+                          onSelect={() => editar((t) => inserirModelo(t, m.corpo))}
+                        >
+                          {m.nome}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuGroup>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
       )}

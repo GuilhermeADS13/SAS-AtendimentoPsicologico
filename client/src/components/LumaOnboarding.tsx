@@ -102,7 +102,7 @@ const therapistSteps: Step[] = [
     aba: "sessions",
     icon: MessageSquare,
     title: "Sessões",
-    body: "Registre cada atendimento em “Nova Sessão”, com o modelo SOAP. O que você escreve em “Anotações” durante a videochamada também chega aqui.",
+    body: "Registre cada atendimento em “Nova Sessão”: comece pelo SOAP ou abra “Mais modelos” (TCC, primeira sessão, criança, casal, risco, encerramento…). O que você escreve em “Anotações” durante a videochamada também chega aqui.",
     target: '[data-tour="aba-sessions"]',
   },
   {

@@ -119,13 +119,151 @@ export const tcleSchema = z.partialRecord(z.enum(chavesTcle), z.string().max(800
 
 /**
  * Modelos de anotação. Os INTERNOS vêm com o sistema; o psicólogo também cria os
- * dele (nome + corpo em markdown) nas Configurações. Aparecem como botões de
- * inserir nas anotações da videochamada e no registro de sessão do prontuário.
+ * dele (nome + corpo em markdown) nas Configurações. Aparecem nas anotações da
+ * videochamada e no registro de sessão do prontuário: os de `grupo` "Rápidos"
+ * (e os do psicólogo) como botões, os demais no menu "Mais modelos".
+ *
+ * Base (2026-10-27): formatos de evolução usados na prática clínica (SOAP, DAP,
+ * BIRP, GIRP), registros por abordagem e por situação. Os textos são próprios;
+ * a espinha segue a Resolução CFP nº 001/2009, art. 2º — demanda e objetivos,
+ * evolução com os procedimentos adotados, encaminhamento ou encerramento — e,
+ * no atendimento em grupo não eventual (casal, família), a documentação
+ * individual de cada participante (art. 5º, III).
  */
-export const MODELOS_INTERNOS = [
-  { nome: "SOAP", corpo: "**S — Subjetivo**\n\n\n**O — Objetivo**\n\n\n**A — Avaliação**\n\n\n**P — Plano**\n" },
-  { nome: "Evolução breve", corpo: "**Evolução**\n\n\n**Conduta / próximos passos**\n" },
-] as const;
+export type GrupoDeModelo = "Rápidos" | "Formatos de evolução" | "Por abordagem" | "Situações";
+
+export const MODELOS_INTERNOS: readonly { nome: string; grupo: GrupoDeModelo; corpo: string }[] = [
+  {
+    nome: "SOAP",
+    grupo: "Rápidos",
+    corpo: "**S — Subjetivo**\n\n\n**O — Objetivo**\n\n\n**A — Avaliação**\n\n\n**P — Plano**\n",
+  },
+  { nome: "Evolução breve", grupo: "Rápidos", corpo: "**Evolução**\n\n\n**Conduta / próximos passos**\n" },
+
+  // Formatos de evolução
+  {
+    nome: "DAP",
+    grupo: "Formatos de evolução",
+    corpo:
+      "**D — Dados** _(o que o paciente trouxe e o que você observou)_\n\n\n" +
+      "**A — Avaliação** _(leitura clínica: progresso, padrões, hipóteses)_\n\n\n" +
+      "**P — Plano** _(próximos passos, tarefas, data do próximo encontro)_\n",
+  },
+  {
+    nome: "BIRP",
+    grupo: "Formatos de evolução",
+    corpo:
+      "**B — Comportamento / apresentação** _(humor, afeto, discurso, como chegou)_\n\n\n" +
+      "**I — Intervenção** _(técnicas e abordagens usadas na sessão)_\n\n\n" +
+      "**R — Resposta** _(como o paciente reagiu às intervenções)_\n\n\n" +
+      "**P — Plano** _(próximos passos)_\n",
+  },
+  {
+    nome: "GIRP",
+    grupo: "Formatos de evolução",
+    corpo:
+      "**G — Objetivo trabalhado** _(qual objetivo terapêutico foi o foco)_\n\n\n" +
+      "**I — Intervenção**\n\n\n" +
+      "**R — Resposta / progresso em relação ao objetivo**\n\n\n" +
+      "**P — Plano**\n",
+  },
+
+  // Por abordagem
+  {
+    nome: "TCC",
+    grupo: "Por abordagem",
+    corpo:
+      "**Humor / check-in** _(como chegou; escalas, se usar)_\n\n\n" +
+      "**Ponte com a sessão anterior**\n\n\n" +
+      "**Revisão da tarefa de casa**\n\n\n" +
+      "**Agenda da sessão**\n- \n\n" +
+      "**Trabalho da sessão** _(situações, pensamentos automáticos, emoções, comportamentos, técnicas usadas)_\n\n\n" +
+      "**Resumo e feedback do paciente**\n\n\n" +
+      "**Tarefa de casa**\n- [ ] \n",
+  },
+  {
+    nome: "Psicanalítica",
+    grupo: "Por abordagem",
+    corpo:
+      "**Conteúdos trazidos** _(temas, associações, repetições)_\n\n\n" +
+      "**Sonhos, atos falhos, lapsos**\n\n\n" +
+      "**Transferência e contratransferência**\n\n\n" +
+      "**Intervenções / interpretações**\n\n\n" +
+      "**Hipóteses e pontos a acompanhar**\n",
+  },
+
+  // Situações
+  {
+    nome: "Primeira sessão",
+    grupo: "Situações",
+    corpo:
+      "**Motivo da procura / queixa principal**\n\n\n" +
+      "**Avaliação da demanda** _(o que está por trás do pedido)_\n\n\n" +
+      "**Objetivos combinados para o trabalho**\n- \n\n" +
+      "**Combinados** _(frequência, duração, valor, sigilo e seus limites, faltas)_\n\n\n" +
+      "**Risco** _(ideação, autolesão, violência — presente / ausente)_\n\n\n" +
+      "**Encaminhamentos necessários**\n",
+  },
+  {
+    nome: "Atendimento infantil",
+    grupo: "Situações",
+    corpo:
+      "**Quem trouxe / quem participou**\n\n\n" +
+      "**Brincadeiras e atividades** _(o que escolheu, como brincou)_\n\n\n" +
+      "**Temas e afetos que apareceram**\n\n\n" +
+      "**Interação com a terapeuta**\n\n\n" +
+      "**Orientação aos responsáveis / próximos passos**\n",
+  },
+  {
+    nome: "Casal / família",
+    grupo: "Situações",
+    corpo:
+      "**Presentes na sessão**\n- \n\n" +
+      "**Demanda trabalhada**\n\n\n" +
+      "**Dinâmica observada** _(padrões de comunicação, alianças, conflitos)_\n\n\n" +
+      "**Intervenções**\n\n\n" +
+      "**Combinados até o próximo encontro**\n\n\n" +
+      "_Em atendimento de casal ou família, registre também no prontuário individual de cada um o que for de cada um (CFP 001/2009, art. 5º, III)._\n",
+  },
+  {
+    nome: "Avaliação de risco",
+    grupo: "Situações",
+    corpo:
+      "**Sinais de risco** _(ideação, plano, meios, tentativas anteriores, autolesão)_\n\n\n" +
+      "**Fatores de proteção** _(rede de apoio, motivos para viver, tratamento)_\n\n\n" +
+      "**Nível de risco avaliado** _(baixo / moderado / alto)_\n\n\n" +
+      "**Conduta** _(plano de segurança, contato com a rede de apoio, CVV 188, SAMU 192, encaminhamento)_\n\n\n" +
+      "**Retorno combinado**\n",
+  },
+  {
+    nome: "Sessão com responsáveis",
+    grupo: "Situações",
+    corpo:
+      "**Presentes**\n\n\n" +
+      "**O que os responsáveis trouxeram**\n\n\n" +
+      "**Devolutiva / orientações dadas** _(sem expor o que é sigiloso da criança ou do adolescente)_\n\n\n" +
+      "**Combinados**\n",
+  },
+  {
+    nome: "Encaminhamento",
+    grupo: "Situações",
+    corpo:
+      "**Encaminhado para** _(profissional ou serviço)_\n\n\n" +
+      "**Motivo do encaminhamento**\n\n\n" +
+      "**Informações compartilhadas** _(só o necessário, com o consentimento do paciente)_\n\n\n" +
+      "**Acompanhamento** _(o atendimento continua? retorno?)_\n",
+  },
+  {
+    nome: "Encerramento / alta",
+    grupo: "Situações",
+    corpo:
+      "**Motivo do encerramento** _(alta, interrupção, mudança, encaminhamento)_\n\n\n" +
+      "**Evolução em relação aos objetivos combinados**\n\n\n" +
+      "**Condição na saída**\n\n\n" +
+      "**Orientações e encaminhamentos**\n\n\n" +
+      "_O prontuário deve ser guardado por no mínimo 5 anos (CFP 001/2009, art. 4º)._\n",
+  },
+];
 
 export type NoteTemplate = { id: string; nome: string; corpo: string; padrao?: boolean };
 
