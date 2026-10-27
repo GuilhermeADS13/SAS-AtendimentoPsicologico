@@ -3,7 +3,24 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { LumaOwlIcon } from "./Logo";
-import { Calendar, CircleHelp, ClipboardList, FileText, Filter, FolderOpen, MessageSquare, Settings, Stethoscope, TrendingUp, Users, Wallet, X, type LucideIcon } from "lucide-react";
+import {
+  Calendar,
+  CircleHelp,
+  ClipboardList,
+  CreditCard,
+  FileText,
+  Filter,
+  FolderOpen,
+  MessageSquare,
+  QrCode,
+  Settings,
+  Stethoscope,
+  TrendingUp,
+  Users,
+  Wallet,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 
 /**
  * Tour de boas-vindas da Luma na PRIMEIRA entrada (paciente ou psicóloga).
@@ -60,7 +77,7 @@ const therapistSteps: Step[] = [
     path: "/records",
     icon: Users,
     title: "Cadastrar pacientes",
-    body: "Comece por aqui: toque em “Novo Paciente” para cadastrar. Depois, o ícone de olho abre o prontuário, com histórico, sessões, a evolução em linha do tempo, documentos e TCLE.",
+    body: "Comece por aqui: toque em “Novo Paciente” para cadastrar. Depois, o ícone de olho abre o prontuário, com histórico, sessões, a evolução em linha do tempo, documentos e TCLE. Cada plano tem um limite de pacientes; se passar, eu te mostro como trocar de plano.",
     target: '[data-tour="novo-paciente"]',
   },
   {
@@ -162,8 +179,22 @@ const therapistSteps: Step[] = [
     path: "/financeiro",
     icon: Wallet,
     title: "Financeiro",
-    body: "Veja quanto já recebeu e quanto falta receber. As setas trocam a semana, o mês ou o ano. Embaixo aparece quem ainda não pagou: dá para lembrar pelo WhatsApp ou marcar como pago.",
+    body: "Veja quanto já recebeu e quanto falta receber. As setas trocam a semana, o mês ou o ano. Quando um paciente avisa que pagou pelo Pix, aparece em “Pagamentos para confirmar”: confira no banco e toque em “Confirmar recebimento”. Embaixo, quem ainda não pagou: dá para lembrar pelo WhatsApp.",
     target: '[data-tour="financeiro"]',
+  },
+  {
+    path: "/profile",
+    icon: QrCode,
+    title: "Receber pelo Pix",
+    body: "Cadastre aqui a sua chave Pix. Nas consultas que já aconteceram, o paciente vê o valor e copia um Pix já com o valor certo. O dinheiro cai direto na sua conta, sem taxa.",
+    target: '[data-tour="pix-receber"]',
+  },
+  {
+    path: "/assinatura",
+    icon: CreditCard,
+    title: "Sua assinatura",
+    body: "Seu plano, o valor e até quando está liberada. Sussurro vai até 10 pacientes e Voz até 30, com preço fixo; troque quando quiser. Para pagar, copie o Pix ou leia o QR, que já vem com o valor. Escolha também o dia do vencimento no calendário. Três dias antes, eu te aviso.",
+    target: '[data-tour="assinatura"]',
   },
   {
     path: "/luma",
@@ -200,7 +231,7 @@ const patientSteps: Step[] = [
     path: "/consultas",
     icon: Calendar,
     title: "Minhas Consultas",
-    body: "Suas consultas aparecem aqui. Toque em “Confirmar presença” para avisar que vai. Na hora marcada, toque em “Entrar na sala” para a videochamada. O sininho lá em cima avisa quando uma consulta é marcada, lembrada ou cancelada.",
+    body: "Suas consultas aparecem aqui. Toque em “Confirmar presença” para avisar que vai. Na hora marcada, toque em “Entrar na sala” para a videochamada. Depois da consulta aparece o valor: toque em “Copiar Pix”, pague no app do banco e toque em “Já paguei”. O sininho lá em cima avisa quando uma consulta é marcada, lembrada ou cancelada.",
     target: '[data-tour="minhas-consultas"]',
   },
   {

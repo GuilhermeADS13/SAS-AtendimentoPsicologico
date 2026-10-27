@@ -59,7 +59,7 @@ export function PixParaReceber() {
   };
 
   return (
-    <section id="pix" className="space-y-4 rounded-2xl border bg-card p-5 sm:p-6">
+    <section id="pix" data-tour="pix-receber" className="space-y-4 rounded-2xl border bg-card p-5 sm:p-6">
       <div className="flex items-start gap-3">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
           <QrCode className="size-5" aria-hidden />

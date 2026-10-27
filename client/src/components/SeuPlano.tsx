@@ -94,7 +94,7 @@ function CartaoDoPlano({ data }: { data: Resumo }) {
   return (
     // Vencido continua no verde da marca: a faixa vermelha do topo já grita; aqui o
     // destaque é só o selo "Venceu em…".
-    <section className="relative overflow-hidden rounded-2xl bg-primary p-6 text-primary-foreground shadow-sm sm:p-8">
+    <section data-tour="assinatura" className="relative overflow-hidden rounded-2xl bg-primary p-6 text-primary-foreground shadow-sm sm:p-8">
       <OndaSonora />
       <div className="relative grid gap-6 sm:grid-cols-[auto_1fr_auto] sm:items-center">
         {/* A Luma muda de forma com o plano (LumaDoPlano), com profundidade 3D. */}
