@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { TrocarDePlanoDialog, ehErroDeLimiteDoPlano } from "@/components/TrocarDePlanoDialog";
 import {
   CalendarClock,
   CalendarPlus,
@@ -138,9 +139,13 @@ export default function Records() {
     },
     onError: (e, vars) => {
       if (/já existe um paciente/i.test(e.message)) setEmailEmUso(vars.email.trim().toLowerCase());
+      // Passou do teto do plano: abre a janela que explica e troca de plano,
+      // e o cadastro segue sozinho depois da troca.
+      else if (ehErroDeLimiteDoPlano(e.message)) setCadastroBarrado(vars);
       else toast.error(e.message || "Erro ao cadastrar paciente");
     },
   });
+  const [cadastroBarrado, setCadastroBarrado] = useState<Parameters<typeof createPatient.mutate>[0] | null>(null);
 
   // Paciente a excluir (o AlertDialog abre com ele).
   const [toDelete, setToDelete] = useState<{ id: number; nome: string } | null>(null);
@@ -710,6 +715,12 @@ export default function Records() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <TrocarDePlanoDialog
+        aberto={!!cadastroBarrado}
+        aoFechar={() => setCadastroBarrado(null)}
+        aoTrocar={() => cadastroBarrado && createPatient.mutate(cadastroBarrado)}
+      />
     </DashboardLayout>
   );
 }

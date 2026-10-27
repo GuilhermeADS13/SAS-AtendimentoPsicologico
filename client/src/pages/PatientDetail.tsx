@@ -27,6 +27,7 @@ import {
   type TcleData,
 } from "@shared/prontuario";
 import { toast } from "sonner";
+import { TrocarDePlanoDialog, ehErroDeLimiteDoPlano } from "@/components/TrocarDePlanoDialog";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -208,8 +209,13 @@ export default function PatientDetail() {
           : "Paciente reativado.",
       );
     },
-    onError: (e) => toast.error(e.message || "Erro ao mudar o status"),
+    onError: (e) => {
+      // Reativar acima do teto do plano: abre a janela de troca de plano.
+      if (ehErroDeLimiteDoPlano(e.message)) setReativacaoBarrada(true);
+      else toast.error(e.message || "Erro ao mudar o status");
+    },
   });
+  const [reativacaoBarrada, setReativacaoBarrada] = useState(false);
 
   // Anamnese e TCLE têm formulários próprios (abas), salvos sem fechar o diálogo
   // de edição. Reusam patients.update, que aceita salvar só esses campos.
@@ -1272,6 +1278,13 @@ export default function PatientDetail() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <TrocarDePlanoDialog
+        acao="reativar"
+        aberto={reativacaoBarrada}
+        aoFechar={() => setReativacaoBarrada(false)}
+        aoTrocar={() => mudarStatus.mutate({ id: patientId, status: "active" })}
+      />
     </DashboardLayout>
   );
 }
