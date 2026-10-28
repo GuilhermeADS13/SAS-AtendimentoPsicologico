@@ -1944,7 +1944,8 @@ export const appRouter = router({
      * mesmos campos. O valor de cada consulta entra depois, como na chave digitada.
      */
     definirPixPorCopiaECola: therapistProcedure
-      .input(z.object({ codigo: z.string().trim().min(20).max(512) }))
+      // Sem min(): curto demais cai no lerPixCopiaECola, que explica o que colar.
+      .input(z.object({ codigo: z.string().trim().max(2000) }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new Error("Database not available");

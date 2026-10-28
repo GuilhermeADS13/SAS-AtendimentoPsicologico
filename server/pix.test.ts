@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crc16Pix, lerPixCopiaECola, montarPixEstatico, normalizarChavePix, pixComValor } from "../shared/pix";
+import { crc16Pix, lerPixCopiaECola, montarPixEstatico, normalizarChavePix, palpiteDoTipoDeChave, pixComValor } from "../shared/pix";
 
 // Código FICTÍCIO no mesmo formato do da conta (estático, chave aleatória, sem
 // valor) — o real fica só em client/src/lib/suporte.ts.
@@ -96,6 +96,20 @@ describe("Pix copia e cola colado pela psicóloga", () => {
   it("recusa código cortado (CRC não confere) e texto qualquer", () => {
     expect(() => lerPixCopiaECola(ESTATICO.slice(0, -1) + "0")).toThrow(/incompleto/);
     expect(() => lerPixCopiaECola("minha chave é ana@exemplo.com")).toThrow(/não parece/);
+  });
+
+  it.each([
+    ["(81) 99999-0000", "celular"],
+    ["+55 81 99999-0000", "celular"],
+    ["81999990000", "celular"],
+    ["123.456.789-09", "cpf_cnpj"],
+    ["12345678909", "cpf_cnpj"],
+    ["12.345.678/0001-95", "cpf_cnpj"],
+    ["ana@exemplo.com", "email"],
+    ["123E4567-E89B-12D3-A456-426614174000", "aleatoria"],
+    ["oi", null],
+  ] as const)("chave colada no lugar do copia e cola: %s → %s", (valor, tipo) => {
+    expect(palpiteDoTipoDeChave(valor)).toBe(tipo);
   });
 
   it("o código remontado a partir da leitura aceita o valor da consulta", () => {

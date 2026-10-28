@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { TIPOS_DE_CHAVE_PIX, type TipoChavePix } from "@shared/pix";
+import { TIPOS_DE_CHAVE_PIX, palpiteDoTipoDeChave, type TipoChavePix } from "@shared/pix";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -104,8 +104,22 @@ export function PixParaReceber() {
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
-            if (modo === "colar") definirPorCodigo.mutate({ codigo: copiaECola });
-            else definir.mutate({ tipo, chave, cidade });
+            if (modo === "digitar") {
+              definir.mutate({ tipo, chave, cidade });
+              return;
+            }
+            // Colou a CHAVE (celular, e-mail...) em vez do código: em vez de recusar,
+            // leva para "Digitar a chave" já preenchido — falta só a cidade.
+            const palpite = copiaECola.trim().startsWith("000201") ? null : palpiteDoTipoDeChave(copiaECola);
+            if (palpite) {
+              setModo("digitar");
+              setTipo(palpite);
+              setChave(copiaECola.trim());
+              setCopiaECola("");
+              toast.info("Isso é uma chave Pix, não o código copia e cola. Passei para “Digitar a chave”: confira o tipo e informe a sua cidade.");
+              return;
+            }
+            definirPorCodigo.mutate({ codigo: copiaECola });
           }}
         >
           <div className="inline-flex rounded-lg border bg-card p-1" role="group" aria-label="Como cadastrar">
@@ -142,8 +156,9 @@ export function PixParaReceber() {
                 required
               />
               <p className="text-xs text-muted-foreground">
-                No app do seu banco, vá em Pix → Receber (ou Cobrar) e copie o código do QR. Se o banco pedir
-                um valor, pode deixar em branco: o sistema usa a sua chave e põe o valor de cada consulta.
+                É o código longo que começa com 000201. No app do seu banco, vá em Pix → Receber (ou Cobrar) e
+                copie o código do QR. Se o banco pedir um valor, pode deixar em branco: o sistema põe o valor de
+                cada consulta. Quer usar só a chave (celular, e-mail, CPF)? Toque em “Digitar a chave”.
               </p>
             </div>
           ) : (

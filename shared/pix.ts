@@ -69,6 +69,24 @@ export function normalizarChavePix(tipo: TipoChavePix, valor: string): string | 
   }
 }
 
+/**
+ * Palpite do tipo de uma chave que a pessoa colou ou digitou (ex.: colou o
+ * celular no campo do "copia e cola"). Só um palpite: os botões de tipo ficam à
+ * vista para ela corrigir. 11 dígitos podem ser CPF ou celular — com pontos é
+ * CPF; com parênteses, "+" ou no formato DDD + 9 é celular.
+ */
+export function palpiteDoTipoDeChave(valor: string): TipoChavePix | null {
+  const v = valor.trim();
+  if (!v) return null;
+  if (v.includes("@")) return "email";
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)) return "aleatoria";
+  const digitos = v.replace(/\D/g, "");
+  if (digitos.length === 14) return "cpf_cnpj";
+  if (/[()+]/.test(v) || digitos.length === 13) return "celular";
+  if (digitos.length === 11) return !v.includes(".") && /^[1-9][1-9]9/.test(digitos) ? "celular" : "cpf_cnpj";
+  return null;
+}
+
 /** Nome/cidade no BR Code: sem acento (os apps de banco erram com acento) e no tamanho máximo. */
 function textoPix(texto: string, max: number): string {
   return texto

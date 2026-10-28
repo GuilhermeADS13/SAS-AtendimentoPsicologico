@@ -21,11 +21,34 @@ export function ehErroDeBanco(erro: unknown): boolean {
   return false;
 }
 
+/**
+ * Erro de validação do zod em português. Sem isto a tela mostrava o JSON cru dos
+ * issues ("[{ \"code\": \"too_small\", ... }]") num toast. Mensagem que escrevemos
+ * no schema (.refine(fn, "Informe um celular...")) passa como está; a padrão do
+ * zod, em inglês, vira uma frase pelo tipo do problema.
+ */
+export function mensagemDeValidacao(erro: unknown): string | null {
+  const issues = (erro as { name?: unknown; issues?: unknown } | null)?.name === "ZodError"
+    ? (erro as { issues: Array<{ code?: string; message?: string }> }).issues
+    : null;
+  const primeiro = issues?.[0];
+  if (!primeiro) return null;
+  const msg = primeiro.message ?? "";
+  if (msg && !/^(Too (small|big)|Invalid|Unrecognized|Expected|Required)/i.test(msg)) return msg;
+  if (primeiro.code === "too_small") return "Um dos campos está vazio ou curto demais. Confira e tente de novo.";
+  if (primeiro.code === "too_big") return "Um dos campos passou do tamanho máximo. Confira e tente de novo.";
+  return "Algum dado está num formato que o sistema não reconhece. Confira e tente de novo.";
+}
+
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
   errorFormatter({ shape, error }) {
     if (error.code === "INTERNAL_SERVER_ERROR" && ehErroDeBanco(error)) {
       return { ...shape, message: "Erro interno. Tente de novo em instantes." };
+    }
+    if (error.code === "BAD_REQUEST") {
+      const msg = mensagemDeValidacao(error.cause);
+      if (msg) return { ...shape, message: msg };
     }
     return shape;
   },
