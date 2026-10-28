@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { clinicalSystemPrompt } from "./ai/llm";
-import { escolherCandidatos, formatRagContext, type RagSource } from "./ai/rag";
 import { avaliarSumico, createClinicalTools } from "./ai/clinical-tools";
 
 const therapistContext = {
@@ -73,55 +72,8 @@ describe("RAG e ferramentas clínicas", () => {
     expect(prompt).toContain("patientId 42");
   });
 
-  it("formata a fonte com o cabeçalho legível e sem despejar campos internos", () => {
-    const context = formatRagContext([
-      {
-        sourceType: "session",
-        sourceId: 9,
-        patientId: 42,
-        text: "Registro autorizado",
-        score: 0.91,
-        requiresReview: false,
-      },
-    ]);
-    expect(context).toBe("[Fonte 1 | session 9 | paciente 42]\nRegistro autorizado");
-    // Só o cabeçalho legível + o texto devem sair. Se alguém trocar o formatador
-    // por um JSON.stringify da fonte, campos internos vazariam para o modelo —
-    // esta trava pega isso (`requiresReview`/`sourceType` não são texto do prompt).
-    expect(context).not.toContain("requiresReview");
-    expect(context).not.toContain("sourceType");
-  });
-
-  it("numera e separa múltiplas fontes", () => {
-    const fontes: RagSource[] = [
-      { sourceType: "session", sourceId: 9, patientId: 42, text: "Primeira", requiresReview: false },
-      { sourceType: "document", sourceId: 5, patientId: 42, text: "Segunda", requiresReview: false },
-    ];
-    const context = formatRagContext(fontes);
-    expect(context).toContain("[Fonte 1 | session 9 | paciente 42]");
-    expect(context).toContain("[Fonte 2 | document 5 | paciente 42]");
-    // Fontes separadas por linha em branco, na ordem recebida.
-    expect(context.indexOf("Fonte 1")).toBeLessThan(context.indexOf("Fonte 2"));
-    expect(context).toContain("Primeira\n\n[Fonte 2");
-  });
-
-  it("não produz contexto quando o retriever não encontra fontes", () => {
-    expect(formatRagContext([])).toBe("");
-  });
 });
 
-/**
- * Antes, a busca trazia os registros com `.limit(100)` por DATA. Dois problemas: o
- * que estivesse além dos 100 mais recentes era INVISÍVEL para a Luma (com terapia
- * semanal, cerca de 2 anos de histórico, enquanto o prontuário tem guarda de 5
- * anos), e ainda assim os 100 inteiros iam para o índice — sem cache de embedding,
- * cada um custa uma chamada ao provedor por pergunta.
- */
-/**
- * Prontuário: o gargalo não é campo faltando (a Resolução CFP 001/2009 já está
- * coberta pelo schema), é a fricção de digitar. A Luma ajuda a RASCUNHAR no formato
- * da própria profissional — mas nunca salva, e nunca completa o que ela não disse.
- */
 /**
  * Custo do prompt: cada pergunta reenvia o prompt INTEIRO, e o plano free da Groq da
  * 8000 tokens/minuto. Com o prompt cheio (~2900 tokens) a segunda pergunta do minuto
@@ -265,42 +217,6 @@ describe("apoio ao prontuário: só a estrutura", () => {
     expect(p).toContain("Voz");
     expect(p).toContain("Coro");
     expect(p).toContain("Assinatura");
-  });
-});
-
-describe("escolha de candidatos para o índice (alcance x custo)", () => {
-  // 300 sessões, da mais nova para a mais antiga, como vem do banco.
-  const sessoes = Array.from({ length: 300 }, (_, i) => ({
-    id: i,
-    texto: i === 250 ? "Paciente relata crises de pânico no trabalho" : `Sessão comum número ${i}`,
-  }));
-  const textoDe = (s: { texto: string }) => s.texto;
-  const limites = { recentes: 40, porTexto: 30 };
-
-  it("acha um registro ANTIGO que casa com a pergunta (o ponto cego do limit por data)", () => {
-    const escolhidos = escolherCandidatos(sessoes, textoDe, "quando começaram as crises de pânico?", limites);
-    // A sessão 250 está muito além dos 100 mais recentes: antes, invisível.
-    expect(escolhidos.map(s => s.id)).toContain(250);
-  });
-
-  it("mantém os mais recentes sempre, mesmo quando não casam com a pergunta", () => {
-    const escolhidos = escolherCandidatos(sessoes, textoDe, "crises de pânico", limites);
-    for (const esperado of [0, 1, 39]) expect(escolhidos.map(s => s.id)).toContain(esperado);
-  });
-
-  it("respeita o teto por pista (custo de embedding por pergunta)", () => {
-    const escolhidos = escolherCandidatos(sessoes, textoDe, "sessão comum", limites);
-    expect(escolhidos.length).toBeLessThanOrEqual(limites.recentes + limites.porTexto);
-  });
-
-  it("devolve tudo quando o histórico é menor que os tetos (caso comum)", () => {
-    const poucas = sessoes.slice(0, 12);
-    expect(escolherCandidatos(poucas, textoDe, "qualquer coisa", limites)).toHaveLength(12);
-  });
-
-  it("sem palavra útil na pergunta, cai só nos recentes (não devolve histórico inteiro)", () => {
-    const escolhidos = escolherCandidatos(sessoes, textoDe, "e?", limites);
-    expect(escolhidos).toHaveLength(limites.recentes);
   });
 });
 

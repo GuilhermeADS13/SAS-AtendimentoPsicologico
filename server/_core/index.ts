@@ -7,7 +7,6 @@ import { createPresenceWss, PRESENCE_PATH } from "../presence";
 import { createSignalingWss, SIGNALING_PATH } from "../signaling";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { getDocumentQueueMetrics, queueMetricsToPrometheus } from "../ai/queue-metrics";
 import { agentRuntimeMetricsToPrometheus } from "../ai/runtime-metrics";
 import { serveStatic, setupVite } from "./vite";
 import { cabecalhosDeSeguranca, ehChamadaDaLuma, limitarConexoes, limitarRequisicoes } from "./seguranca";
@@ -120,10 +119,7 @@ async function startServer() {
       return;
     }
     try {
-      const queueMetrics = await getDocumentQueueMetrics();
-      res.type("text/plain; version=0.0.4").send(
-        `${queueMetricsToPrometheus(queueMetrics)}${agentRuntimeMetricsToPrometheus()}`,
-      );
+      res.type("text/plain; version=0.0.4").send(agentRuntimeMetricsToPrometheus());
     } catch (error) {
       console.error("[Metrics] falha ao coletar métricas", error instanceof Error ? error.message : "unknown_error");
       res.status(503).type("text/plain").send("metrics_unavailable 1\n");
@@ -195,11 +191,6 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
-    // O modelo de embedding vem de variável de ambiente, e o Render só aplica o
-    // render.yaml em serviço gerenciado por Blueprint. Este log é o jeito de saber
-    // qual modelo a produção está REALMENTE usando — trocar sem reindexar os
-    // documentos já gravados deixa a busca quebrada sem erro nenhum.
-    console.log(`[rag] modelo de embedding: ${process.env.LLM_EMBEDDING_MODEL?.trim() || "(não configurado)"}`);
   });
 
   // Agendador de lembretes/notificações (opt-in). Enfileira e envia os e-mails
@@ -217,41 +208,6 @@ async function startServer() {
     void runCycle();
   }
 
-  // Worker de indexação de documentos (opt-in via AI_WORKER_INLINE=true).
-  // `pnpm ai:worker` roda esse mesmo loop como processo separado, que é o
-  // arranjo preferível — mas o plano free do Render não tem o tipo "background
-  // worker", e sem ninguém consumindo a fila o `ai.indexContent` só empilha jobs
-  // que nunca viram embeddings. Aqui o loop roda dentro do processo web.
-  // Cuidado: a extração de PDF com OCR (tesseract) é pesada; em plano pago,
-  // prefira o processo dedicado a ligar esta flag.
-  if (process.env.AI_WORKER_INLINE === "true") {
-    // Intervalo mais folgado que o do worker dedicado (3s): aqui cada tick é uma
-    // consulta ao Postgres compartilhado com o tráfego web.
-    const pollMs = Math.max(5_000, Number(process.env.AI_WORKER_POLL_INTERVAL_MS ?? 15_000));
-    const maxPorCiclo = Math.max(1, Number(process.env.AI_WORKER_BATCH_PER_CYCLE ?? 3));
-    let emExecucao = false;
-    const drenarFila = async () => {
-      // Não sobrepõe ciclos: um documento grande com OCR pode levar minutos e o
-      // setInterval continuaria disparando por baixo.
-      if (emExecucao) return;
-      emExecucao = true;
-      try {
-        const { processNextDocumentJob } = await import("../ai/document-queue");
-        for (let processados = 0; processados < maxPorCiclo; processados++) {
-          const job = await processNextDocumentJob();
-          if (!job) break;
-          console.log(`[ai-worker] documento ${job.documentId} indexado (job ${job.id})`);
-        }
-      } catch (error) {
-        // A própria fila controla retry/backoff/dead-letter; aqui só registramos.
-        console.error("[ai-worker] falha no ciclo:", error instanceof Error ? error.message : error);
-      } finally {
-        emExecucao = false;
-      }
-    };
-    setInterval(drenarFila, pollMs);
-    void drenarFila();
-  }
 }
 
 startServer().catch(console.error);

@@ -5,7 +5,6 @@ import { and, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
 import { appointments, patients, therapists, users } from "../../drizzle/schema";
 import { getDb } from "../db";
 import type { AiAccessContext } from "./access";
-import type { RagSource } from "./rag";
 import { consumePendingAction, issuePendingAction, type PendingActionParams } from "./action-confirmation";
 import { formatarBRL } from "../../shared/dinheiro";
 import { DESLOCAMENTO_BR } from "../../shared/datas";
@@ -460,7 +459,8 @@ export async function readPatientAppointments(
   };
 }
 
-export type AiSourceReference = Pick<RagSource, "sourceType" | "sourceId" | "patientId" | "requiresReview">;
+/** Fonte citada numa resposta. Hoje sempre vazio: a Luma não lê registros clínicos. */
+export type AiSourceReference = { sourceType: "patient" | "session" | "document"; sourceId: number; patientId: number; requiresReview: boolean };
 
 /**
  * Execução das ações de escrita na agenda.

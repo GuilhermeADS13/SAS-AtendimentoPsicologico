@@ -46,7 +46,6 @@ import { answerSiteHelp } from "./ai/site-help";
 import { executarAcaoAgenda, horarioEmConflito, resolveAiAccessContext } from "./ai/clinical-tools";
 import { confirmPendingActionByHuman } from "./ai/action-confirmation";
 import { recordAiAuditEvent } from "./ai/audit";
-import { getDocumentQueueMetrics, queueMetricsToPrometheus } from "./ai/queue-metrics";
 import {
   avisarPsicologaDoPagamentoInformado,
   notifyAdminOfTherapistRequest,
@@ -1582,12 +1581,6 @@ export const appRouter = router({
    * para qualquer um.
    */
   admin: router({
-    queueMetrics: adminProcedure.query(async () => {
-      const metrics = await getDocumentQueueMetrics();
-      return { ...metrics, prometheus: queueMetricsToPrometheus(metrics) };
-    }),
-
-    // Fila de solicitações de acesso profissional, pendentes primeiro.
     therapistRequests: adminProcedure.query(async () => {
       const db = await getDb();
       if (!db) return [];

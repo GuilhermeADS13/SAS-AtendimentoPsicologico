@@ -135,7 +135,6 @@ ADMIN_EMAIL=...
 ```bash
 pnpm db:push     # drizzle-kit generate && migrate
 pnpm dev         # http://localhost:3000
-pnpm ai:worker   # opcional: fila de indexação de documentos
 ```
 
 ---
