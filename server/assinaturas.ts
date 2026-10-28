@@ -161,6 +161,8 @@ export async function planoDaPsicologa(db: Db, therapistId: number) {
       escolhido: assinaturas.plano,
       lumaPorDia: assinaturas.lumaPorDia,
       anexoMb: assinaturas.anexoMb,
+      testeAte: assinaturas.testeAte,
+      pagoAte: assinaturas.pagoAte,
     })
     .from(therapists)
     .innerJoin(users, eq(users.id, therapists.userId))
@@ -170,7 +172,13 @@ export async function planoDaPsicologa(db: Db, therapistId: number) {
   const pacientes = await contarPacientesCobrados(db, therapistId);
   const escolhido = linha?.escolhido ?? "pro";
   const plano = planoEfetivo(escolhido, pacientes);
-  return { admin: linha?.role === "admin", escolhido, pacientes, plano, limites: limitesDoPlano(plano, linha) };
+  const admin = linha?.role === "admin";
+  // Ajuda da Luma na estrutura do prontuário: diferencial do Voz e do Coro
+  // (2026-10-28). No teste grátis vale "tudo liberado", como promete a página de
+  // preços; a admin não tem trava de plano.
+  const emTeste = situacaoDaAssinatura(linha ? { testeAte: linha.testeAte, pagoAte: linha.pagoAte } : null).motivo === "teste";
+  const lumaNoProntuario = admin || plano.lumaNoProntuario || emTeste;
+  return { admin, escolhido, pacientes, plano, limites: limitesDoPlano(plano, linha), lumaNoProntuario };
 }
 
 /** Limite de anexo (MB) das conversas desta psicóloga; null = sem limite do plano. */

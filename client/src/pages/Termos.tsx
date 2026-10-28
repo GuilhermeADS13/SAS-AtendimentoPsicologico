@@ -183,8 +183,8 @@ export default function Termos() {
               <li>
                 Depois disso, devolvemos a parte <strong>proporcional aos dias que você não
                 usou</strong>, contados do dia do pedido até o fim do período pago. Exemplo: no
-                plano anual de R$ 690, quem cancela no 100º dia recebe de volta os 265 dias
-                restantes, ou seja, R$ 690 × 265 ÷ 365 = <strong>R$ 500,96</strong>.
+                plano anual de R$ 390, quem cancela no 100º dia recebe de volta os 265 dias
+                restantes, ou seja, R$ 390 × 265 ÷ 365 = <strong>R$ 283,15</strong>.
               </li>
               <li>
                 A conta é feita sobre o valor que você realmente pagou (com o desconto de

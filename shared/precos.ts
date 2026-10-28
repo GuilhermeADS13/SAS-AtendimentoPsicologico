@@ -3,9 +3,12 @@
  * do preço por paciente). Cada plano tem um valor mensal e um limite de
  * pacientes; dentro do limite, o valor não muda.
  *
- * - Sussurro: R$ 69/mês, até 10 pacientes.
- * - Voz: R$ 129/mês, até 30 pacientes.
+ * - Sussurro: R$ 39/mês, até 10 pacientes.
+ * - Voz: R$ 89/mês, até 30 pacientes — e a Luma ajuda na estrutura do prontuário.
  * - Coro: combinado com o Guilherme (sob medida, ver valorDoPlano).
+ *
+ * Valores para a região do Guilherme desde 2026-10-28 (eram R$ 69 e R$ 129); a
+ * Psicóloga Fundadora continua com 20% a menos em cima deles.
  *
  * Referência de mercado: iClinic e PsicoManager cobram R$ 89 a 129.
  *
@@ -29,13 +32,18 @@ export type Plano = {
   precoCentavos: number | null;
   perguntasLumaPorDia: number | null;
   anexoMaxMb: number | null;
+  /**
+   * A Luma ajuda na ESTRUTURA do prontuário (modelos em branco, o que o CFP pede)
+   * — sem dados de paciente. É o diferencial do Voz (decisão de 2026-10-28).
+   */
+  lumaNoProntuario: boolean;
 };
 
 export const PLANOS: readonly Plano[] = [
   // Nomes no tema VozInterior (2026-10-26): a voz cresce com o consultório.
   // Os ids continuam pro/max/unlimited — só o nome aparece na tela.
-  { id: "pro", nome: "Sussurro", de: 1, ate: 10, precoCentavos: 6900, perguntasLumaPorDia: 5, anexoMaxMb: 5 },
-  { id: "max", nome: "Voz", de: 11, ate: MAX_PACIENTES_NA_TABELA, precoCentavos: 12900, perguntasLumaPorDia: 15, anexoMaxMb: 10 },
+  { id: "pro", nome: "Sussurro", de: 1, ate: 10, precoCentavos: 3900, perguntasLumaPorDia: 5, anexoMaxMb: 5, lumaNoProntuario: false },
+  { id: "max", nome: "Voz", de: 11, ate: MAX_PACIENTES_NA_TABELA, precoCentavos: 8900, perguntasLumaPorDia: 15, anexoMaxMb: 10, lumaNoProntuario: true },
   {
     id: "unlimited",
     nome: "Coro",
@@ -44,8 +52,12 @@ export const PLANOS: readonly Plano[] = [
     precoCentavos: null,
     perguntasLumaPorDia: null,
     anexoMaxMb: null,
+    lumaNoProntuario: true,
   },
 ];
+
+/** Como o diferencial do Voz aparece nas listas de plano (preços, assinatura, troca). */
+export const TEXTO_LUMA_NO_PRONTUARIO = "Luma ajuda no prontuário: modelos e regras do CFP, sem dados dos pacientes";
 
 /** O menor plano em que cabem `pacientes`. */
 export function planoPara(pacientes: number): Plano {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clinicalSystemPrompt } from "./ai/llm";
+import { buildSoEstruturaResponse, clinicalSystemPrompt, pareceAssuntoDeProntuario } from "./ai/llm";
 import { avaliarSumico, createClinicalTools } from "./ai/clinical-tools";
 
 const therapistContext = {
@@ -211,12 +211,35 @@ describe("apoio ao prontuário: só a estrutura", () => {
     expect(p).not.toContain("ENCERRAMENTO:");
   });
 
+  it("regras detalhadas de estrutura só entram em pergunta de prontuário (custo do prompt)", () => {
+    const comFoco = (prontuario: boolean) => clinicalSystemPrompt(therapistContext, undefined, true, undefined, { prontuario });
+    expect(comFoco(true)).toContain("COMO AJUDAR NA ESTRUTURA");
+    expect(comFoco(true)).toMatch(/NUNCA invente exemplo de paciente/);
+    expect(comFoco(false)).not.toContain("COMO AJUDAR NA ESTRUTURA");
+    expect(pareceAssuntoDeProntuario("monte um modelo de evolução em branco")).toBe(true);
+    expect(pareceAssuntoDeProntuario("qual é o meu próximo paciente?")).toBe(false);
+  });
+
+  it("no Sussurro (sem a ajuda no prontuário) explica que é do Voz e não monta modelo", () => {
+    const p = clinicalSystemPrompt(therapistContext, undefined, true, undefined, { prontuario: true }, false);
+    expect(p).not.toContain("PRONTUÁRIO: SÓ A ESTRUTURA");
+    expect(p).not.toContain("COMO AJUDAR NA ESTRUTURA");
+    expect(p).toMatch(/recurso do plano Voz \(R\$\s?89\/mês\)/);
+    expect(p).toContain("aba Assinatura");
+    // A trava de anotações vale em qualquer plano.
+    expect(p).toMatch(/Em nenhum plano você recebe ou organiza anotações/);
+    expect(buildSoEstruturaResponse(false, false)).toContain("faz parte do plano Voz");
+  });
+
   it("sabe da assinatura e do Pix (texto montado dos dados do sistema)", () => {
     const p = prompt("therapist");
     expect(p).toContain("Sussurro");
     expect(p).toContain("Voz");
     expect(p).toContain("Coro");
     expect(p).toContain("Assinatura");
+    // Preços regionais de 2026-10-28, vindos de shared/precos.
+    expect(p).toMatch(/Sussurro: R\$\s?39\/mês/);
+    expect(p).toMatch(/Voz: R\$\s?89\/mês/);
   });
 });
 

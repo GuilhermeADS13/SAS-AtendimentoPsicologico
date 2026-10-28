@@ -41,7 +41,7 @@ import { randomInt, createHash } from "node:crypto";
 import { eq, and, or, asc, desc, isNull, isNotNull, ne, inArray, getTableColumns, sql, ilike } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { TRPCError } from "@trpc/server";
-import { runOpenSourceAgent } from "./ai/llm";
+import { ANOTACOES_RETIRADAS, runOpenSourceAgent, trazAnotacoesClinicas } from "./ai/llm";
 import { answerSiteHelp } from "./ai/site-help";
 import { executarAcaoAgenda, horarioEmConflito, resolveAiAccessContext } from "./ai/clinical-tools";
 import { confirmPendingActionByHuman } from "./ai/action-confirmation";
@@ -520,8 +520,11 @@ export const appRouter = router({
         // Cota diária do plano (Sussurro 5, Voz 15 — shared/precos.ts). Fica DEPOIS do
         // replay acima: repetir uma pergunta já respondida não gasta cota. A Groq
         // grátis aguenta ~80 perguntas/dia somando todas as clientes.
+        // Ajuda na estrutura do prontuário: Voz, Coro, teste grátis e admin.
+        let prontuarioLiberado = true;
         if (ctx.user.role !== "admin" && accessContext.therapistId) {
-          const { plano, limites } = await planoDaPsicologa(db, accessContext.therapistId);
+          const { plano, limites, lumaNoProntuario } = await planoDaPsicologa(db, accessContext.therapistId);
+          prontuarioLiberado = lumaNoProntuario;
           const limite = limites.lumaPorDia;
           if ((await perguntasDaLumaHoje(db, ctx.user.id)) >= limite) {
             throw new TRPCError({
@@ -536,7 +539,7 @@ export const appRouter = router({
         // pendurada (era o que acumulava lixo a cada retry quando a IA demorava).
         // withTimeout limpa o próprio timer (ver helper).
         const response = await withTimeout(
-          runOpenSourceAgent(mensagensDoAgente, accessContext, db, undefined, input.patientId, input.conversationId),
+          runOpenSourceAgent(mensagensDoAgente, accessContext, db, undefined, input.patientId, input.conversationId, prontuarioLiberado),
           35_000,
           "AI response timeout",
         );
@@ -571,7 +574,9 @@ export const appRouter = router({
         await db.insert(aiMessages).values({
           conversationId,
           role: "user",
-          content: latestUserMessage.content,
+          // Anotações de sessão coladas não vão à IA e também não ficam guardadas
+          // no histórico da Luma: grava-se só o aviso no lugar delas.
+          content: trazAnotacoesClinicas(latestUserMessage.content) ? ANOTACOES_RETIRADAS : latestUserMessage.content,
           clientRequestId: requestId,
         }).onConflictDoNothing({ target: [aiMessages.conversationId, aiMessages.clientRequestId] });
         const [assistantMessage] = await db.insert(aiMessages).values({

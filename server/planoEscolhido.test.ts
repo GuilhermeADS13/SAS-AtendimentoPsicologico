@@ -6,11 +6,11 @@ import { limitesDoPlano } from "./assinaturas";
 // na hora e paga o PREÇO FIXO do plano (decisão de 2026-10-27).
 describe("plano escolhido", () => {
   it("dentro do limite, o valor não muda com o número de pacientes", () => {
-    expect(valorDoPlano(1, "pro")).toBe(6900);
-    expect(valorDoPlano(2, "pro")).toBe(6900);
-    expect(valorDoPlano(10, "pro")).toBe(6900);
-    expect(valorDoPlano(11, "max")).toBe(12900);
-    expect(valorDoPlano(30, "max")).toBe(12900);
+    expect(valorDoPlano(1, "pro")).toBe(3900);
+    expect(valorDoPlano(2, "pro")).toBe(3900);
+    expect(valorDoPlano(10, "pro")).toBe(3900);
+    expect(valorDoPlano(11, "max")).toBe(8900);
+    expect(valorDoPlano(30, "max")).toBe(8900);
   });
 
   it("Sussurro sem nenhum paciente: R$ 0 (a cobrança começa no 1º)", () => {
@@ -18,13 +18,13 @@ describe("plano escolhido", () => {
   });
 
   it("Voz escolhido cedo, pelos bônus: paga o Voz mesmo com poucos pacientes", () => {
-    expect(valorDoPlano(5, "max")).toBe(12900);
-    expect(valorDoPlano(0, "max")).toBe(12900);
+    expect(valorDoPlano(5, "max")).toBe(8900);
+    expect(valorDoPlano(0, "max")).toBe(8900);
   });
 
   it("Fundadora e anual valem por cima do preço fixo", () => {
-    expect(valorDoPlano(5, "max", { fundador: true })).toBe(10320);
-    expect(valorDoPlano(5, "max", { fundador: true, ciclo: "anual" })).toBe(103200);
+    expect(valorDoPlano(5, "max", { fundador: true })).toBe(7120);
+    expect(valorDoPlano(5, "max", { fundador: true, ciclo: "anual" })).toBe(71200);
   });
 
   it("Coro é combinado", () => {
@@ -39,8 +39,8 @@ describe("plano escolhido", () => {
   });
 
   it("valor combinado só vale no Coro (decisão de 2026-10-27)", () => {
-    expect(valorDoPlano(5, "pro", { combinado: 1 })).toBe(6900);
-    expect(valorDoPlano(5, "max", { combinado: 1 })).toBe(12900);
+    expect(valorDoPlano(5, "pro", { combinado: 1 })).toBe(3900);
+    expect(valorDoPlano(5, "max", { combinado: 1 })).toBe(8900);
   });
 
   it("Luma e anexo sob medida só no Coro; sem nada combinado, o do Voz", () => {
@@ -54,7 +54,7 @@ describe("plano escolhido", () => {
   it("nunca cobra abaixo do uso: pacientes acima do teto sobem o plano efetivo", () => {
     expect(planoEfetivo("pro", 15).id).toBe("max");
     expect(planoEfetivo("max", 3).id).toBe("max");
-    expect(valorDoPlano(15, "pro")).toBe(12900);
+    expect(valorDoPlano(15, "pro")).toBe(8900);
   });
 
   it("teto para cadastrar: o 11º paciente no Sussurro pede para subir de plano", () => {

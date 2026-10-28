@@ -40,7 +40,7 @@ import { LumaOwlIcon } from "@/components/Logo";
 const MENU_CLINICO = [
   { label: "Ver os próximos agendamentos", hint: "A agenda deste paciente", icon: <CalendarDays className="size-5" /> },
   { label: "Agendar uma consulta", hint: "Eu proponho, você confirma", icon: <CalendarPlus className="size-5" /> },
-  { label: "Montar um modelo de evolução em branco", hint: "Só a estrutura, no seu formato", icon: <FileText className="size-5" /> },
+  { label: "Montar um modelo de evolução em branco", hint: "Só a estrutura · plano Voz", icon: <FileText className="size-5" /> },
   { label: "O que falta preencher nos prontuários?", hint: "Pelo que o CFP exige", icon: <ListChecks className="size-5" /> },
 ];
 

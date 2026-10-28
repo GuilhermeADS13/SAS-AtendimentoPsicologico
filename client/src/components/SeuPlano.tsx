@@ -10,6 +10,7 @@ import {
   MAX_PACIENTES_NA_TABELA,
   MESES_PAGOS_NO_ANUAL,
   PLANOS,
+  TEXTO_LUMA_NO_PRONTUARIO,
   formatarReais,
   valorDoPlano,
   type Ciclo,
@@ -214,6 +215,7 @@ function EscolherPlano({ data }: { data: Resumo }) {
           const bonus = [
             ehCoro ? `Mais de ${MAX_PACIENTES_NA_TABELA} pacientes` : `Até ${p.ate} pacientes`,
             p.perguntasLumaPorDia ? `Luma: ${p.perguntasLumaPorDia} perguntas por dia` : "Luma sob medida",
+            ...(p.lumaNoProntuario ? [TEXTO_LUMA_NO_PRONTUARIO] : []),
             p.anexoMaxMb ? `Anexos de até ${p.anexoMaxMb} MB` : "Anexos sob medida",
             "Videochamada em grupo (até 4 pessoas)",
             "Prontuário, agenda, mensagens e financeiro",

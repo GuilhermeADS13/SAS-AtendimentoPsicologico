@@ -74,17 +74,17 @@ describe("Pix e valores", () => {
   });
 
   it("fundadora paga 20% a menos; anual = 10 meses", () => {
-    expect(valorDoPlano(10, "pro")).toBe(6900);
-    expect(valorDoPlano(10, "pro", { fundador: true })).toBe(5520);
-    expect(valorDoPlano(10, "pro", { ciclo: "anual" })).toBe(69000);
-    expect(valorDoPlano(10, "pro", { fundador: true, ciclo: "anual" })).toBe(55200);
+    expect(valorDoPlano(10, "pro")).toBe(3900);
+    expect(valorDoPlano(10, "pro", { fundador: true })).toBe(3120);
+    expect(valorDoPlano(10, "pro", { ciclo: "anual" })).toBe(39000);
+    expect(valorDoPlano(10, "pro", { fundador: true, ciclo: "anual" })).toBe(31200);
     expect(valorDoPlano(31, "pro")).toBeNull();
   });
 
   it("Sussurro sem paciente não tem o que cobrar (a cobrança começa no 1º)", () => {
     expect(valorDoPlano(0, "pro")).toBe(0);
     expect(valorDoPlano(0, "pro", { fundador: true, ciclo: "anual" })).toBe(0);
-    expect(valorDoPlano(1, "pro")).toBe(6900);
+    expect(valorDoPlano(1, "pro")).toBe(3900);
   });
 });
 

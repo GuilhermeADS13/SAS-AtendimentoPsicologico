@@ -18,6 +18,7 @@ import {
   MAX_PACIENTES_NA_TABELA,
   MESES_PAGOS_NO_ANUAL,
   PLANOS,
+  TEXTO_LUMA_NO_PRONTUARIO,
   VAGAS_DE_FUNDADOR,
   type Ciclo,
   type Plano,
@@ -51,7 +52,7 @@ const DUVIDAS = [
   {
     pergunta: "E se eu passar de 10 pacientes?",
     resposta:
-      "Ao cadastrar o 11º, o sistema sugere mudar para o Voz e faz a troca com um clique. Também dá para escolher o Voz antes, pelos bônus (Luma 15 perguntas por dia, anexos de 10 MB).",
+      "Ao cadastrar o 11º, o sistema sugere mudar para o Voz e faz a troca com um clique. Também dá para escolher o Voz antes, pelos bônus: a Luma ajuda na estrutura do prontuário (modelos em branco e o que o CFP pede, sem dados dos pacientes), faz 15 perguntas por dia e os anexos vão até 10 MB.",
   },
   {
     pergunta: "O que conta como paciente?",
@@ -93,6 +94,7 @@ function itensDoPlano(plano: Plano): string[] {
   return [
     pacientesDoPlano(plano),
     `Luma: ${plano.perguntasLumaPorDia} perguntas por dia`,
+    ...(plano.lumaNoProntuario ? [TEXTO_LUMA_NO_PRONTUARIO] : []),
     `Anexos de até ${plano.anexoMaxMb} MB`,
     ...INCLUSO_EM_TODOS,
   ];

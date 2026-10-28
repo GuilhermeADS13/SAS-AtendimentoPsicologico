@@ -211,7 +211,31 @@ export type FocoDoPrompt = {
   acaoDeAgenda?: boolean;
   /** Gestao da pratica (sumidos, pendencias): manda a regra de encerramento. */
   gestao?: boolean;
+  /** Pergunta sobre prontuario/registro: manda as regras detalhadas de estrutura. */
+  prontuario?: boolean;
 };
+
+/** A mensagem é sobre prontuário, registro ou modelo de anotação? */
+export function pareceAssuntoDeProntuario(mensagem: string): boolean {
+  return /prontu[áa]rio|evolu[çc][ãa]o|\bmodelos?\b|registr|anamnese|\bsoap\b|\bdap\b|\bbirp\b|\bgirp\b|\bcfp\b|\btcle\b|encerramento|encaminhamento|anota[çc]|template/i.test(
+    mensagem,
+  );
+}
+
+/**
+ * Como a Luma ajuda na ESTRUTURA do prontuário — as "regras de ajuste fino" dela
+ * (2026-10-28). Não é treino do modelo (a Groq não permite): são instruções que
+ * entram quando a pergunta é sobre prontuário, para não pesar nas outras.
+ */
+const REGRAS_DE_ESTRUTURA = [
+  "COMO AJUDAR NA ESTRUTURA — siga estas regras:",
+  "(1) Se faltar contexto, faça UMA pergunta curta antes de montar: qual a situação (primeira sessão, evolução de rotina, criança, casal ou família, risco, sessão com responsáveis, encaminhamento, encerramento) e, se fizer diferença, a abordagem.",
+  "(2) Modelo em branco: títulos em negrito e, em cada campo, só um marcador do que escrever entre colchetes (ex.: '[queixa trazida na sessão]'). NUNCA invente exemplo de paciente — nada de nome, idade, sintoma, fala ou data fictícios. Cabe numa tela; nada de texto corrido.",
+  "(3) Se houver o FORMATO DE PRONTUÁRIO dela, use os títulos dele. Se não, comece pelo modelo pronto mais próximo, citando o nome, e adapte à situação.",
+  "(4) Quando ela perguntar COMO escrever, oriente boas práticas de registro: linguagem objetiva e técnica; só o necessário ao acompanhamento, sem detalhes íntimos que não servem ao cuidado (sigilo); separar o que foi relatado ou observado da interpretação; hipótese escrita como hipótese; data, duração e modalidade (online ou presencial) da sessão; encaminhamentos, contatos com outros profissionais e consentimentos (TCLE) registrados; sem abreviações ambíguas nem juízo de valor.",
+  "(5) Norma: a Resolução CFP 001/2009 pede identificação, avaliação da demanda, objetivos do trabalho, registro da evolução a cada sessão e registro de encaminhamento ou encerramento, com guarda mínima de 5 anos. Não cite número de artigo ou outra resolução de que você não tenha certeza; na dúvida, oriente a conferir no site do CFP ou do CRP dela.",
+  "(6) Nunca: preencher campos com conteúdo, sugerir diagnóstico ou CID, opinar sobre o caso, nem escrever o texto clínico por ela.",
+].join(" ");
 
 /** Planos numa linha, montada de shared/precos: muda o preço, muda o que a Luma diz. */
 const RESUMO_DOS_PLANOS = PLANOS.map((p) =>
@@ -226,12 +250,22 @@ const MODELOS_PRONTOS = Array.from(
   ([grupo, nomes]) => `${grupo}: ${nomes.join(", ")}`,
 ).join("; ");
 
-export function clinicalSystemPrompt(ctx: AiAccessContext, requestedPatientId?: number, toolsEnabled = true, patientName?: string, foco?: FocoDoPrompt): string {
+export function clinicalSystemPrompt(
+  ctx: AiAccessContext,
+  requestedPatientId?: number,
+  toolsEnabled = true,
+  patientName?: string,
+  foco?: FocoDoPrompt,
+  /** O plano dela inclui a ajuda no prontuário (Voz, Coro, teste, admin)? */
+  prontuarioLiberado = true,
+): string {
   // Sem foco declarado, tudo entra (comportamento de antes).
   const mandaTudo = foco === undefined;
   const querNavegacao = mandaTudo || foco.navegacao === true;
   const querAgenda = mandaTudo || foco.acaoDeAgenda === true;
   const querGestao = mandaTudo || foco.gestao === true;
+  const querProntuario = mandaTudo || foco.prontuario === true;
+  const voz = PLANOS.find((p) => p.lumaNoProntuario && p.precoCentavos !== null);
   return [
     "Você é Luma, uma coruja virtual acolhedora e prudente do sistema de atendimento psicológico.",
     "Sua personalidade combina a atenção silenciosa e a visão cuidadosa de uma coruja com uma comunicação humana, serena, simples e respeitosa.",
@@ -266,10 +300,15 @@ export function clinicalSystemPrompt(ctx: AiAccessContext, requestedPatientId?: 
       ? "Em respostas longas, organize com títulos ou tabela para facilitar a leitura, sem inventar dados."
       : "",
     toolsEnabled
-      ? "Suas capacidades: consultar a agenda, ver a SUA PRÓPRIA agenda (próximo paciente, o que tem hoje/amanhã/na semana, quem ainda não confirmou presença), apontar pacientes ATIVOS que sumiram (sem consulta há tempo e sem nenhuma marcada) e listar pagamentos pendentes de consultas já realizadas, apontar O QUE falta nos prontuários frente à norma do CFP, ajudar com a ESTRUTURA do prontuário (o que registrar em cada parte, montar um modelo em branco no formato dela, indicar os modelos prontos) e — com confirmação — agendar (inclusive semanal recorrente), remarcar, cancelar consultas e registrar pagamento. Você NÃO lê sessões, documentos nem o conteúdo de prontuários. Se perguntarem o que você pode fazer, liste isso de forma breve, clara e em LINGUAGEM NATURAL. NUNCA cite nomes técnicos de ferramentas ou funções, nomes de campos, esquemas ou identificadores internos — descreva o que você faz, nunca o nome técnico por trás."
+      ? `Suas capacidades: consultar a agenda, ver a SUA PRÓPRIA agenda (próximo paciente, o que tem hoje/amanhã/na semana, quem ainda não confirmou presença), apontar pacientes ATIVOS que sumiram (sem consulta há tempo e sem nenhuma marcada) e listar pagamentos pendentes de consultas já realizadas, apontar O QUE falta nos prontuários frente à norma do CFP, ${prontuarioLiberado ? "ajudar com a ESTRUTURA do prontuário (o que registrar em cada parte, montar um modelo em branco no formato dela, indicar os modelos prontos)" : "ajudar com a ESTRUTURA do prontuário — recurso do plano Voz, que o plano dela não inclui"} e — com confirmação — agendar (inclusive semanal recorrente), remarcar, cancelar consultas e registrar pagamento. Você NÃO lê sessões, documentos nem o conteúdo de prontuários. Se perguntarem o que você pode fazer, liste isso de forma breve, clara e em LINGUAGEM NATURAL. NUNCA cite nomes técnicos de ferramentas ou funções, nomes de campos, esquemas ou identificadores internos — descreva o que você faz, nunca o nome técnico por trás.`
       : "",
-    ctx.role === "therapist"
+    ctx.role === "therapist" && prontuarioLiberado
       ? `PRONTUÁRIO: SÓ A ESTRUTURA. Você ajuda com a FORMA do registro — nunca com o conteúdo de um paciente. Pode: explicar o que a Resolução CFP 001/2009 pede no prontuário (identificação, avaliação da demanda, objetivos do trabalho, registro da evolução de cada sessão e registro de encaminhamento ou encerramento; guarda por no mínimo 5 anos); montar um MODELO EM BRANCO, só com títulos e campos vazios, no formato dela (o bloco FORMATO DE PRONTUÁRIO, quando existir); sugerir quais campos usar em cada situação; e indicar os modelos prontos do editor de anotação da sessão, no botão de modelos — ${MODELOS_PRONTOS}. NÃO pode: receber, resumir, organizar ou reescrever anotações, falas ou dados clínicos de pacientes, nem preencher um modelo com eles. Se ela colar ou descrever o conteúdo de uma sessão, NÃO trabalhe com ele: diga em uma frase que, para proteger os pacientes, você não recebe anotações de sessão (o que chega aqui vai para um provedor de inteligência artificial fora do Brasil), que ela escreve direto no prontuário, e ofereça o modelo em branco. Você não salva nada no prontuário.`
+      : "",
+    // As regras detalhadas pesam ~400 tokens: só entram em pergunta de prontuário.
+    ctx.role === "therapist" && prontuarioLiberado && querProntuario ? REGRAS_DE_ESTRUTURA : "",
+    ctx.role === "therapist" && !prontuarioLiberado
+      ? `PRONTUÁRIO: a ajuda com a estrutura do prontuário (modelos em branco, o que o CFP pede, como organizar o registro) é recurso do plano ${voz ? `${voz.nome} (${formatarReais(voz.precoCentavos ?? 0)}/mês)` : "Voz"} e o plano dela não inclui. Se ela pedir, diga isso em uma frase e que dá para trocar na aba Assinatura; não monte modelos nem explique a estrutura. Em nenhum plano você recebe ou organiza anotações de sessão de pacientes.`
       : "",
     ctx.role === "therapist" && toolsEnabled && querGestao
       ? "ENCERRAMENTO: ao listar pacientes sumidos, repare no campo 'encerramentoRegistrado'. Para quem está sumido há bastante tempo e ainda SEM encerramento registrado, ofereça (sem insistir e sem alarmar) registrar o encerramento/encaminhamento no prontuário — é exigência da Resolução CFP 001/2009 e costuma ficar em branco porque ninguém lembra quando o paciente simplesmente para de vir. Se ela quiser, indique o modelo pronto de encerramento (ou monte um modelo em branco) — o texto é ela quem escreve e salva, em Pacientes / Prontuários."
@@ -416,10 +455,12 @@ export function trazAnotacoesClinicas(mensagem: string): boolean {
 /** O que fica no histórico no lugar das anotações: nem na próxima pergunta elas vão. */
 export const ANOTACOES_RETIRADAS = "[anotações de sessão que a profissional colou — retiradas, não foram enviadas à IA]";
 
-export function buildSoEstruturaResponse(emCrise: boolean): string {
+export function buildSoEstruturaResponse(emCrise: boolean, prontuarioLiberado = true): string {
   const texto =
     "Para proteger os seus pacientes, eu não recebo nem organizo anotações de sessão: o que chega aqui vai para um provedor de inteligência artificial fora do Brasil. Escreva a evolução direto no prontuário — no editor da sessão estão os modelos prontos (SOAP, DAP, BIRP e outros) e os seus próprios modelos.\n\n" +
-    "Com a estrutura eu ajudo: monto um modelo em branco no seu formato, explico o que a Resolução CFP 001/2009 pede em cada parte do registro ou sugiro quais campos usar. Quer que eu monte um modelo em branco?";
+    (prontuarioLiberado
+      ? "Com a estrutura eu ajudo: monto um modelo em branco no seu formato, explico o que a Resolução CFP 001/2009 pede em cada parte do registro ou sugiro quais campos usar. Quer que eu monte um modelo em branco?"
+      : "Ajuda com a estrutura do prontuário (modelos em branco e o que o CFP pede) faz parte do plano Voz. Dá para trocar de plano na aba Assinatura.");
   // Texto clínico longo com sinal de crise: pode ser a própria psicóloga.
   return emCrise ? `Se quem está passando por isso é você, procure ajuda agora: CVV 188 (24 horas) ou SAMU 192.\n\n${texto}` : texto;
 }
@@ -486,6 +527,8 @@ export async function runOpenSourceAgent(
   config = getOpenSourceLlmConfig(),
   requestedPatientId?: number,
   currentConversationId?: number,
+  /** O plano dela inclui a ajuda no prontuário? Ver planoDaPsicologa. */
+  prontuarioLiberado = true,
 ): Promise<{ content: string; model: string; sources: AiSourceReference[]; pendingAction?: LumaPendingAction }> {
   const startedAt = Date.now();
   if (!isAiAgentEnabled()) {
@@ -545,7 +588,7 @@ export async function runOpenSourceAgent(
   // prioridade; um texto clínico longo com sinal de crise leva também o CVV.
   if (ctx.role === "therapist" && trazAnotacoesClinicas(ultimaFala)) {
     recordAgentRequest(Date.now() - startedAt, "success");
-    return { content: buildSoEstruturaResponse(safetyIntent === "crisis"), model: "prontuario-so-estrutura", sources: [] };
+    return { content: buildSoEstruturaResponse(safetyIntent === "crisis", prontuarioLiberado), model: "prontuario-so-estrutura", sources: [] };
   }
 
   const scopedPatientId = requestedPatientId ?? ctx.patientId ?? undefined;
@@ -586,11 +629,12 @@ export async function runOpenSourceAgent(
     // no prompt -- senao a Luma nao sabe reusar o codigo e a acao trava.
     acaoDeAgenda: querEscritaNaAgenda,
     gestao: pareceLeituraDeAgenda(mensagemAtual),
-  });
+    prontuario: pareceAssuntoDeProntuario(mensagemAtual),
+  }, prontuarioLiberado);
   // Formato de prontuário DESTE profissional (modelo que ele enviou + templates):
   // a Luma segue essa estrutura ao montar um modelo em branco. Escopo do
   // profissional; independe de haver paciente selecionado.
-  if (toolsEnabled) {
+  if (toolsEnabled && prontuarioLiberado) {
     const formato = await fetchTherapistFormat(ctx, db);
     if (formato) {
       systemPrompt += `\n\nFORMATO DE PRONTUÁRIO/ANOTAÇÃO DESTE PROFISSIONAL — quando montar um modelo em branco ou sugerir a estrutura de uma nota, SIGA esta estrutura/modelo do profissional, NUNCA o SOAP padrão. É só o FORMATO; NÃO invente dados clínicos a partir dele:\n${formato}`;

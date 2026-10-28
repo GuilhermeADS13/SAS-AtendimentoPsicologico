@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { PLANOS, formatarReais, planoPorId, valorDoPlano } from "@shared/precos";
+import { PLANOS, TEXTO_LUMA_NO_PRONTUARIO, formatarReais, planoPorId, valorDoPlano } from "@shared/precos";
 import { trpc } from "@/lib/trpc";
 import { linkWhatsAppDoSuporte } from "@/lib/suporte";
 import { Button } from "@/components/ui/button";
@@ -102,6 +102,12 @@ export function TrocarDePlanoDialog({
                   <li className="flex gap-2">
                     <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
                     Luma: {proximo.perguntasLumaPorDia} perguntas por dia (hoje: {atual.perguntasLumaPorDia})
+                  </li>
+                )}
+                {proximo.lumaNoProntuario && !atual.lumaNoProntuario && (
+                  <li className="flex gap-2">
+                    <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+                    {TEXTO_LUMA_NO_PRONTUARIO}
                   </li>
                 )}
                 {proximo.anexoMaxMb && (
