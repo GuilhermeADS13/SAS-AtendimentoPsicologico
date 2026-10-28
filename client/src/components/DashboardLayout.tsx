@@ -264,6 +264,13 @@ function DashboardLayoutContent({
 
   return (
     <>
+      {/* Para quem navega pelo teclado: pula o menu lateral e cai no conteúdo. */}
+      <a
+        href="#conteudo"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
+      >
+        Pular para o conteúdo
+      </a>
       <div className="relative" ref={sidebarRef}>
         <Sidebar
           collapsible="icon"
@@ -378,10 +385,11 @@ function DashboardLayoutContent({
           </div>
           {isTherapist ? <NotificationsBell /> : <PatientNotificationsBell />}
         </div>
-        <main className="flex-1 p-4">
+        {/* div, não main: o SidebarInset já é o <main> da página (dois confundem o leitor de tela). */}
+        <div id="conteudo" tabIndex={-1} className="flex-1 p-4 outline-none">
           {isTherapist && <AvisoDoPlano />}
           {children}
-        </main>
+        </div>
       </SidebarInset>
 
       {/* Tour de boas-vindas na primeira entrada (paciente ou psicóloga). */}

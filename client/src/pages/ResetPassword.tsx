@@ -126,7 +126,7 @@ export default function ResetPassword() {
                         <li
                           key={key}
                           className={`flex items-center gap-2 text-xs ${
-                            ok ? "text-green-600" : "text-muted-foreground"
+                            ok ? "text-green-700 dark:text-green-400" : "text-muted-foreground"
                           }`}
                         >
                           {ok ? (

@@ -833,7 +833,7 @@ export default function Appointments() {
                         <div className="flex min-w-0 items-center gap-3">
                           <AvatarDaPessoa url={fotos[appointment.patientId]} nome={patientName(appointment.patientId)} />
                           <div className="min-w-0">
-                            <h3 className="truncate text-base font-semibold">{patientName(appointment.patientId)}</h3>
+                            <h2 className="truncate text-base font-semibold">{patientName(appointment.patientId)}</h2>
                             <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
                               <Calendar className="size-4 shrink-0" aria-hidden />
                               {formatarData(scheduled)} às {formatarHora(scheduled)} · {appointment.duration} min
@@ -852,7 +852,7 @@ export default function Appointments() {
                         </div>
                       </div>
                       {appointment.confirmedAt ? (
-                        <p className="text-xs text-green-600">✓ Presença confirmada</p>
+                        <p className="text-xs text-green-700 dark:text-green-400">✓ Presença confirmada</p>
                       ) : null}
                       <div className="flex flex-wrap items-center justify-between gap-2 border-y py-2.5">
                         <div className="flex items-start gap-2">
@@ -1012,7 +1012,7 @@ export default function Appointments() {
                               {getStatusLabel(status)}
                             </span>
                             {appointment.confirmedAt ? (
-                              <span className="block text-[10px] text-green-600 mt-1">
+                              <span className="block text-[10px] text-green-700 dark:text-green-400 mt-1">
                                 ✓ Presença confirmada
                               </span>
                             ) : null}

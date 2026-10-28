@@ -4,7 +4,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -200,15 +200,15 @@ export default function Login() {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background via-background to-secondary/20 p-4">
+    <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background via-background to-secondary/20 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center pb-2">
           {/* A imagem já traz o nome e "Atendimento Psicológico Online"; repetir
               em texto seria dizer a mesma coisa duas vezes. */}
           <LogoFull className="mx-auto w-52" />
-          <CardTitle className="sr-only">
+          <h1 className="sr-only">
             {APP_NAME} — {APP_TAGLINE}
-          </CardTitle>
+          </h1>
         </CardHeader>
         <CardContent>
           {!isSupabaseConfigured ? (
@@ -385,7 +385,7 @@ export default function Login() {
                           <li
                             key={key}
                             className={`flex items-center gap-2 text-xs ${
-                              ok ? "text-green-600" : "text-muted-foreground"
+                              ok ? "text-green-700 dark:text-green-400" : "text-muted-foreground"
                             }`}
                           >
                             {ok ? (
@@ -509,6 +509,6 @@ export default function Login() {
           Planos e preços
         </a>
       </p>
-    </div>
+    </main>
   );
 }

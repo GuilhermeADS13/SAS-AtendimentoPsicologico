@@ -635,7 +635,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                                   <span className="flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> Salvando…</span>
                                 )}
                                 {notesEnabled && autoSaveStatus === "saved" && (
-                                  <span className="flex items-center gap-1 text-green-600">
+                                  <span className="flex items-center gap-1 text-green-700 dark:text-green-400">
                                     <CheckCircle2 className="size-3" /> Salvo
                                   </span>
                                 )}

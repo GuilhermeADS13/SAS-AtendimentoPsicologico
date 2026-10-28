@@ -517,6 +517,23 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
     if (index > 0) irPara(index - 1);
   };
 
+  // Teclado: a cada passo o foco vai para o cartão (senão o Tab percorria a tela
+  // inteira por trás do escuro antes de chegar ao "Próximo"), e o Esc pula o tour.
+  useEffect(() => {
+    if (!open) return;
+    cardRef.current?.focus({ preventScroll: true });
+  }, [open, index]);
+  const encerrarRef = useRef(encerrar);
+  encerrarRef.current = encerrar;
+  useEffect(() => {
+    if (!open) return;
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (e.key === "Escape") encerrarRef.current();
+    };
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, [open]);
+
   if (!open) return null;
   const step = steps[index];
   if (!step) return null;
@@ -558,7 +575,7 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
       )}
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 p-3 sm:p-4">
-      <div ref={cardRef} className="pointer-events-auto mx-auto w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl">
+      <div ref={cardRef} tabIndex={-1} className="pointer-events-auto mx-auto w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl outline-none">
         {/* Cabeçalho: ícone + rótulo do passo + título (cada um em sua linha, para
             o texto não ficar apertado) + fechar. */}
         <div className="flex items-start gap-3">
@@ -575,7 +592,7 @@ export default function LumaOnboarding({ role, userId }: { role: Role; userId?: 
             onClick={encerrar}
             aria-label="Fechar tour"
             /* Alvo de toque: com p-1 o botão media 24x24, pequeno para dedo. */
-            className="-mr-1.5 -mt-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="-mr-1.5 -mt-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
           >
             <X className="h-4 w-4" />
           </button>

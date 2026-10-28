@@ -65,7 +65,7 @@ function Linha({
   return (
     <div className="grid gap-3 py-5 sm:grid-cols-[minmax(0,220px)_1fr] sm:gap-8">
       <div className="space-y-1">
-        <h3 className="text-sm font-semibold text-foreground">{titulo}</h3>
+        <h2 className="text-sm font-semibold text-foreground">{titulo}</h2>
         <p className="text-xs leading-relaxed text-muted-foreground">{descricao}</p>
       </div>
       <div className="space-y-3">{children}</div>
@@ -543,7 +543,7 @@ export default function Configuracoes() {
                       <li
                         key={key}
                         className={`flex items-center gap-2 text-xs ${
-                          ok ? "text-green-600" : "text-muted-foreground"
+                          ok ? "text-green-700 dark:text-green-400" : "text-muted-foreground"
                         }`}
                       >
                         {ok ? (

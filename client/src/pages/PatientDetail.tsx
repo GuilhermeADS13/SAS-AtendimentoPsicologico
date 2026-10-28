@@ -488,8 +488,8 @@ export default function PatientDetail() {
   // Rótulo e cor por status. "pending" = cadastrado pela psicóloga, aguardando o
   // paciente criar a conta (antes caía no genérico e aparecia como "Arquivado").
   const statusInfo = {
-    active: { label: "Ativo", cor: "text-green-600" },
-    pending: { label: "Aguardando cadastro", cor: "text-amber-600" },
+    active: { label: "Ativo", cor: "text-green-700 dark:text-green-400" },
+    pending: { label: "Aguardando cadastro", cor: "text-amber-700 dark:text-amber-400" },
     inactive: { label: "Inativo", cor: "text-muted-foreground" },
     archived: { label: "Arquivado", cor: "text-muted-foreground" },
   }[patient.status] ?? { label: patient.status, cor: "text-foreground" };
@@ -526,8 +526,8 @@ export default function PatientDetail() {
         {/* flex-wrap: no celular os botões passavam da tela (rolava para o lado). */}
         <div className="flex flex-wrap items-center justify-between gap-4" data-tour="prontuario-topo">
           <div className="flex min-w-0 items-center gap-4">
-            <Button variant="ghost" onClick={() => setLocation("/records")} className="p-0">
-              <ArrowLeft className="w-6 h-6" />
+            <Button variant="ghost" onClick={() => setLocation("/records")} className="p-0" aria-label="Voltar para Pacientes">
+              <ArrowLeft className="w-6 h-6" aria-hidden />
             </Button>
             <div className="space-y-1">
               <h1 className="text-3xl font-bold text-foreground">

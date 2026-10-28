@@ -40,6 +40,8 @@ export default function MyTherapist() {
           <ArrowLeft className="mr-2 size-4" />
           Minhas Consultas
         </Button>
+        {/* O cartão já mostra quem é; o título fica só para o leitor de tela. */}
+        <h1 className="sr-only">Minha psicóloga</h1>
 
         {isLoading ? (
           <Skeleton className="h-96 w-full rounded-2xl" />

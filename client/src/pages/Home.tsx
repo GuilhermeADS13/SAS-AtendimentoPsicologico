@@ -87,6 +87,7 @@ export default function Home() {
         </div>
       </nav>
 
+      <main>
       {/* Hero */}
       <section className="relative overflow-hidden">
         {/* Brilho suave atrás do título, no verde da marca. */}
@@ -178,6 +179,7 @@ export default function Home() {
           </Button>
         </div>
       </section>
+      </main>
 
       <Rodape />
     </div>

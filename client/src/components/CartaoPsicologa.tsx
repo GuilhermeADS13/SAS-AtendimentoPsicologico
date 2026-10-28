@@ -197,5 +197,5 @@ function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
 }
 
 function Vazio({ children }: { children: ReactNode }) {
-  return <p className="text-sm italic text-muted-foreground/80">{children}</p>;
+  return <p className="text-sm italic text-muted-foreground">{children}</p>;
 }

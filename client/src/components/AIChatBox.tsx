@@ -363,7 +363,7 @@ export function AIChatBox({
       style={{ height }}
     >
       <div className="flex min-w-0 items-center gap-3 border-b px-3 py-3 sm:px-4">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10" aria-label={lumaStatus === "attentive" ? "Luma pensando" : "Luma pronta"}>
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10" role="img" aria-label={lumaStatus === "attentive" ? "Luma pensando" : "Luma pronta"}>
           <LumaOwlIcon className={"size-7"} />
         </div>
         <div className="min-w-0 flex-1">

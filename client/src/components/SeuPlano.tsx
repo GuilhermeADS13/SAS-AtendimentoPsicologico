@@ -118,7 +118,7 @@ function CartaoDoPlano({ data }: { data: Resumo }) {
           ) : (
             <p className="tabular-nums">
               {data.fundador && cheio !== null && cheio > 0 && cheio !== mensal && (
-                <span className="mr-2 text-lg line-through opacity-60">{formatarReais(cheio)}</span>
+                <span className="mr-2 text-lg line-through opacity-80">{formatarReais(cheio)}</span>
               )}
               <span className="text-4xl font-bold">{formatarReais(mensal)}</span>
               <span className="text-sm opacity-80"> /mês</span>
