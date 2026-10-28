@@ -179,7 +179,7 @@ const therapistSteps: Step[] = [
     path: "/financeiro",
     icon: Wallet,
     title: "Financeiro",
-    body: "Veja quanto já recebeu e quanto falta receber. As setas trocam a semana, o mês ou o ano. Quando um paciente avisa que pagou pelo Pix, aparece em “Pagamentos para confirmar”: confira no banco e toque em “Confirmar recebimento”. Embaixo, quem ainda não pagou: dá para lembrar pelo WhatsApp ou mostrar o QR do Pix já com o valor.",
+    body: "Veja quanto já recebeu e quanto falta receber. As setas trocam a semana, o mês ou o ano. Quando um paciente avisa que pagou pelo Pix, aparece em “Pagamentos para confirmar”: confira no banco e toque em “Confirmar recebimento”. Embaixo, quem ainda não pagou: dá para lembrar pelo WhatsApp ou mostrar o QR do Pix já com o valor. No plano Coro, aqui também fica o relatório da clínica.",
     target: '[data-tour="financeiro"]',
   },
   {
@@ -193,7 +193,7 @@ const therapistSteps: Step[] = [
     path: "/assinatura",
     icon: CreditCard,
     title: "Sua assinatura",
-    body: "Seu plano, o valor e até quando está liberada. Sussurro vai até 10 pacientes e Voz até 30, com preço fixo; no Voz eu também te ajudo a montar o prontuário. Troque quando quiser. Para pagar, copie o Pix ou leia o QR, que já vem com o valor. Escolha também o dia do vencimento no calendário. Três dias antes, eu te aviso.",
+    body: "Seu plano, o valor e até quando está liberada. Sussurro vai até 10 pacientes e Voz até 30, com preço fixo; no Voz eu também te ajudo a montar o prontuário, e no Coro, os documentos psicológicos. Troque quando quiser. Para pagar, copie o Pix ou leia o QR, que já vem com o valor. Escolha também o dia do vencimento no calendário. Três dias antes, eu te aviso.",
     target: '[data-tour="assinatura"]',
   },
   {

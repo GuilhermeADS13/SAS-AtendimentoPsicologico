@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildSoEstruturaResponse, clinicalSystemPrompt, pareceAssuntoDeProntuario } from "./ai/llm";
+import {
+  buildSoEstruturaResponse,
+  clinicalSystemPrompt,
+  pareceAssuntoDeProntuario,
+  pareceDocumentoPsicologico,
+  pedeRelatorioDaClinica,
+} from "./ai/llm";
 import { avaliarSumico, createClinicalTools } from "./ai/clinical-tools";
 
 const therapistContext = {
@@ -221,7 +227,7 @@ describe("apoio ao prontuário: só a estrutura", () => {
   });
 
   it("no Sussurro (sem a ajuda no prontuário) explica que é do Voz e não monta modelo", () => {
-    const p = clinicalSystemPrompt(therapistContext, undefined, true, undefined, { prontuario: true }, false);
+    const p = clinicalSystemPrompt(therapistContext, undefined, true, undefined, { prontuario: true }, { prontuario: false, documentos: false, relatorio: false });
     expect(p).not.toContain("PRONTUÁRIO: SÓ A ESTRUTURA");
     expect(p).not.toContain("COMO AJUDAR NA ESTRUTURA");
     expect(p).toMatch(/recurso do plano Voz \(R\$\s?89\/mês\)/);
@@ -229,6 +235,24 @@ describe("apoio ao prontuário: só a estrutura", () => {
     // A trava de anotações vale em qualquer plano.
     expect(p).toMatch(/Em nenhum plano você recebe ou organiza anotações/);
     expect(buildSoEstruturaResponse(false, false)).toContain("faz parte do plano Voz");
+  });
+
+  it("documentos psicológicos: regras no Coro, aviso de plano fora dele (só em pergunta de documento)", () => {
+    const coro = { prontuario: true, documentos: true, relatorio: true };
+    const voz = { prontuario: true, documentos: false, relatorio: false };
+    const doc = (recursos: typeof coro, documentos: boolean) =>
+      clinicalSystemPrompt(therapistContext, undefined, true, undefined, { documentos }, recursos);
+    expect(doc(coro, true)).toContain("Resolução CFP 06/2019");
+    expect(doc(coro, true)).toMatch(/Declaração: .*NÃO traz sintoma, diagnóstico/);
+    expect(doc(coro, false)).not.toContain("DOCUMENTOS PSICOLÓGICOS");
+    expect(doc(voz, true)).toMatch(/recurso do plano Coro/);
+    expect(doc(voz, true)).not.toContain("Resolução CFP 06/2019");
+    expect(pareceDocumentoPsicologico("preciso de um modelo de declaração de comparecimento")).toBe(true);
+    expect(pareceDocumentoPsicologico("como faço um laudo?")).toBe(true);
+    expect(pareceDocumentoPsicologico("relatório da clínica")).toBe(false);
+    expect(pedeRelatorioDaClinica("me mostra o relatório da clínica")).toBe(true);
+    expect(pedeRelatorioDaClinica("como está o consultório?")).toBe(true);
+    expect(pedeRelatorioDaClinica("modelo de relatório psicológico")).toBe(false);
   });
 
   it("sabe da assinatura e do Pix (texto montado dos dados do sistema)", () => {

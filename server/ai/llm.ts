@@ -5,6 +5,7 @@ import { createAgent } from "langchain";
 import { createClinicalTools, fetchTherapistFormat, getScopedPatientName, type AiSourceReference } from "./clinical-tools";
 import { MODELOS_INTERNOS } from "../../shared/prontuario";
 import { DESCONTO_FUNDADOR, DIAS_DE_TESTE_GRATIS, MESES_PAGOS_NO_ANUAL, PLANOS, formatarReais } from "../../shared/precos";
+import { relatorioDaPsicologa, relatorioEmTexto } from "../relatorioDeGestao";
 import type { AiAccessContext } from "./access";
 import { buildAgentCacheKey, getCachedAgentResponse, setCachedAgentResponse } from "./response-cache";
 import { recordAgentCacheMiss, recordAgentKillSwitch, recordAgentRequest, recordAgentSafetyIntercept } from "./runtime-metrics";
@@ -213,6 +214,8 @@ export type FocoDoPrompt = {
   gestao?: boolean;
   /** Pergunta sobre prontuario/registro: manda as regras detalhadas de estrutura. */
   prontuario?: boolean;
+  /** Pergunta sobre documento psicologico (declaracao, atestado, laudo...). */
+  documentos?: boolean;
 };
 
 /** A mensagem é sobre prontuário, registro ou modelo de anotação? */
@@ -250,21 +253,56 @@ const MODELOS_PRONTOS = Array.from(
   ([grupo, nomes]) => `${grupo}: ${nomes.join(", ")}`,
 ).join("; ");
 
+/** O que a Luma faz depende do plano (ver recursosDoPlano em server/assinaturas.ts). */
+export type RecursosDaLuma = { prontuario: boolean; documentos: boolean; relatorio: boolean };
+export const TODOS_OS_RECURSOS: RecursosDaLuma = { prontuario: true, documentos: true, relatorio: true };
+
+/** A mensagem é sobre documento psicológico (declaração, atestado, laudo...)? */
+export function pareceDocumentoPsicologico(mensagem: string): boolean {
+  return /declara[çc][ãa]o|atestado|\blaudo|\bparecer|relat[óo]rio\s+(?:psicol|multiprofissional|para\s+(?:a\s+escola|o\s+m[ée]dico|o\s+juiz))|documentos?\s+(?:psicol|escrit)/i.test(
+    mensagem,
+  );
+}
+
+/** A psicóloga pede o relatório da clínica (gestão, não clínico)? */
+export function pedeRelatorioDaClinica(mensagem: string): boolean {
+  return /relat[óo]rio\s+(?:da|do|de)\s+(?:cl[íi]nica|consult[óo]rio|gest[ãa]o|m[êe]s|semana)|como\s+(?:est[áa]|foi|anda)\s+(?:a\s+cl[íi]nica|o\s+consult[óo]rio|o\s+m[êe]s)/i.test(
+    mensagem,
+  );
+}
+
+/**
+ * Documentos psicológicos — diferencial do Coro (2026-10-28). Só a ESTRUTURA, como
+ * no prontuário. Entra só em pergunta sobre documento.
+ */
+const REGRAS_DE_DOCUMENTOS = [
+  "DOCUMENTOS PSICOLÓGICOS — só a ESTRUTURA, nunca o conteúdo de um paciente. A Resolução CFP 06/2019 trata dos documentos escritos da psicóloga; as modalidades são declaração, atestado psicológico, relatório (psicológico ou multiprofissional), laudo psicológico e parecer psicológico.",
+  "Declaração: informa fatos objetivos do atendimento (comparecimento, dias e horários, acompanhamento em curso) e NÃO traz sintoma, diagnóstico nem estado psicológico.",
+  "Atestado: certifica uma condição psicológica, a partir de avaliação, para uma finalidade (justificar falta ou afastamento, aptidão); diga a finalidade e o período.",
+  "Relatório: comunica a atuação profissional num processo de trabalho; costuma ter identificação, descrição da demanda, procedimento, análise e conclusão.",
+  "Laudo: resultado de uma avaliação psicológica, com identificação, descrição da demanda, procedimento (instrumentos usados), análise, conclusão e referências.",
+  "Parecer: resposta técnica a uma questão específica, pedida por alguém; identificação, descrição da demanda, análise, conclusão e referências.",
+  "Em todos: identificação de quem emite (nome e CRP), do interessado e da finalidade; só a informação necessária à finalidade (sigilo); linguagem técnica e clara; local, data, assinatura e CRP.",
+  "Monte o modelo em branco com os títulos e marcadores entre colchetes; nunca invente dados nem escreva o conteúdo por ela. Prazos de guarda e validade, entrevista devolutiva e outros detalhes: oriente a conferir o texto da Resolução no site do CFP — não cite artigos de memória.",
+].join(" ");
+
 export function clinicalSystemPrompt(
   ctx: AiAccessContext,
   requestedPatientId?: number,
   toolsEnabled = true,
   patientName?: string,
   foco?: FocoDoPrompt,
-  /** O plano dela inclui a ajuda no prontuário (Voz, Coro, teste, admin)? */
-  prontuarioLiberado = true,
+  /** O que o plano dela inclui (prontuário: Voz e Coro; documentos: Coro). */
+  recursos: RecursosDaLuma = TODOS_OS_RECURSOS,
 ): string {
+  const prontuarioLiberado = recursos.prontuario;
   // Sem foco declarado, tudo entra (comportamento de antes).
   const mandaTudo = foco === undefined;
   const querNavegacao = mandaTudo || foco.navegacao === true;
   const querAgenda = mandaTudo || foco.acaoDeAgenda === true;
   const querGestao = mandaTudo || foco.gestao === true;
   const querProntuario = mandaTudo || foco.prontuario === true;
+  const querDocumentos = mandaTudo || foco.documentos === true;
   const voz = PLANOS.find((p) => p.lumaNoProntuario && p.precoCentavos !== null);
   return [
     "Você é Luma, uma coruja virtual acolhedora e prudente do sistema de atendimento psicológico.",
@@ -300,7 +338,7 @@ export function clinicalSystemPrompt(
       ? "Em respostas longas, organize com títulos ou tabela para facilitar a leitura, sem inventar dados."
       : "",
     toolsEnabled
-      ? `Suas capacidades: consultar a agenda, ver a SUA PRÓPRIA agenda (próximo paciente, o que tem hoje/amanhã/na semana, quem ainda não confirmou presença), apontar pacientes ATIVOS que sumiram (sem consulta há tempo e sem nenhuma marcada) e listar pagamentos pendentes de consultas já realizadas, apontar O QUE falta nos prontuários frente à norma do CFP, ${prontuarioLiberado ? "ajudar com a ESTRUTURA do prontuário (o que registrar em cada parte, montar um modelo em branco no formato dela, indicar os modelos prontos)" : "ajudar com a ESTRUTURA do prontuário — recurso do plano Voz, que o plano dela não inclui"} e — com confirmação — agendar (inclusive semanal recorrente), remarcar, cancelar consultas e registrar pagamento. Você NÃO lê sessões, documentos nem o conteúdo de prontuários. Se perguntarem o que você pode fazer, liste isso de forma breve, clara e em LINGUAGEM NATURAL. NUNCA cite nomes técnicos de ferramentas ou funções, nomes de campos, esquemas ou identificadores internos — descreva o que você faz, nunca o nome técnico por trás.`
+      ? `Suas capacidades: consultar a agenda, ver a SUA PRÓPRIA agenda (próximo paciente, o que tem hoje/amanhã/na semana, quem ainda não confirmou presença), apontar pacientes ATIVOS que sumiram (sem consulta há tempo e sem nenhuma marcada) e listar pagamentos pendentes de consultas já realizadas, apontar O QUE falta nos prontuários frente à norma do CFP, ${prontuarioLiberado ? "ajudar com a ESTRUTURA do prontuário (o que registrar em cada parte, montar um modelo em branco no formato dela, indicar os modelos prontos)" : "ajudar com a ESTRUTURA do prontuário — recurso do plano Voz, que o plano dela não inclui"}${recursos.documentos ? ", ajudar com a estrutura dos documentos psicológicos (declaração, atestado, relatório, laudo, parecer)" : ""}${recursos.relatorio ? ", mostrar o relatório da clínica (comparecimento, faltas, quem está devendo, quem sumiu)" : ""} e — com confirmação — agendar (inclusive semanal recorrente), remarcar, cancelar consultas e registrar pagamento. Você NÃO lê sessões, documentos nem o conteúdo de prontuários. Se perguntarem o que você pode fazer, liste isso de forma breve, clara e em LINGUAGEM NATURAL. NUNCA cite nomes técnicos de ferramentas ou funções, nomes de campos, esquemas ou identificadores internos — descreva o que você faz, nunca o nome técnico por trás.`
       : "",
     ctx.role === "therapist" && prontuarioLiberado
       ? `PRONTUÁRIO: SÓ A ESTRUTURA. Você ajuda com a FORMA do registro — nunca com o conteúdo de um paciente. Pode: explicar o que a Resolução CFP 001/2009 pede no prontuário (identificação, avaliação da demanda, objetivos do trabalho, registro da evolução de cada sessão e registro de encaminhamento ou encerramento; guarda por no mínimo 5 anos); montar um MODELO EM BRANCO, só com títulos e campos vazios, no formato dela (o bloco FORMATO DE PRONTUÁRIO, quando existir); sugerir quais campos usar em cada situação; e indicar os modelos prontos do editor de anotação da sessão, no botão de modelos — ${MODELOS_PRONTOS}. NÃO pode: receber, resumir, organizar ou reescrever anotações, falas ou dados clínicos de pacientes, nem preencher um modelo com eles. Se ela colar ou descrever o conteúdo de uma sessão, NÃO trabalhe com ele: diga em uma frase que, para proteger os pacientes, você não recebe anotações de sessão (o que chega aqui vai para um provedor de inteligência artificial fora do Brasil), que ela escreve direto no prontuário, e ofereça o modelo em branco. Você não salva nada no prontuário.`
@@ -309,6 +347,12 @@ export function clinicalSystemPrompt(
     ctx.role === "therapist" && prontuarioLiberado && querProntuario ? REGRAS_DE_ESTRUTURA : "",
     ctx.role === "therapist" && !prontuarioLiberado
       ? `PRONTUÁRIO: a ajuda com a estrutura do prontuário (modelos em branco, o que o CFP pede, como organizar o registro) é recurso do plano ${voz ? `${voz.nome} (${formatarReais(voz.precoCentavos ?? 0)}/mês)` : "Voz"} e o plano dela não inclui. Se ela pedir, diga isso em uma frase e que dá para trocar na aba Assinatura; não monte modelos nem explique a estrutura. Em nenhum plano você recebe ou organiza anotações de sessão de pacientes.`
+      : "",
+    // Documentos psicológicos: diferencial do Coro. As regras só entram quando a
+    // pergunta é sobre documento (custo do prompt).
+    ctx.role === "therapist" && recursos.documentos && querDocumentos ? REGRAS_DE_DOCUMENTOS : "",
+    ctx.role === "therapist" && !recursos.documentos && querDocumentos
+      ? "DOCUMENTOS PSICOLÓGICOS (declaração, atestado, relatório, laudo, parecer): a ajuda com a estrutura deles é recurso do plano Coro, que o plano dela não inclui. Se ela pedir, diga isso em uma frase e que o Coro é combinado pelo WhatsApp, na aba Assinatura; não monte o documento."
       : "",
     ctx.role === "therapist" && toolsEnabled && querGestao
       ? "ENCERRAMENTO: ao listar pacientes sumidos, repare no campo 'encerramentoRegistrado'. Para quem está sumido há bastante tempo e ainda SEM encerramento registrado, ofereça (sem insistir e sem alarmar) registrar o encerramento/encaminhamento no prontuário — é exigência da Resolução CFP 001/2009 e costuma ficar em branco porque ninguém lembra quando o paciente simplesmente para de vir. Se ela quiser, indique o modelo pronto de encerramento (ou monte um modelo em branco) — o texto é ela quem escreve e salva, em Pacientes / Prontuários."
@@ -527,8 +571,8 @@ export async function runOpenSourceAgent(
   config = getOpenSourceLlmConfig(),
   requestedPatientId?: number,
   currentConversationId?: number,
-  /** O plano dela inclui a ajuda no prontuário? Ver planoDaPsicologa. */
-  prontuarioLiberado = true,
+  /** O que o plano dela inclui. Ver recursosDoPlano em server/assinaturas.ts. */
+  recursos: RecursosDaLuma = TODOS_OS_RECURSOS,
 ): Promise<{ content: string; model: string; sources: AiSourceReference[]; pendingAction?: LumaPendingAction }> {
   const startedAt = Date.now();
   if (!isAiAgentEnabled()) {
@@ -588,7 +632,21 @@ export async function runOpenSourceAgent(
   // prioridade; um texto clínico longo com sinal de crise leva também o CVV.
   if (ctx.role === "therapist" && trazAnotacoesClinicas(ultimaFala)) {
     recordAgentRequest(Date.now() - startedAt, "success");
-    return { content: buildSoEstruturaResponse(safetyIntent === "crisis", prontuarioLiberado), model: "prontuario-so-estrutura", sources: [] };
+    return { content: buildSoEstruturaResponse(safetyIntent === "crisis", recursos.prontuario), model: "prontuario-so-estrutura", sources: [] };
+  }
+
+  // Relatório da clínica: calculado pelo sistema, sem IA — não gasta cota e nenhum
+  // nome de paciente vai ao provedor. Diferencial do Coro.
+  if (ctx.role === "therapist" && pedeRelatorioDaClinica(ultimaFala)) {
+    recordAgentRequest(Date.now() - startedAt, "success");
+    if (!recursos.relatorio || ctx.therapistId == null) {
+      return {
+        content: "O relatório da clínica (comparecimento, faltas, quem está devendo e quem sumiu) faz parte do plano Coro, combinado pelo WhatsApp na aba Assinatura. Enquanto isso, no Financeiro você vê o que recebeu e quem ainda não pagou.",
+        model: "relatorio-da-clinica",
+        sources: [],
+      };
+    }
+    return { content: relatorioEmTexto(await relatorioDaPsicologa(db, ctx.therapistId)), model: "relatorio-da-clinica", sources: [] };
   }
 
   const scopedPatientId = requestedPatientId ?? ctx.patientId ?? undefined;
@@ -630,11 +688,12 @@ export async function runOpenSourceAgent(
     acaoDeAgenda: querEscritaNaAgenda,
     gestao: pareceLeituraDeAgenda(mensagemAtual),
     prontuario: pareceAssuntoDeProntuario(mensagemAtual),
-  }, prontuarioLiberado);
+    documentos: pareceDocumentoPsicologico(mensagemAtual),
+  }, recursos);
   // Formato de prontuário DESTE profissional (modelo que ele enviou + templates):
   // a Luma segue essa estrutura ao montar um modelo em branco. Escopo do
   // profissional; independe de haver paciente selecionado.
-  if (toolsEnabled && prontuarioLiberado) {
+  if (toolsEnabled && recursos.prontuario) {
     const formato = await fetchTherapistFormat(ctx, db);
     if (formato) {
       systemPrompt += `\n\nFORMATO DE PRONTUÁRIO/ANOTAÇÃO DESTE PROFISSIONAL — quando montar um modelo em branco ou sugerir a estrutura de uma nota, SIGA esta estrutura/modelo do profissional, NUNCA o SOAP padrão. É só o FORMATO; NÃO invente dados clínicos a partir dele:\n${formato}`;

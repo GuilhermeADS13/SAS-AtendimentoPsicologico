@@ -11,6 +11,7 @@ import { formatarBRL } from "@shared/dinheiro";
 import { DollarSign, Clock, TrendingUp, CheckCircle2, Users, CalendarDays, ChevronLeft, ChevronRight, QrCode } from "lucide-react";
 import { AvatarDaPessoa } from "@/components/AvatarDaPessoa";
 import { CobrarPorPix } from "@/components/CobrarPorPix";
+import { RelatorioDaClinica } from "@/components/RelatorioDaClinica";
 import { intervalo, type Periodo } from "@/lib/periodo";
 
 const PERIODOS: { valor: Periodo; rotulo: string }[] = [
@@ -239,6 +240,8 @@ export default function Financeiro() {
             </Card>
           ))}
         </div>
+
+        <RelatorioDaClinica />
 
         <div className="border-t" />
 

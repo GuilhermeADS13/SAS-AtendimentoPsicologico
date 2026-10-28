@@ -42,6 +42,7 @@ import { eq, and, or, asc, desc, isNull, isNotNull, ne, inArray, getTableColumns
 import { nanoid } from "nanoid";
 import { TRPCError } from "@trpc/server";
 import { ANOTACOES_RETIRADAS, runOpenSourceAgent, trazAnotacoesClinicas } from "./ai/llm";
+import { relatorioDaPsicologa } from "./relatorioDeGestao";
 import { answerSiteHelp } from "./ai/site-help";
 import { executarAcaoAgenda, horarioEmConflito, resolveAiAccessContext } from "./ai/clinical-tools";
 import { confirmPendingActionByHuman } from "./ai/action-confirmation";
@@ -520,11 +521,16 @@ export const appRouter = router({
         // Cota diária do plano (Sussurro 5, Voz 15 — shared/precos.ts). Fica DEPOIS do
         // replay acima: repetir uma pergunta já respondida não gasta cota. A Groq
         // grátis aguenta ~80 perguntas/dia somando todas as clientes.
-        // Ajuda na estrutura do prontuário: Voz, Coro, teste grátis e admin.
-        let prontuarioLiberado = true;
+        // O que a Luma faz depende do plano: prontuário (Voz e Coro), documentos e
+        // relatório da clínica (Coro). Teste grátis e admin têm tudo.
+        let recursosDaLuma = { prontuario: true, documentos: true, relatorio: true };
         if (ctx.user.role !== "admin" && accessContext.therapistId) {
-          const { plano, limites, lumaNoProntuario } = await planoDaPsicologa(db, accessContext.therapistId);
-          prontuarioLiberado = lumaNoProntuario;
+          const { plano, limites, recursos } = await planoDaPsicologa(db, accessContext.therapistId);
+          recursosDaLuma = {
+            prontuario: recursos.lumaNoProntuario,
+            documentos: recursos.documentosPsicologicos,
+            relatorio: recursos.relatorioDeGestao,
+          };
           const limite = limites.lumaPorDia;
           if ((await perguntasDaLumaHoje(db, ctx.user.id)) >= limite) {
             throw new TRPCError({
@@ -539,7 +545,7 @@ export const appRouter = router({
         // pendurada (era o que acumulava lixo a cada retry quando a IA demorava).
         // withTimeout limpa o próprio timer (ver helper).
         const response = await withTimeout(
-          runOpenSourceAgent(mensagensDoAgente, accessContext, db, undefined, input.patientId, input.conversationId, prontuarioLiberado),
+          runOpenSourceAgent(mensagensDoAgente, accessContext, db, undefined, input.patientId, input.conversationId, recursosDaLuma),
           35_000,
           "AI response timeout",
         );
@@ -1862,6 +1868,21 @@ export const appRouter = router({
   }),
 
   // Perfil profissional da psicóloga (dados de therapists).
+  /** Relatório da clínica: diferencial do Coro (e do teste/admin), calculado sem IA. */
+  gestao: router({
+    relatorio: therapistProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      const [therapist] = await db.select({ id: therapists.id }).from(therapists).where(eq(therapists.userId, ctx.user.id)).limit(1);
+      if (!therapist) throw new Error("Complete seu perfil profissional para ver o relatório.");
+      const { recursos } = await planoDaPsicologa(db, therapist.id);
+      if (!recursos.relatorioDeGestao) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "O relatório da clínica faz parte do plano Coro." });
+      }
+      return relatorioDaPsicologa(db, therapist.id);
+    }),
+  }),
+
   therapists: router({
     me: therapistProcedure.query(async ({ ctx }) => {
       const db = await getDb();

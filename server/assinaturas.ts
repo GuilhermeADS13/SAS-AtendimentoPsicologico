@@ -106,6 +106,7 @@ export async function resumoDaAssinatura(db: Db, user: { id: number; role: strin
     /** Null = sem limite (admin). Sob medida manda; sem ela, o Coro usa a cota do Voz. */
     lumaLimite: isento ? null : limitesDoPlano(plano, assinatura).lumaPorDia,
     anexoMaxMb: isento ? null : limitesDoPlano(plano, assinatura).anexoMb,
+    recursos: recursosDoPlano(plano, isento, situacao.motivo === "teste"),
   };
 }
 
@@ -173,12 +174,26 @@ export async function planoDaPsicologa(db: Db, therapistId: number) {
   const escolhido = linha?.escolhido ?? "pro";
   const plano = planoEfetivo(escolhido, pacientes);
   const admin = linha?.role === "admin";
-  // Ajuda da Luma na estrutura do prontuário: diferencial do Voz e do Coro
-  // (2026-10-28). No teste grátis vale "tudo liberado", como promete a página de
-  // preços; a admin não tem trava de plano.
   const emTeste = situacaoDaAssinatura(linha ? { testeAte: linha.testeAte, pagoAte: linha.pagoAte } : null).motivo === "teste";
-  const lumaNoProntuario = admin || plano.lumaNoProntuario || emTeste;
-  return { admin, escolhido, pacientes, plano, limites: limitesDoPlano(plano, linha), lumaNoProntuario };
+  return { admin, escolhido, pacientes, plano, limites: limitesDoPlano(plano, linha), recursos: recursosDoPlano(plano, admin, emTeste) };
+}
+
+/**
+ * Recursos que dependem do plano (2026-10-28): a Luma no prontuário (Voz e Coro),
+ * nos documentos psicológicos e o relatório da clínica (só Coro). No teste grátis
+ * vale "tudo liberado", como promete a página de preços; a admin não tem trava.
+ */
+export function recursosDoPlano(
+  plano: { lumaNoProntuario: boolean; documentosPsicologicos: boolean; relatorioDeGestao: boolean },
+  admin: boolean,
+  emTeste: boolean,
+) {
+  const tem = (doPlano: boolean) => admin || emTeste || doPlano;
+  return {
+    lumaNoProntuario: tem(plano.lumaNoProntuario),
+    documentosPsicologicos: tem(plano.documentosPsicologicos),
+    relatorioDeGestao: tem(plano.relatorioDeGestao),
+  };
 }
 
 /** Limite de anexo (MB) das conversas desta psicóloga; null = sem limite do plano. */
