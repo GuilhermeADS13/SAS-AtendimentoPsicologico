@@ -11,6 +11,8 @@ import { formatarBRL } from "@shared/dinheiro";
 import { DollarSign, Clock, TrendingUp, CheckCircle2, Users, CalendarDays, ChevronLeft, ChevronRight, QrCode } from "lucide-react";
 import { AvatarDaPessoa } from "@/components/AvatarDaPessoa";
 import { CobrarPorPix } from "@/components/CobrarPorPix";
+import { useMeuPix } from "@/hooks/useMeuPix";
+import { pixComValor } from "@shared/pix";
 import { RelatorioDaClinica } from "@/components/RelatorioDaClinica";
 import { intervalo, type Periodo } from "@/lib/periodo";
 
@@ -27,7 +29,7 @@ export default function Financeiro() {
   const [periodo, setPeriodo] = useState<Periodo>("mes");
   // Quantas semanas/meses/anos para trás (-) ou para a frente (+) do atual.
   const [deslocamento, setDeslocamento] = useState(0);
-  // Paciente cujo QR do Pix está aberto (null = nenhum).
+  // Paciente cujo QR (para ele pagar) está aberto (null = nenhum).
   const [cobrando, setCobrando] = useState<number | null>(null);
 
   const { data: appointments = [] } = trpc.appointments.list.useQuery();
@@ -109,7 +111,10 @@ export default function Financeiro() {
     }
   };
 
-  // Lembrete pelo WhatsApp com o total do paciente (1 ou N consultas).
+  // Cobrança pelo WhatsApp com o total do paciente (1 ou N consultas). Com a chave
+  // cadastrada, a mensagem já leva o Pix copia e cola COM o valor: o paciente paga
+  // direto por ela (antes era só um lembrete, e ele ainda tinha que pedir a chave).
+  const meuPix = useMeuPix();
   const lembrarGrupoHref = (g: Grupo): string | null => {
     const digits = (pacienteDe(g.patientId)?.phone ?? "").replace(/\D/g, "");
     if (!digits) return null;
@@ -121,7 +126,10 @@ export default function Financeiro() {
             g.consultas[0].scheduledAt,
           )} (${formatarBRL(g.total)})`
         : `do pagamento de ${g.consultas.length} consultas (total ${formatarBRL(g.total)})`;
-    const msg = `Olá, ${nome}! 😊\n\nPassando para lembrar ${corpo}.\n\nQualquer dúvida, estou à disposição!`;
+    const pix = meuPix
+      ? `\n\nPara pagar, copie o código abaixo e cole no app do seu banco, em Pix → Copia e Cola (o valor já vem preenchido):\n\n${pixComValor(meuPix, g.total)}\n\nDepois de pagar, toque em “Já paguei” em Minhas Consultas.`
+      : "";
+    const msg = `Olá, ${nome}! 😊\n\nPassando para lembrar ${corpo}.${pix}\n\nQualquer dúvida, estou à disposição!`;
     return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
   };
 
@@ -343,15 +351,27 @@ export default function Financeiro() {
                           size="sm"
                           disabled={!href}
                           onClick={() => href && window.open(href, "_blank", "noopener")}
-                          title={href ? "Lembrar no WhatsApp" : "Paciente sem telefone"}
+                          title={
+                            !href
+                              ? "Paciente sem telefone"
+                              : meuPix
+                                ? "Manda no WhatsApp do paciente a cobrança com o Pix já com o valor"
+                                : "Manda o lembrete no WhatsApp do paciente (cadastre sua chave Pix no Perfil para ir junto)"
+                          }
                           className="h-9 border-green-300 text-green-700 hover:bg-green-50 hover:text-green-800 disabled:text-muted-foreground dark:border-green-800 dark:text-green-400"
                         >
                           <WhatsAppIcon className="mr-2 size-4" />
-                          Lembrar
+                          Cobrar no WhatsApp
                         </Button>
-                        <Button variant="outline" size="sm" className="h-9" onClick={() => setCobrando(g.patientId)}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-9"
+                          onClick={() => setCobrando(g.patientId)}
+                          title="QR para o paciente ler com o celular e pagar"
+                        >
                           <QrCode className="mr-2 size-4" />
-                          QR do Pix
+                          Mostrar QR
                         </Button>
                         <Button size="sm" className="h-9" disabled={setPayment.isPending} onClick={() => marcarGrupoPago(g)}>
                           <CheckCircle2 className="mr-2 size-4" />

@@ -395,7 +395,9 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
         </li>
         <li>
           Embaixo, <strong>“Quem ainda não pagou”</strong> junta as consultas pendentes de
-          cada paciente. <strong>“Lembrar”</strong> abre o WhatsApp com a mensagem pronta;{" "}
+          cada paciente. <strong>“Cobrar no WhatsApp”</strong> abre o WhatsApp do paciente com a
+          mensagem pronta e, se você cadastrou a chave Pix, o código já com o valor para ele pagar;{" "}
+          <strong>“Mostrar QR”</strong> é para ele pagar lendo o QR com o celular;{" "}
           <strong>“Marcar pago”</strong> dá baixa.
         </li>
         <li>

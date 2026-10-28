@@ -34,7 +34,7 @@ export function CobrarPorPix({
     <Dialog open={aberto} onOpenChange={(v) => !v && aoFechar()}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Pix de {nome}</DialogTitle>
+          <DialogTitle>Para {nome} pagar você</DialogTitle>
           <DialogDescription>
             {descricao} · <span className="font-semibold text-foreground tabular-nums">{valor}</span>
           </DialogDescription>
@@ -45,7 +45,8 @@ export function CobrarPorPix({
               <QrDoPix codigo={codigo} titulo={`QR code do Pix de ${valor}`} className="size-56" />
             </div>
             <p className="text-center text-sm text-muted-foreground">
-              O paciente lê com o app do banco e o valor já vem preenchido. Ou copie o código e mande para ele.
+              Mostre na tela para o paciente ler com o celular: o app do banco dele abre com o valor certo e o
+              dinheiro cai na sua conta. Longe dele? Use “Cobrar no WhatsApp”, ou copie o código e mande.
             </p>
             <CopiarPix opcoes={[{ chave: "cobranca", rotulo: `Copiar Pix: ${valor}`, codigo }]} />
           </div>
