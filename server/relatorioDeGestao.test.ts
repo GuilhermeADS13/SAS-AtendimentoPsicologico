@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { montarRelatorioDeGestao, relatorioEmTexto, type ConsultaDoRelatorio } from "./relatorioDeGestao";
+import {
+  deveEnviarRelatorio,
+  inicioDaSemanaDoRelatorio,
+  montarRelatorioDeGestao,
+  relatorioEmTexto,
+  relatorioTemNovidade,
+  type ConsultaDoRelatorio,
+} from "./relatorioDeGestao";
 import { recursosDoPlano } from "./assinaturas";
 import { PLANOS } from "../shared/precos";
 
@@ -82,6 +89,31 @@ describe("relatório da clínica (Coro), sem IA", () => {
     const vazio = montarRelatorioDeGestao([], [], agora);
     expect(vazio.atual.comparecimento).toBeNull();
     expect(relatorioEmTexto(vazio)).toContain("sem consultas no período");
+  });
+});
+
+describe("e-mail semanal: uma vez por semana, a partir de segunda às 8h (Brasília)", () => {
+  const em = (iso: string) => new Date(iso);
+  it("a semana começa segunda 8h de Brasília (11h UTC)", () => {
+    // 28/10/2026 é quarta-feira.
+    expect(inicioDaSemanaDoRelatorio(em("2026-10-28T15:00:00Z")).toISOString()).toBe("2026-10-26T11:00:00.000Z");
+    // Segunda antes das 8h de Brasília ainda é a semana anterior.
+    expect(inicioDaSemanaDoRelatorio(em("2026-11-02T10:59:00Z")).toISOString()).toBe("2026-10-26T11:00:00.000Z");
+    expect(inicioDaSemanaDoRelatorio(em("2026-11-02T11:00:00Z")).toISOString()).toBe("2026-11-02T11:00:00.000Z");
+    // Domingo 23h em Brasília (segunda 02h UTC) também é a semana anterior.
+    expect(inicioDaSemanaDoRelatorio(em("2026-11-02T02:00:00Z")).toISOString()).toBe("2026-10-26T11:00:00.000Z");
+  });
+
+  it("envia se nunca enviou ou se o último foi antes desta semana; não repete na mesma semana", () => {
+    const quarta = em("2026-10-28T15:00:00Z");
+    expect(deveEnviarRelatorio(null, quarta)).toBe(true);
+    expect(deveEnviarRelatorio(em("2026-10-26T11:05:00Z"), quarta)).toBe(false);
+    expect(deveEnviarRelatorio(em("2026-10-19T11:05:00Z"), quarta)).toBe(true);
+  });
+
+  it("consultório sem movimento não recebe e-mail de zeros", () => {
+    expect(relatorioTemNovidade(montarRelatorioDeGestao([], [], agora))).toBe(false);
+    expect(relatorioTemNovidade(montarRelatorioDeGestao(consultas, pacientes, agora))).toBe(true);
   });
 });
 

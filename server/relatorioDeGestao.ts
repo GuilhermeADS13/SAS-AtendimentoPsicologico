@@ -87,6 +87,30 @@ export function montarRelatorioDeGestao(
 
 export type RelatorioDeGestao = ReturnType<typeof montarRelatorioDeGestao>;
 
+/**
+ * Início da "semana do relatório": segunda-feira às 8h de Brasília (UTC-3, sem
+ * horário de verão). O e-mail sai uma vez a partir daí; se o servidor estiver
+ * dormindo na segunda, sai no primeiro ciclo depois.
+ */
+export function inicioDaSemanaDoRelatorio(agora: Date): Date {
+  const TRES_HORAS = 3 * 60 * 60 * 1000;
+  const local = new Date(agora.getTime() - TRES_HORAS);
+  const desdeSegunda = (local.getUTCDay() + 6) % 7;
+  const segunda8h = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() - desdeSegunda, 8) + TRES_HORAS;
+  // Segunda antes das 8h: ainda vale a semana anterior.
+  return new Date(segunda8h > agora.getTime() ? segunda8h - 7 * DIA : segunda8h);
+}
+
+export function deveEnviarRelatorio(enviadoEm: Date | null, agora: Date): boolean {
+  return !enviadoEm || enviadoEm < inicioDaSemanaDoRelatorio(agora);
+}
+
+/** Consultório sem movimento nenhum: um e-mail só de zeros não ajuda ninguém. */
+export function relatorioTemNovidade(r: RelatorioDeGestao): boolean {
+  const a = r.atual;
+  return a.realizadas + a.faltas + a.canceladas > 0 || r.proximos7Dias.agendadas > 0 || r.inadimplentes.length > 0;
+}
+
 export async function relatorioDaPsicologa(db: Db, therapistId: number, agora: Date = new Date()): Promise<RelatorioDeGestao> {
   const [consultas, lista] = await Promise.all([
     db

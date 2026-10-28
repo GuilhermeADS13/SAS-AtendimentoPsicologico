@@ -203,6 +203,8 @@ export const assinaturas = pgTable(
     diaVencimento: smallint("diaVencimento"),
     /** Vencimento que já recebeu o e-mail "vence em 3 dias" (migração 0041). */
     avisoEnviadoPara: timestamp("avisoEnviadoPara", { withTimezone: true, mode: "date" }),
+    /** Último e-mail semanal do relatório da clínica (migração 0045): um por semana. */
+    relatorioEnviadoEm: timestamp("relatorioEnviadoEm", { withTimezone: true, mode: "date" }),
     createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
     updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
       .defaultNow()

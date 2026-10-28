@@ -8,9 +8,9 @@ import {
   therapistRequests,
   assinaturas,
 } from "../drizzle/schema";
-import { eq, and, lt, gte, gt, isNull, inArray, asc } from "drizzle-orm";
+import { eq, and, or, lt, gte, gt, isNull, inArray, asc } from "drizzle-orm";
 import { sendEmail } from "./mailer";
-import { contarPacientesCobrados } from "./assinaturas";
+import { contarPacientesCobrados, planoDaPsicologa } from "./assinaturas";
 import { precisaAvisarVencimento, situacaoDaAssinatura } from "../shared/assinatura";
 import { formatarReais, valorDoPlano } from "../shared/precos";
 import { googleCalendarUrl } from "../shared/calendario";
@@ -740,6 +740,79 @@ export async function avisarVencimentosDePlano(agora: Date = new Date()): Promis
 }
 
 /**
+ * E-mail semanal do relatório da clínica (diferencial do Coro, 2026-10-28): segunda
+ * de manhã, um por semana (`relatorioEnviadoEm`, migração 0045). Só NÚMEROS — os
+ * nomes de quem deve ou sumiu ficam no Financeiro: por sigilo, não vão por e-mail.
+ */
+export async function enviarRelatoriosSemanais(agora: Date = new Date()): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  // Import dinâmico: relatorioDeGestao → clinical-tools → notifications (ciclo).
+  const { deveEnviarRelatorio, inicioDaSemanaDoRelatorio, relatorioDaPsicologa, relatorioTemNovidade } = await import("./relatorioDeGestao");
+  const linhas = await db
+    .select({
+      id: assinaturas.id,
+      therapistId: assinaturas.therapistId,
+      testeAte: assinaturas.testeAte,
+      pagoAte: assinaturas.pagoAte,
+      relatorioEnviadoEm: assinaturas.relatorioEnviadoEm,
+      nome: users.name,
+      email: users.email,
+      role: users.role,
+    })
+    .from(assinaturas)
+    .innerJoin(therapists, eq(therapists.id, assinaturas.therapistId))
+    .innerJoin(users, eq(users.id, therapists.userId));
+
+  const inicio = inicioDaSemanaDoRelatorio(agora);
+  let enviados = 0;
+  for (const l of linhas) {
+    if (!l.email || !l.therapistId || !deveEnviarRelatorio(l.relatorioEnviadoEm, agora)) continue;
+    // Assinatura vencida pausa o uso novo; o relatório também.
+    if (l.role !== "admin" && !situacaoDaAssinatura(l, agora).liberado) continue;
+    const { recursos } = await planoDaPsicologa(db, l.therapistId);
+    if (!recursos.relatorioDeGestao) continue;
+    const r = await relatorioDaPsicologa(db, l.therapistId, agora);
+    if (!relatorioTemNovidade(r)) continue;
+
+    // Reserva a semana ANTES de enviar: dois ciclos juntos não mandam dois e-mails.
+    const reservado = await db
+      .update(assinaturas)
+      .set({ relatorioEnviadoEm: agora })
+      .where(and(eq(assinaturas.id, l.id), or(isNull(assinaturas.relatorioEnviadoEm), lt(assinaturas.relatorioEnviadoEm, inicio))))
+      .returning({ id: assinaturas.id });
+    if (!reservado.length) continue;
+
+    const a = r.atual;
+    const base = appUrl();
+    const html = emailComMarca({
+      nome: l.nome,
+      titulo: "Seu relatório da clínica",
+      corpo: `<p>Os números dos últimos ${r.dias} dias do seu consultório.</p>${detalhesDoEmail([
+        ["Consultas realizadas", String(a.realizadas)],
+        ["Comparecimento", a.comparecimento === null ? "sem consultas" : `${a.comparecimento}%`],
+        ["Faltas e cancelamentos", `${a.faltas} falta${a.faltas === 1 ? "" : "s"}, ${a.canceladas} cancelamento${a.canceladas === 1 ? "" : "s"}`],
+        ["Recebido", esc(formatarReais(a.recebido))],
+        ["Devendo (todo o histórico)", `${esc(formatarReais(r.totalDevido))} (${r.inadimplentes.length} paciente${r.inadimplentes.length === 1 ? "" : "s"})`],
+        ["Sem consulta há 30 dias", r.sumidos.length ? `${r.sumidos.length} paciente${r.sumidos.length === 1 ? "" : "s"}` : null],
+        ["Próximos 7 dias", `${r.proximos7Dias.agendadas} consultas, ${r.proximos7Dias.naoConfirmadas} sem confirmação`],
+      ])}<p>Quem está devendo e quem sumiu você vê no Financeiro — por sigilo, os nomes não vão por e-mail.</p>`,
+      botao: { texto: "Abrir o relatório", url: `${base}/financeiro` },
+      observacao: "Você recebe este resumo toda segunda-feira. É um recurso do plano Coro.",
+      base,
+    });
+    const ok = await sendEmail(l.email, "Seu relatório da clínica — VozInterior", html).catch(() => false);
+    if (!ok) {
+      // Devolve a reserva: tenta de novo no próximo ciclo.
+      await db.update(assinaturas).set({ relatorioEnviadoEm: l.relatorioEnviadoEm }).where(eq(assinaturas.id, l.id));
+      continue;
+    }
+    enviados++;
+  }
+  return enviados;
+}
+
+/**
  * E-mail para a psicóloga quando o paciente toca em "Já paguei". Ela confere no
  * banco e confirma (ou recusa) no Financeiro — o sistema não vê o Pix, que vai
  * direto para a conta dela. Melhor esforço: o aviso também aparece no menu.
@@ -792,8 +865,9 @@ export function rodarCicloDeNotificacoes(): Promise<void> {
         await sendCancellationAlerts();
         const pedidos = await notifyPendingTherapistRequests();
         const vencimentos = await avisarVencimentosDePlano();
+        const relatorios = await enviarRelatoriosSemanais();
         const result = await processPendingNotifications();
-        console.log("[Notifications] ciclo:", { ...result, solicitacoes: pedidos, vencimentos });
+        console.log("[Notifications] ciclo:", { ...result, solicitacoes: pedidos, vencimentos, relatorios });
       } while (rodarDeNovo);
     } catch (error) {
       console.error("[Notifications] erro no ciclo:", error);
