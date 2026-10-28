@@ -46,13 +46,49 @@ const montar = (campos: Campo[]) =>
 export const TIPOS_DE_CHAVE_PIX = ["cpf_cnpj", "celular", "email", "aleatoria"] as const;
 export type TipoChavePix = (typeof TIPOS_DE_CHAVE_PIX)[number];
 
+/**
+ * Dígitos verificadores do CPF. Um dígito digitado errado quase sempre quebra a
+ * conta — e um CPF errado que por azar é chave de OUTRA pessoa mandaria o
+ * dinheiro do paciente para ela.
+ */
+function cpfValido(cpf: string): boolean {
+  if (!/^\d{11}$/.test(cpf) || /^(\d)\1{10}$/.test(cpf)) return false;
+  const dv = (n: number) => {
+    let soma = 0;
+    for (let i = 0; i < n; i++) soma += Number(cpf[i]) * (n + 1 - i);
+    return ((soma * 10) % 11) % 10;
+  };
+  return dv(9) === Number(cpf[9]) && dv(10) === Number(cpf[10]);
+}
+
+/**
+ * Dígitos verificadores do CNPJ, inclusive o ALFANUMÉRICO que a Receita emite
+ * desde julho de 2026 (12 letras/números + 2 dígitos): cada caractere vale o
+ * código ASCII menos 48 — para os números, é o próprio número.
+ */
+function cnpjValido(cnpj: string): boolean {
+  if (!/^[0-9A-Z]{12}\d{2}$/.test(cnpj) || /^(\d)\1{13}$/.test(cnpj)) return false;
+  const dv = (n: number) => {
+    let soma = 0;
+    for (let i = 0; i < n; i++) soma += (cnpj.charCodeAt(i) - 48) * (((n - 1 - i) % 8) + 2);
+    const resto = soma % 11;
+    return resto < 2 ? 0 : 11 - resto;
+  };
+  return dv(12) === Number(cnpj[12]) && dv(13) === Number(cnpj[13]);
+}
+
 /** A chave no formato do DICT, ou null se não é uma chave válida daquele tipo. */
 export function normalizarChavePix(tipo: TipoChavePix, valor: string): string | null {
   const v = valor.trim();
   const digitos = v.replace(/\D/g, "");
   switch (tipo) {
-    case "cpf_cnpj":
-      return digitos.length === 11 || digitos.length === 14 ? digitos : null;
+    case "cpf_cnpj": {
+      // Tira pontuação e espaço, mas mantém letras (CNPJ alfanumérico).
+      const limpo = v.toUpperCase().replace(/[.\-/\s]/g, "");
+      if (limpo.length === 11) return cpfValido(limpo) ? limpo : null;
+      if (limpo.length === 14) return cnpjValido(limpo) ? limpo : null;
+      return null;
+    }
     case "celular": {
       // Aceita com ou sem o 55; o DICT guarda "+55" + DDD + número.
       const nacional = digitos.length === 13 && digitos.startsWith("55") ? digitos.slice(2) : digitos;
@@ -81,7 +117,7 @@ export function palpiteDoTipoDeChave(valor: string): TipoChavePix | null {
   if (v.includes("@")) return "email";
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)) return "aleatoria";
   const digitos = v.replace(/\D/g, "");
-  if (digitos.length === 14) return "cpf_cnpj";
+  if (digitos.length === 14 || /^[0-9A-Z]{12}\d{2}$/i.test(v.replace(/[.\-/\s]/g, ""))) return "cpf_cnpj";
   if (/[()+]/.test(v) || digitos.length === 13) return "celular";
   if (digitos.length === 11) return !v.includes(".") && /^[1-9][1-9]9/.test(digitos) ? "celular" : "cpf_cnpj";
   return null;

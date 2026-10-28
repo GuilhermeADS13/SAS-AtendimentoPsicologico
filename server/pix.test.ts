@@ -42,6 +42,15 @@ describe("Pix copia e cola com valor", () => {
     ["cpf_cnpj", "123.456.789-09", "12345678909"],
     ["cpf_cnpj", "12.345.678/0001-95", "12345678000195"],
     ["cpf_cnpj", "123", null],
+    // Dígito verificador: um número trocado não passa.
+    ["cpf_cnpj", "123.456.789-08", null],
+    ["cpf_cnpj", "111.111.111-11", null],
+    ["cpf_cnpj", "12.345.678/0001-94", null],
+    ["cpf_cnpj", "00.000.000/0000-00", null],
+    // CNPJ alfanumérico (Receita, desde jul/2026) — o exemplo oficial.
+    ["cpf_cnpj", "12.ABC.345/01DE-35", "12ABC34501DE35"],
+    ["cpf_cnpj", "12.abc.345/01de-35", "12ABC34501DE35"],
+    ["cpf_cnpj", "12.ABC.345/01DE-36", null],
     ["celular", "(81) 99999-0000", "+5581999990000"],
     ["celular", "+55 81 99999-0000", "+5581999990000"],
     ["celular", "(81) 3333-0000", null],
@@ -105,6 +114,7 @@ describe("Pix copia e cola colado pela psicóloga", () => {
     ["123.456.789-09", "cpf_cnpj"],
     ["12345678909", "cpf_cnpj"],
     ["12.345.678/0001-95", "cpf_cnpj"],
+    ["12.ABC.345/01DE-35", "cpf_cnpj"],
     ["ana@exemplo.com", "email"],
     ["123E4567-E89B-12D3-A456-426614174000", "aleatoria"],
     ["oi", null],

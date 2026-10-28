@@ -36,11 +36,15 @@ export function PixParaReceber() {
   const [tipo, setTipo] = useState<TipoChavePix>("celular");
   const [chave, setChave] = useState("");
   const [cidade, setCidade] = useState("");
+  // Logo depois de salvar, pede para conferir a chave (celular e e-mail não têm
+  // dígito verificador: um erro de digitação mandaria o Pix para outra pessoa).
+  const [conferir, setConferir] = useState(false);
 
   const aoSalvar = {
     onSuccess: () => {
       utils.therapists.me.invalidate();
       setEditando(false);
+      setConferir(true);
       setCopiaECola("");
       toast.success("Chave Pix salva. Seus pacientes já podem pagar por ela.");
     },
@@ -63,6 +67,8 @@ export function PixParaReceber() {
     setTipo((perfil.pixTipo as TipoChavePix | null) ?? "celular");
     setChave(perfil.pixChave ?? "");
     setCidade(perfil.pixCidade ?? "");
+    // Corrigir/trocar uma chave que já existe: abre nela, à vista, para editar.
+    setModo(perfil.pixChave ? "digitar" : "colar");
     setEditando(true);
   };
 
@@ -82,6 +88,22 @@ export function PixParaReceber() {
         </div>
       </div>
 
+      {temChave && !editando && conferir && (
+        <div role="status" className="space-y-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+          <p>
+            <strong>Confira:</strong> a chave abaixo é exatamente a que está no app do seu banco? Se tiver um
+            número ou letra trocada, o Pix do paciente pode ir para outra pessoa.
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => setConferir(false)}>
+              Está certa
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => { setConferir(false); abrirEdicao(); }}>
+              Corrigir
+            </Button>
+          </div>
+        </div>
+      )}
       {temChave && !editando ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-secondary/50 px-4 py-3">
           <p className="min-w-0 text-sm">
