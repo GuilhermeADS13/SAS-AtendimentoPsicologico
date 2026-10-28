@@ -16,6 +16,13 @@ const SUPORTE_WHATSAPP = "81992419511";
 export const PIX_COPIA_E_COLA =
   "00020126580014BR.GOV.BCB.PIX0136ad1102d2-c027-4ac8-baa4-1de690b4219f5204000053039865802BR5925Guilherme Maciel dos Sant6009SAO PAULO62140510WiGAxP4vRq6304CE4E";
 
+/**
+ * Quem vende o serviço (pessoa física, por enquanto sem CNPJ). O Decreto
+ * 7.962/2013 pede a identificação do fornecedor em local visível: vai no rodapé,
+ * nos Termos de Uso e na Política de Privacidade. É o mesmo nome do Pix acima.
+ */
+export const RESPONSAVEL_PELO_SERVICO = "Guilherme Maciel dos Santos";
+
 export function linkWhatsAppDoSuporte(mensagem: string): string | null {
   const digitos = SUPORTE_WHATSAPP.replace(/\D/g, "");
   if (!digitos) return null;

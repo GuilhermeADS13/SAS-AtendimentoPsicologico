@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { LogoLockup } from "@/components/Logo";
 import { LumaDoPlano } from "@/components/LumaDoPlano";
+import { Rodape } from "@/components/Rodape";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { linkWhatsAppDoSuporte } from "@/lib/suporte";
 import {
@@ -68,6 +69,11 @@ const DUVIDAS = [
   {
     pergunta: "O que é a Psicóloga Fundadora?",
     resposta: `É o desconto de lançamento: as ${VAGAS_DE_FUNDADOR} primeiras psicólogas a entrar no VozInterior viram Psicólogas Fundadoras e pagam ${DESCONTO_FUNDADOR * 100}% a menos que a tabela, para sempre, enquanto forem clientes. Depois dessas vagas, vale o preço normal.`,
+  },
+  {
+    pergunta: "Posso cancelar? E o reembolso?",
+    resposta:
+      "Pode, quando quiser, pelo WhatsApp ou por e-mail. Até 7 dias depois do pagamento, devolvemos tudo. Depois disso, devolvemos a parte proporcional aos dias que você não usou: no anual, por exemplo, quem cancela no 100º dia recebe de volta os outros 265. Os detalhes estão nos Termos de Uso.",
   },
   {
     pergunta: "O paciente paga alguma coisa?",
@@ -304,6 +310,7 @@ export default function Precos() {
           </div>
         </section>
       </main>
+      <Rodape />
     </div>
   );
 }

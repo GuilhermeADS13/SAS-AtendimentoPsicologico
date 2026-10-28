@@ -1,7 +1,8 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useRole } from "@/hooks/useRole";
 import { Button } from "@/components/ui/button";
-import { LogoLockup, LogoMark, APP_NAME } from "@/components/Logo";
+import { LogoLockup, LogoMark } from "@/components/Logo";
+import { Rodape } from "@/components/Rodape";
 import {
   ArrowRight,
   Calendar,
@@ -44,7 +45,7 @@ const FEATURES = [
     icon: Lock,
     title: "Segurança",
     description:
-      "Documentos em armazenamento privado, com link temporário. Só você acessa os prontuários.",
+      "Documentos em armazenamento privado, com link temporário. No sistema, só você abre os prontuários dos seus pacientes.",
   },
   {
     icon: Clock,
@@ -164,7 +165,7 @@ export default function Home() {
             Pronto para começar?
           </h2>
           <p className="mt-4 text-lg text-primary-foreground/80 max-w-xl mx-auto text-pretty">
-            Crie sua conta e comece a atender hoje mesmo.
+            Crie sua conta. Assim que o seu CRP for verificado, é só começar a atender.
           </p>
           <Button
             onClick={() => setLocation("/login")}
@@ -178,14 +179,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="border-t border-border">
-        <div className="container mx-auto px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <LogoLockup markClassName="w-6 h-6" />
-          <p className="text-sm text-muted-foreground">
-            &copy; 2026 {APP_NAME}. Todos os direitos reservados.
-          </p>
-        </div>
-      </footer>
+      <Rodape />
     </div>
   );
 }

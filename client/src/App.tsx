@@ -38,6 +38,7 @@ import {
   Privacidade,
   Profile,
   Records,
+  Termos,
   TherapistRequests,
   VideoCallDynamic,
 } from "@/paginas";
@@ -68,6 +69,7 @@ function Router() {
       <Route path={"/ajuda"} component={Ajuda} />
       {/* Pública: o consentimento do cadastro aponta para cá. */}
       <Route path={"/privacidade"} component={Privacidade} />
+      <Route path={"/termos"} component={Termos} />
       {/* Pública: é a vitrine para quem ainda não tem conta. */}
       <Route path={"/precos"} component={Precos} />
       {import.meta.env.VITE_E2E === "true" && (

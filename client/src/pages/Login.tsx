@@ -153,7 +153,7 @@ export default function Login() {
       return;
     }
     if (!aceitouPolitica) {
-      toast.error("Para criar a conta, aceite a Política de Privacidade.");
+      toast.error("Para criar a conta, aceite os Termos de Uso e a Política de Privacidade.");
       return;
     }
     setLoading(true);
@@ -460,7 +460,16 @@ export default function Login() {
                     className="mt-0.5 h-4 w-4 accent-primary"
                   />
                   <span>
-                    Li e concordo com a{" "}
+                    Li e concordo com os{" "}
+                    <a
+                      href="/termos"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-primary underline underline-offset-4"
+                    >
+                      Termos de Uso
+                    </a>{" "}
+                    e com a{" "}
                     <a
                       href="/privacidade"
                       target="_blank"

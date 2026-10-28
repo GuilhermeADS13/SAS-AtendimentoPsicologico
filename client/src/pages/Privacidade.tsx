@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { LogoLockup } from "@/components/Logo";
+import { RESPONSAVEL_PELO_SERVICO } from "@/lib/suporte";
 import { ArrowLeft } from "lucide-react";
 
 /**
@@ -48,6 +49,15 @@ export default function Privacidade() {
               atendimento. Os dados aqui tratados existem para uma única finalidade:
               viabilizar o seu atendimento psicológico.
             </p>
+            <p>
+              O serviço é oferecido por <strong>{RESPONSAVEL_PELO_SERVICO}</strong>, pessoa
+              física, às psicólogas que o assinam. Esta política vale para pacientes e para
+              psicólogas; o uso do serviço segue também os{" "}
+              <Link href="/termos" className="text-primary underline underline-offset-4">
+                Termos de Uso
+              </Link>
+              .
+            </p>
           </section>
 
           <section className="space-y-2">
@@ -66,6 +76,16 @@ export default function Privacidade() {
                 <strong>Dados de saúde (sensíveis):</strong> histórico e registros das
                 sessões, mantidos pela psicóloga como prontuário. São a categoria mais
                 protegida da LGPD e recebem o tratamento mais restrito da plataforma.
+              </li>
+              <li>
+                <strong>Pagamento das consultas:</strong> valor, data e o aviso “Já paguei”
+                que o paciente envia à psicóloga. O Pix é feito no app do banco: não recebemos
+                senha bancária nem dados de cartão.
+              </li>
+              <li>
+                <strong>Psicólogas:</strong> CRP (para verificar o registro profissional),
+                celular (o teste grátis é um por CRP e por celular), a chave Pix para receber
+                dos pacientes e os dados da assinatura (plano, vencimento e pagamentos).
               </li>
               <li>
                 <strong>Uso:</strong> registros técnicos de acesso (datas de consulta,
@@ -128,6 +148,10 @@ export default function Privacidade() {
                 <strong>EUA</strong>) que converte textos em representações numéricas,
                 usadas para a Luma localizar o trecho certo de um documento. Recebe o
                 trecho do documento e o texto da busca. Ver a seção 5.
+              </li>
+              <li>
+                <strong>WhatsApp</strong> — só quando você fala com o suporte ou envia o
+                comprovante da assinatura por lá. Recebe o que você escrever na conversa.
               </li>
             </ul>
             <p>
@@ -205,9 +229,9 @@ export default function Privacidade() {
           <section className="space-y-2">
             <h2 className="text-lg font-semibold text-foreground">8. Segurança</h2>
             <p>
-              O acesso ao prontuário é exclusivo da sua psicóloga. As salas de vídeo são
-              1:1 e exigem que cada participante esteja <strong>autenticado</strong> e seja
-              parte daquela consulta; a videochamada é <strong>criptografada de ponta a
+              O acesso ao prontuário é exclusivo da sua psicóloga. Cada sala de vídeo só
+              aceita quem está <strong>autenticado</strong> e foi convidado para aquela
+              consulta (até 4 pessoas, como na terapia de casal); a videochamada é <strong>criptografada de ponta a
               ponta</strong> e <strong>não é gravada</strong> — o conteúdo da sessão não é
               armazenado. Todo o tráfego é criptografado (HTTPS) e as senhas seguem
               política de complexidade mínima.
@@ -215,10 +239,21 @@ export default function Privacidade() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-lg font-semibold text-foreground">9. Controlador e encarregado</h2>
+            <h2 className="text-lg font-semibold text-foreground">9. Cookies</h2>
             <p>
-              A <strong>controladora</strong> dos dados é a psicóloga responsável pelo seu
-              atendimento, que decide sobre o tratamento e responde por ele. Para exercer
+              Usamos apenas cookies e armazenamento do navegador <strong>essenciais</strong>:
+              manter você conectado e lembrar preferências como o tema e o tamanho do menu.
+              Não usamos cookies de publicidade nem ferramentas de rastreamento.
+            </p>
+          </section>
+
+          <section className="space-y-2">
+            <h2 className="text-lg font-semibold text-foreground">10. Controlador e encarregado</h2>
+            <p>
+              A <strong>controladora</strong> dos dados do paciente é a psicóloga responsável
+              pelo seu atendimento, que decide sobre o tratamento e responde por ele. Dos
+              dados da conta e da assinatura da psicóloga, o controlador é{" "}
+              {RESPONSAVEL_PELO_SERVICO}, que oferece o VozInterior. Para exercer
               seus direitos, tirar dúvidas sobre privacidade ou falar com o{" "}
               <strong>encarregado pelo tratamento de dados</strong> (art. 41 da LGPD), use
               o canal{" "}
@@ -233,7 +268,7 @@ export default function Privacidade() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-lg font-semibold text-foreground">10. Alterações e contato</h2>
+            <h2 className="text-lg font-semibold text-foreground">11. Alterações e contato</h2>
             <p>
               Esta política pode ser atualizada; a data no topo indica a versão vigente.
               Dúvidas sobre privacidade:{" "}

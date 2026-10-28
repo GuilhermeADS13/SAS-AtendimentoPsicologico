@@ -49,6 +49,7 @@ export const TherapistRequests = paginaSobDemanda(() => import("@/pages/Therapis
 export const Ajuda = paginaSobDemanda(() => import("@/pages/Ajuda"));
 export const Privacidade = paginaSobDemanda(() => import("@/pages/Privacidade"));
 export const Precos = paginaSobDemanda(() => import("@/pages/Precos"));
+export const Termos = paginaSobDemanda(() => import("@/pages/Termos"));
 export const E2EAgentChat = paginaSobDemanda(() => import("@/pages/E2EAgentChat"));
 export const Luma = paginaSobDemanda(() => import("@/pages/Luma"));
 export const Financeiro = paginaSobDemanda(() => import("@/pages/Financeiro"));
