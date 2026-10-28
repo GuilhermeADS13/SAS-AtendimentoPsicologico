@@ -8,8 +8,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { formatarBRL } from "@shared/dinheiro";
-import { DollarSign, Clock, TrendingUp, CheckCircle2, Users, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { DollarSign, Clock, TrendingUp, CheckCircle2, Users, CalendarDays, ChevronLeft, ChevronRight, QrCode } from "lucide-react";
 import { AvatarDaPessoa } from "@/components/AvatarDaPessoa";
+import { CobrarPorPix } from "@/components/CobrarPorPix";
 import { intervalo, type Periodo } from "@/lib/periodo";
 
 const PERIODOS: { valor: Periodo; rotulo: string }[] = [
@@ -25,6 +26,8 @@ export default function Financeiro() {
   const [periodo, setPeriodo] = useState<Periodo>("mes");
   // Quantas semanas/meses/anos para trás (-) ou para a frente (+) do atual.
   const [deslocamento, setDeslocamento] = useState(0);
+  // Paciente cujo QR do Pix está aberto (null = nenhum).
+  const [cobrando, setCobrando] = useState<number | null>(null);
 
   const { data: appointments = [] } = trpc.appointments.list.useQuery();
   const { data: patients = [] } = trpc.patients.list.useQuery();
@@ -330,7 +333,8 @@ export default function Financeiro() {
                           {formatarBRL(g.total)}
                         </span>
                       </div>
-                      <div className="flex w-full items-center gap-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none">
+                      {/* Três botões não cabem lado a lado no celular: quebram linha e esticam. */}
+                      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto [&>button]:flex-auto sm:[&>button]:flex-none">
                         <Button
                           variant="outline"
                           size="sm"
@@ -341,6 +345,10 @@ export default function Financeiro() {
                         >
                           <WhatsAppIcon className="mr-2 size-4" />
                           Lembrar
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-9" onClick={() => setCobrando(g.patientId)}>
+                          <QrCode className="mr-2 size-4" />
+                          QR do Pix
                         </Button>
                         <Button size="sm" className="h-9" disabled={setPayment.isPending} onClick={() => marcarGrupoPago(g)}>
                           <CheckCircle2 className="mr-2 size-4" />
@@ -365,6 +373,21 @@ export default function Financeiro() {
           <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
         </button>
       </div>
+
+      {(() => {
+        const g = grupos.find((x) => x.patientId === cobrando);
+        if (!g) return null;
+        const n = g.consultas.length;
+        return (
+          <CobrarPorPix
+            aberto
+            aoFechar={() => setCobrando(null)}
+            nome={nomePaciente(g.patientId)}
+            descricao={n === 1 ? `Consulta de ${formatarData(g.consultas[0].scheduledAt)}` : `${n} consultas pendentes`}
+            centavos={g.total}
+          />
+        );
+      })()}
     </DashboardLayout>
   );
 }

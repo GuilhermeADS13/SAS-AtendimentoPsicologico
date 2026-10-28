@@ -23,7 +23,7 @@ import {
   resumoDaAssinatura,
 } from "./assinaturas";
 import { diaDeVencimentoValido, novoPagoAte, situacaoDaAssinatura } from "../shared/assinatura";
-import { TIPOS_DE_CHAVE_PIX, montarPixEstatico, normalizarChavePix } from "../shared/pix";
+import { TIPOS_DE_CHAVE_PIX, lerPixCopiaECola, montarPixEstatico, normalizarChavePix } from "../shared/pix";
 import { pagamentoDaConsulta } from "../shared/pagamentoDaConsulta";
 import { planoEfetivo, planoPorId, valorDoPlano } from "../shared/precos";
 import { PASSWORD_MAX_LENGTH, validatePassword } from "../shared/passwordPolicy";
@@ -1936,6 +1936,26 @@ export const appRouter = router({
           .returning({ id: therapists.id });
         if (!atualizadas.length) throw new Error("Complete seu perfil profissional antes de cadastrar o Pix.");
         return { chave };
+      }),
+
+    /**
+     * O mesmo cadastro, a partir do "Pix copia e cola" que ela copiou no app do
+     * banco: tira a chave e a cidade do código (lerPixCopiaECola) e grava nos
+     * mesmos campos. O valor de cada consulta entra depois, como na chave digitada.
+     */
+    definirPixPorCopiaECola: therapistProcedure
+      .input(z.object({ codigo: z.string().trim().min(20).max(512) }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const { tipo, chave, cidade } = lerPixCopiaECola(input.codigo);
+        const atualizadas = await db
+          .update(therapists)
+          .set({ pixTipo: tipo, pixChave: chave, pixCidade: cidade.slice(0, 15) })
+          .where(eq(therapists.userId, ctx.user.id))
+          .returning({ id: therapists.id });
+        if (!atualizadas.length) throw new Error("Complete seu perfil profissional antes de cadastrar o Pix.");
+        return { tipo, chave };
       }),
 
     removerPix: therapistProcedure.mutation(async ({ ctx }) => {

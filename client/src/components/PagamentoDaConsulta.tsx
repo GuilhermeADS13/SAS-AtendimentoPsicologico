@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { toast } from "sonner";
 import { formatarBRL } from "@shared/dinheiro";
 import { pixComValor } from "@shared/pix";
@@ -5,7 +6,8 @@ import type { SituacaoDoPagamento } from "@shared/pagamentoDaConsulta";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { CopiarPix } from "@/components/CopiarPix";
-import { CheckCircle2, Clock } from "lucide-react";
+import { QrDoPix } from "@/components/QrDoPix";
+import { CheckCircle2, Clock, QrCode } from "lucide-react";
 
 /**
  * Pagamento de uma consulta que já aconteceu, no cartão de Minhas Consultas.
@@ -30,6 +32,7 @@ export function PagamentoDaConsulta({
     },
     onError: (e) => toast.error(e.message || "Não foi possível avisar agora."),
   });
+  const [verQr, setVerQr] = useState(false);
   const valor = formatarBRL(pagamento.valorCentavos);
 
   if (pagamento.situacao === "pago") {
@@ -53,15 +56,32 @@ export function PagamentoDaConsulta({
         <span className="text-muted-foreground"> · pagamento em aberto</span>
       </p>
       {pixDaPsicologa ? (
-        <CopiarPix
-          opcoes={[
-            {
-              chave: "consulta",
-              rotulo: `Copiar Pix: ${valor}`,
-              codigo: pixComValor(pixDaPsicologa, pagamento.valorCentavos),
-            },
-          ]}
-        />
+        <>
+          <CopiarPix
+            opcoes={[
+              {
+                chave: "consulta",
+                rotulo: `Copiar Pix: ${valor}`,
+                codigo: pixComValor(pixDaPsicologa, pagamento.valorCentavos),
+              },
+            ]}
+          />
+          {/* No computador, paga lendo o QR com o celular — já com o valor. */}
+          <button
+            type="button"
+            aria-expanded={verQr}
+            onClick={() => setVerQr((v) => !v)}
+            className="inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <QrCode className="size-4" aria-hidden />
+            {verQr ? "Esconder QR code" : "Mostrar QR code"}
+          </button>
+          {verQr && (
+            <div className="w-fit rounded-lg border bg-white p-1">
+              <QrDoPix codigo={pixComValor(pixDaPsicologa, pagamento.valorCentavos)} titulo={`QR code do Pix de ${valor}`} />
+            </div>
+          )}
+        </>
       ) : (
         <p className="text-xs text-muted-foreground">Combine a forma de pagamento com a sua psicóloga.</p>
       )}

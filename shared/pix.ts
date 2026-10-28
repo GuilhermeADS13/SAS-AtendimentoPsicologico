@@ -104,6 +104,64 @@ export function montarPixEstatico({ chave, nome, cidade }: { chave: string; nome
   return semCrc + crc16Pix(semCrc);
 }
 
+/**
+ * Lê o "Pix copia e cola" que a psicóloga colou (gerado no app do banco dela) e
+ * tira a chave e a cidade — o resto o sistema remonta com montarPixEstatico,
+ * e o valor de cada consulta entra com pixComValor. Assim não precisa de coluna
+ * nova: fica igual a quem digitou a chave.
+ *
+ * Recusa o Pix DINÂMICO (cobrança com link, campo 26/25): nele o valor e o
+ * vencimento vêm do servidor do banco e não dá para trocar.
+ */
+export function lerPixCopiaECola(codigo: string): { tipo: TipoChavePix; chave: string; cidade: string } {
+  const texto = codigo.replace(/[\r\n]/g, "").trim();
+  if (!texto.startsWith("000201") || !/6304[0-9A-Fa-f]{4}$/.test(texto)) {
+    throw new Error("Isso não parece um Pix copia e cola. Copie o código inteiro no app do banco e cole de novo.");
+  }
+  if (crc16Pix(texto.slice(0, -4)) !== texto.slice(-4).toUpperCase()) {
+    throw new Error("O código veio incompleto ou alterado. Copie de novo no app do banco e cole aqui.");
+  }
+  let campos: Campo[];
+  try {
+    campos = lerCampos(texto);
+  } catch {
+    throw new Error("Não consegui ler esse código Pix. Copie de novo no app do banco e cole aqui.");
+  }
+  // A conta Pix fica num dos campos 26 a 51, marcada pelo identificador br.gov.bcb.pix.
+  let conta: Campo[] | undefined;
+  for (const c of campos) {
+    const id = Number(c.id);
+    if (id < 26 || id > 51) continue;
+    try {
+      const sub = lerCampos(c.valor);
+      if (sub.find((s) => s.id === "00")?.valor.toLowerCase() === "br.gov.bcb.pix") {
+        conta = sub;
+        break;
+      }
+    } catch {
+      /* outro arranjo de pagamento: segue procurando */
+    }
+  }
+  if (!conta) throw new Error("Esse código não é de Pix. Use o Pix copia e cola do app do seu banco.");
+  if (conta.some((s) => s.id === "25")) {
+    throw new Error(
+      "Esse é um Pix de cobrança (dinâmico), que não deixa trocar o valor. No app do banco, use a opção de receber com a sua chave Pix (QR estático).",
+    );
+  }
+  const bruta = conta.find((s) => s.id === "01")?.valor.trim() ?? "";
+  const tipo: TipoChavePix = bruta.includes("@")
+    ? "email"
+    : bruta.startsWith("+")
+      ? "celular"
+      : /^[0-9a-f-]{36}$/i.test(bruta)
+        ? "aleatoria"
+        : "cpf_cnpj";
+  const chave = normalizarChavePix(tipo, bruta);
+  if (!chave) throw new Error("Não encontrei uma chave Pix válida nesse código. Confira no app do banco.");
+  const cidade = campos.find((c) => c.id === "60")?.valor.trim() || "BRASIL";
+  return { tipo, chave, cidade };
+}
+
 /** O código com o valor (em centavos) no campo 54 e o CRC refeito. */
 export function pixComValor(codigo: string, centavos: number): string {
   const campos = lerCampos(codigo.trim()).filter((c) => c.id !== "54" && c.id !== "63");

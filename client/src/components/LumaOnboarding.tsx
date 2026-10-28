@@ -186,7 +186,7 @@ const therapistSteps: Step[] = [
     path: "/profile",
     icon: QrCode,
     title: "Receber pelo Pix",
-    body: "Cadastre aqui a sua chave Pix. Nas consultas que já aconteceram, o paciente vê o valor e copia um Pix já com o valor certo. O dinheiro cai direto na sua conta, sem taxa.",
+    body: "Cadastre aqui a sua chave Pix, ou só cole o Pix copia e cola do seu banco. Nas consultas que já aconteceram, o paciente copia o Pix ou lê o QR code, já com o valor certo. No Financeiro, você também gera o QR para cobrar. O dinheiro cai direto na sua conta, sem taxa.",
     target: '[data-tour="pix-receber"]',
   },
   {
@@ -231,7 +231,7 @@ const patientSteps: Step[] = [
     path: "/consultas",
     icon: Calendar,
     title: "Minhas Consultas",
-    body: "Suas consultas aparecem aqui. Toque em “Confirmar presença” para avisar que vai. Na hora marcada, toque em “Entrar na sala” para a videochamada. Depois da consulta aparece o valor: toque em “Copiar Pix”, pague no app do banco e toque em “Já paguei”. O sininho lá em cima avisa quando uma consulta é marcada, lembrada ou cancelada.",
+    body: "Suas consultas aparecem aqui. Toque em “Confirmar presença” para avisar que vai. Na hora marcada, toque em “Entrar na sala” para a videochamada. Depois da consulta aparece o valor: toque em “Copiar Pix” (ou leia o QR code), pague no app do banco e toque em “Já paguei”. O sininho lá em cima avisa quando uma consulta é marcada, lembrada ou cancelada.",
     target: '[data-tour="minhas-consultas"]',
   },
   {

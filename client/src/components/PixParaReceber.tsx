@@ -5,6 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { QrCode } from "lucide-react";
 
 const ROTULO: Record<TipoChavePix, string> = {
@@ -29,18 +30,25 @@ export function PixParaReceber() {
   const utils = trpc.useUtils();
   const { data: perfil } = trpc.therapists.me.useQuery();
   const [editando, setEditando] = useState(false);
+  // Colar o "copia e cola" do banco é o caminho mais curto (sem tipo nem cidade).
+  const [modo, setModo] = useState<"colar" | "digitar">("colar");
+  const [copiaECola, setCopiaECola] = useState("");
   const [tipo, setTipo] = useState<TipoChavePix>("celular");
   const [chave, setChave] = useState("");
   const [cidade, setCidade] = useState("");
 
-  const definir = trpc.therapists.definirPix.useMutation({
+  const aoSalvar = {
     onSuccess: () => {
       utils.therapists.me.invalidate();
       setEditando(false);
+      setCopiaECola("");
       toast.success("Chave Pix salva. Seus pacientes já podem pagar por ela.");
     },
-    onError: (e) => toast.error(e.message || "Não foi possível salvar a chave."),
-  });
+    onError: (e: { message: string }) => toast.error(e.message || "Não foi possível salvar a chave."),
+  };
+  const definir = trpc.therapists.definirPix.useMutation(aoSalvar);
+  const definirPorCodigo = trpc.therapists.definirPixPorCopiaECola.useMutation(aoSalvar);
+  const salvando = definir.isPending || definirPorCodigo.isPending;
   const remover = trpc.therapists.removerPix.useMutation({
     onSuccess: () => {
       utils.therapists.me.invalidate();
@@ -67,9 +75,9 @@ export function PixParaReceber() {
         <div className="space-y-1">
           <h2 className="font-semibold text-foreground">Receber dos pacientes por Pix</h2>
           <p className="text-sm text-muted-foreground">
-            Nas consultas que já aconteceram, o paciente vê o valor e copia um Pix com o valor certo.
-            O dinheiro cai direto na sua conta — o VozInterior não passa por ele. Quando ele avisar
-            que pagou, você confirma no Financeiro.
+            Nas consultas que já aconteceram, o paciente vê o valor e paga pelo Pix copia e cola ou
+            pelo QR code, já com o valor certo. O dinheiro cai direto na sua conta — o VozInterior não
+            passa por ele. No Financeiro, você também gera o QR para cobrar e confirma quando ele pagar.
           </p>
         </div>
       </div>
@@ -96,9 +104,50 @@ export function PixParaReceber() {
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
-            definir.mutate({ tipo, chave, cidade });
+            if (modo === "colar") definirPorCodigo.mutate({ codigo: copiaECola });
+            else definir.mutate({ tipo, chave, cidade });
           }}
         >
+          <div className="inline-flex rounded-lg border bg-card p-1" role="group" aria-label="Como cadastrar">
+            {([
+              ["colar", "Colar Pix copia e cola"],
+              ["digitar", "Digitar a chave"],
+            ] as const).map(([valor, rotulo]) => (
+              <button
+                key={valor}
+                type="button"
+                aria-pressed={modo === valor}
+                onClick={() => setModo(valor)}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  modo === valor ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
+
+          {modo === "colar" ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="pix-copia-e-cola">Pix copia e cola</Label>
+              <Textarea
+                id="pix-copia-e-cola"
+                value={copiaECola}
+                onChange={(e) => setCopiaECola(e.target.value)}
+                placeholder="00020126..."
+                rows={3}
+                autoComplete="off"
+                spellCheck={false}
+                className="font-mono break-all"
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                No app do seu banco, vá em Pix → Receber (ou Cobrar) e copie o código do QR. Se o banco pedir
+                um valor, pode deixar em branco: o sistema usa a sua chave e põe o valor de cada consulta.
+              </p>
+            </div>
+          ) : (
+          <>
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium text-foreground">Tipo de chave</legend>
             <div className="flex flex-wrap gap-2">
@@ -145,9 +194,11 @@ export function PixParaReceber() {
             A cidade vai no código do Pix (é uma exigência do padrão do Banco Central). Use a chave
             exatamente como está cadastrada no app do seu banco.
           </p>
+          </>
+          )}
           <div className="flex gap-2">
-            <Button type="submit" disabled={definir.isPending}>
-              {definir.isPending ? "Salvando..." : "Salvar chave"}
+            <Button type="submit" disabled={salvando}>
+              {salvando ? "Salvando..." : "Salvar chave"}
             </Button>
             <Button type="button" variant="ghost" onClick={() => setEditando(false)}>
               Cancelar
