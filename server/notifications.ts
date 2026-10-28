@@ -865,9 +865,11 @@ export function rodarCicloDeNotificacoes(): Promise<void> {
         await sendCancellationAlerts();
         const pedidos = await notifyPendingTherapistRequests();
         const vencimentos = await avisarVencimentosDePlano();
-        const relatorios = await enviarRelatoriosSemanais();
+        // E-mail semanal do relatório (enviarRelatoriosSemanais) DESLIGADO a pedido do
+        // Guilherme em 2026-10-28: liga quando houver cliente no Coro, recolocando
+        // aqui `await enviarRelatoriosSemanais()`.
         const result = await processPendingNotifications();
-        console.log("[Notifications] ciclo:", { ...result, solicitacoes: pedidos, vencimentos, relatorios });
+        console.log("[Notifications] ciclo:", { ...result, solicitacoes: pedidos, vencimentos });
       } while (rodarDeNovo);
     } catch (error) {
       console.error("[Notifications] erro no ciclo:", error);
