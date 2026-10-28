@@ -12,7 +12,12 @@ import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 // cada visita. `apply: "serve"` mantém a ferramenta no dev e tira do build.
 const manusRuntimeApenasNoDev: Plugin = { ...vitePluginManusRuntime(), apply: "serve" };
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), manusRuntimeApenasNoDev];
+// O jsx-loc carimba cada elemento com `data-loc="client\src\pages\X.tsx:42"` para o
+// seletor do Manus. Em produção isso só expunha a estrutura do código (e pesava no
+// bundle); fica no dev, junto do runtime que o usa.
+const jsxLocApenasNoDev: Plugin = { ...jsxLocPlugin(), apply: "serve" };
+
+const plugins = [react(), tailwindcss(), jsxLocApenasNoDev, manusRuntimeApenasNoDev];
 
 export default defineConfig({
   plugins,
