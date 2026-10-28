@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { BadgeCheck, CalendarDays, GraduationCap, MessageSquare, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { CopiarPix } from "@/components/CopiarPix";
+import { QrDoPix } from "@/components/QrDoPix";
 import { iniciais } from "@/lib/iniciais";
 import { cn } from "@/lib/utils";
 
@@ -36,12 +38,15 @@ export function listaDeTexto(texto: string | null | undefined): string[] {
 export function CartaoPsicologa({
   dados,
   acoes,
+  pix,
   previa = false,
   className,
 }: {
   dados: DadosCartaoPsicologa;
   /** Botões do paciente (mensagem, consultas). Na prévia aparecem inertes. */
   acoes?: ReactNode;
+  /** "Pix copia e cola" dela, SEM valor; null/undefined = não cadastrou a chave. */
+  pix?: string | null;
   previa?: boolean;
   className?: string;
 }) {
@@ -53,6 +58,7 @@ export function CartaoPsicologa({
   const mostrarAtende = dados.publicos.length > 0 || previa;
   const mostrarFormacao = formacao.length > 0 || previa;
   const mostrarSobre = dados.bio.trim().length > 0 || previa;
+  const mostrarPix = Boolean(pix) || previa;
 
   return (
     <article
@@ -115,7 +121,7 @@ export function CartaoPsicologa({
         ) : null}
       </div>
 
-      {(mostrarAtende || mostrarFormacao || mostrarSobre) && (
+      {(mostrarAtende || mostrarFormacao || mostrarSobre || mostrarPix) && (
         <div className="divide-y border-t">
           {mostrarAtende && (
             <Secao titulo="Atende">
@@ -156,6 +162,29 @@ export function CartaoPsicologa({
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{dados.bio}</p>
               ) : (
                 <Vazio>Sua apresentação aparece aqui.</Vazio>
+              )}
+            </Secao>
+          )}
+
+          {/* Pix da psicóloga, SEM valor (quem paga digita). O de cada consulta, já
+              com o valor, fica em Minhas Consultas. */}
+          {mostrarPix && (
+            <Secao titulo="Pagar por Pix">
+              {pix ? (
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="shrink-0 rounded-lg border bg-white p-1">
+                    <QrDoPix codigo={pix} titulo={`QR code do Pix de ${dados.nome || "sua psicóloga"}`} className="size-32" />
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Leia com o app do banco ou copie o código. O valor de cada consulta já realizada aparece em Minhas
+                      Consultas, com o Pix já preenchido.
+                    </p>
+                    <CopiarPix opcoes={[{ chave: "perfil", rotulo: "Copiar Pix", codigo: pix, destaque: false }]} />
+                  </div>
+                </div>
+              ) : (
+                <Vazio>Cadastre sua chave Pix ao lado e o QR code aparece aqui para os seus pacientes.</Vazio>
               )}
             </Secao>
           )}

@@ -1,8 +1,7 @@
 import { useLocation } from "wouter";
-import { montarPixEstatico, pixComValor } from "@shared/pix";
+import { pixComValor } from "@shared/pix";
 import { formatarBRL } from "@shared/dinheiro";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { trpc } from "@/lib/trpc";
+import { useMeuPix } from "@/hooks/useMeuPix";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CopiarPix } from "@/components/CopiarPix";
@@ -27,11 +26,8 @@ export function CobrarPorPix({
   centavos: number;
 }) {
   const [, setLocation] = useLocation();
-  const { user } = useAuth();
-  const { data: perfil } = trpc.therapists.me.useQuery();
-  const codigo = perfil?.pixChave
-    ? pixComValor(montarPixEstatico({ chave: perfil.pixChave, nome: user?.name ?? "", cidade: perfil.pixCidade ?? "" }), centavos)
-    : null;
+  const meuPix = useMeuPix();
+  const codigo = meuPix ? pixComValor(meuPix, centavos) : null;
   const valor = formatarBRL(centavos);
 
   return (

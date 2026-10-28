@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { QrDoPix } from "@/components/QrDoPix";
+import { useMeuPix } from "@/hooks/useMeuPix";
 import { QrCode } from "lucide-react";
 
 const ROTULO: Record<TipoChavePix, string> = {
@@ -29,6 +31,7 @@ const EXEMPLO: Record<TipoChavePix, string> = {
 export function PixParaReceber() {
   const utils = trpc.useUtils();
   const { data: perfil } = trpc.therapists.me.useQuery();
+  const meuPix = useMeuPix();
   const [editando, setEditando] = useState(false);
   // Colar o "copia e cola" do banco é o caminho mais curto (sem tipo nem cidade).
   const [modo, setModo] = useState<"colar" | "digitar">("colar");
@@ -105,18 +108,29 @@ export function PixParaReceber() {
         </div>
       )}
       {temChave && !editando ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-secondary/50 px-4 py-3">
-          <p className="min-w-0 text-sm">
-            <span className="text-muted-foreground">{ROTULO[(perfil.pixTipo as TipoChavePix) ?? "celular"]}: </span>
-            <span className="break-all font-medium text-foreground">{perfil.pixChave}</span>
-          </p>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={abrirEdicao}>
-              Trocar
-            </Button>
-            <Button size="sm" variant="ghost" disabled={remover.isPending} onClick={() => remover.mutate()}>
-              Remover
-            </Button>
+        <div className="flex flex-wrap items-center gap-4 rounded-xl bg-secondary/50 p-4">
+          {meuPix && (
+            <div className="shrink-0 rounded-lg border bg-white p-1">
+              <QrDoPix codigo={meuPix} titulo="QR code do seu Pix" className="size-32" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1 space-y-3">
+            <p className="text-sm">
+              <span className="text-muted-foreground">{ROTULO[(perfil.pixTipo as TipoChavePix) ?? "celular"]}: </span>
+              <span className="break-all font-medium text-foreground">{perfil.pixChave}</span>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Este QR vai sem valor e aparece no seu perfil para os pacientes. Nas consultas, o QR já vem com o valor de
+              cada uma.
+            </p>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={abrirEdicao}>
+                Trocar
+              </Button>
+              <Button size="sm" variant="ghost" disabled={remover.isPending} onClick={() => remover.mutate()}>
+                Remover
+              </Button>
+            </div>
           </div>
         </div>
       ) : !editando ? (

@@ -12,6 +12,8 @@ import { ArrowLeft, UserRound } from "lucide-react";
 export default function MyTherapist() {
   const [, setLocation] = useLocation();
   const { data: psi, isLoading } = trpc.me.therapist.useQuery();
+  // Pix dela, sem valor (o servidor monta; null se ela não cadastrou a chave).
+  const { data: pix } = trpc.me.pixDaPsicologa.useQuery();
   const [fotoUrl, setFotoUrl] = useState<string | null>(null);
 
   // Bucket privado: a foto exige URL assinada, mesmo sendo a do perfil público.
@@ -71,6 +73,7 @@ export default function MyTherapist() {
                 formacao: psi.formacao ?? "",
                 bio: psi.bio ?? "",
               }}
+              pix={pix?.codigo}
               acoes={
                 <AcoesDoPaciente
                   onMensagem={() => setLocation("/mensagens")}

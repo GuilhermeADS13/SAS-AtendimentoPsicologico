@@ -17,6 +17,7 @@ import { getAvatarSignedUrl } from "@/lib/supabase";
 import { maskCrp } from "@shared/crp";
 import { reaisParaCentavos, centavosParaInput } from "@shared/dinheiro";
 import { AvisoDeValorAlto, useConferirValor } from "@/components/ConferirValor";
+import { useMeuPix } from "@/hooks/useMeuPix";
 import { iniciais } from "@/lib/iniciais";
 import { cn } from "@/lib/utils";
 import { Check, Eye, GraduationCap, HeartHandshake, IdCard, Lock, Plus, Wallet, X } from "lucide-react";
@@ -108,6 +109,8 @@ function TherapistProfile() {
   // Campo de digitação das especialidades (o valor confirmado vira etiqueta).
   const [novaEsp, setNovaEsp] = useState("");
   const valorLiberado = useConferirValor();
+  // Pix dela, para o QR na prévia do cartão (o paciente vê o mesmo em "Minha Psicóloga").
+  const meuPix = useMeuPix();
   // Foto para a prévia. O bucket é privado → URL assinada; atualiza junto do photoKey.
   const [fotoUrl, setFotoUrl] = useState<string | null>(null);
 
@@ -591,6 +594,7 @@ function TherapistProfile() {
                 dados={dadosCartao}
                 previa
                 acoes={<AcoesDoPaciente />}
+                pix={meuPix}
               />
             )}
           </aside>
