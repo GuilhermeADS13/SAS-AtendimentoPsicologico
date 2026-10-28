@@ -49,6 +49,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, FileText, Calendar, MessageSquare, Pencil, Plus, Upload, Download, Trash2, FileDown, Loader2, Wallet, CheckCircle2, ClipboardList, FileSignature, Save } from "lucide-react";
 import { formatarBRL } from "@shared/dinheiro";
+import { SugestaoDeEmail } from "@/components/SugestaoDeEmail";
 
 // Renderiza um formulário de campos agrupados (anamnese, TCLE) a partir da
 // configuração única de shared/prontuario.ts — sem repetir a lista de campos.
@@ -1077,6 +1078,7 @@ export default function PatientDetail() {
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
                   />
+                  <SugestaoDeEmail email={form.email} aoAceitar={(email) => setForm({ ...form, email })} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -1092,6 +1094,9 @@ export default function PatientDetail() {
                     <Input
                       id="dateOfBirth"
                       type="date"
+                      // Calendário só entre 1900 e hoje (o servidor confere de novo).
+                      min="1900-01-01"
+                      max={new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" })}
                       value={form.dateOfBirth}
                       onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
                     />

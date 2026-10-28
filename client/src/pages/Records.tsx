@@ -62,6 +62,7 @@ import { iniciais } from "@/lib/iniciais";
 import { cn } from "@/lib/utils";
 import { FUSO_BR, formatarData, formatarHora } from "@shared/datas";
 import { mascaraTelefone } from "@shared/telefone";
+import { SugestaoDeEmail } from "@/components/SugestaoDeEmail";
 
 const emptyForm = {
   firstName: "",
@@ -355,6 +356,7 @@ export default function Records() {
                       placeholder="nome@exemplo.com"
                       autoComplete="off"
                     />
+                    <SugestaoDeEmail email={formData.email} aoAceitar={(email) => setFormData({ ...formData, email })} />
                   </Campo>
                   <Campo
                     id="phone"

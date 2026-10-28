@@ -20,6 +20,23 @@ export function formatarNascimento(
 }
 
 /**
+ * Data de nascimento aceitável: vazia, ou uma data que existe entre 01/01/1900 e
+ * hoje (Brasília). Uma data no futuro ou no ano 0202 estragava a idade — e com ela
+ * o aviso de paciente menor, que pede o consentimento do responsável (LGPD art. 14).
+ */
+export function nascimentoValido(valor: string | null | undefined, agora = new Date()): boolean {
+  if (!valor?.trim()) return true;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(valor.trim());
+  if (!m) return false;
+  const [ano, mes, dia] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const d = new Date(Date.UTC(ano, mes - 1, dia));
+  // 31/02 vira 03/03 no Date: se mudou, a data não existe.
+  if (d.getUTCFullYear() !== ano || d.getUTCMonth() !== mes - 1 || d.getUTCDate() !== dia) return false;
+  const hoje = agora.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }); // AAAA-MM-DD
+  return ano >= 1900 && m[0] <= hoje;
+}
+
+/**
  * Fuso oficial do sistema. Todo horário/data COM hora (consulta, sessão, criado
  * em…) é exibido no horário de Brasília, independentemente do fuso do dispositivo
  * de quem abre — senão a mesma consulta apareceria em horas diferentes para

@@ -18,6 +18,7 @@ import { emailValido, mensagemDeErroDeAcesso } from "@shared/erroDeAcesso";
 import { celularValido, mascaraTelefone, soDigitos } from "@shared/telefone";
 import { LogoFull, APP_NAME, APP_TAGLINE } from "@/components/Logo";
 import { maskCrp, isValidCrp } from "@shared/crp";
+import { SugestaoDeEmail } from "@/components/SugestaoDeEmail";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -336,6 +337,7 @@ export default function Login() {
                       {erros.email}
                     </p>
                   )}
+                  <SugestaoDeEmail email={email} aoAceitar={mudarEmail} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="celular-s">Celular (com DDD)</Label>

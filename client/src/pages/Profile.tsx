@@ -16,6 +16,7 @@ import { AcoesDoPaciente, CartaoPsicologa, listaDeTexto } from "@/components/Car
 import { getAvatarSignedUrl } from "@/lib/supabase";
 import { maskCrp } from "@shared/crp";
 import { reaisParaCentavos, centavosParaInput } from "@shared/dinheiro";
+import { AvisoDeValorAlto, useConferirValor } from "@/components/ConferirValor";
 import { iniciais } from "@/lib/iniciais";
 import { cn } from "@/lib/utils";
 import { Check, Eye, GraduationCap, HeartHandshake, IdCard, Lock, Plus, Wallet, X } from "lucide-react";
@@ -106,6 +107,7 @@ function TherapistProfile() {
   const [salvo, setSalvo] = useState<Formulario | null>(null);
   // Campo de digitação das especialidades (o valor confirmado vira etiqueta).
   const [novaEsp, setNovaEsp] = useState("");
+  const valorLiberado = useConferirValor();
   // Foto para a prévia. O bucket é privado → URL assinada; atualiza junto do photoKey.
   const [fotoUrl, setFotoUrl] = useState<string | null>(null);
 
@@ -197,6 +199,10 @@ function TherapistProfile() {
     if (!form.crp.trim()) {
       toast.error("Informe o CRP.");
       document.getElementById("crp")?.focus();
+      return;
+    }
+    if (!valorLiberado(form.preco)) {
+      document.getElementById("preco")?.focus();
       return;
     }
     // Não perder uma especialidade digitada mas ainda não confirmada com Enter.
@@ -516,6 +522,7 @@ function TherapistProfile() {
                         className="pl-9 tabular-nums"
                       />
                     </div>
+                    <AvisoDeValorAlto texto={form.preco} />
                     <p className="text-xs text-muted-foreground">Dá para mudar o valor em cada consulta.</p>
                   </div>
                 </Secao>

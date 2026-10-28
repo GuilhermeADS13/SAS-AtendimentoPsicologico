@@ -18,3 +18,15 @@ export function mascaraTelefone(valor: string): string {
 export function celularValido(valor: string): boolean {
   return /^[1-9][1-9]9\d{8}$/.test(soDigitos(valor));
 }
+
+/**
+ * Telefone de contato (do paciente, de emergência): vazio, ou DDD + fixo (8
+ * dígitos) ou celular (9), com ou sem o 55. É o número que o botão "Lembrar"
+ * abre no WhatsApp — sem DDD o link não chega a ninguém.
+ */
+export function telefoneValido(valor: string | null | undefined): boolean {
+  if (!valor?.trim()) return true;
+  let d = soDigitos(valor);
+  if (d.length >= 12 && d.startsWith("55")) d = d.slice(2);
+  return /^[1-9][1-9]\d{8,9}$/.test(d);
+}

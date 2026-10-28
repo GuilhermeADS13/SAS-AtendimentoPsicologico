@@ -26,6 +26,7 @@ import { MENSAGEM_SENHA_VAZADA } from "@shared/senhaVazada";
 import { mensagemDeErroDeAcesso } from "@shared/erroDeAcesso";
 import { senhaVazadaNoNavegador } from "@/lib/senhaVazada";
 import { Check, X, Mail, KeyRound, Phone, ShieldCheck, Info } from "lucide-react";
+import { SugestaoDeEmail } from "@/components/SugestaoDeEmail";
 
 /**
  * Configurações da conta: e-mail, senha e telefone.
@@ -433,6 +434,7 @@ export default function Configuracoes() {
                     value={novoEmail}
                     onChange={(e) => setNovoEmail(e.target.value)}
                   />
+                  <SugestaoDeEmail email={novoEmail} aoAceitar={setNovoEmail} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="senha-email">Senha atual</Label>

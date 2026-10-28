@@ -50,6 +50,7 @@ import AddToCalendar from "@/components/AddToCalendar";
 import { AvatarDaPessoa } from "@/components/AvatarDaPessoa";
 import { MAX_PARTICIPANTES_EXTRAS } from "@shared/chamadaEmGrupo";
 import { reaisParaCentavos, centavosParaInput, formatarBRL } from "@shared/dinheiro";
+import { AvisoDeValorAlto, useConferirValor } from "@/components/ConferirValor";
 
 type Status = "scheduled" | "completed" | "cancelled" | "no_show";
 
@@ -266,6 +267,8 @@ export default function Appointments() {
     toast.success("Link copiado para a área de transferência!");
   };
 
+  const valorLiberado = useConferirValor();
+
   const handleAddAppointment = () => {
     if (!formData.patientId || !formData.date || !formData.time) {
       toast.error("Selecione o paciente, a data e a hora.");
@@ -276,6 +279,7 @@ export default function Appointments() {
       toast.error("Informe uma duração entre 5 e 480 minutos.");
       return;
     }
+    if (!valorLiberado(formData.valor)) return;
     // Em Brasília: `new Date("2026-10-10T14:00")` leria no fuso do aparelho.
     const scheduledAt = instanteEmBrasilia(formData.date, formData.time).toISOString();
     createAppt.mutate({
@@ -317,6 +321,7 @@ export default function Appointments() {
       toast.error("Informe uma duração entre 5 e 480 minutos.");
       return;
     }
+    if (!valorLiberado(formData.valor)) return;
     // Em Brasília: `new Date("2026-10-10T14:00")` leria no fuso do aparelho.
     const scheduledAt = instanteEmBrasilia(formData.date, formData.time).toISOString();
     editarAppt.mutate({
@@ -566,6 +571,7 @@ export default function Appointments() {
                     className="pl-9"
                   />
                 </div>
+                <AvisoDeValorAlto texto={formData.valor} />
                 <p className="text-xs text-muted-foreground">
                   Já vem do preço padrão do seu perfil. Deixe vazio se não quiser registrar valor.
                 </p>

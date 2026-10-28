@@ -220,6 +220,9 @@ export default function PatientProfile({ embedded = false }: { embedded?: boolea
                   <Input
                     id="dateOfBirth"
                     type="date"
+                    // Calendário só entre 1900 e hoje (o servidor confere de novo).
+                    min="1900-01-01"
+                    max={new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" })}
                     value={form.dateOfBirth}
                     onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
                   />

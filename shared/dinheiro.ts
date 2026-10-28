@@ -6,6 +6,15 @@
  * conta é exata. A conversão reais↔centavos fica só nas bordas (input/exibição).
  */
 
+/**
+ * Acima disto (R$ 1.000), a tela pede para confirmar o valor da consulta: ele vai
+ * DENTRO do Pix do paciente, e "15000" digitado achando que eram R$ 150 virava uma
+ * cobrança de R$ 15.000.
+ */
+export const VALOR_QUE_PEDE_CONFIRMACAO = 100_000;
+/** Teto no servidor (R$ 50.000): nenhuma consulta custa isso; é erro de digitação. */
+export const VALOR_MAXIMO_DA_CONSULTA = 5_000_000;
+
 /** "150" | "150,50" | "150.5" | "R$ 1.234,56" → centavos (15000, 15050, ...). "" ou inválido → null. */
 export function reaisParaCentavos(valor: string | number | null | undefined): number | null {
   if (valor === null || valor === undefined || valor === "") return null;

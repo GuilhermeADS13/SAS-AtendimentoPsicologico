@@ -28,7 +28,9 @@ import { pagamentoDaConsulta } from "../shared/pagamentoDaConsulta";
 import { planoEfetivo, planoPorId, valorDoPlano } from "../shared/precos";
 import { PASSWORD_MAX_LENGTH, validatePassword } from "../shared/passwordPolicy";
 import { CRP_REGEX } from "../shared/crp";
-import { celularValido, soDigitos } from "../shared/telefone";
+import { celularValido, soDigitos, telefoneValido } from "../shared/telefone";
+import { nascimentoValido } from "../shared/datas";
+import { VALOR_MAXIMO_DA_CONSULTA } from "../shared/dinheiro";
 import { FASES_VALORES } from "../shared/evolucao";
 import { FREQUENCIA_REGEX } from "../shared/frequencia";
 import { MAX_PARTICIPANTES_EXTRAS, motivoParaRecusarParticipante } from "../shared/chamadaEmGrupo";
@@ -59,6 +61,23 @@ import {
 import { normalizarEmail, pacienteDoUsuario, resolverAcessoSala } from "./roomAccess";
 import { chavePertenceAoUsuario, fotoPertenceAoUsuario } from "./storageKeys";
 import { pendenciasDoProntuario } from "../shared/prontuario";
+
+// Campos que a psicóloga ou o paciente digitam e que, errados, causam estrago
+// real: o valor vai DENTRO do Pix; o telefone é o do botão "Lembrar" no
+// WhatsApp; a data de nascimento decide o aviso de paciente menor (LGPD art. 14).
+const precoEmCentavos = z
+  .number()
+  .int()
+  .min(0)
+  .max(VALOR_MAXIMO_DA_CONSULTA, "Esse valor passou de R$ 50.000 por consulta: confira os números.");
+const telefoneOpcional = z
+  .string()
+  .optional()
+  .refine((v) => telefoneValido(v), "Informe o telefone com DDD, por exemplo (81) 99999-0000.");
+const nascimentoOpcional = z
+  .string()
+  .optional()
+  .refine((v) => nascimentoValido(v), "Data de nascimento inválida: use uma data entre 1900 e hoje.");
 import { idDoGif } from "../shared/gif";
 import { podeApagar, podeEditar } from "../shared/chatMensagem";
 import { buscarGifs, gifsConfigurados } from "./gifs";
@@ -1110,7 +1129,7 @@ export const appRouter = router({
           .refine((v) => v.replace(/\D/g, "").length >= 10, {
             message: "Informe um telefone com DDD (ex.: (81) 99999-9999) — é por ele que sua psicóloga te contata no WhatsApp.",
           }),
-        dateOfBirth: z.string().optional(),
+        dateOfBirth: nascimentoOpcional,
         address: z.string().optional(),
         /** Path no bucket `avatars`. "" remove a foto. Opcional. */
         photoKey: z.string().optional(),
@@ -1869,7 +1888,7 @@ export const appRouter = router({
         formacao: z.string().optional(),
         publicoAtendido: z.string().optional(),
         // Preço padrão em centavos (ver shared/dinheiro.ts). null limpa o valor.
-        sessionPrice: z.number().int().min(0).nullish(),
+        sessionPrice: precoEmCentavos.nullish(),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
@@ -2053,7 +2072,7 @@ export const appRouter = router({
         firstName: z.string(),
         lastName: z.string(),
         email: z.string().email(),
-        phone: z.string().optional(),
+        phone: telefoneOpcional,
         medicalHistory: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -2165,12 +2184,12 @@ export const appRouter = router({
         firstName: z.string().min(1).optional(),
         lastName: z.string().min(1).optional(),
         email: z.string().email().optional(),
-        phone: z.string().optional(),
-        dateOfBirth: z.string().optional(),
+        phone: telefoneOpcional,
+        dateOfBirth: nascimentoOpcional,
         address: z.string().optional(),
         medicalHistory: z.string().optional(),
         emergencyContact: z.string().optional(),
-        emergencyPhone: z.string().optional(),
+        emergencyPhone: telefoneOpcional,
         status: z.enum(["active", "inactive", "archived"]).optional(),
         // Responsável legal do paciente menor (LGPD art. 14). `guardianConsent`
         // vem como booleano da UI: marcado grava a data do consentimento.
@@ -2399,7 +2418,7 @@ export const appRouter = router({
         notes: z.string().optional(),
         // Valor da consulta em centavos (o cliente já preenche com o preço
         // padrão da psicóloga). Vale para todas as recorrentes criadas juntas.
-        price: z.number().int().min(0).nullish(),
+        price: precoEmCentavos.nullish(),
         /**
          * Recorrência semanal: terapia é semanal, e marcar a mesma paciente toda
          * semana na mão era o trabalho mais repetitivo da psicóloga. Sem tabela de
@@ -2449,6 +2468,7 @@ export const appRouter = router({
         }
 
         const base = new Date(input.scheduledAt);
+        if (Number.isNaN(base.getTime())) throw new Error("Data/hora inválida");
         const SEMANA_MS = 7 * 24 * 60 * 60 * 1000;
         // Pula horários que já têm consulta (não cancelada): evita marcar duas no
         // mesmo horário. Cada semana da recorrência é checada individualmente.
@@ -2517,7 +2537,7 @@ export const appRouter = router({
         id: z.number(),
         scheduledAt: z.string().optional(),
         duration: z.number().int().min(1).max(480).optional(),
-        price: z.number().int().min(0).nullish(),
+        price: precoEmCentavos.nullish(),
         notes: z.string().max(500).nullish(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -2564,7 +2584,7 @@ export const appRouter = router({
       .input(z.object({
         id: z.number(),
         paid: z.boolean().optional(),
-        price: z.number().int().min(0).nullish(),
+        price: precoEmCentavos.nullish(),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
