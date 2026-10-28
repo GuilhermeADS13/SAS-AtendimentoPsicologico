@@ -44,7 +44,7 @@ describe("persona e segurança clínica da Luma", () => {
     expect(prompt).toContain("Você é Luma, uma coruja virtual");
     expect(prompt).toContain("nunca infantilize");
     expect(prompt).toContain("Não faça diagnóstico, prescrição ou avaliação clínica de risco");
-    expect(prompt).toContain("Nunca altere, exclua ou crie prontuários");
+    expect(prompt).toContain("Você não lê nem altera prontuários");
     expect(prompt).toContain("patientId 42");
   });
 

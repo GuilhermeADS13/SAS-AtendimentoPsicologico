@@ -363,7 +363,6 @@ export default function PatientDetail() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const createDocument = trpc.documents.create.useMutation();
-  const indexDocument = trpc.documents.indexContent.useMutation();
   const deleteDocument = trpc.documents.delete.useMutation();
 
   // Pagamentos DESTE paciente. appointments.list traz todas as consultas da
@@ -396,7 +395,9 @@ export default function PatientDetail() {
     setUploading(true);
     try {
       const fileKey = await uploadDocumentFile(patientId, file);
-      const created = await createDocument.mutateAsync({
+      // Sem indexar para a busca da Luma: desde 2026-10-28 ela não lê documentos de
+      // pacientes, e indexar mandaria o conteúdo ao provedor de embeddings à toa.
+      await createDocument.mutateAsync({
         patientId,
         fileName: file.name,
         fileKey,
@@ -405,23 +406,7 @@ export default function PatientDetail() {
         fileSize: file.size,
         documentType: "other",
       });
-      if (created.documentId) {
-        try {
-          await indexDocument.mutateAsync({ documentId: created.documentId });
-          toast.success("Documento enviado. Em instantes a Luma já consegue consultá-lo.");
-        } catch (e) {
-          // O documento FOI salvo — só não entrou na fila da busca. Antes este ramo
-          // mostrava um toast de SUCESSO dizendo que "a indexação foi colocada na
-          // fila", o que era falso: se indexContent falhou, nada foi enfileirado, o
-          // documento nunca ficaria pesquisável e a psicóloga não saberia.
-          console.error("[documentos] falha ao enfileirar a indexação:", e);
-          toast.warning(
-            "Documento salvo, mas a Luma ainda não consegue consultá-lo. Remova e envie de novo para tentar outra vez.",
-          );
-        }
-      } else {
-        toast.success("Documento enviado!");
-      }
+      toast.success("Documento enviado!");
       await documentsQuery.refetch();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha no upload");

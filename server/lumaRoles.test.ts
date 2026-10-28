@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { answerSiteHelp } from "./ai/site-help";
-import { buildGeneralActivityResponse, buildNoClinicalDataResponse } from "./ai/llm";
+import { buildGeneralActivityResponse, buildSoEstruturaResponse } from "./ai/llm";
 import { isLumaTestAccount } from "../client/src/lib/lumaAccess";
 
 describe("separação de papéis da Luma", () => {
@@ -116,11 +116,14 @@ describe("separação de papéis da Luma", () => {
     expect(response).toContain("revisadas pela profissional responsável");
   });
 
-  it("responde rapidamente quando não existem registros autorizados", () => {
-    const response = buildNoClinicalDataResponse("Listar atividades para acompanhar a evolução");
-
-    expect(response).toContain("Não encontrei registros clínicos autorizados");
-    expect(response).toContain("não vou atribuir atividades específicas");
+  it("anotações de sessão coladas recebem resposta fixa (sem IA), oferecendo só a estrutura", () => {
+    const response = buildSoEstruturaResponse(false);
+    expect(response).toContain("não recebo nem organizo anotações de sessão");
+    expect(response).toContain("fora do Brasil");
+    expect(response).toContain("modelo em branco");
+    expect(response).not.toContain("CVV");
+    // Texto clínico longo com sinal de crise: pode ser a própria psicóloga.
+    expect(buildSoEstruturaResponse(true)).toMatch(/^Se quem está passando por isso é você.*CVV 188/);
   });
 
   it("declara idempotência para retries sem duplicar histórico", () => {
@@ -147,7 +150,7 @@ describe("separação de papéis da Luma", () => {
     expect(source).not.toContain("chatMutation.mutateAsync({ messages: nextMessages");
     // Texto encurtado para caber no campo de uma linha no celular; o que importa
     // aqui é o placeholder CLÍNICO existir, provando o modo separado.
-    expect(source).toContain("Pergunte sobre este paciente");
+    expect(source).toContain("Pergunte sobre agenda ou prontuário");
     expect(source).not.toContain('placeholder="Escreva uma pergunta sobre o uso do site..."');
   });
 });

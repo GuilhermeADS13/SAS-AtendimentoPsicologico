@@ -10,9 +10,10 @@ import { ArrowLeft } from "lucide-react";
  * de lá aponta para cá.
  *
  * Precisa refletir a arquitetura REAL: a videochamada é WebRTC próprio (com TURN
- * da Metered como relay quando a conexão direta falha), e a assistente Luma envia
- * dados a provedores de IA nos EUA (Groq, para as respostas; Cloudflare, para os
- * embeddings da busca em documentos). Declarar esses operadores e a
+ * da Metered como relay quando a conexão direta falha), e a assistente Luma da
+ * psicóloga envia a conversa à Groq (EUA). Desde 2026-10-28 a Luma NÃO lê o
+ * conteúdo do prontuário (sessões, documentos) e a busca em documentos saiu —
+ * com ela, a Cloudflare deixou de ser operadora. Declarar os operadores e a
  * transferência internacional é o que a lei exige — não é opcional.
  */
 export default function Privacidade() {
@@ -140,14 +141,8 @@ export default function Privacidade() {
               </li>
               <li>
                 <strong>Groq</strong> — provedor de inteligência artificial (
-                <strong>EUA</strong>) que processa as mensagens da assistente Luma. Ver a
+                <strong>EUA</strong>) que processa as conversas da psicóloga com a assistente Luma. Ver a
                 seção 5.
-              </li>
-              <li>
-                <strong>Cloudflare</strong> — provedor de inteligência artificial (
-                <strong>EUA</strong>) que converte textos em representações numéricas,
-                usadas para a Luma localizar o trecho certo de um documento. Recebe o
-                trecho do documento e o texto da busca. Ver a seção 5.
               </li>
               <li>
                 <strong>WhatsApp</strong> — só quando você fala com o suporte ou envia o
@@ -163,22 +158,25 @@ export default function Privacidade() {
           <section className="space-y-2">
             <h2 className="text-lg font-semibold text-foreground">5. Assistente de IA (Luma)</h2>
             <p>
-              A Luma é uma assistente que ajuda a usar o sistema (agendar, tirar dúvidas)
-              e a consultar informações do seu próprio atendimento. Para responder, ela
-              envia o texto da conversa e os dados estritamente necessários a um provedor
-              de IA (<strong>Groq</strong>, nos EUA), que processa e devolve a resposta.
-            </p>
-            <p>
-              Quando a busca precisa encontrar um trecho dentro de um documento do
-              atendimento, esse trecho e o texto da busca também são enviados a um segundo
-              provedor (<strong>Cloudflare</strong>, nos EUA), que os converte em
-              representações numéricas usadas para comparar semelhança. É uma
-              <strong> transferência internacional</strong>, como a da Groq.
+              A Luma é uma assistente que ajuda a usar o sistema. Para a psicóloga, ela
+              também cuida da agenda (agendar, remarcar, cancelar, registrar pagamento) e
+              ajuda com a <strong>estrutura</strong> do prontuário — modelos em branco e o
+              que a norma do Conselho Federal de Psicologia pede. Para responder, a conversa
+              da psicóloga e os dados da agenda necessários (nome do paciente, data, horário
+              e valor da consulta) vão a um provedor de IA (<strong>Groq</strong>, nos EUA),
+              que processa e devolve a resposta — uma <strong>transferência
+              internacional</strong>.
             </p>
             <ul className="list-disc pl-5 space-y-1">
               <li>
-                A Luma acessa <strong>apenas os dados do paciente vinculado à conversa</strong> —
-                nunca de outros pacientes.
+                A Luma <strong>não lê o conteúdo do prontuário</strong>: sessões,
+                anotações, anamnese e documentos não são enviados a provedores de IA. A
+                orientação é não colar anotações de sessão na conversa; quando o sistema as
+                reconhece, elas são retiradas antes do envio.
+              </li>
+              <li>
+                No modo de apoio do paciente, as respostas são prontas, do próprio sistema:
+                nada do que o paciente escreve vai para um provedor de IA.
               </li>
               <li>
                 Ela <strong>não substitui a sua psicóloga</strong> e não faz diagnóstico

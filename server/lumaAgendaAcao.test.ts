@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { forcarPropostaDeAgenda, pareceAcaoDeAgenda, pareceLeituraDeAgenda, pareceNavegacao, pareceRascunhoDeProntuario, type LumaPendingAction } from "./ai/llm";
+import {
+  ANOTACOES_RETIRADAS,
+  forcarPropostaDeAgenda,
+  pareceAcaoDeAgenda,
+  pareceLeituraDeAgenda,
+  pareceNavegacao,
+  pareceRascunhoDeProntuario,
+  prepareMessagesForAgent,
+  trazAnotacoesClinicas,
+  type LumaPendingAction,
+} from "./ai/llm";
 
 /**
  * Regressão: a Luma clínica curto-circuitava com "Não encontrei registros" quando
@@ -144,6 +154,37 @@ describe("pareceRascunhoDeProntuario", () => {
     "agende uma consulta para amanhã",
   ])("NÃO confunde leitura clínica/ação/fora de escopo: %s", (msg) => {
     expect(pareceRascunhoDeProntuario(msg)).toBe(false);
+  });
+
+  describe("anotações de sessão coladas não vão para a IA (só estrutura)", () => {
+    it.each([
+      "organize estas minhas anotações da sessão em rascunho: paciente chegou atrasada",
+      "transforma minhas notas em SOAP\npaciente relatou insônia, chorou ao falar do irmão",
+      "Paciente compareceu pontualmente, relatou piora da ansiedade no trabalho e dificuldade para dormir. Verbalizou conflito com o chefe e disse que pensa em pedir demissão. Combinamos registrar os episódios ao longo da semana.",
+    ])("barra: %s", (msg) => {
+      expect(trazAnotacoesClinicas(msg)).toBe(true);
+    });
+
+    it.each([
+      "faz um rascunho pra mim",
+      "como preencher a evolução?",
+      "me ajuda a montar o prontuário dessa sessão",
+      "quais campos a resolução do CFP exige no prontuário?",
+      "qual é o meu próximo paciente?",
+    ])("passa (pergunta de estrutura ou agenda): %s", (msg) => {
+      expect(trazAnotacoesClinicas(msg)).toBe(false);
+    });
+
+    it("tira as anotações do histórico: nem na pergunta seguinte elas vão", () => {
+      const preparadas = prepareMessagesForAgent([
+        { role: "user", content: "organize minhas anotações: paciente relatou insônia e chorou" },
+        { role: "assistant", content: "Para proteger os seus pacientes..." },
+        { role: "user", content: "então monta um modelo em branco" },
+      ]);
+      expect(preparadas[0].content).toBe(ANOTACOES_RETIRADAS);
+      expect(JSON.stringify(preparadas)).not.toContain("insônia");
+      expect(preparadas.at(-1)?.content).toBe("então monta um modelo em branco");
+    });
   });
 
   /**

@@ -2,12 +2,10 @@ import { tool } from "langchain";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { and, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
-import { aiConversations, aiMessages, appointments, documents, patients, sessions, therapists, users } from "../../drizzle/schema";
+import { appointments, patients, therapists, users } from "../../drizzle/schema";
 import { getDb } from "../db";
 import type { AiAccessContext } from "./access";
-import { embeddingForCurrentEnvironment, formatRagContext, retrieveScopedClinicalContext, type RagSource } from "./rag";
-import { searchIndexedDocumentChunks } from "./document-ingestion";
-import { wrapUntrustedClinicalContext } from "./content-safety";
+import type { RagSource } from "./rag";
 import { consumePendingAction, issuePendingAction, type PendingActionParams } from "./action-confirmation";
 import { formatarBRL } from "../../shared/dinheiro";
 import { DESLOCAMENTO_BR } from "../../shared/datas";
@@ -164,33 +162,6 @@ export async function fetchTherapistFormat(ctx: AiAccessContext, db: Db): Promis
   }
   if (!partes.length) return null;
   return partes.join("\n\n").slice(0, 8000);
-}
-
-export async function fetchConversationMemory(
-  ctx: AiAccessContext, patientId: number | undefined, db: Db, excludeConversationId?: number,
-): Promise<string> {
-  if (ctx.role !== "therapist" || ctx.therapistId == null || patientId == null) return "";
-  const conds = [
-    eq(aiConversations.userId, ctx.userId),
-    eq(aiConversations.therapistId, ctx.therapistId),
-    eq(aiConversations.patientId, patientId),
-  ];
-  if (excludeConversationId != null) conds.push(ne(aiConversations.id, excludeConversationId));
-  const convs = await db.select({ id: aiConversations.id }).from(aiConversations)
-    .where(and(...conds)).orderBy(desc(aiConversations.updatedAt)).limit(3);
-  if (!convs.length) return "";
-  const rows = await db.select({ role: aiMessages.role, content: aiMessages.content })
-    .from(aiMessages).where(inArray(aiMessages.conversationId, convs.map(c => c.id)))
-    .orderBy(desc(aiMessages.createdAt)).limit(8);
-  if (!rows.length) return "";
-  let out = "";
-  for (const m of rows.reverse()) { // do mais antigo ao mais novo
-    const quem = m.role === "assistant" ? "Luma" : "Terapeuta";
-    const linha = `${quem}: ${m.content.replace(/\s+/g, " ").trim().slice(0, 240)}\n`;
-    if (out.length + linha.length > 1200) break;
-    out += linha;
-  }
-  return out.trim();
 }
 
 /**
@@ -387,57 +358,6 @@ export async function readPendenciasFinanceiras(ctx: AiAccessContext, dbOverride
 }
 
 /**
- * Tudo que ajuda a PREPARAR o próximo atendimento de um paciente, numa leitura só:
- * a demanda inicial, os objetivos terapêuticos e os "próximos passos" combinados nas
- * últimas sessões. Hoje isso exige abrir o prontuário e rolar sessão por sessão.
- *
- * É LEITURA de registro já autorizado — passa pelo mesmo authorizedPatient das
- * demais, então o escopo continua travado.
- */
-export async function readPreparoDaSessao(ctx: AiAccessContext, requestedPatientId?: number, dbOverride?: Db) {
-  const db = dbOverride ?? await getDb();
-  if (!db) throw new Error("Database not available");
-  const patient = await authorizedPatient(db, ctx, requestedPatientId);
-
-  const ultimas = await db.select({
-    startedAt: sessions.startedAt,
-    nextSteps: sessions.nextSteps,
-    plan: sessions.plan,
-    mood: sessions.mood,
-  }).from(sessions)
-    .where(and(eq(sessions.patientId, patient.id), eq(sessions.therapistId, patient.therapistId)))
-    .orderBy(desc(sessions.startedAt)).limit(3);
-
-  const proxima = await db.select({
-    id: appointments.id,
-    scheduledAt: appointments.scheduledAt,
-    duration: appointments.duration,
-  }).from(appointments)
-    .where(and(
-      eq(appointments.patientId, patient.id),
-      eq(appointments.therapistId, patient.therapistId),
-      eq(appointments.status, "scheduled"),
-      gte(appointments.scheduledAt, new Date()),
-    ))
-    .orderBy(appointments.scheduledAt).limit(1);
-
-  return {
-    paciente: `${patient.firstName} ${patient.lastName}`.trim(),
-    proximaConsulta: proxima[0] ?? null,
-    demandaInicial: patient.initialDemand ?? null,
-    objetivosTerapeuticos: patient.therapeuticGoals ?? null,
-    // Os "próximos passos" combinados são o fio da meada entre uma sessão e a
-    // seguinte — é o que costuma se perder entre um atendimento e outro.
-    ultimasSessoes: ultimas.map(s => ({
-      data: s.startedAt.toISOString(),
-      humor: s.mood ?? null,
-      proximosPassosCombinados: s.nextSteps ?? null,
-      plano: s.plan ?? null,
-    })),
-  };
-}
-
-/**
  * Pacientes ATIVOS com prontuário incompleto frente à Resolução CFP nº 001/2009,
  * que exige: identificação, avaliação da demanda, objetivos do trabalho, registro da
  * evolução e registro de encaminhamento/encerramento.
@@ -540,73 +460,7 @@ export async function readPatientAppointments(
   };
 }
 
-export async function readPatientSessions(
-  ctx: AiAccessContext,
-  requestedPatientId?: number,
-  dbOverride?: Db,
-) {
-  const db = dbOverride ?? await getDb();
-  if (!db) throw new Error("Database not available");
-  const patient = await authorizedPatient(db, ctx, requestedPatientId);
-  return db.select({
-    id: sessions.id,
-    appointmentId: sessions.appointmentId,
-    startedAt: sessions.startedAt,
-    endedAt: sessions.endedAt,
-    mood: sessions.mood,
-    clinicalNotes: sessions.clinicalNotes,
-    treatment: sessions.treatment,
-    nextSteps: sessions.nextSteps,
-    // Evolução SOAP (quando registrada) — a Luma lê como parte da sessão.
-    subjective: sessions.subjective,
-    objective: sessions.objective,
-    assessment: sessions.assessment,
-    plan: sessions.plan,
-  }).from(sessions)
-    .where(and(eq(sessions.patientId, patient.id), eq(sessions.therapistId, patient.therapistId)))
-    .orderBy(desc(sessions.startedAt)).limit(20);
-}
-
-export async function readPatientDocuments(
-  ctx: AiAccessContext,
-  requestedPatientId?: number,
-  dbOverride?: Db,
-) {
-  const db = dbOverride ?? await getDb();
-  if (!db) throw new Error("Database not available");
-  const patient = await authorizedPatient(db, ctx, requestedPatientId);
-  return db.select({
-    id: documents.id,
-    fileName: documents.fileName,
-    fileType: documents.fileType,
-    documentType: documents.documentType,
-    description: documents.description,
-    createdAt: documents.createdAt,
-  }).from(documents)
-    .where(and(eq(documents.patientId, patient.id), eq(documents.therapistId, patient.therapistId)))
-    .orderBy(desc(documents.createdAt)).limit(50);
-}
-
 export type AiSourceReference = Pick<RagSource, "sourceType" | "sourceId" | "patientId" | "requiresReview">;
-
-/** Verificação barata para evitar embeddings quando o escopo não possui registros. */
-export async function hasAuthorizedClinicalData(
-  ctx: AiAccessContext,
-  requestedPatientId: number | undefined,
-  db: Db,
-): Promise<boolean> {
-  if (ctx.role === "admin") return false;
-  const patient = await authorizedPatient(db, ctx, requestedPatientId);
-  const [appointmentRows, sessionRows, documentRows] = await Promise.all([
-    db.select({ id: appointments.id }).from(appointments)
-      .where(and(eq(appointments.patientId, patient.id), eq(appointments.therapistId, patient.therapistId))).limit(1),
-    db.select({ id: sessions.id }).from(sessions)
-      .where(and(eq(sessions.patientId, patient.id), eq(sessions.therapistId, patient.therapistId))).limit(1),
-    db.select({ id: documents.id }).from(documents)
-      .where(and(eq(documents.patientId, patient.id), eq(documents.therapistId, patient.therapistId))).limit(1),
-  ]);
-  return appointmentRows.length > 0 || sessionRows.length > 0 || documentRows.length > 0;
-}
 
 /**
  * Execução das ações de escrita na agenda.
@@ -727,7 +581,6 @@ export async function executarAcaoAgenda(
 export function createClinicalTools(
   ctx: AiAccessContext,
   db: Db,
-  onSources?: (sources: AiSourceReference[]) => void,
   /** Rodada de conversa atual; muda a cada mensagem nova da terapeuta. Ver action-confirmation.ts. */
   turnKey = "",
   /** Entrega a ação pendente à interface, que renderiza o botão de confirmação. */
@@ -779,7 +632,7 @@ export function createClinicalTools(
   // Ferramentas de ESCRITA, só para terapeuta. TODAS passam pelo mesmo protocolo:
   // propõem, esperam a confirmação e só então chamam executarAcaoAgenda — o
   // único ponto do módulo que escreve na agenda. Nenhuma toca em prontuário,
-  // sessão ou documento (esses seguem somente leitura).
+  // sessão ou documento.
   const schedulingTools = ctx.role === "therapist" && incluirEscrita ? [
     // AGENDAR (com recorrência semanal opcional)
     tool(async ({ patientId, scheduledAt, durationMinutes, notes, repetirSemanas, codigoConfirmacao }) => {
@@ -934,143 +787,18 @@ export function createClinicalTools(
     schema: patientIdSchema,
   });
 
-  // Fora do papel de terapeuta, só a agenda. Prontuário (sessões, preparo,
-  // documentos, busca clínica) é escrito PELA psicóloga e não é entregue ao
-  // paciente por um chatbot — decisão de produto ("Paciente não enxerga
-  // prontuário"). O ai.chat já é só da psicóloga; isto é a segunda barreira, para
-  // um chamador futuro que monte as ferramentas com outro papel.
+  // Fora do papel de terapeuta, só a própria agenda. O ai.chat já é só da
+  // psicóloga; isto é a segunda barreira, para um chamador futuro que monte as
+  // ferramentas com outro papel.
   if (ctx.role !== "therapist") return [consultaDeAgendamentos];
 
+  // Nenhuma ferramenta lê CONTEÚDO clínico (sessões, documentos, preparo, busca):
+  // a Luma ajuda com a ESTRUTURA do prontuário, não com os dados dos pacientes,
+  // que iriam para o provedor de IA nos EUA (decisão de 2026-10-28). A agenda
+  // fica: nome, horário e valor, sem conteúdo clínico.
   return [
     ...agendaDoProfissional,
     consultaDeAgendamentos,
-    tool(async ({ patientId }) => JSON.stringify(await readPreparoDaSessao(ctx, patientId, db)), {
-      name: ctx.role === "therapist" ? "get_preparo_da_sessao" : "get_meu_preparo",
-      description: "Prepara o proximo atendimento deste paciente: demanda inicial, objetivos, os proximos passos das ultimas 3 sessoes e a proxima consulta. Para 'me prepara para a proxima', 'onde paramos'. Terapeuta: informe patientId.",
-      schema: patientIdSchema,
-    }),
-    tool(async ({ patientId }) => JSON.stringify(await readPatientSessions(ctx, patientId, db)), {
-      name: ctx.role === "therapist" ? "get_patient_sessions" : "get_my_sessions",
-      description: "Consulta somente leitura sessões e campos clínicos já registrados. Para terapeuta, informe patientId.",
-      schema: patientIdSchema,
-    }),
-    tool(async ({ patientId }) => JSON.stringify(await readPatientDocuments(ctx, patientId, db)), {
-      name: ctx.role === "therapist" ? "get_patient_documents" : "get_my_documents",
-      description: "Consulta somente leitura metadados de documentos autorizados; nunca retorna URL privada ou chave de storage.",
-      schema: patientIdSchema,
-    }),
-    tool(async ({ query, patientId }) => {
-      // A busca clínica é a única ferramenta que depende de um serviço EXTERNO (o
-      // provedor de embeddings). Sem este try/catch, um embedding mal configurado
-      // ou fora do ar derrubava a conversa inteira ("a Luma não conseguiu
-      // concluir"). Aqui ela degrada: o modelo recebe o aviso e segue atendendo.
-      try {
-      // Paciente: força o próprio prontuário. O modelo costuma omitir o patientId
-      // (a descrição não pede e ele não sabe o id interno), e buildVectorSearchScope
-      // exige patientId === ctx.patientId — sem isto a busca do paciente sobre o
-      // próprio registro quebrava com "Paciente não autorizado".
-      const alvo = ctx.role === "therapist" ? patientId : (ctx.patientId ?? patientId);
-      if (!(await hasAuthorizedClinicalData(ctx, alvo, db))) {
-        return "Nenhum registro clínico autorizado foi encontrado para este paciente. Não invente informações; informe isso claramente e ofereça apenas ajuda geral que não dependa de prontuários.";
-      }
-      // É a PERGUNTA: vai pelo caminho de busca (prefixo de busca do modelo), não
-      // pelo de documento — o EmbeddingGemma trata os dois lados de forma diferente.
-      const queryEmbedding = await embeddingForCurrentEnvironment().getQueryEmbedding({ type: "text", text: query });
-      if (!queryEmbedding) throw new Error("Não foi possível gerar o vetor da busca.");
-      const indexedChunks = await searchIndexedDocumentChunks(
-        ctx,
-        queryEmbedding,
-        alvo,
-        Number(process.env.AI_RAG_TOP_K ?? 6),
-        db,
-      );
-      // Number.isFinite protege contra AI_RAG_CONTEXT_MAX_CHARS não-numérico:
-      // sem isto, Number("abc") = NaN, Math.max(2000, NaN) = NaN e o slice final
-      // por NaN devolvia "" — descartando TODO o contexto de documentos em silêncio.
-      const configMax = Number(process.env.AI_RAG_CONTEXT_MAX_CHARS);
-      const maxContextChars = Number.isFinite(configMax) && configMax > 0 ? Math.max(2_000, configMax) : 8_000;
-      // Acumula os trechos DENTRO do orçamento e só cita como fonte o que coube.
-      // Antes as fontes eram reportadas antes da truncagem (.slice), então um
-      // documento cortado do contexto continuava citado — fonte que o modelo não viu.
-      const seen = new Set<string>();
-      const structuredSources: AiSourceReference[] = [];
-      const trechos: string[] = [];
-      let usados = 0;
-      for (const chunk of indexedChunks) {
-        const dedupeKey = `${chunk.documentId}:${chunk.pageNumber ?? "na"}:${chunk.content}`;
-        if (seen.has(dedupeKey)) continue;
-        seen.add(dedupeKey);
-        const metadata = chunk.metadata as { requiresReview?: boolean; ocrConfidence?: number | null } | null | undefined;
-        const reviewLabel = metadata?.requiresReview ? ` | revisão OCR necessária${metadata.ocrConfidence != null ? ` (${metadata.ocrConfidence.toFixed(0)}%)` : ""}` : "";
-        const trecho = `[Fonte ${trechos.length + 1} | documento ${chunk.documentId} | página ${chunk.pageNumber ?? "não informada"} | paciente ${chunk.patientId}${reviewLabel}]\n${chunk.content}`;
-        // O primeiro trecho sempre entra (nunca devolve vazio havendo dado); os
-        // seguintes só se couberem no orçamento.
-        if (trechos.length > 0 && usados + trecho.length + 2 > maxContextChars) break;
-        trechos.push(trecho);
-        usados += trecho.length + 2; // +2 do separador "\n\n"
-        const sourceKey = `document:${chunk.documentId}`;
-        if (!structuredSources.some(source => `${source.sourceType}:${source.sourceId}` === sourceKey)) {
-          structuredSources.push({
-            sourceType: "document",
-            sourceId: chunk.documentId,
-            patientId: chunk.patientId,
-            requiresReview: metadata?.requiresReview === true,
-          });
-        }
-      }
-      const documentContext = trechos.join("\n\n");
-
-      /**
-       * As SESSÕES são buscadas sempre, não só quando nenhum documento casa.
-       *
-       * Antes havia um `return` aqui: bastava UM trecho de documento casar para a
-       * busca devolver só documentos e nunca olhar as sessões. Na prática, assim
-       * que a psicóloga anexava um PDF ao prontuário, perguntar sobre o que ela
-       * mesma escreveu nas sessões parava de funcionar — e sem nenhum sinal de que
-       * metade do prontuário tinha saído do alcance.
-       *
-       * O orçamento de caracteres é compartilhado: o que os documentos já usaram
-       * desconta do que as sessões podem usar, então o contexto final não cresce.
-       */
-      const orcamentoRestante = maxContextChars - usados;
-      let contextoDeSessoes = "";
-      if (orcamentoRestante > 500) {
-        const sources = await retrieveScopedClinicalContext(ctx, {
-          query,
-          patientId: alvo,
-          topK: Number(process.env.AI_RAG_TOP_K ?? 6),
-        }, db);
-        if (sources.length) {
-          structuredSources.push(...sources.map(source => ({
-            sourceType: source.sourceType,
-            sourceId: source.sourceId,
-            patientId: source.patientId,
-            requiresReview: source.requiresReview,
-          })));
-          contextoDeSessoes = formatRagContext(sources).slice(0, orcamentoRestante);
-        }
-      }
-
-      if (structuredSources.length) onSources?.(structuredSources);
-
-      const contextoCompleto = [documentContext, contextoDeSessoes].filter(Boolean).join("\n\n");
-      return contextoCompleto
-        ? wrapUntrustedClinicalContext(contextoCompleto)
-        : "Nenhum registro autorizado foi encontrado.";
-      } catch (error) {
-        // O motivo real (ex.: LLM_EMBEDDING_BASE_URL ausente) fica no log do
-        // servidor; para o modelo vai só a instrução do que fazer agora.
-        console.error("[luma] busca clínica indisponível:", error instanceof Error ? error.message : error);
-        return "A busca nos registros está indisponível no momento (falha técnica, já registrada). NÃO invente nem deduza conteúdo de prontuário: diga à pessoa, em uma frase, que não conseguiu consultar os registros agora, e siga ajudando com a agenda e com o uso do sistema.";
-      }
-    }, {
-      name: ctx.role === "therapist" ? "search_patient_records" : "search_my_records",
-      description: "Busca semântica somente leitura em registros autorizados do paciente. Não diagnostica nem altera prontuários.",
-      schema: z.object({
-        query: z.string().trim().min(3).max(500),
-        patientId: z.number().int().positive().optional(),
-      }),
-    }),
     ...schedulingTools,
   ];
 }

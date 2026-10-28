@@ -84,7 +84,7 @@ const therapistSteps: Step[] = [
     path: "/records",
     icon: FileText,
     title: "Modelos de prontuário",
-    body: "Tem um modelo de prontuário seu? Envie aqui (PDF ou Word) e eu passo a escrever nesse formato. Aqui também você cria textos prontos para inserir nas anotações com um clique.",
+    body: "Tem um modelo de prontuário seu? Envie aqui (PDF ou Word) e eu monto modelos em branco nesse formato. Aqui também você cria textos prontos para inserir nas anotações com um clique.",
     target: '[data-tour="modelos-prontuario"]',
   },
   // Dentro do prontuário: o de EXEMPLO (dados fictícios), para quem ainda não
@@ -200,7 +200,7 @@ const therapistSteps: Step[] = [
     path: "/luma",
     icon: null,
     title: "Falar comigo",
-    body: "Escolha o paciente e me peça do seu jeito, por exemplo: “marque a Ana quinta às 14h”. Eu preparo tudo, mas nada acontece até você tocar em “Confirmar”. Para mudar de assunto, use “Nova conversa”.",
+    body: "Escolha o paciente e me peça do seu jeito, por exemplo: “marque a Ana quinta às 14h”. Eu preparo tudo, mas nada acontece até você tocar em “Confirmar”. Também monto modelos de prontuário em branco; para proteger os pacientes, não leio o que está escrito neles. Para mudar de assunto, use “Nova conversa”.",
     target: '[data-tour="luma-chat"]',
     alinharPeloFim: true,
   },

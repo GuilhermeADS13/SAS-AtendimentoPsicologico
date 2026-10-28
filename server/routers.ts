@@ -46,7 +46,6 @@ import { answerSiteHelp } from "./ai/site-help";
 import { executarAcaoAgenda, horarioEmConflito, resolveAiAccessContext } from "./ai/clinical-tools";
 import { confirmPendingActionByHuman } from "./ai/action-confirmation";
 import { recordAiAuditEvent } from "./ai/audit";
-import { enqueueDocumentIndexing, getDocumentIndexingStatus } from "./ai/document-queue";
 import { getDocumentQueueMetrics, queueMetricsToPrometheus } from "./ai/queue-metrics";
 import {
   avisarPsicologaDoPagamentoInformado,
@@ -3190,35 +3189,6 @@ export const appRouter = router({
         }).returning({ id: documents.id });
 
         return { success: true, documentId: inserted[0]?.id } as const;
-      }),
-
-    indexContent: therapistProcedure
-      .input(z.object({ documentId: z.number().int().positive() }))
-      .mutation(async ({ ctx, input }) => {
-        const db = await getDb();
-        if (!db) throw new Error("Database not available");
-        const accessContext = await resolveAiAccessContext(db, {
-          id: ctx.user.id,
-          role: ctx.user.role,
-        });
-        const documentRows = await db.select({ id: documents.id }).from(documents)
-          .where(and(eq(documents.id, input.documentId), eq(documents.therapistId, accessContext.therapistId as number))).limit(1);
-        if (!documentRows.length) throw new Error("Documento não autorizado");
-        return enqueueDocumentIndexing(input.documentId, db);
-      }),
-
-    indexStatus: therapistProcedure
-      .input(z.object({ documentId: z.number().int().positive() }))
-      .query(async ({ ctx, input }) => {
-        const db = await getDb();
-        if (!db) throw new Error("Database not available");
-        const therapist = await db.select({ id: therapists.id }).from(therapists)
-          .where(eq(therapists.userId, ctx.user.id)).limit(1);
-        if (!therapist.length) throw new Error("Therapist not found");
-        const documentRows = await db.select({ id: documents.id }).from(documents)
-          .where(and(eq(documents.id, input.documentId), eq(documents.therapistId, therapist[0].id))).limit(1);
-        if (!documentRows.length) throw new Error("Documento não autorizado");
-        return getDocumentIndexingStatus(input.documentId, db);
       }),
 
     // Remove o metadado (o caller apaga o arquivo do Storage usando o fileKey).

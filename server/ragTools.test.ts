@@ -15,7 +15,7 @@ describe("RAG e ferramentas clínicas", () => {
     expect(prompt).toContain("Você é Luma, uma coruja virtual acolhedora");
     expect(prompt).toContain("metáforas de coruja apenas de forma leve");
     expect(prompt).toContain("Não faça diagnóstico");
-    expect(prompt).toContain("somente de leitura");
+    expect(prompt).toContain("Você não lê nem altera prontuários");
     expect(prompt).toContain("patientId 42");
     expect(prompt).toContain("Não revele");
   });
@@ -66,7 +66,7 @@ describe("RAG e ferramentas clínicas", () => {
     // O modo read-only (kill-switch / RAG desligado) precisa dizer que NÃO há
     // acesso clínico e não pode oferecer as ações de escrita.
     expect(prompt).toContain("NÃO tem acesso a prontuários");
-    expect(prompt).toContain("Nunca altere, exclua ou crie prontuários.");
+    expect(prompt).toContain("Você não lê nem altera prontuários.");
     expect(prompt).not.toContain("Suas capacidades:");
     expect(prompt).not.toContain("somente com confirmação explícita");
     // Ainda sem acesso, o escopo do paciente continua marcado — sem inventar dados.
@@ -216,42 +216,55 @@ describe("foco do prompt (custo por pergunta)", () => {
   });
 });
 
-describe("apoio ao prontuário (rascunho e encerramento)", () => {
-  const prompt = (role: "therapist" | "patient") =>
+/**
+ * Desde 2026-10-28 a Luma ajuda só com a ESTRUTURA do prontuário: o conteúdo de um
+ * paciente iria para o provedor de IA nos EUA.
+ */
+describe("apoio ao prontuário: só a estrutura", () => {
+  const prompt = (role: "therapist" | "patient", toolsEnabled = true) =>
     clinicalSystemPrompt(
       role === "therapist"
         ? therapistContext
         : { userId: 20, role: "patient" as const, patientId: 3 },
       role === "therapist" ? undefined : 3,
-      true,
+      toolsEnabled,
     );
 
-  it("orienta a devolver rascunho no formato DA PROFISSIONAL, com SOAP só de reserva", () => {
-    const p = prompt("therapist");
-    expect(p).toContain("RASCUNHO DE PRONTUÁRIO");
-    expect(p).toContain("formato DELA");
-    expect(p).toMatch(/só use SOAP/i);
+  it("ensina a forma do registro (CFP, modelo em branco) e recusa o conteúdo do paciente", () => {
+    for (const toolsEnabled of [true, false]) {
+      const p = prompt("therapist", toolsEnabled);
+      expect(p).toContain("PRONTUÁRIO: SÓ A ESTRUTURA");
+      expect(p).toContain("MODELO EM BRANCO");
+      expect(p).toContain("Resolução CFP 001/2009");
+      expect(p).toMatch(/NÃO pode: receber, resumir, organizar ou reescrever anotações/);
+      expect(p).not.toContain("RASCUNHO DE PRONTUÁRIO");
+    }
   });
 
-  it("proíbe a Luma de completar o que a profissional não disse e de salvar sozinha", () => {
+  it("indica os modelos prontos pelo nome (vindos de shared/prontuario)", () => {
     const p = prompt("therapist");
-    expect(p).toMatch(/não complete, não interprete/i);
-    expect(p).toContain("você NÃO salva prontuário");
+    for (const nome of ["SOAP", "DAP", "BIRP"]) expect(p).toContain(nome);
   });
 
-  it("oferece registrar o encerramento de quem sumiu (exigência do CFP)", () => {
+  it("encerramento de quem sumiu: indica o modelo, mas o texto é dela", () => {
     const p = prompt("therapist");
     expect(p).toContain("ENCERRAMENTO:");
     expect(p).toContain("encerramentoRegistrado");
-    expect(p).toMatch(/quem salva é ela/i);
+    expect(p).toMatch(/ela quem escreve e salva/i);
   });
 
-  // O paciente não tem prontuário para rascunhar nem pacientes para encerrar: essas
-  // regras são só ruído (e confusão de papel) no modo dele.
   it("não vaza as regras de prontuário para o modo paciente", () => {
     const p = prompt("patient");
-    expect(p).not.toContain("RASCUNHO DE PRONTUÁRIO");
+    expect(p).not.toContain("PRONTUÁRIO: SÓ A ESTRUTURA");
     expect(p).not.toContain("ENCERRAMENTO:");
+  });
+
+  it("sabe da assinatura e do Pix (texto montado dos dados do sistema)", () => {
+    const p = prompt("therapist");
+    expect(p).toContain("Sussurro");
+    expect(p).toContain("Voz");
+    expect(p).toContain("Coro");
+    expect(p).toContain("Assinatura");
   });
 });
 
@@ -303,7 +316,7 @@ describe("ferramentas enviadas por pergunta", () => {
   const ctx = { userId: 1, role: "therapist" as const, therapistId: 7 };
   const db = {} as never;
   const nomes = (incluirEscrita: boolean) =>
-    (createClinicalTools(ctx, db, undefined, "t", undefined, incluirEscrita) as Array<{ name: string }>)
+    (createClinicalTools(ctx, db, "t", undefined, incluirEscrita) as Array<{ name: string }>)
       .map((t) => t.name);
 
   const ESCRITA = ["agendar_consulta", "remarcar_consulta", "cancelar_consulta", "registrar_pagamento"];
@@ -322,17 +335,26 @@ describe("ferramentas enviadas por pergunta", () => {
    * O que NAO pode sumir junto: sem as leituras, a Luma nao responde nada util --
    * seria trocar custo por uma assistente muda.
    */
-  it("as leituras continuam em qualquer caso", () => {
+  it("as leituras da agenda continuam em qualquer caso", () => {
     for (const incluirEscrita of [true, false]) {
       const enviadas = nomes(incluirEscrita);
       expect(enviadas).toContain("get_minha_agenda");
-      expect(enviadas).toContain("get_patient_sessions");
-      expect(enviadas).toContain("search_patient_records");
+      expect(enviadas).toContain("get_patient_appointments");
+      expect(enviadas).toContain("get_prontuarios_incompletos");
+    }
+  });
+
+  it("nenhuma ferramenta lê conteúdo clínico (sessões, documentos, preparo, busca)", () => {
+    for (const incluirEscrita of [true, false]) {
+      const enviadas = nomes(incluirEscrita);
+      for (const clinica of ["get_patient_sessions", "get_patient_documents", "get_preparo_da_sessao", "search_patient_records"]) {
+        expect(enviadas).not.toContain(clinica);
+      }
     }
   });
 
   it("por padrao (sem informar) manda tudo, como antes", () => {
-    const padrao = (createClinicalTools(ctx, db, undefined, "t") as Array<{ name: string }>).map((t) => t.name);
+    const padrao = (createClinicalTools(ctx, db, "t") as Array<{ name: string }>).map((t) => t.name);
     for (const escrita of ESCRITA) expect(padrao).toContain(escrita);
   });
 });

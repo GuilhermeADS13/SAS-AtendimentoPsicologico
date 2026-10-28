@@ -35,12 +35,13 @@ import { toast } from "sonner";
 import { LumaOwlIcon } from "@/components/Logo";
 
 // Menu inicial da Luma clínica (terapeuta): as coisas que ela faz bem — agenda e
-// leitura de registros autorizados.
+// a ESTRUTURA do prontuário. Ela não lê o conteúdo dos pacientes (decisão de
+// 2026-10-28: iria para o provedor de IA nos EUA).
 const MENU_CLINICO = [
   { label: "Ver os próximos agendamentos", hint: "A agenda deste paciente", icon: <CalendarDays className="size-5" /> },
   { label: "Agendar uma consulta", hint: "Eu proponho, você confirma", icon: <CalendarPlus className="size-5" /> },
-  { label: "Resumir os últimos registros autorizados", hint: "Sessões e documentos", icon: <FileText className="size-5" /> },
-  { label: "Organizar os próximos pontos para a sessão", hint: "Preparar o atendimento", icon: <ListChecks className="size-5" /> },
+  { label: "Montar um modelo de evolução em branco", hint: "Só a estrutura, no seu formato", icon: <FileText className="size-5" /> },
+  { label: "O que falta preencher nos prontuários?", hint: "Pelo que o CFP exige", icon: <ListChecks className="size-5" /> },
 ];
 
 // Menu inicial da Luma de apoio (paciente): navegação pelo site.
@@ -54,7 +55,7 @@ const MENU_PACIENTE = [
 // Cartão "O que a Luma faz" na lateral — o resumo do que cada modo sabe fazer.
 const CAPACIDADES_CLINICAS: { icone: LucideIcon; titulo: string; texto: string }[] = [
   { icone: CalendarDays, titulo: "Agenda do paciente", texto: "Mostra, agenda, remarca e cancela — sempre como proposta." },
-  { icone: FileText, titulo: "Registros autorizados", texto: "Resume sessões e documentos, citando de onde tirou." },
+  { icone: FileText, titulo: "Estrutura do prontuário", texto: "Monta modelos em branco e explica o que o CFP pede. Não lê o conteúdo dos pacientes." },
   { icone: Receipt, titulo: "Pagamentos", texto: "Registra o pagamento de uma consulta." },
 ];
 
@@ -203,8 +204,8 @@ export default function Luma() {
     // a conversa segue, elas saem de cena.
     setSugestoesPosAcao([]);
     // Sem paciente selecionado a conversa segue: perguntas de navegação/uso do
-    // sistema não dependem de um paciente. Se a pergunta for sobre REGISTROS, a
-    // própria Luma pede para selecionar o paciente (ver clinicalSystemPrompt).
+    // sistema e de estrutura do prontuário não dependem de um paciente. Se a
+    // pergunta for sobre a AGENDA dele, a própria Luma pede para selecionar.
 
     const requestId = crypto.randomUUID();
     // Uma mensagem nova invalida a proposta anterior: o resumo que a terapeuta
@@ -307,7 +308,7 @@ export default function Luma() {
       { label: "Ver os próximos agendamentos", icon: <CalendarDays className="size-5" /> },
       { label: "Agendar uma consulta", icon: <CalendarPlus className="size-5" /> },
       { label: "Registrar um pagamento", icon: <Receipt className="size-5" /> },
-      { label: "Resumir os últimos registros autorizados", icon: <FileText className="size-5" /> },
+      { label: "Montar um modelo de evolução em branco", icon: <FileText className="size-5" /> },
     ], perguntaFeita);
   }
 
@@ -387,14 +388,14 @@ export default function Luma() {
           <div className="min-w-0 space-y-1.5">
             <p className="flex items-center gap-1.5 text-sm font-medium text-primary">
               <LumaOwlIcon className="size-5" />
-              {isClinicalUser ? "Assistente clínico de leitura" : "Assistente de navegação do site"}
+              {isClinicalUser ? "Assistente da agenda e do prontuário" : "Assistente de navegação do site"}
             </p>
             <h1 id="luma-title" className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
               {isClinicalUser ? "Luma Clínica" : "Luma Apoio"}
             </h1>
             <p className="max-w-2xl text-muted-foreground">
               {isClinicalUser
-                ? "Organiza informações autorizadas e cuida da agenda com a sua confirmação. Não diagnostica, não prescreve e não altera prontuários."
+                ? "Cuida da agenda com a sua confirmação e ajuda com a estrutura do prontuário. Não lê o conteúdo dos pacientes, não diagnostica e não prescreve."
                 : "Tire dúvidas sobre como usar o VozInterior. Este modo não acessa prontuários e não oferece orientação clínica."}
             </p>
           </div>
@@ -425,8 +426,8 @@ export default function Luma() {
                 <Label htmlFor="luma-patient" className="text-sm font-semibold">Paciente no escopo da conversa</Label>
                 <p className="text-xs text-muted-foreground">
                   {selectedPatient
-                    ? `As buscas ficam restritas a ${nomeDoPaciente} e à sua autorização profissional.`
-                    : "Escolha um paciente para a Luma ler os registros e a agenda dele."}
+                    ? `A agenda fica restrita a ${nomeDoPaciente}.`
+                    : "Escolha um paciente para a Luma ver e mexer na agenda dele."}
                 </p>
               </div>
               <Select value={selectedPatientId} onValueChange={changePatient}>
@@ -447,14 +448,14 @@ export default function Luma() {
             isLoading={isClinicalUser ? chatMutation.isPending : siteHelpMutation.isPending}
             lumaStatus={(isClinicalUser ? chatMutation.isPending : siteHelpMutation.isPending) ? "attentive" : "sleeping"}
             agentName={isClinicalUser ? "Luma Clínica" : "Luma Apoio"}
-            agentSubtitle={isClinicalUser ? "Coruja de apoio à leitura clínica autorizada" : "Ajuda para navegar no VozInterior"}
-            processingLabel={isClinicalUser ? "Luma está consultando somente registros autorizados..." : "Luma está localizando essa área no site..."}
+            agentSubtitle={isClinicalUser ? "Coruja de apoio à agenda e à estrutura do prontuário" : "Ajuda para navegar no VozInterior"}
+            processingLabel={isClinicalUser ? "Luma está preparando a resposta..." : "Luma está localizando essa área no site..."}
             placeholder={isClinicalUser
               // Curto de propósito: o texto longo quebrava em duas linhas no celular
               // e a segunda ficava cortada pela altura do campo.
-              ? (selectedPatientId ? "Pergunte sobre este paciente" : "Selecione um paciente acima")
+              ? (selectedPatientId ? "Pergunte sobre a agenda dele" : "Pergunte sobre agenda ou prontuário")
               : "Pergunte sobre o uso do site"}
-            emptyStateMessage={isClinicalUser ? "Olá! Eu sou a Luma, sua coruja de apoio clínico. Consulto os registros autorizados (sessões e documentos) e cuido da agenda do paciente: agendar, remarcar, cancelar e registrar pagamento. Toda alteração na agenda aparece como uma proposta, e só acontece quando você clicar em Confirmar. Selecione um paciente e uma sugestão abaixo para começar." : "Olá! Eu sou a Luma, sua coruja de apoio no VozInterior. Escolha uma sugestão para aprender a usar o sistema."}
+            emptyStateMessage={isClinicalUser ? "Olá! Eu sou a Luma, sua coruja de apoio. Cuido da agenda (agendar, remarcar, cancelar e registrar pagamento — sempre como proposta, que só acontece quando você clicar em Confirmar) e ajudo com a estrutura do prontuário: modelos em branco e o que o CFP pede. Para proteger os seus pacientes, não cole anotações de sessão aqui: eu não leio o conteúdo dos prontuários." : "Olá! Eu sou a Luma, sua coruja de apoio no VozInterior. Escolha uma sugestão para aprender a usar o sistema."}
             followUpMenu={sugestoesPosAcao}
             onRestart={resetConversation}
             suggestedMenu={isClinicalUser ? MENU_CLINICO : MENU_PACIENTE}
@@ -521,7 +522,7 @@ export default function Luma() {
             <ul className="mt-3 space-y-2.5 text-sm text-muted-foreground">
               {(isClinicalUser
                 ? [
-                    { icone: LockKeyhole, texto: "Só acessa dados autorizados pelo seu perfil, de um paciente por vez." },
+                    { icone: LockKeyhole, texto: "Não lê prontuários, sessões nem documentos: só a agenda, de um paciente por vez." },
                     { icone: CheckCircle2, texto: "Nada muda na agenda sem o seu clique em Confirmar." },
                     { icone: MessageCircle, texto: "As respostas podem ser avaliadas por profissionais para melhorar o sistema." },
                   ]

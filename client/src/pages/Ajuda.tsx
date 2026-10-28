@@ -463,7 +463,7 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
         </li>
         <li>
           Em <strong>“Enviar modelo (PDF/DOCX)”</strong>, escolha o arquivo do seu modelo. A
-          Luma passa a <strong>seguir esse formato</strong> ao te ajudar a organizar a sessão.
+          Luma passa a <strong>seguir esse formato</strong> ao montar modelos em branco para você.
           Guardamos apenas o texto do modelo.
         </li>
         <li>

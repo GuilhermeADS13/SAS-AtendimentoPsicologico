@@ -113,10 +113,12 @@ export default function Termos() {
           <section className="space-y-2">
             <h2 className="text-lg font-semibold text-foreground">5. Assistente Luma</h2>
             <p>
-              A Luma ajuda a usar o sistema e a consultar informações do atendimento. Ela é
-              uma IA e <strong>pode errar</strong>: confira o que ela sugerir antes de usar,
-              principalmente em registros clínicos. Ela não faz diagnóstico nem substitui o
-              julgamento profissional. Cada plano tem um número de perguntas por dia.
+              A Luma ajuda a usar o sistema, cuida da agenda e ajuda com a estrutura do
+              prontuário (modelos em branco e o que o CFP pede). Ela{" "}
+              <strong>não lê o conteúdo dos prontuários</strong> — não cole anotações de
+              pacientes na conversa. Ela é uma IA e <strong>pode errar</strong>: confira o que
+              ela sugerir antes de usar. Ela não faz diagnóstico nem substitui o julgamento
+              profissional. Cada plano tem um número de perguntas por dia.
             </p>
           </section>
 
