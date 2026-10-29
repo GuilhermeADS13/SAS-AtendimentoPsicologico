@@ -119,10 +119,10 @@ describe("e-mail semanal: uma vez por semana, a partir de segunda às 8h (Brasí
 
 describe("recursos por plano", () => {
   const [sussurro, voz, coro] = PLANOS;
-  it("documentos e relatório só no Coro; prontuário no Voz e no Coro", () => {
-    expect(recursosDoPlano(sussurro, false, false)).toEqual({ lumaNoProntuario: false, documentosPsicologicos: false, relatorioDeGestao: false });
-    expect(recursosDoPlano(voz, false, false)).toEqual({ lumaNoProntuario: true, documentosPsicologicos: false, relatorioDeGestao: false });
-    expect(recursosDoPlano(coro, false, false)).toEqual({ lumaNoProntuario: true, documentosPsicologicos: true, relatorioDeGestao: true });
+  it("relatório só no Coro; prontuário no Voz e no Coro", () => {
+    expect(recursosDoPlano(sussurro, false, false)).toEqual({ lumaNoProntuario: false, relatorioDeGestao: false });
+    expect(recursosDoPlano(voz, false, false)).toEqual({ lumaNoProntuario: true, relatorioDeGestao: false });
+    expect(recursosDoPlano(coro, false, false)).toEqual({ lumaNoProntuario: true, relatorioDeGestao: true });
   });
   it("teste grátis e admin têm tudo", () => {
     for (const r of [recursosDoPlano(sussurro, false, true), recursosDoPlano(sussurro, true, false)]) {

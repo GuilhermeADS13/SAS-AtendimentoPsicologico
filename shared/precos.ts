@@ -5,8 +5,8 @@
  *
  * - Sussurro: R$ 39/mês, até 10 pacientes.
  * - Voz: R$ 89/mês, até 30 pacientes — e a Luma ajuda na estrutura do prontuário.
- * - Coro: combinado com o Guilherme (sob medida, ver valorDoPlano) — e ainda a
- *   Luma nos documentos psicológicos e o relatório da clínica.
+ * - Coro: combinado com o Guilherme (sob medida, ver valorDoPlano) — e ainda o
+ *   relatório da clínica.
  *
  * Valores para a região do Guilherme desde 2026-10-28 (eram R$ 69 e R$ 129); a
  * Psicóloga Fundadora continua com 20% a menos em cima deles.
@@ -39,19 +39,18 @@ export type Plano = {
    */
   lumaNoProntuario: boolean;
   /**
-   * Diferenciais do Coro (2026-10-28): a Luma ajuda na estrutura dos documentos
-   * psicológicos (declaração, atestado, relatório, laudo, parecer) e o sistema
-   * calcula o relatório da clínica (faltas, comparecimento, inadimplência) — sem IA.
+   * Diferencial do Coro (2026-10-28): o sistema calcula o relatório da clínica
+   * (faltas, comparecimento, inadimplência) — sem IA. A Luma NÃO ajuda com
+   * documentos psicológicos (laudo, atestado...) em nenhum plano (decisão de 2026-10-28).
    */
-  documentosPsicologicos: boolean;
   relatorioDeGestao: boolean;
 };
 
 export const PLANOS: readonly Plano[] = [
   // Nomes no tema VozInterior (2026-10-26): a voz cresce com o consultório.
   // Os ids continuam pro/max/unlimited — só o nome aparece na tela.
-  { id: "pro", nome: "Sussurro", de: 1, ate: 10, precoCentavos: 3900, perguntasLumaPorDia: 5, anexoMaxMb: 5, lumaNoProntuario: false, documentosPsicologicos: false, relatorioDeGestao: false },
-  { id: "max", nome: "Voz", de: 11, ate: MAX_PACIENTES_NA_TABELA, precoCentavos: 8900, perguntasLumaPorDia: 15, anexoMaxMb: 10, lumaNoProntuario: true, documentosPsicologicos: false, relatorioDeGestao: false },
+  { id: "pro", nome: "Sussurro", de: 1, ate: 10, precoCentavos: 3900, perguntasLumaPorDia: 5, anexoMaxMb: 5, lumaNoProntuario: false, relatorioDeGestao: false },
+  { id: "max", nome: "Voz", de: 11, ate: MAX_PACIENTES_NA_TABELA, precoCentavos: 8900, perguntasLumaPorDia: 15, anexoMaxMb: 10, lumaNoProntuario: true, relatorioDeGestao: false },
   {
     id: "unlimited",
     nome: "Coro",
@@ -61,14 +60,12 @@ export const PLANOS: readonly Plano[] = [
     perguntasLumaPorDia: null,
     anexoMaxMb: null,
     lumaNoProntuario: true,
-    documentosPsicologicos: true,
     relatorioDeGestao: true,
   },
 ];
 
 /** Como o diferencial do Voz aparece nas listas de plano (preços, assinatura, troca). */
 export const TEXTO_LUMA_NO_PRONTUARIO = "Luma ajuda no prontuário: modelos e regras do CFP, sem dados dos pacientes";
-export const TEXTO_DOCUMENTOS_PSICOLOGICOS = "Luma nos documentos: declaração, atestado, relatório, laudo e parecer";
 export const TEXTO_RELATORIO_DE_GESTAO = "Relatório da clínica: comparecimento, faltas e quem está devendo";
 
 /** O menor plano em que cabem `pacientes`. */

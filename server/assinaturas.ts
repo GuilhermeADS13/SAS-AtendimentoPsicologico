@@ -179,19 +179,18 @@ export async function planoDaPsicologa(db: Db, therapistId: number) {
 }
 
 /**
- * Recursos que dependem do plano (2026-10-28): a Luma no prontuário (Voz e Coro),
- * nos documentos psicológicos e o relatório da clínica (só Coro). No teste grátis
- * vale "tudo liberado", como promete a página de preços; a admin não tem trava.
+ * Recursos que dependem do plano (2026-10-28): a Luma no prontuário (Voz e Coro)
+ * e o relatório da clínica (só Coro). No teste grátis vale "tudo liberado", como
+ * promete a página de preços; a admin não tem trava.
  */
 export function recursosDoPlano(
-  plano: { lumaNoProntuario: boolean; documentosPsicologicos: boolean; relatorioDeGestao: boolean },
+  plano: { lumaNoProntuario: boolean; relatorioDeGestao: boolean },
   admin: boolean,
   emTeste: boolean,
 ) {
   const tem = (doPlano: boolean) => admin || emTeste || doPlano;
   return {
     lumaNoProntuario: tem(plano.lumaNoProntuario),
-    documentosPsicologicos: tem(plano.documentosPsicologicos),
     relatorioDeGestao: tem(plano.relatorioDeGestao),
   };
 }

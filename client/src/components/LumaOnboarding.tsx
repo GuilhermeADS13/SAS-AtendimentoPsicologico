@@ -193,7 +193,7 @@ const therapistSteps: Step[] = [
     path: "/assinatura",
     icon: CreditCard,
     title: "Sua assinatura",
-    body: "Seu plano, o valor e até quando está liberada. Sussurro vai até 10 pacientes e Voz até 30, com preço fixo; no Voz eu também te ajudo a montar o prontuário, e no Coro, os documentos psicológicos. Troque quando quiser. Para pagar, copie o Pix ou leia o QR, que já vem com o valor. Escolha também o dia do vencimento no calendário. Três dias antes, eu te aviso.",
+    body: "Seu plano, o valor e até quando está liberada. Sussurro vai até 10 pacientes e Voz até 30, com preço fixo; no Voz eu também te ajudo a montar o prontuário, e no Coro você ganha o relatório da clínica. Troque quando quiser. Para pagar, copie o Pix ou leia o QR, que já vem com o valor. Escolha também o dia do vencimento no calendário. Três dias antes, eu te aviso.",
     target: '[data-tour="assinatura"]',
   },
   {

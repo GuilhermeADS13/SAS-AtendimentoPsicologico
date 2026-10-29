@@ -18,7 +18,6 @@ import {
   MAX_PACIENTES_NA_TABELA,
   MESES_PAGOS_NO_ANUAL,
   PLANOS,
-  TEXTO_DOCUMENTOS_PSICOLOGICOS,
   TEXTO_LUMA_NO_PRONTUARIO,
   TEXTO_RELATORIO_DE_GESTAO,
   VAGAS_DE_FUNDADOR,
@@ -93,7 +92,6 @@ function itensDoPlano(plano: Plano): string[] {
   if (plano.perguntasLumaPorDia === null) {
     return [
       "Tudo do Voz",
-      TEXTO_DOCUMENTOS_PSICOLOGICOS,
       TEXTO_RELATORIO_DE_GESTAO,
       "Pacientes sem limite",
       "Cota da Luma e anexos sob medida",

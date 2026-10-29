@@ -227,7 +227,7 @@ describe("apoio ao prontuário: só a estrutura", () => {
   });
 
   it("no Sussurro (sem a ajuda no prontuário) explica que é do Voz e não monta modelo", () => {
-    const p = clinicalSystemPrompt(therapistContext, undefined, true, undefined, { prontuario: true }, { prontuario: false, documentos: false, relatorio: false });
+    const p = clinicalSystemPrompt(therapistContext, undefined, true, undefined, { prontuario: true }, { prontuario: false, relatorio: false });
     expect(p).not.toContain("PRONTUÁRIO: SÓ A ESTRUTURA");
     expect(p).not.toContain("COMO AJUDAR NA ESTRUTURA");
     expect(p).toMatch(/recurso do plano Voz \(R\$\s?89\/mês\)/);
@@ -237,16 +237,18 @@ describe("apoio ao prontuário: só a estrutura", () => {
     expect(buildSoEstruturaResponse(false, false)).toContain("faz parte do plano Voz");
   });
 
-  it("documentos psicológicos: regras no Coro, aviso de plano fora dele (só em pergunta de documento)", () => {
-    const coro = { prontuario: true, documentos: true, relatorio: true };
-    const voz = { prontuario: true, documentos: false, relatorio: false };
+  it("documentos psicológicos: a Luma recusa em qualquer plano (só em pergunta de documento)", () => {
+    const coro = { prontuario: true, relatorio: true };
+    const sussurro = { prontuario: false, relatorio: false };
     const doc = (recursos: typeof coro, documentos: boolean) =>
       clinicalSystemPrompt(therapistContext, undefined, true, undefined, { documentos }, recursos);
-    expect(doc(coro, true)).toContain("Resolução CFP 06/2019");
-    expect(doc(coro, true)).toMatch(/Declaração: .*NÃO traz sintoma, diagnóstico/);
+    for (const recursos of [coro, sussurro]) {
+      expect(doc(recursos, true)).toMatch(/NÃO ajuda com eles em nenhum plano/);
+      expect(doc(recursos, true)).not.toMatch(/Laudo: resultado|modelo em branco com os títulos/);
+    }
     expect(doc(coro, false)).not.toContain("DOCUMENTOS PSICOLÓGICOS");
-    expect(doc(voz, true)).toMatch(/recurso do plano Coro/);
-    expect(doc(voz, true)).not.toContain("Resolução CFP 06/2019");
+    // Nem a lista de capacidades oferece ajuda com documento.
+    expect(clinicalSystemPrompt(therapistContext, undefined, true, undefined, undefined, coro)).not.toMatch(/estrutura dos documentos psicológicos/);
     expect(pareceDocumentoPsicologico("preciso de um modelo de declaração de comparecimento")).toBe(true);
     expect(pareceDocumentoPsicologico("como faço um laudo?")).toBe(true);
     expect(pareceDocumentoPsicologico("relatório da clínica")).toBe(false);

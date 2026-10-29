@@ -521,14 +521,13 @@ export const appRouter = router({
         // Cota diária do plano (Sussurro 5, Voz 15 — shared/precos.ts). Fica DEPOIS do
         // replay acima: repetir uma pergunta já respondida não gasta cota. A Groq
         // grátis aguenta ~80 perguntas/dia somando todas as clientes.
-        // O que a Luma faz depende do plano: prontuário (Voz e Coro), documentos e
-        // relatório da clínica (Coro). Teste grátis e admin têm tudo.
-        let recursosDaLuma = { prontuario: true, documentos: true, relatorio: true };
+        // O que a Luma faz depende do plano: prontuário (Voz e Coro) e relatório da
+        // clínica (Coro). Teste grátis e admin têm tudo.
+        let recursosDaLuma = { prontuario: true, relatorio: true };
         if (ctx.user.role !== "admin" && accessContext.therapistId) {
           const { plano, limites, recursos } = await planoDaPsicologa(db, accessContext.therapistId);
           recursosDaLuma = {
             prontuario: recursos.lumaNoProntuario,
-            documentos: recursos.documentosPsicologicos,
             relatorio: recursos.relatorioDeGestao,
           };
           const limite = limites.lumaPorDia;
