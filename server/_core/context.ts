@@ -1,5 +1,6 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { User } from "../../drizzle/schema";
+import { aparelhoLiberado } from "../aparelhos";
 import { getOrCreateDevUser } from "../devAuth";
 import { verifySupabaseToken } from "../supabaseAuth";
 import { upsertUser, getUserByOpenId } from "../db";
@@ -10,6 +11,8 @@ export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
   res: CreateExpressContextOptions["res"];
   user: User | null;
+  /** `false` barra a API: psicóloga ou admin em aparelho sem confirmar. */
+  aparelhoVerificado?: boolean;
 };
 
 /** Última sincronização da conta com o token do Supabase (openId → e-mail e quando). */
@@ -89,5 +92,6 @@ export async function createContext(
     req: opts.req,
     res: opts.res,
     user,
+    aparelhoVerificado: user ? await aparelhoLiberado(user, opts.req.headers.cookie) : true,
   };
 }

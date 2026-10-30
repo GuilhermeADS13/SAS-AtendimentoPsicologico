@@ -1,6 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { verifySupabaseToken } from "./supabaseAuth";
 import { getDb, getUserByOpenId } from "./db";
+import { aparelhoLiberado } from "./aparelhos";
 import { resolverAcessoSala } from "./roomAccess";
 
 /**
@@ -108,7 +109,7 @@ export function createPresenceWss(): WebSocketServer {
         ws.close(4003, "forbidden");
         return;
       }
-      const acesso = await resolverAcessoSala(db, user, room);
+      const acesso = (await aparelhoLiberado(user, req.headers.cookie)) ? await resolverAcessoSala(db, user, room) : null;
       if (!acesso) {
         ws.close(4003, "forbidden");
         return;

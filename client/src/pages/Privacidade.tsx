@@ -240,7 +240,8 @@ export default function Privacidade() {
             <h2 className="text-lg font-semibold text-foreground">9. Cookies</h2>
             <p>
               Usamos apenas cookies e armazenamento do navegador <strong>essenciais</strong>:
-              manter você conectado e lembrar preferências como o tema e o tamanho do menu.
+              manter você conectado, reconhecer o aparelho que você já confirmou e lembrar
+              preferências como o tema e o tamanho do menu.
               Não usamos cookies de publicidade nem ferramentas de rastreamento.
             </p>
           </section>

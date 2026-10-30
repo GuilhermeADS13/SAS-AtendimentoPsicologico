@@ -1,4 +1,4 @@
-import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
+import { APARELHO_ERR_MSG, NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
@@ -72,7 +72,22 @@ const requireUser = t.middleware(async opts => {
   });
 });
 
-export const protectedProcedure = t.procedure.use(requireUser);
+/**
+ * Psicóloga ou admin em aparelho ainda não confirmado (ver server/aparelhos.ts).
+ * Compara com `false` porque o contexto de produção sempre preenche o campo; quem
+ * não o preenche são as chamadas internas de teste.
+ */
+const exigirAparelho = t.middleware(async ({ ctx, next }) => {
+  if (ctx.aparelhoVerificado === false) {
+    throw new TRPCError({ code: "FORBIDDEN", message: APARELHO_ERR_MSG });
+  }
+  return next();
+});
+
+/** Só para confirmar o próprio aparelho: é o que funciona antes da verificação. */
+export const contaProcedure = t.procedure.use(requireUser);
+
+export const protectedProcedure = t.procedure.use(requireUser).use(exigirAparelho);
 
 /**
  * Acesso clínico (prontuários, agendamentos, sessões, documentos).
@@ -96,7 +111,7 @@ export const therapistProcedure = t.procedure.use(
 
     return next({ ctx: { ...ctx, user: ctx.user } });
   }),
-);
+).use(exigirAparelho);
 
 export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
@@ -113,4 +128,4 @@ export const adminProcedure = t.procedure.use(
       },
     });
   }),
-);
+).use(exigirAparelho);

@@ -265,6 +265,36 @@ const DUVIDAS_PACIENTE: Duvida[] = [
  */
 const DUVIDAS_PSICOLOGA: Duvida[] = [
   {
+    pergunta: "Pediu um código no e-mail para entrar",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          É a confirmação de <strong>aparelho novo</strong>: ela protege o prontuário se a
+          sua senha vazar. Digite o código de 6 números que enviamos para o e-mail da conta.
+        </li>
+        <li>
+          Depois disso, este aparelho fica confiável por <strong>30 dias</strong>. Limpar os
+          dados do navegador faz o código ser pedido de novo.
+        </li>
+        <li>
+          <strong>Trocou de celular ou computador:</strong> não precisa fazer nada. Entre
+          normalmente e confirme o código uma vez.
+        </li>
+        <li>
+          <strong>Trocou de número:</strong> não muda nada, porque o código vai por e-mail.
+        </li>
+        <li>
+          <strong>Vai trocar de e-mail:</strong> faça a troca em Configurações da conta
+          enquanto ainda tem acesso ao antigo.
+        </li>
+        <li>
+          <strong>Perdeu o acesso ao e-mail:</strong> fale com o suporte. Vamos confirmar que
+          é você antes de alterar a conta, para ninguém tomar o seu lugar.
+        </li>
+      </ul>
+    ),
+  },
+  {
     pergunta: "Como cadastro um paciente novo",
     resposta: (
       <ul className="list-disc pl-5 space-y-1">

@@ -133,6 +133,23 @@ export const therapistRequests = pgTable("therapistRequests", {
 export type TherapistRequest = typeof therapistRequests.$inferSelect;
 export type InsertTherapistRequest = typeof therapistRequests.$inferInsert;
 
+/** Código de aparelho novo, um por conta (migração 0048). Ver server/aparelhos.ts. */
+export const codigosDeAparelho = pgTable("codigosDeAparelho", {
+  userId: integer("userId").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  codigoHash: varchar("codigoHash", { length: 64 }).notNull(),
+  expiraEm: timestamp("expiraEm", { withTimezone: true, mode: "date" }).notNull(),
+  tentativas: smallint("tentativas").default(0).notNull(),
+});
+
+/** Aparelhos que já confirmaram o código. O token fica num cookie; aqui, só o hash. */
+export const aparelhosConfiaveis = pgTable("aparelhosConfiaveis", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: varchar("tokenHash", { length: 64 }).notNull().unique(),
+  expiraEm: timestamp("expiraEm", { withTimezone: true, mode: "date" }).notNull(),
+  criadoEm: timestamp("criadoEm", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+});
+
 /**
  * Psicólogas (therapists) — estende usuários com dados profissionais.
  */

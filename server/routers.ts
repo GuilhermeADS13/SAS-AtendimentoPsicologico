@@ -3,13 +3,20 @@ import { anamneseSchema, tcleSchema, noteTemplatesSchema } from "@shared/prontua
 import { TAMANHO_MAXIMO_DO_CONTRATO, contratoTextoSchema } from "@shared/contrato";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, therapistProcedure, adminProcedure, router } from "./_core/trpc";
+import { publicProcedure, contaProcedure, protectedProcedure, therapistProcedure, adminProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { iceServersParaChamada } from "./turn";
 import { getDb } from "./db";
 import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessageFeedback, patients, appointments, appointmentParticipants, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users, chatMessages, assinaturas } from "../drizzle/schema";
 import { signDocumentUrl, downloadDocumentFile, apagarArquivoDoDocumento, removeDocumentFile as removeStorageFile, assinarFotos } from "./storage";
 import { extractClinicalDocument, textoSemCortes } from "./ai/document-ingestion";
+import {
+  COOKIE_DO_APARELHO,
+  DIAS_DE_APARELHO_CONFIAVEL,
+  confirmarCodigoDeAparelho,
+  enviarCodigoDeAparelho,
+  mascararEmail,
+} from "./aparelhos";
 import { sendEmail } from "./mailer";
 import { celularDaConta, gerarLinkDeCadastro, gerarLinkDeRecuperacao, trocarEmailSupabase } from "./supabaseAdmin";
 import {
@@ -741,7 +748,7 @@ export const appRouter = router({
   }),
 
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query(({ ctx }) => (ctx.user ? { ...ctx.user, aparelhoVerificado: ctx.aparelhoVerificado !== false } : null)),
 
     /**
      * "Esqueci minha senha" com o NOSSO e-mail (marca, logo e o nome da pessoa)
@@ -888,6 +895,37 @@ export const appRouter = router({
         success: true,
       } as const;
     }),
+  }),
+
+  // Confirmação de aparelho novo por código no e-mail (ver server/aparelhos.ts).
+  aparelho: router({
+    enviarCodigo: contaProcedure.mutation(async ({ ctx }) => {
+      if (ctx.aparelhoVerificado !== false) return { enviado: false, destino: "" };
+      const destino = mascararEmail(ctx.user.email ?? "");
+      // A tela pede um código ao abrir; recarregar não pode gerar outro e invalidar
+      // o que já está a caminho. O limite global protege a cota diária da Brevo.
+      if (!dentroDoLimite(`aparelho:${ctx.user.id}`, 1, 60_000)) return { enviado: false, destino };
+      if (!dentroDoLimite(`aparelho-hora:${ctx.user.id}`, 6, 60 * 60_000) || !dentroDoLimite("aparelho:global", 60, 10 * 60_000)) {
+        throw new Error("Muitos códigos pedidos. Espere um pouco e tente de novo.");
+      }
+      await enviarCodigoDeAparelho(ctx.user);
+      return { enviado: true, destino };
+    }),
+
+    confirmarCodigo: contaProcedure
+      .input(z.object({ codigo: z.string().trim().regex(/^\d{6}$/, "Digite os 6 números do código.") }))
+      .mutation(async ({ ctx, input }) => {
+        const token = await confirmarCodigoDeAparelho(ctx.user.id, input.codigo);
+        ctx.res.cookie(COOKIE_DO_APARELHO, token, {
+          ...getSessionCookieOptions(ctx.req),
+          // Lax e só em /api: o navegador manda nas chamadas e no WebSocket do
+          // próprio site, e não o expõe às páginas nem a outros sites.
+          sameSite: "lax",
+          path: "/api",
+          maxAge: DIAS_DE_APARELHO_CONFIAVEL * 24 * 60 * 60 * 1000,
+        });
+        return { success: true } as const;
+      }),
   }),
 
   // Área do PACIENTE: só o próprio cadastro e as próprias consultas.

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { WebSocketServer, WebSocket } from "ws";
 import { verifySupabaseToken } from "./supabaseAuth";
 import { getDb, getUserByOpenId } from "./db";
+import { aparelhoLiberado } from "./aparelhos";
 import { resolverAcessoSala } from "./roomAccess";
 import { MAX_PESSOAS_NA_CHAMADA } from "../shared/chamadaEmGrupo";
 
@@ -162,7 +163,8 @@ export function createSignalingWss(): WebSocketServer {
           ws.close(4003, "forbidden");
           return;
         }
-        const acesso = await resolverAcessoSala(db, user, room);
+        // A sala não passa pelo tRPC: o aparelho é conferido aqui também.
+        const acesso = (await aparelhoLiberado(user, req.headers.cookie)) ? await resolverAcessoSala(db, user, room) : null;
         if (!acesso) {
           ws.close(4003, "forbidden");
           return;

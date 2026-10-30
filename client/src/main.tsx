@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { UNAUTHED_ERR_MSG } from '@shared/const';
+import { APARELHO_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
@@ -22,6 +22,13 @@ const queryClient = new QueryClient();
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
+
+  // O aparelho deixou de valer (venceram os 30 dias) com a tela aberta: atualizar
+  // quem está logado faz a tela de confirmação aparecer no lugar.
+  if (error.message === APARELHO_ERR_MSG) {
+    void queryClient.invalidateQueries({ queryKey: [["auth", "me"]] });
+    return;
+  }
 
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
 
