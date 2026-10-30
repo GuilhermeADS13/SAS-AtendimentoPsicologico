@@ -1597,6 +1597,8 @@ export const appRouter = router({
       const db = await getDb();
       if (!db) return [];
 
+      // Celular e teste só existem depois da aprovação: é o que o botão de avisar no
+      // WhatsApp usa. therapists.phone cobre quem foi aprovada sem celular na assinatura.
       return db
         .select({
           ...getTableColumns(therapistRequests),
@@ -1605,6 +1607,8 @@ export const appRouter = router({
           testeAguardando: assinaturas.testeAguardando,
         })
         .from(therapistRequests)
+        .leftJoin(therapists, eq(therapists.userId, therapistRequests.userId))
+        .leftJoin(assinaturas, eq(assinaturas.therapistId, therapists.id))
         .orderBy(desc(therapistRequests.createdAt));
     }),
 
@@ -1726,7 +1730,7 @@ export const appRouter = router({
           nome: l.nome,
           email: l.email,
           crp: l.crp,
-          isento: l.role === "admin",
+          isento: l.role === "admin" || ehCortesia(l.pagoAte),
           pacientes,
           plano: plano.nome,
           planoEscolhido: escolhido,

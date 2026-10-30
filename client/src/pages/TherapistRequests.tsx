@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { formatarData } from "@shared/datas";
+import { DIAS_DE_TESTE_GRATIS, DIAS_PARA_O_PRIMEIRO_PACIENTE } from "@shared/precos";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import { AssinaturasAdmin } from "@/components/AssinaturasAdmin";
+import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -20,6 +22,30 @@ import { AlertTriangle, BadgeCheck, ExternalLink, Inbox, X } from "lucide-react"
 
 type Acao = { id: number; nome: string; crp: string; action: "approve" | "reject" };
 
+/**
+ * Link wa.me com o aviso de aprovação pronto. Quem envia é o admin, no aparelho
+ * dele: enviar sozinho exigiria SMS ou a API do WhatsApp, que são pagos. O e-mail
+ * de aprovação continua saindo automático. Sem celular, null (o botão não aparece).
+ */
+function avisoDeAprovacaoNoWhatsApp(r: {
+  fullName: string;
+  celular: string | null;
+  telefone: string | null;
+  testeAguardando: boolean | null;
+}): string | null {
+  const digitos = (r.celular || r.telefone || "").replace(/\D/g, "");
+  if (!digitos) return null;
+  const numero = digitos.startsWith("55") ? digitos : `55${digitos}`; // 55 = Brasil
+  const teste = r.testeAguardando
+    ? `\n\nSeus ${DIAS_DE_TESTE_GRATIS} dias grátis começam quando você cadastrar o primeiro paciente. Você tem ${DIAS_PARA_O_PRIMEIRO_PACIENTE} dias para fazer esse cadastro.`
+    : "";
+  const msg =
+    `Olá, ${r.fullName.trim().split(/\s+/)[0]}! Seu cadastro no VozInterior foi aprovado.\n\n` +
+    `Sua área clínica já está liberada: ${window.location.origin}/login\n` +
+    `Se o site já estava aberto, saia e entre de novo.${teste}`;
+  return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
+}
+
 /** Fila de quem pediu acesso como psicólogo(a). Só o admin vê. */
 export default function TherapistRequests() {
   const utils = trpc.useUtils();
@@ -35,7 +61,8 @@ export default function TherapistRequests() {
         toast.success("Solicitação recusada. A pessoa foi avisada por e-mail.");
       } else if (r.ganhouTeste) {
         toast.success(
-          `Aprovado! A psicóloga já tem acesso, com 14 dias grátis a partir do primeiro paciente${r.fundador ? " e vaga de Psicóloga Fundadora" : ""}, e foi avisada por e-mail.`,
+          `Aprovado! A psicóloga já tem acesso, com 14 dias grátis a partir do primeiro paciente${r.fundador ? " e vaga de Psicóloga Fundadora" : ""}, e foi avisada por e-mail. Para avisar no celular, use "Avisar no WhatsApp" em Já analisadas.`,
+          { duration: 10_000 },
         );
       } else {
         // Um teste por pessoa: CRP ou celular já usados por outra conta.
@@ -162,27 +189,40 @@ export default function TherapistRequests() {
             {analisadas.length > 0 && (
               <div className="space-y-3">
                 <h2 className="text-lg font-semibold text-foreground">Já analisadas</h2>
-                {analisadas.map((r) => (
-                  <Card key={r.id}>
-                    <CardContent className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-medium text-foreground">
-                          {r.fullName} · CRP {r.crp}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{r.email}</p>
-                      </div>
-                      <span
-                        className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                          r.status === "approved"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}
-                      >
-                        {r.status === "approved" ? "Aprovado" : "Recusado"}
-                      </span>
-                    </CardContent>
-                  </Card>
-                ))}
+                {analisadas.map((r) => {
+                  const whatsapp = r.status === "approved" ? avisoDeAprovacaoNoWhatsApp(r) : null;
+                  return (
+                    <Card key={r.id}>
+                      <CardContent className="flex flex-wrap items-center justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">
+                            {r.fullName} · CRP {r.crp}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{r.email}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {whatsapp && (
+                            <Button variant="outline" size="sm" asChild>
+                              <a href={whatsapp} target="_blank" rel="noopener noreferrer">
+                                <WhatsAppIcon className="mr-2 size-4" />
+                                Avisar no WhatsApp
+                              </a>
+                            </Button>
+                          )}
+                          <span
+                            className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                              r.status === "approved"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {r.status === "approved" ? "Aprovado" : "Recusado"}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </>
