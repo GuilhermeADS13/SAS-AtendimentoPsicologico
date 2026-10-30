@@ -1,5 +1,32 @@
 import { describe, it, expect } from "vitest";
-import { pacienteDoUsuario, resolverAcessoSala } from "./roomAccess";
+import { pacienteDoUsuario, resolverAcessoSala, salaDisponivel } from "./roomAccess";
+
+describe("validade da sala de vídeo", () => {
+  const scheduledAt = new Date("2026-11-03T20:00:00Z");
+  const consulta = { status: "scheduled", scheduledAt, duration: 60 };
+  const em = (iso: string) => new Date(iso);
+
+  it("o paciente entra antes e durante a consulta", () => {
+    expect(salaDisponivel(consulta, "patient", em("2026-11-03T19:50:00Z"))).toBe(true);
+    expect(salaDisponivel(consulta, "patient", em("2026-11-03T20:30:00Z"))).toBe(true);
+  });
+
+  it("a sala aguenta a queda de conexão depois do fim previsto, mas não para sempre", () => {
+    expect(salaDisponivel({ ...consulta, status: "completed" }, "patient", em("2026-11-03T22:59:00Z"))).toBe(true);
+    expect(salaDisponivel(consulta, "patient", em("2026-11-03T23:01:00Z"))).toBe(false);
+    expect(salaDisponivel(consulta, "patient", em("2027-02-01T20:00:00Z"))).toBe(false);
+  });
+
+  it("consulta cancelada não abre para ninguém", () => {
+    const cancelada = { ...consulta, status: "cancelled" };
+    expect(salaDisponivel(cancelada, "patient", em("2026-11-03T20:00:00Z"))).toBe(false);
+    expect(salaDisponivel(cancelada, "therapist", em("2026-11-03T20:00:00Z"))).toBe(false);
+  });
+
+  it("a psicóloga segue entrando em consulta passada", () => {
+    expect(salaDisponivel(consulta, "therapist", em("2027-02-01T20:00:00Z"))).toBe(true);
+  });
+});
 
 /**
  * A regra de acesso à sala é a barreira da videochamada (sinalização e presença).

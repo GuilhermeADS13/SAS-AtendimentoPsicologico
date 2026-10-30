@@ -47,6 +47,10 @@ import { reducaoDeResolucao, tetoDeVideoPorPessoa } from "@shared/chamadaEmGrupo
 
 type Role = "therapist" | "patient";
 
+/** Arquivo mostrado na chamada: vale para quem envia e para quem recebe. */
+const ARQUIVO_MAX_NA_CHAMADA = 20 * 1024 * 1024;
+const arquivoPermitidoNaChamada = (mime: string) => mime.startsWith("image/") || mime === "application/pdf";
+
 /** Uma pessoa do outro lado: a conexão direta com ela e o que ela envia. */
 type Par = {
   id: string;
@@ -990,7 +994,7 @@ export default function WebRTCCall({
   const configurarCanal = (par: Par, dc: RTCDataChannel) => {
     dc.binaryType = "arraybuffer";
     par.dc = dc;
-    let recebendo: { mime: string; nome: string; partes: ArrayBuffer[] } | null = null;
+    let recebendo: { mime: string; nome: string; partes: ArrayBuffer[]; bytes: number } | null = null;
     dc.onopen = () => atualizarCanalPronto();
     dc.onclose = () => atualizarCanalPronto();
     dc.onmessage = (e: MessageEvent) => {
@@ -1002,7 +1006,10 @@ export default function WebRTCCall({
           return;
         }
         if (msg.t === "inicio") {
-          recebendo = { mime: msg.mime || "", nome: msg.nome || "arquivo", partes: [] };
+          // O limite de quem envia não protege quem recebe: o outro lado é um
+          // navegador que pode ter sido alterado. Aqui vale a mesma regra.
+          const mime = msg.mime || "";
+          recebendo = arquivoPermitidoNaChamada(mime) ? { mime, nome: (msg.nome || "arquivo").slice(0, 200), partes: [], bytes: 0 } : null;
         } else if (msg.t === "fim" && recebendo) {
           mostrarArquivo(new Blob(recebendo.partes, { type: recebendo.mime }), recebendo.mime, recebendo.nome);
           recebendo = null;
@@ -1010,7 +1017,12 @@ export default function WebRTCCall({
           fecharArquivo(false);
         }
       } else if (recebendo) {
-        recebendo.partes.push(e.data as ArrayBuffer);
+        const parte = e.data as ArrayBuffer;
+        recebendo.bytes += parte.byteLength;
+        // Sem este teto, um envio sem fim encheria a memória e travaria a aba no
+        // meio da sessão.
+        if (recebendo.bytes > ARQUIVO_MAX_NA_CHAMADA) recebendo = null;
+        else recebendo.partes.push(parte);
       }
     };
   };
@@ -1024,11 +1036,11 @@ export default function WebRTCCall({
     }
     // Erros de validação/envio usam toast: um erro aqui NÃO pode derrubar a
     // chamada (o onError do componente encerra a videochamada no pai).
-    if (file.size > 20 * 1024 * 1024) {
+    if (file.size > ARQUIVO_MAX_NA_CHAMADA) {
       toast.error("Arquivo muito grande (máximo 20 MB).");
       return;
     }
-    if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+    if (!arquivoPermitidoNaChamada(file.type)) {
       toast.error("Envie uma imagem ou um PDF.");
       return;
     }

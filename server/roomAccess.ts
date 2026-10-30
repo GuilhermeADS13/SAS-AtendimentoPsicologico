@@ -69,6 +69,26 @@ export type AcessoSala = {
   duration: number;
 };
 
+/** Folga depois do fim previsto: a sessão pode atrasar ou a conexão pode cair. */
+const HORAS_DE_FOLGA_NA_SALA = 2;
+
+/**
+ * A sala ainda vale para este papel? O link não pode valer para sempre: consulta
+ * cancelada não abre para ninguém, e o paciente perde o acesso depois do horário,
+ * inclusive quem já encerrou o acompanhamento e guardou o link antigo. A psicóloga
+ * segue entrando em consulta passada, porque é ela quem remarca e corrige a agenda.
+ */
+export function salaDisponivel(
+  a: { status: string; scheduledAt: Date; duration: number },
+  role: AcessoSala["role"],
+  agora: Date = new Date(),
+): boolean {
+  if (a.status === "cancelled") return false;
+  if (role === "therapist") return true;
+  const fechaEm = a.scheduledAt.getTime() + (a.duration + HORAS_DE_FOLGA_NA_SALA * 60) * 60_000;
+  return agora.getTime() <= fechaEm;
+}
+
 /**
  * Quem pode entrar numa sala de vídeo, e com qual papel — a regra ÚNICA, usada
  * tanto pelo `roomAccess` (antes de abrir a tela) quanto pela sinalização e pela
@@ -112,6 +132,7 @@ export async function resolverAcessoSala(
     // Teste/Pix vencido bloqueia iniciar chamada (shared/assinatura.ts). Aqui, e
     // não só na tela, porque a sinalização também passa por esta função.
     if (!(await psicologaLiberada(db, a.therapistId))) return null;
+    if (!salaDisponivel(a, "therapist")) return null;
     return {
       role: "therapist",
       appointmentId,
@@ -120,6 +141,8 @@ export async function resolverAcessoSala(
       duration: a.duration,
     };
   }
+
+  if (!salaDisponivel(a, "patient")) return null;
 
   // O paciente daquela consulta (vincula o convite se ainda faltar).
   const paciente = await pacienteDoUsuario(db, user);
