@@ -119,7 +119,7 @@ const therapistSteps: Step[] = [
     aba: "sessions",
     icon: MessageSquare,
     title: "Sessões",
-    body: "Registre cada atendimento em “Nova Sessão”: comece pelo SOAP ou abra “Mais modelos” (TCC, primeira sessão, criança, casal, risco, encerramento…). O que você escreve em “Anotações” durante a videochamada também chega aqui.",
+    body: "Registre cada atendimento em “Nova Sessão”: comece pelo SOAP ou abra “Mais modelos” (TCC, primeira sessão, criança, casal, risco, encerramento…). O que você escreve em “Anotações” durante a videochamada também chega aqui. A barra do editor tem títulos, cores, marca-texto, tabela e tela cheia.",
     target: '[data-tour="aba-sessions"]',
   },
   {
@@ -135,15 +135,15 @@ const therapistSteps: Step[] = [
     aba: "documents",
     icon: FolderOpen,
     title: "Documentos",
-    body: "Guarde arquivos do paciente, como PDF, fotos e Word, e abra quando precisar.",
+    body: "Guarde arquivos do paciente, como PDF, fotos e Word. “Ver” abre o documento aqui mesmo, por cima da tela. A seta ao lado salva no computador: o arquivo original ou, quando dá para converter, em PDF ou Word.",
     target: '[data-tour="aba-documents"]',
   },
   {
     path: PRONTUARIO,
     aba: "tcle",
     icon: FileText,
-    title: "TCLE",
-    body: "O termo de consentimento do contrato terapêutico: preencha os termos e gere o PDF para o paciente assinar.",
+    title: "Contrato e TCLE",
+    body: "Em “Meu modelo”, envie o seu contrato em PDF ou Word, ou escreva o texto, e coloque os campos automáticos, como nome e valor. Depois é só preencher os termos de cada paciente e gerar o PDF para assinar.",
     target: '[data-tour="aba-tcle"]',
   },
   {
@@ -165,7 +165,7 @@ const therapistSteps: Step[] = [
     path: "/appointments",
     icon: Calendar,
     title: "Agendamentos e videochamada",
-    body: "Toque em “Nova Consulta” para marcar. Terapia de casal ou com os responsáveis da criança? Use “Convidar participantes”: até 4 pessoas na chamada. Na hora, toque em “Entrar na videochamada” na consulta.",
+    body: "Toque em “Nova Consulta” para marcar. Terapia de casal ou com os responsáveis da criança? Use “Convidar participantes”: até 4 pessoas na chamada. Na hora, toque em “Entrar na videochamada” na consulta. Na chamada, o relógio no alto conta o tempo que falta desde a entrada do paciente e, no zero, pisca em vermelho só para você.",
     target: '[data-tour="nova-consulta"]',
   },
   {
@@ -193,7 +193,7 @@ const therapistSteps: Step[] = [
     path: "/assinatura",
     icon: CreditCard,
     title: "Sua assinatura",
-    body: "Seu plano, o valor e até quando está liberada. Sussurro vai até 10 pacientes e Voz até 30, com preço fixo; no Voz eu também te ajudo a montar o prontuário, e no Coro você ganha o relatório da clínica. Troque quando quiser. Para pagar, copie o Pix ou leia o QR, que já vem com o valor. Escolha também o dia do vencimento no calendário. Três dias antes, eu te aviso.",
+    body: "Seu plano, o valor e até quando está liberada. Os 14 dias grátis começam no primeiro paciente, e você tem 30 dias depois da aprovação para cadastrá-lo. Sussurro vai até 10 pacientes e Voz até 30, com preço fixo; no Voz eu também te ajudo a montar o prontuário, e no Coro você ganha o relatório da clínica. Troque quando quiser. Para pagar, copie o Pix ou leia o QR, que já vem com o valor. Escolha também o dia do vencimento no calendário. Três dias antes, eu te aviso.",
     target: '[data-tour="assinatura"]',
   },
   {
@@ -208,7 +208,7 @@ const therapistSteps: Step[] = [
     path: "/configuracoes",
     icon: Settings,
     title: "Configurações da conta",
-    body: "Aqui você troca seu e-mail, senha e telefone. Para mudar o e-mail, mando um código para ele. Para mudar a senha, peço a senha atual — é pela sua segurança.",
+    body: "Aqui você troca seu e-mail, senha e telefone. Para mudar o e-mail, mando um código para o endereço novo e para o atual. Para mudar a senha, peço a senha atual. Em aparelho novo, peço também um código enviado ao seu e-mail; depois ele fica liberado por 30 dias. É pela segurança dos seus pacientes.",
     target: '[data-tour="config-acesso"]',
   },
   {
