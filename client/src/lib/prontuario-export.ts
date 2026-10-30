@@ -12,6 +12,7 @@
 import type { RouterOutputs } from "@/lib/trpc";
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
 import { ANAMNESE_CAMPOS, TCLE_CAMPOS, SOAP_CAMPOS, type TcleData } from "@shared/prontuario";
+import { textoSemMarkdown } from "@shared/notasMarkdown";
 
 type Patient = NonNullable<RouterOutputs["patients"]["get"]>;
 type Session = RouterOutputs["sessions"]["getByPatient"][number];
@@ -77,7 +78,8 @@ function montar(dados: ProntuarioData): Prontuario {
     .map((s) => {
       const campos: Campo[] = [];
       if (s.mood) campos.push({ rotulo: "Humor / estado", valor: s.mood });
-      if (s.clinicalNotes) campos.push({ rotulo: "Anotações clínicas", valor: s.clinicalNotes });
+      // Sem as marcas da barra: no PDF e no Word elas sairiam como texto cru.
+      if (s.clinicalNotes) campos.push({ rotulo: "Anotações clínicas", valor: textoSemMarkdown(s.clinicalNotes) });
       // Evolução SOAP (quando registrada), na ordem S → O → A → P.
       for (const campo of SOAP_CAMPOS) {
         const valor = s[campo.chave as keyof typeof s] as string | null;

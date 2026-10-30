@@ -25,6 +25,7 @@ import { formatarData, formatarDataHora, formatarNascimento } from "@shared/data
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MODELOS_INTERNOS } from "@shared/prontuario";
 import EditorDeAnotacao from "@/components/EditorDeAnotacao";
+import { textoSemMarkdown } from "@shared/notasMarkdown";
 import ChatConversa from "@/components/ChatConversa";
 import { ParticipantesDaConsulta } from "@/components/ParticipantesDaConsulta";
 
@@ -669,7 +670,7 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
                                     {formatarData(session.startedAt)}
                                   </p>
                                   <p className="text-muted-foreground mt-1 line-clamp-2">
-                                    {session.clinicalNotes || session.subjective || session.assessment || "—"}
+                                    {textoSemMarkdown(session.clinicalNotes || session.subjective || session.assessment || "—")}
                                   </p>
                                 </div>
                               ))

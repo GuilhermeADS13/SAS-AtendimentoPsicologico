@@ -1,7 +1,29 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Streamdown } from "streamdown";
 import { PLUGINS_REHYPE_SEGUROS } from "@/lib/markdownSeguro";
-import { ChevronDown, ClipboardList, Eye, Heading2, List, ListChecks, ListOrdered, Quote, Redo2, Undo2 } from "lucide-react";
+import {
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  AlignRight,
+  Baseline,
+  ChevronDown,
+  ClipboardList,
+  Eye,
+  Heading2,
+  Highlighter,
+  Link2,
+  List,
+  ListChecks,
+  ListOrdered,
+  Maximize,
+  Minimize,
+  Quote,
+  Redo2,
+  RemoveFormatting,
+  Table2,
+  Undo2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -14,13 +36,20 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  CORES_DO_TEXTO,
+  alternarAlinhamento,
   alternarLista,
   alternarMarca,
+  alternarMarcaTexto,
   alternarPrefixo,
   alternarSublinhado,
+  aplicarCor,
   continuarLista,
   diffMinimo,
+  inserirLink,
   inserirModelo,
+  inserirTabela,
+  limparFormatacao,
   type Edicao,
 } from "@shared/notasMarkdown";
 import { cn } from "@/lib/utils";
@@ -39,25 +68,72 @@ export type ModeloDeAnotacao = { nome: string; corpo: string; grupo?: string };
  * negrito, I de itálico, S sublinhado de sublinhado e "abc" riscado de tachado.
  * O ícone do tachado era um "S" cortado (lucide) — ao lado do sublinhado, dois
  * "S" diferentes confundiam, e cortado pequeno nem dava para ver o corte.
+ *
+ * Com `opcoes`, o botão abre um menu em vez de agir direto.
  */
+type Acao = (t: string, i: number, f: number) => Edicao;
+
 const FERRAMENTAS: {
   chave: string;
   rotulo: string;
   titulo: string;
   conteudo: ReactNode;
   separador?: boolean;
-  acao?: (t: string, i: number, f: number) => Edicao;
+  acao?: Acao;
+  opcoes?: { rotulo: string; conteudo?: ReactNode; acao: Acao }[];
 }[] = [
-  { chave: "titulo", rotulo: "Título", titulo: "Título de seção", conteudo: <Heading2 className="size-4" />, acao: (t, i, f) => alternarPrefixo(t, i, f, "## ") },
+  {
+    chave: "titulo",
+    rotulo: "Título",
+    titulo: "Título de seção",
+    conteudo: <Heading2 className="size-4" />,
+    opcoes: [
+      { rotulo: "Título grande", acao: (t, i, f) => alternarPrefixo(t, i, f, "# ") },
+      { rotulo: "Título médio", acao: (t, i, f) => alternarPrefixo(t, i, f, "## ") },
+      { rotulo: "Título pequeno", acao: (t, i, f) => alternarPrefixo(t, i, f, "### ") },
+      { rotulo: "Texto normal", acao: (t, i, f) => alternarPrefixo(t, i, f, "") },
+    ],
+  },
   { chave: "negrito", rotulo: "Negrito", titulo: "Negrito (Ctrl+B)", conteudo: <span className="text-[15px] font-bold leading-none">N</span>, acao: (t, i, f) => alternarMarca(t, i, f, "**") },
   { chave: "italico", rotulo: "Itálico", titulo: "Itálico (Ctrl+I)", conteudo: <span className="font-serif text-[15px] italic leading-none">I</span>, acao: (t, i, f) => alternarMarca(t, i, f, "*") },
   { chave: "sublinhado", rotulo: "Sublinhado", titulo: "Sublinhado (Ctrl+U)", conteudo: <span className="text-[15px] leading-none underline underline-offset-2">S</span>, acao: alternarSublinhado },
   { chave: "tachado", rotulo: "Tachado", titulo: "Tachado — para o que não vale mais", conteudo: <span className="text-[12px] leading-none line-through">abc</span>, acao: (t, i, f) => alternarMarca(t, i, f, "~~") },
+  {
+    chave: "cor",
+    rotulo: "Cor do texto",
+    titulo: "Cor do texto",
+    conteudo: <Baseline className="size-4" />,
+    opcoes: [
+      ...CORES_DO_TEXTO.map((c) => ({
+        rotulo: c.rotulo,
+        conteudo: <span aria-hidden className={`nota-cor-${c.id} font-bold`}>A</span>,
+        acao: ((t, i, f) => aplicarCor(t, i, f, c.id)) as Acao,
+      })),
+      { rotulo: "Cor normal", conteudo: <span aria-hidden className="font-bold">A</span>, acao: (t, i, f) => aplicarCor(t, i, f, null) },
+    ],
+  },
+  { chave: "marca-texto", rotulo: "Marca-texto", titulo: "Marca-texto", conteudo: <Highlighter className="size-4" />, acao: alternarMarcaTexto },
   { chave: "sep1", rotulo: "", titulo: "", conteudo: null, separador: true },
   { chave: "lista", rotulo: "Lista com marcadores", titulo: "Lista (Ctrl+Shift+8)", conteudo: <List className="size-4" />, acao: (t, i, f) => alternarLista(t, i, f, "marcador") },
   { chave: "numerada", rotulo: "Lista numerada", titulo: "Lista numerada (Ctrl+Shift+7)", conteudo: <ListOrdered className="size-4" />, acao: (t, i, f) => alternarLista(t, i, f, "numerada") },
   { chave: "tarefa", rotulo: "Lista de tarefas", titulo: "Lista de tarefas — para os próximos passos", conteudo: <ListChecks className="size-4" />, acao: (t, i, f) => alternarLista(t, i, f, "tarefa") },
   { chave: "citacao", rotulo: "Citação", titulo: "Citação — para a fala do paciente", conteudo: <Quote className="size-4" />, acao: (t, i, f) => alternarPrefixo(t, i, f, "> ") },
+  { chave: "sep2", rotulo: "", titulo: "", conteudo: null, separador: true },
+  {
+    chave: "alinhar",
+    rotulo: "Alinhamento",
+    titulo: "Alinhamento",
+    conteudo: <AlignLeft className="size-4" />,
+    opcoes: [
+      { rotulo: "À esquerda", conteudo: <AlignLeft className="size-4" />, acao: (t, i, f) => alternarAlinhamento(t, i, f, null) },
+      { rotulo: "Centralizado", conteudo: <AlignCenter className="size-4" />, acao: (t, i, f) => alternarAlinhamento(t, i, f, "centro") },
+      { rotulo: "À direita", conteudo: <AlignRight className="size-4" />, acao: (t, i, f) => alternarAlinhamento(t, i, f, "direita") },
+      { rotulo: "Justificado", conteudo: <AlignJustify className="size-4" />, acao: (t, i, f) => alternarAlinhamento(t, i, f, "justificado") },
+    ],
+  },
+  { chave: "link", rotulo: "Link", titulo: "Link", conteudo: <Link2 className="size-4" />, acao: inserirLink },
+  { chave: "tabela", rotulo: "Tabela", titulo: "Tabela", conteudo: <Table2 className="size-4" />, acao: (t, i) => inserirTabela(t, i) },
+  { chave: "limpar", rotulo: "Limpar formatação", titulo: "Limpar formatação", conteudo: <RemoveFormatting className="size-4" />, acao: limparFormatacao },
 ];
 
 /**
@@ -90,6 +166,25 @@ export default function EditorDeAnotacao({
 }) {
   const campoRef = useRef<HTMLTextAreaElement>(null);
   const [verFormatado, setVerFormatado] = useState(false);
+
+  /**
+   * Tela cheia pela API do navegador: dentro do modal, `position: fixed` ficaria
+   * preso ao tamanho dele. Sem suporte (iPhone), o botão nem aparece.
+   */
+  const raizRef = useRef<HTMLDivElement>(null);
+  const [telaCheia, setTelaCheia] = useState(false);
+  const podeTelaCheia = typeof document !== "undefined" && document.fullscreenEnabled;
+  useEffect(() => {
+    const aoMudar = () => setTelaCheia(document.fullscreenElement === raizRef.current);
+    document.addEventListener("fullscreenchange", aoMudar);
+    return () => document.removeEventListener("fullscreenchange", aoMudar);
+  }, []);
+  const alternarTelaCheia = () => {
+    if (telaCheia) void document.exitFullscreen();
+    else raizRef.current?.requestFullscreen().catch(() => {});
+  };
+  // Em tela cheia só aparece o que está dentro do elemento, inclusive os menus.
+  const containerDosMenus = telaCheia ? raizRef.current : undefined;
 
   // Botões: os "Rápidos" do sistema e os criados pelo psicólogo. Menu: o resto, por grupo.
   const rapidos = modelos.filter((m) => !m.grupo || m.grupo === "Rápidos");
@@ -150,6 +245,19 @@ export default function EditorDeAnotacao({
     aplicar(transformar(valor, Math.min(bruto.inicio, valor.length), Math.min(bruto.fim, valor.length)));
   };
 
+  /**
+   * Item de menu só edita DEPOIS que o menu fecha: aberto, ele prende o foco, o
+   * campo não recebe a seleção de `aplicar` e o texto entra no lugar errado.
+   */
+  const acaoDoMenu = useRef<Acao | null>(null);
+  const aoFecharMenu = (e: Event) => {
+    const acao = acaoDoMenu.current;
+    if (!acao) return;
+    acaoDoMenu.current = null;
+    e.preventDefault(); // sem isto o foco voltaria ao botão do menu
+    editar(acao);
+  };
+
   /** Atalhos do Word/Notion + Enter que continua a lista. */
   const aoTeclar = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const comando = e.ctrlKey || e.metaKey;
@@ -169,7 +277,7 @@ export default function EditorDeAnotacao({
   };
 
   return (
-    <div className={cn("flex min-h-0 flex-col gap-3", className)}>
+    <div ref={raizRef} className={cn("flex min-h-0 flex-col gap-3", telaCheia && "h-full overflow-y-auto bg-background p-4", className)}>
       {modelos.length > 0 && (
         <div className="space-y-1.5">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -198,7 +306,12 @@ export default function EditorDeAnotacao({
                     <ChevronDown className="ml-1 size-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="max-h-[60vh] w-64 overflow-y-auto">
+                <DropdownMenuContent
+                  container={containerDosMenus}
+                  align="start"
+                  className="max-h-[60vh] w-64 overflow-y-auto"
+                  onCloseAutoFocus={aoFecharMenu}
+                >
                   {grupos.map(([grupo, lista], gi) => (
                     <DropdownMenuGroup key={grupo}>
                       {gi > 0 && <DropdownMenuSeparator />}
@@ -210,7 +323,7 @@ export default function EditorDeAnotacao({
                           key={m.nome}
                           // O menu tira o foco do campo; `editar` usa a última posição
                           // do cursor (selecaoRef) ou o fim — nunca o começo.
-                          onSelect={() => editar((t) => inserirModelo(t, m.corpo))}
+                          onSelect={() => { acaoDoMenu.current = (t) => inserirModelo(t, m.corpo); }}
                         >
                           {m.nome}
                         </DropdownMenuItem>
@@ -258,6 +371,31 @@ export default function EditorDeAnotacao({
         {FERRAMENTAS.map((f) =>
           f.separador ? (
             <span key={f.chave} aria-hidden className="mx-0.5 h-5 w-px bg-border" />
+          ) : f.opcoes ? (
+            <DropdownMenu key={f.chave}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 gap-0.5 px-1.5"
+                  title={f.titulo}
+                  aria-label={f.rotulo}
+                  disabled={verFormatado}
+                >
+                  {f.conteudo}
+                  <ChevronDown className="size-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent container={containerDosMenus} align="start" onCloseAutoFocus={aoFecharMenu}>
+                {f.opcoes.map((o) => (
+                  <DropdownMenuItem key={o.rotulo} onSelect={() => { acaoDoMenu.current = o.acao; }}>
+                    {o.conteudo}
+                    {o.rotulo}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
             <Button
               key={f.chave}
@@ -274,11 +412,24 @@ export default function EditorDeAnotacao({
             </Button>
           ),
         )}
+        {podeTelaCheia && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="ml-auto size-8 p-0"
+            title={telaCheia ? "Sair da tela cheia (Esc)" : "Tela cheia"}
+            aria-label={telaCheia ? "Sair da tela cheia" : "Tela cheia"}
+            onClick={alternarTelaCheia}
+          >
+            {telaCheia ? <Minimize className="size-4" /> : <Maximize className="size-4" />}
+          </Button>
+        )}
         <Button
           type="button"
           variant={verFormatado ? "secondary" : "ghost"}
           size="sm"
-          className="ml-auto h-8 px-2.5 text-xs"
+          className={cn("h-8 px-2.5 text-xs", !podeTelaCheia && "ml-auto")}
           title="Ver a anotação formatada, como ela fica no prontuário"
           aria-pressed={verFormatado}
           onClick={() => setVerFormatado((v) => !v)}

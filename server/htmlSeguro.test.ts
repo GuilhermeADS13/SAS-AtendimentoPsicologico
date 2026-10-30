@@ -27,6 +27,11 @@ describe("filtro de HTML do markdown", () => {
     expect((r.children![0] as No).properties).toEqual({});
   });
 
+  it("só as classes de cor e alinhamento da barra passam, não as do site", () => {
+    const r = limparArvore(raiz(el("span", { className: ["nota-cor-azul", "nota-centro", "nota-cor-preto", "fixed", "inset-0"] }, [txt("ok")])));
+    expect((r.children![0] as No).properties).toEqual({ className: ["nota-cor-azul", "nota-centro"] });
+  });
+
   it("link só https/mailto/tel/rota interna", () => {
     const href = (h: string) => (limparArvore(raiz(el("a", { href: h }, [txt("l")]))).children![0] as No).properties?.href;
     expect(href("https://exemplo.com")).toBe("https://exemplo.com");

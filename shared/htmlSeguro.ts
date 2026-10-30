@@ -46,10 +46,10 @@ const ATRIBUTOS: Record<string, string[]> = {
 
 /**
  * Classes só as que o próprio markdown gera (código, lista de tarefas, notas de
- * rodapé). Classe livre deixaria montar uma tela por cima do sistema usando as
- * classes do site (`fixed inset-0 z-50 …`).
+ * rodapé) e as de cor e alinhamento da barra de anotações. Classe livre deixaria
+ * montar uma tela por cima do sistema usando as classes do site (`fixed inset-0 z-50 …`).
  */
-const CLASSE_OK = /^(language-[\w+-]+|contains-task-list|task-list-item|footnotes?|sr-only|data-footnote[\w-]*)$/;
+const CLASSE_OK = /^(language-[\w+-]+|contains-task-list|task-list-item|footnotes?|sr-only|data-footnote[\w-]*|nota-cor-(vermelho|azul|verde|roxo)|nota-(centro|direita|justificado))$/;
 
 /** Link só para web, e-mail, telefone ou âncora/rota interna. */
 const LINK_OK = /^(https?:|mailto:|tel:|#|\/(?!\/))/i;

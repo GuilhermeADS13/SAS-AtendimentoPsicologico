@@ -160,6 +160,19 @@
   }
 }
 
+/* Cor e alinhamento da barra de anotações (ver shared/notasMarkdown.ts). */
+.nota-cor-vermelho { color: #b91c1c; }
+.nota-cor-azul { color: #1d4ed8; }
+.nota-cor-verde { color: #15803d; }
+.nota-cor-roxo { color: #7e22ce; }
+.dark .nota-cor-vermelho { color: #fca5a5; }
+.dark .nota-cor-azul { color: #93c5fd; }
+.dark .nota-cor-verde { color: #86efac; }
+.dark .nota-cor-roxo { color: #d8b4fe; }
+.nota-centro { text-align: center; }
+.nota-direita { text-align: right; }
+.nota-justificado { text-align: justify; }
+
 @layer components {
   /**
    * Custom container utility that centers content and adds responsive padding.

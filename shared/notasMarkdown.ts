@@ -78,8 +78,15 @@ export function alternarMarca(texto: string, inicio: number, fim: number, marca:
  * renderizador da pré-visualização aceita. Alterna, como os outros.
  */
 export function alternarSublinhado(texto: string, inicio: number, fim: number): Edicao {
-  const abre = "<u>";
-  const fecha = "</u>";
+  return alternarEtiqueta(texto, inicio, fim, "<u>", "</u>");
+}
+
+/** Marca-texto: `<mark>`, que a tela já mostra em amarelo. */
+export function alternarMarcaTexto(texto: string, inicio: number, fim: number): Edicao {
+  return alternarEtiqueta(texto, inicio, fim, "<mark>", "</mark>");
+}
+
+function alternarEtiqueta(texto: string, inicio: number, fim: number, abre: string, fecha: string): Edicao {
   const selecionado = texto.slice(inicio, fim);
 
   if (selecionado.startsWith(abre) && selecionado.endsWith(fecha)) {
@@ -102,6 +109,106 @@ export function alternarSublinhado(texto: string, inicio: number, fim: number): 
     inicio: inicio + abre.length,
     fim: fim + abre.length,
   };
+}
+
+/** As cores da barra. Cada uma tem a classe `nota-cor-*` em client/src/index.css. */
+export const CORES_DO_TEXTO = [
+  { id: "vermelho", rotulo: "Vermelho" },
+  { id: "azul", rotulo: "Azul" },
+  { id: "verde", rotulo: "Verde" },
+  { id: "roxo", rotulo: "Roxo" },
+] as const;
+
+export type CorDoTexto = (typeof CORES_DO_TEXTO)[number]["id"];
+
+const ABRE_COR_NO_FIM = /<span class="nota-cor-[a-z]+">$/;
+const ETIQUETA_DE_COR = /<span class="nota-cor-[a-z]+">|<\/span>/g;
+
+/**
+ * Cor do texto. Troca a cor em vez de empilhar `<span>`, e `null` volta ao normal.
+ * Vale tanto com a seleção incluindo as etiquetas quanto só no texto de dentro.
+ */
+export function aplicarCor(texto: string, inicio: number, fim: number, cor: CorDoTexto | null): Edicao {
+  const abertura = texto.slice(0, inicio).match(ABRE_COR_NO_FIM);
+  const dentroDeCor = abertura !== null && texto.slice(fim).startsWith("</span>");
+  const de = dentroDeCor ? inicio - abertura[0].length : inicio;
+  const ate = dentroDeCor ? fim + "</span>".length : fim;
+  const limpo = texto.slice(inicio, fim).replace(ETIQUETA_DE_COR, "");
+
+  const abre = cor ? `<span class="nota-cor-${cor}">` : "";
+  const fecha = cor ? "</span>" : "";
+  return {
+    texto: texto.slice(0, de) + abre + limpo + fecha + texto.slice(ate),
+    inicio: de + abre.length,
+    fim: de + abre.length + limpo.length,
+  };
+}
+
+export type Alinhamento = "centro" | "direita" | "justificado";
+
+/**
+ * Alinhamento. As linhas em branco dentro da `<div>` são obrigatórias: sem elas o
+ * markdown não é lido e `**negrito**` apareceria com os asteriscos. Pelo mesmo
+ * motivo, o que vem logo depois precisa de uma linha em branco. `null` (ou repetir
+ * o mesmo) tira o alinhamento; escolher outro troca.
+ */
+export function alternarAlinhamento(texto: string, inicio: number, fim: number, alinhamento: Alinhamento | null): Edicao {
+  const { inicioLinha, fimLinha, bloco } = blocoDaSelecao(texto, inicio, fim);
+  const abertura = texto.slice(0, inicioLinha).match(/<div class="nota-(centro|direita|justificado)">\n\n$/);
+  const dentro = abertura !== null && texto.slice(fimLinha).startsWith("\n\n</div>");
+  const de = dentro ? inicioLinha - abertura[0].length : inicioLinha;
+  const ate = dentro ? fimLinha + "\n\n</div>".length : fimLinha;
+
+  const novo = alinhamento && !(dentro && abertura[1] === alinhamento) ? alinhamento : null;
+  const abre = novo ? `<div class="nota-${novo}">\n\n` : "";
+  const fecha = novo ? `\n\n</div>${/^\n[^\n]/.test(texto.slice(ate)) ? "\n" : ""}` : "";
+  return {
+    texto: texto.slice(0, de) + abre + bloco + fecha + texto.slice(ate),
+    inicio: de + abre.length,
+    fim: de + abre.length + bloco.length,
+  };
+}
+
+/** Link: envolve a seleção e deixa o cursor no endereço, pronto para colar. */
+export function inserirLink(texto: string, inicio: number, fim: number): Edicao {
+  const rotulo = texto.slice(inicio, fim) || "texto do link";
+  const antes = `${texto.slice(0, inicio)}[${rotulo}](`;
+  const endereco = "https://";
+  return {
+    texto: `${antes}${endereco})${texto.slice(fim)}`,
+    inicio: antes.length,
+    fim: antes.length + endereco.length,
+  };
+}
+
+/** Tabela de duas colunas, numa linha própria, com o primeiro título selecionado. */
+export function inserirTabela(texto: string, inicio: number): Edicao {
+  const quebra = texto.indexOf("\n", inicio);
+  const fimLinha = quebra === -1 ? texto.length : quebra;
+  const antes = texto.slice(0, fimLinha);
+  const separador = antes.trim() ? "\n\n" : "";
+  const titulo = "Coluna 1";
+  const tabela = `| ${titulo} | Coluna 2 |\n| --- | --- |\n|  |  |\n|  |  |\n`;
+  const posicao = antes.length + separador.length + 2;
+  return {
+    texto: antes + separador + tabela + texto.slice(fimLinha),
+    inicio: posicao,
+    fim: posicao + titulo.length,
+  };
+}
+
+/**
+ * Tira a formatação da seleção. Sem seleção, ou com ela só no texto de dentro das
+ * marcas (nada a tirar ali), vale para as linhas inteiras.
+ */
+export function limparFormatacao(texto: string, inicio: number, fim: number): Edicao {
+  const selecionado = texto.slice(inicio, fim);
+  const limpo = textoSemMarkdown(selecionado);
+  if (selecionado && limpo !== selecionado.trim()) {
+    return { texto: texto.slice(0, inicio) + limpo + texto.slice(fim), inicio, fim: inicio + limpo.length };
+  }
+  const { inicioLinha, fimLinha, bloco } = blocoDaSelecao(texto, inicio, fim);
+  return trocarBloco(texto, inicioLinha, fimLinha, textoSemMarkdown(bloco));
 }
 
 /**
@@ -219,15 +326,19 @@ export function diffMinimo(antigo: string, novo: string): { de: number; ate: num
 /**
  * A anotação sem as marcas de formatação, para resumos de uma linha e busca
  * (o cartão da aba "Evolução" mostrava "**Evolução**" cru). Tira títulos (#),
- * negrito/itálico/tachado, sublinhado (<u>), citação (>), marcadores de lista e
- * caixas de tarefa; o texto em si fica.
+ * negrito/itálico/tachado, as etiquetas da barra (sublinhado, marca-texto, cor e
+ * alinhamento), citação (>), marcadores de lista, caixas de tarefa, links e a
+ * grade das tabelas; o texto em si fica.
  */
 export function textoSemMarkdown(md: string): string {
   return md
-    .replace(/<\/?u>/gi, "")
+    .replace(/<\/?(?:u|mark)>|<span class="nota-cor-[a-z]+">|<\/span>|<div class="nota-[a-z]+">|<\/div>/gi, "")
     .split("\n")
+    .filter((linha) => !/^\s*\|(?:\s*:?-+:?\s*\|)+\s*$/.test(linha))
     .map((linha) =>
       linha
+        .replace(/^\s*\|(.*)\|\s*$/, (_, celulas: string) => celulas.split("|").map((c) => c.trim()).filter(Boolean).join(" · "))
+        .replace(/\[([^\]]+)\]\((?:https?:|mailto:|tel:)[^)]*\)/g, "$1")
         .replace(/^\s*#{1,6}\s+/, "")
         .replace(/^\s*>\s?/, "")
         .replace(/^\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?/, "")
