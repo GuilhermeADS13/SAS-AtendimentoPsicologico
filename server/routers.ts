@@ -24,7 +24,7 @@ import {
   planoDaPsicologa,
   resumoDaAssinatura,
 } from "./assinaturas";
-import { diaDeVencimentoValido, novoPagoAte, situacaoDaAssinatura } from "../shared/assinatura";
+import { diaDeVencimentoValido, ehCortesia, novoPagoAte, situacaoDaAssinatura } from "../shared/assinatura";
 import { TIPOS_DE_CHAVE_PIX, lerPixCopiaECola, montarPixEstatico, normalizarChavePix } from "../shared/pix";
 import { pagamentoDaConsulta } from "../shared/pagamentoDaConsulta";
 import { planoEfetivo, planoPorId, valorDoPlano } from "../shared/precos";
@@ -1598,7 +1598,12 @@ export const appRouter = router({
       if (!db) return [];
 
       return db
-        .select()
+        .select({
+          ...getTableColumns(therapistRequests),
+          celular: assinaturas.celular,
+          telefone: therapists.phone,
+          testeAguardando: assinaturas.testeAguardando,
+        })
         .from(therapistRequests)
         .orderBy(desc(therapistRequests.createdAt));
     }),

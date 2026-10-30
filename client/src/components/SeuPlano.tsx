@@ -82,8 +82,9 @@ function CartaoDoPlano({ data }: { data: Resumo }) {
   const mensal = valorDoPlano(data.pacientes, data.planoEscolhido, { fundador: data.fundador, combinado: data.valorCombinado });
   const total = s.motivo === "teste" ? DIAS_DE_TESTE_GRATIS : data.ciclo === "anual" ? 365 : 30;
   const resta = s.diasRestantes === null ? 0 : Math.min(1, Math.max(0, (s.diasRestantes + 1) / total));
-  const rotuloPeriodo =
-    s.motivo === "teste"
+  const rotuloPeriodo = data.cortesia
+    ? "Sem cobrança"
+    : s.motivo === "teste"
       ? s.ate
         ? `Teste grátis até ${formatarData(s.ate)}`
         : s.primeiroPacienteAte
@@ -95,7 +96,7 @@ function CartaoDoPlano({ data }: { data: Resumo }) {
           ? `Venceu em ${formatarData(s.ate)}`
           : "Sem assinatura";
   const faltam =
-    s.diasRestantes === null ? null : s.diasRestantes === 0 ? "vence hoje" : `faltam ${plural(s.diasRestantes, "dia", "dias")}`;
+    data.cortesia || s.diasRestantes === null ? null : s.diasRestantes === 0 ? "vence hoje" : `faltam ${plural(s.diasRestantes, "dia", "dias")}`;
 
   return (
     // Vencido continua no verde da marca: a faixa vermelha do topo já grita; aqui o
@@ -119,7 +120,9 @@ function CartaoDoPlano({ data }: { data: Resumo }) {
         </div>
         <div className="space-y-1 sm:text-right">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-80">Mensalidade</p>
-          {mensal === null ? (
+          {data.cortesia ? (
+            <p className="text-3xl font-bold">Isenta</p>
+          ) : mensal === null ? (
             <p className="text-3xl font-bold">Combinada</p>
           ) : (
             <p className="tabular-nums">
@@ -521,19 +524,24 @@ export function SeuPlano() {
       {/* A admin vê a tela inteira para testar — é exatamente o que as psicólogas veem. */}
       {data.isento && (
         <p className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm text-foreground">
-          Você é administradora: nada é bloqueado nem cobrado na sua conta, e a Luma não tem cota. Esta é a tela
-          que as psicólogas veem.
+          {data.cortesia
+            ? "Sua conta é isenta: nada é bloqueado nem cobrado. A cota da Luma é a do seu plano."
+            : "Você é administradora: nada é bloqueado nem cobrado na sua conta, e a Luma não tem cota. Esta é a tela que as psicólogas veem."}
         </p>
       )}
       <CartaoDoPlano data={data} />
       <EscolherPlano data={data} />
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-start">
-        <PagarAssinatura data={data} />
-        <div className="space-y-6">
-          <UsoDoPlano data={data} />
-          <DiaDoVencimento atual={data.diaVencimento} ate={data.situacao.ate} ciclo={data.ciclo} />
+      {data.cortesia ? (
+        <UsoDoPlano data={data} />
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-start">
+          <PagarAssinatura data={data} />
+          <div className="space-y-6">
+            <UsoDoPlano data={data} />
+            <DiaDoVencimento atual={data.diaVencimento} ate={data.situacao.ate} ciclo={data.ciclo} />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

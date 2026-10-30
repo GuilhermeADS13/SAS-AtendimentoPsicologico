@@ -13,6 +13,7 @@ import {
 import {
   MENSAGEM_ASSINATURA_VENCIDA,
   decidirTesteEFundador,
+  ehCortesia,
   fimDoTeste,
   normalizarDocumento,
   situacaoDaAssinatura,
@@ -78,10 +79,12 @@ async function perfilDaPsicologa(db: Db, userId: number) {
  */
 export async function resumoDaAssinatura(db: Db, user: { id: number; role: string }) {
   const perfil = await perfilDaPsicologa(db, user.id);
-  const isento = user.role === "admin";
+  const admin = user.role === "admin";
   const [assinatura] = perfil
     ? await db.select().from(assinaturas).where(eq(assinaturas.therapistId, perfil.id)).limit(1)
     : [];
+  // Cortesia não paga, mas segue com as cotas do plano; sem cota é só a admin.
+  const isento = admin || ehCortesia(assinatura?.pagoAte);
   const pacientes = perfil ? await contarPacientesCobrados(db, perfil.id) : 0;
   // Plano escolhido por ela; o efetivo só é maior se os pacientes já passaram do teto.
   const planoEscolhido = assinatura?.plano ?? "pro";
@@ -93,6 +96,8 @@ export async function resumoDaAssinatura(db: Db, user: { id: number; role: strin
   const fundador = assinatura?.fundador ?? false;
   return {
     isento,
+    /** Isenta sem ser a admin: a tela esconde o pagamento e fala com ela, não com quem testa. */
+    cortesia: isento && !admin,
     pacientes,
     plano,
     planoEscolhido,
@@ -105,9 +110,9 @@ export async function resumoDaAssinatura(db: Db, user: { id: number; role: strin
     valorCentavos: valorDoPlano(pacientes, planoEscolhido, { fundador, ciclo, combinado: assinatura?.valorCombinado }),
     lumaHoje: await perguntasDaLumaHoje(db, user.id),
     /** Null = sem limite (admin). Sob medida manda; sem ela, o Coro usa a cota do Voz. */
-    lumaLimite: isento ? null : limitesDoPlano(plano, assinatura).lumaPorDia,
-    anexoMaxMb: isento ? null : limitesDoPlano(plano, assinatura).anexoMb,
-    recursos: recursosDoPlano(plano, isento, situacao.motivo === "teste"),
+    lumaLimite: admin ? null : limitesDoPlano(plano, assinatura).lumaPorDia,
+    anexoMaxMb: admin ? null : limitesDoPlano(plano, assinatura).anexoMb,
+    recursos: recursosDoPlano(plano, admin, situacao.motivo === "teste"),
   };
 }
 

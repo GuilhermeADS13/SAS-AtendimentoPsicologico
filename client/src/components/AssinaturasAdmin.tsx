@@ -53,11 +53,17 @@ export function AssinaturasAdmin() {
   const [coro, setCoro] = useState<Linha | null>(null);
 
   const pagantes = linhas.filter((l) => !l.isento);
-  if (!pagantes.length) return null;
+  const isentas = linhas.filter((l) => l.isento);
+  if (!linhas.length) return null;
 
   return (
     <div className="space-y-3">
       <h2 className="text-lg font-semibold text-foreground">Assinaturas ({pagantes.length})</h2>
+      {isentas.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          Não pagam: {isentas.map((l) => l.nome || l.email).join(", ")}.
+        </p>
+      )}
       {pagantes.map((l) => {
         const s = l.situacao;
         const situacao =

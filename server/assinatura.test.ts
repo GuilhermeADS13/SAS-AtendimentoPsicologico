@@ -4,6 +4,7 @@ import {
   diaDoVencimentoNoMes,
   diasNoMes,
   decidirTesteEFundador,
+  ehCortesia,
   fimDoTeste,
   novoPagoAte,
   normalizarDocumento,
@@ -35,6 +36,12 @@ describe("situação da assinatura", () => {
 
   it("sem assinatura não libera", () => {
     expect(situacaoDaAssinatura(null, agora).liberado).toBe(false);
+  });
+
+  it("cortesia é o pago até 2100; um Pix anual comum não vira isenção", () => {
+    expect(ehCortesia(new Date("2100-01-01T02:59:59Z"))).toBe(true);
+    expect(ehCortesia(dias(365))).toBe(false);
+    expect(ehCortesia(null)).toBe(false);
   });
 });
 

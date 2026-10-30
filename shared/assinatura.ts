@@ -46,6 +46,14 @@ export function situacaoDaAssinatura(
   return { liberado: false, motivo: "vencido", ate, diasRestantes: null };
 }
 
+/**
+ * Conta que não paga e não é a admin (ex.: quem ajuda a tocar o sistema): fica
+ * registrada com "pago até" em 2100. Daí em diante não há cobrança a mostrar.
+ */
+export function ehCortesia(pagoAte: Date | null | undefined): boolean {
+  return !!pagoAte && pagoAte.getUTCFullYear() >= 2090;
+}
+
 /** Mensagem única do bloqueio (servidor e tela falam a mesma coisa). */
 export const MENSAGEM_ASSINATURA_VENCIDA =
   "Seu acesso venceu. Renove pelo Pix na aba Assinatura. Seus prontuários continuam disponíveis para leitura.";
