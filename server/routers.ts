@@ -3223,7 +3223,7 @@ export const appRouter = router({
         try {
           const buffer = await downloadDocumentFile(input.fileKey);
           if (!buffer) throw new Error("Não foi possível ler o arquivo enviado.");
-          const paginas = await extractClinicalDocument(buffer, input.fileType, input.fileName, textoSemCortes);
+          const paginas = await extractClinicalDocument(buffer, input.fileType, input.fileName, textoSemCortes, { ocr: false });
           const texto = paginas.map((p) => p.content).join("\n\n").trim().slice(0, TAMANHO_MAXIMO_DO_CONTRATO);
           if (!texto) {
             throw new Error("Não consegui extrair texto do arquivo (use um PDF ou DOCX com texto).");
