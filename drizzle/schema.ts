@@ -163,6 +163,10 @@ export const therapists = pgTable("therapists", {
    *  profissional, nunca vaza para outro). `prontuarioModelName` = nome do arquivo. */
   prontuarioModel: text("prontuarioModel"),
   prontuarioModelName: varchar("prontuarioModelName", { length: 256 }),
+  /** Modelo de contrato terapêutico (migração 0047): texto com campos, ver shared/contrato.ts.
+   *  Nulo = usa o padrão. `contratoModeloNome` = nome do arquivo enviado, se veio de um. */
+  contratoModelo: text("contratoModelo"),
+  contratoModeloNome: varchar("contratoModeloNome", { length: 256 }),
   /** Chave Pix para receber dos pacientes (migração 0042). Ver shared/pix.ts. */
   pixTipo: varchar("pixTipo", { length: 12 }).$type<TipoChavePix>(),
   pixChave: varchar("pixChave", { length: 77 }),

@@ -75,13 +75,16 @@ export type AnamneseData = Partial<Record<AnamneseChave, string>>;
 
 /**
  * Termo de Consentimento Livre e Esclarecido (TCLE) — os termos variáveis do
- * contrato terapêutico. O texto fixo (sigilo, guarda de 5 anos, processo) é
- * montado na geração do documento; aqui ficam só os valores que mudam por
- * paciente. A data de assinatura é a coluna patients.tcleSignedAt.
+ * contrato terapêutico. O texto vem do modelo da psicóloga ou do padrão (ver
+ * shared/contrato.ts); aqui ficam só os valores que mudam por paciente. A data
+ * de assinatura é a coluna patients.tcleSignedAt.
  */
 export const TCLE_CAMPOS = [
+  { chave: "cpfPaciente", rotulo: "CPF do paciente", grupo: "Termos", ajuda: "Opcional. Só aparece no contrato." },
+  { chave: "cpfResponsavel", rotulo: "CPF do responsável", grupo: "Termos", ajuda: "Para paciente menor de idade." },
   { chave: "duracaoSessao", rotulo: "Duração da sessão", grupo: "Termos", ajuda: "Ex.: 50 minutos." },
   { chave: "frequencia", rotulo: "Frequência", grupo: "Termos", ajuda: "Ex.: semanal, quinzenal." },
+  { chave: "diaHorario", rotulo: "Dia e horário", grupo: "Termos", ajuda: "Ex.: terça-feira, às 20h." },
   { chave: "valorSessao", rotulo: "Valor por sessão", grupo: "Termos", ajuda: "Ex.: R$ 150,00." },
   { chave: "formaPagamento", rotulo: "Forma de pagamento", grupo: "Termos", ajuda: "Ex.: Pix, transferência." },
   { chave: "diaPagamento", rotulo: "Dia / prazo de pagamento", grupo: "Termos", ajuda: "Ex.: até o dia 5, ou ao final de cada sessão." },

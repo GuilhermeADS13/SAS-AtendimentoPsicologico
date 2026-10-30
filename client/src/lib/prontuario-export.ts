@@ -12,6 +12,7 @@
 import type { RouterOutputs } from "@/lib/trpc";
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
 import { ANAMNESE_CAMPOS, TCLE_CAMPOS, SOAP_CAMPOS, type TcleData } from "@shared/prontuario";
+import { CONTRATO_PADRAO, blocosDoContrato, preencherContrato } from "@shared/contrato";
 import { textoSemMarkdown } from "@shared/notasMarkdown";
 
 type Patient = NonNullable<RouterOutputs["patients"]["get"]>;
@@ -316,58 +317,37 @@ export type TcleDocData = {
   /** Nome do(a) psicólogo(a). */
   emitidoPor?: string | null;
   crp?: string | null;
+  pixChave?: string | null;
+  /** Texto do modelo da psicóloga; sem ele, vale o contrato padrão. */
+  modelo?: string | null;
 };
 
-/** Valor do termo ou uma linha em branco para preencher à mão. */
-function ou(valor: string | undefined, tamanho = 24): string {
-  const v = (valor ?? "").trim();
-  return v || "_".repeat(tamanho);
-}
-
-/** Monta os parágrafos do TCLE a partir dos termos (texto fixo + variáveis). */
-function montarTcle(dados: TcleDocData): { titulo: string; blocos: { titulo?: string; texto: string }[]; assinaturas: string[] } {
+/** Preenche o modelo com os dados deste paciente e quebra em seções. */
+function montarTcle(dados: TcleDocData) {
   const t = dados.terms;
-  const nome = `${dados.patient.firstName} ${dados.patient.lastName}`.trim();
-  const prof = ou(dados.emitidoPor ?? undefined, 30);
-  const crp = ou(dados.crp ?? undefined, 12);
-  return {
-    titulo: "TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO (TCLE)",
-    blocos: [
-      {
-        texto: `Pelo presente instrumento, eu, ${nome}, declaro que fui devidamente informado(a) e concordo com os termos da prestação de serviços psicológicos conduzidos pelo(a) psicólogo(a) ${prof}, CRP nº ${crp}.`,
-      },
-      {
-        titulo: "1. DO PROCESSO TERAPÊUTICO",
-        texto: `Compreendo que a psicoterapia é um processo colaborativo que visa o autoconhecimento e o manejo de demandas emocionais e comportamentais. As sessões têm duração de ${ou(t.duracaoSessao, 12)} e frequência ${ou(t.frequencia, 12)}.`,
-      },
-      {
-        titulo: "2. DO SIGILO PROFISSIONAL",
-        texto: "Estou ciente de que os atendimentos são estritamente confidenciais, conforme o Código de Ética Profissional do Psicólogo. O sigilo só poderá ser quebrado em situações de risco de vida para si mesmo ou para terceiros, ou por determinação judicial legalmente embasada.",
-      },
-      {
-        titulo: "3. DOS REGISTROS (PRONTUÁRIO)",
-        texto: "Fui informado(a) de que as informações das sessões serão registradas em prontuário seguro, de propriedade minha, mas sob a guarda do(a) psicólogo(a) pelo período legal de 5 anos, conforme normas do CFP e da LGPD.",
-      },
-      {
-        titulo: "4. FALTAS E CANCELAMENTOS",
-        texto: `Comprometo-me a avisar sobre faltas ou pedidos de reagendamento com antecedência mínima de ${ou(t.antecedenciaCancelamento, 10)}. Cancelamentos fora deste prazo sujeitam-se à cobrança do valor da sessão.`,
-      },
-      {
-        titulo: "5. VALORES E PAGAMENTO",
-        texto: `O valor acordado por sessão é de ${ou(t.valorSessao, 14)}, com pagamento ${ou(t.diaPagamento, 18)} via ${ou(t.formaPagamento, 16)}.`,
-      },
-      ...(t.local?.trim() ? [{ titulo: "6. LOCAL DO ATENDIMENTO", texto: t.local.trim() }] : []),
-      ...(t.observacoes?.trim() ? [{ titulo: "OBSERVAÇÕES", texto: t.observacoes.trim() }] : []),
-      { texto: `Local: ${"_".repeat(28)}   Data: ${dados.patient.tcleSignedAt ? data(dados.patient.tcleSignedAt) : "____/____/______"}.` },
-    ],
-    assinaturas: [
-      "__________________________________________",
-      "Assinatura do(a) Paciente (ou Responsável Legal)",
-      "",
-      "__________________________________________",
-      "Assinatura e CRP do(a) Psicólogo(a)",
-    ],
-  };
+  const p = dados.patient;
+  const texto = preencherContrato(dados.modelo?.trim() || CONTRATO_PADRAO, {
+    paciente: `${p.firstName} ${p.lastName}`.trim(),
+    nascimento: formatarNascimento(p.dateOfBirth, ""),
+    cpf_paciente: t.cpfPaciente,
+    endereco: p.address,
+    responsavel: p.guardianName,
+    cpf_responsavel: t.cpfResponsavel,
+    psicologa: dados.emitidoPor,
+    crp: dados.crp,
+    chave_pix: dados.pixChave,
+    duracao: t.duracaoSessao,
+    frequencia: t.frequencia,
+    dia_horario: t.diaHorario,
+    local: t.local,
+    valor: t.valorSessao,
+    forma_pagamento: t.formaPagamento,
+    prazo_pagamento: t.diaPagamento,
+    antecedencia: t.antecedenciaCancelamento,
+    observacoes: t.observacoes,
+    data: p.tcleSignedAt ? data(p.tcleSignedAt) : "____/____/______",
+  });
+  return blocosDoContrato(texto);
 }
 
 export async function buildTclePdfBlob(dados: TcleDocData): Promise<Blob> {
@@ -403,14 +383,13 @@ export async function buildTclePdfBlob(dados: TcleDocData): Promise<Blob> {
   y += 10;
   for (const bloco of m.blocos) {
     if (bloco.titulo) {
+      garantir(48); // título não fica sozinho no fim da página, longe do texto
       y += 6;
       texto(bloco.titulo, 11, "bold", 33);
     }
-    texto(bloco.texto, 10.5, "normal");
+    if (bloco.texto) texto(bloco.texto, 10.5, "normal");
     y += 4;
   }
-  y += 24;
-  for (const linha of m.assinaturas) texto(linha || " ", 10, "normal", 60);
 
   const ab = doc.output("arraybuffer");
   return new Blob([ab], { type: "application/pdf" });

@@ -9,6 +9,7 @@ import {
 } from "@/lib/supabase";
 import { exportProntuarioPDF, exportProntuarioDOCX, exportTclePDF } from "@/lib/prontuario-export";
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
+import ContratoModeloManager from "@/components/ContratoModeloManager";
 import EditorDeAnotacao from "@/components/EditorDeAnotacao";
 import { Streamdown } from "streamdown";
 import { PLUGINS_REHYPE_SEGUROS } from "@/lib/markdownSeguro";
@@ -223,6 +224,7 @@ export default function PatientDetail() {
   const [anamnese, setAnamnese] = useState<Record<string, string>>({});
   const [tcle, setTcle] = useState<Record<string, string>>({});
   const [tcleSigned, setTcleSigned] = useState(false);
+  const [modeloContratoAberto, setModeloContratoAberto] = useState(false);
 
   const salvarProntuario = trpc.patients.update.useMutation({
     onSuccess: () => {
@@ -275,7 +277,15 @@ export default function PatientDetail() {
   };
   const baixarTcle = async () => {
     try {
-      await exportTclePDF({ patient: patient!, terms: tcle as TcleData, emitidoPor: user?.name });
+      const contrato = await utils.noteTemplates.getContrato.fetch();
+      await exportTclePDF({
+        patient: patient!,
+        terms: tcle as TcleData,
+        emitidoPor: user?.name,
+        crp: contrato.crp,
+        pixChave: contrato.pixChave,
+        modelo: contrato.texto,
+      });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao gerar o TCLE");
     }
@@ -905,15 +915,19 @@ export default function PatientDetail() {
           <TabsContent value="tcle" className="space-y-4" data-tour="aba-tcle">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-semibold text-foreground">Termo de Consentimento (TCLE)</h2>
+                <h2 className="text-xl font-semibold text-foreground">Contrato e Termo de Consentimento (TCLE)</h2>
                 <p className="text-sm text-muted-foreground">
                   Termos do contrato terapêutico. Gere o PDF para o paciente assinar.
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => setModeloContratoAberto(true)}>
+                  <FileSignature className="w-4 h-4 mr-2" />
+                  Meu modelo
+                </Button>
                 <Button variant="outline" onClick={baixarTcle}>
                   <FileDown className="w-4 h-4 mr-2" />
-                  Gerar TCLE (PDF)
+                  Gerar contrato (PDF)
                 </Button>
                 <Button
                   onClick={salvarTcle}
@@ -1209,6 +1223,15 @@ export default function PatientDetail() {
               {updatePatient.isPending ? "Salvando..." : "Salvar alterações"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={modeloContratoAberto} onOpenChange={setModeloContratoAberto}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Meu modelo de contrato</DialogTitle>
+          </DialogHeader>
+          <ContratoModeloManager />
         </DialogContent>
       </Dialog>
 

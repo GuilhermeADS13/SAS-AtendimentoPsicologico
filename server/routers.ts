@@ -1,5 +1,6 @@
 import { COOKIE_NAME } from "@shared/const";
 import { anamneseSchema, tcleSchema, noteTemplatesSchema } from "@shared/prontuario";
+import { TAMANHO_MAXIMO_DO_CONTRATO, contratoTextoSchema } from "@shared/contrato";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, therapistProcedure, adminProcedure, router } from "./_core/trpc";
@@ -8,7 +9,7 @@ import { iceServersParaChamada } from "./turn";
 import { getDb } from "./db";
 import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessageFeedback, patients, appointments, appointmentParticipants, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users, chatMessages, assinaturas } from "../drizzle/schema";
 import { signDocumentUrl, downloadDocumentFile, removeDocumentFile as removeStorageFile, assinarFotos } from "./storage";
-import { extractClinicalDocument } from "./ai/document-ingestion";
+import { extractClinicalDocument, textoSemCortes } from "./ai/document-ingestion";
 import { sendEmail } from "./mailer";
 import { celularDaConta, gerarLinkDeCadastro, gerarLinkDeRecuperacao, trocarEmailSupabase } from "./supabaseAdmin";
 import {
@@ -3126,6 +3127,71 @@ export const appRouter = router({
       await db
         .update(therapists)
         .set({ prontuarioModel: null, prontuarioModelName: null })
+        .where(eq(therapists.userId, ctx.user.id));
+      return { success: true } as const;
+    }),
+
+    // Modelo de contrato terapêutico e os dados dela que entram nele.
+    getContrato: therapistProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return { texto: null as string | null, nome: null as string | null, crp: null as string | null, pixChave: null as string | null };
+      const [t] = await db
+        .select({ texto: therapists.contratoModelo, nome: therapists.contratoModeloNome, crp: therapists.crp, pixChave: therapists.pixChave })
+        .from(therapists)
+        .where(eq(therapists.userId, ctx.user.id))
+        .limit(1);
+      return { texto: t?.texto ?? null, nome: t?.nome ?? null, crp: t?.crp ?? null, pixChave: t?.pixChave ?? null };
+    }),
+
+    saveContrato: therapistProcedure
+      .input(z.object({ texto: contratoTextoSchema }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        await db
+          .update(therapists)
+          .set({ contratoModelo: input.texto })
+          .where(eq(therapists.userId, ctx.user.id));
+        return { success: true } as const;
+      }),
+
+    // Como o saveModelo: o arquivo é temporário, só o texto fica. Sem cortes, porque
+    // aqui o texto É o documento (os cortes do RAG repetem trechos).
+    importarContrato: therapistProcedure
+      .input(z.object({ fileKey: z.string().max(512), fileName: z.string().max(256), fileType: z.string().max(120) }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        // O fileKey vem do cliente e o download fura a RLS: só o prefixo do próprio usuário.
+        if (!chavePertenceAoUsuario(input.fileKey, ctx.user.openId, "modelo")) {
+          throw new Error("Arquivo inválido.");
+        }
+
+        try {
+          const buffer = await downloadDocumentFile(input.fileKey);
+          if (!buffer) throw new Error("Não foi possível ler o arquivo enviado.");
+          const paginas = await extractClinicalDocument(buffer, input.fileType, input.fileName, textoSemCortes);
+          const texto = paginas.map((p) => p.content).join("\n\n").trim().slice(0, TAMANHO_MAXIMO_DO_CONTRATO);
+          if (!texto) {
+            throw new Error("Não consegui extrair texto do arquivo (use um PDF ou DOCX com texto).");
+          }
+          await db
+            .update(therapists)
+            .set({ contratoModelo: texto, contratoModeloNome: input.fileName })
+            .where(eq(therapists.userId, ctx.user.id));
+          return { success: true } as const;
+        } finally {
+          await removeStorageFile(input.fileKey);
+        }
+      }),
+
+    // Volta ao contrato padrão do sistema.
+    clearContrato: therapistProcedure.mutation(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      await db
+        .update(therapists)
+        .set({ contratoModelo: null, contratoModeloNome: null })
         .where(eq(therapists.userId, ctx.user.id));
       return { success: true } as const;
     }),

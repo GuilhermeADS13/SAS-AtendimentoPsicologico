@@ -33,11 +33,20 @@ export function chunkExtractedText(text: string, pageNumber?: number): Extracted
   return chunks;
 }
 
-export async function extractPdfText(buffer: Buffer): Promise<ExtractedChunk[]> {
+/**
+ * Cada página (ou o DOCX) inteira, sem cortes. Para quando o documento é o próprio
+ * texto a guardar: os cortes do RAG se sobrepõem e repetiriam trechos.
+ */
+export function textoSemCortes(text: string, pageNumber?: number): ExtractedChunk[] {
+  const content = normalizeText(text);
+  return content ? [{ content, pageNumber }] : [];
+}
+
+export async function extractPdfText(buffer: Buffer, partir = chunkExtractedText): Promise<ExtractedChunk[]> {
   const parser = new PDFParse({ data: buffer });
   try {
     const result = await parser.getText();
-    const textChunks = result.pages.flatMap(page => chunkExtractedText(page.text, page.num));
+    const textChunks = result.pages.flatMap(page => partir(page.text, page.num));
     if (textChunks.length > 0) return textChunks.map(chunk => ({ ...chunk }));
 
     const screenshots = await parser.getScreenshot({ scale: 1.5, imageBuffer: true, imageDataUrl: false });
@@ -46,7 +55,7 @@ export async function extractPdfText(buffer: Buffer): Promise<ExtractedChunk[]> 
       const ocrChunks: ExtractedChunk[] = [];
       for (const page of screenshots.pages) {
         const recognized = await worker.recognize(Buffer.from(page.data));
-        ocrChunks.push(...chunkExtractedText(recognized.data.text, page.pageNumber).map(chunk => ({
+        ocrChunks.push(...partir(recognized.data.text, page.pageNumber).map(chunk => ({
           ...chunk,
           ocrConfidence: Math.max(0, Math.min(100, Number(recognized.data.confidence ?? 0))),
         })));
@@ -60,27 +69,28 @@ export async function extractPdfText(buffer: Buffer): Promise<ExtractedChunk[]> 
   }
 }
 
-export async function extractDocxText(buffer: Buffer): Promise<ExtractedChunk[]> {
+export async function extractDocxText(buffer: Buffer, partir = chunkExtractedText): Promise<ExtractedChunk[]> {
   const result = await extractRawText({ buffer });
-  return chunkExtractedText(result.value);
+  return partir(result.value);
 }
 
 export async function extractClinicalDocument(
   buffer: Buffer,
   fileType: string,
   fileName: string,
+  partir = chunkExtractedText,
 ): Promise<ExtractedChunk[]> {
   if (buffer.byteLength > MAX_FILE_BYTES) throw new Error("Documento excede o limite de 25 MB");
   const normalizedType = fileType.toLowerCase();
   const normalizedName = fileName.toLowerCase();
   if (normalizedType === "application/pdf" || normalizedName.endsWith(".pdf")) {
-    return extractPdfText(buffer);
+    return extractPdfText(buffer, partir);
   }
   if (
     normalizedType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
     normalizedName.endsWith(".docx")
   ) {
-    return extractDocxText(buffer);
+    return extractDocxText(buffer, partir);
   }
   throw new Error("Formato não suportado; somente PDF e DOCX podem ser indexados");
 }
