@@ -4,6 +4,7 @@ import {
   diaDoVencimentoNoMes,
   diasNoMes,
   decidirTesteEFundador,
+  fimDoTeste,
   novoPagoAte,
   normalizarDocumento,
   precisaAvisarVencimento,
@@ -38,21 +39,50 @@ describe("situação da assinatura", () => {
 });
 
 describe("um teste grátis por pessoa", () => {
-  it("primeira conta ganha 14 dias e vaga de fundadora", () => {
-    const d = decidirTesteEFundador({ anteriores: [], fundadoresAtuais: 3 }, agora);
-    expect(d.testeAte).toEqual(dias(14));
+  it("primeira conta ganha o teste, que aguarda o primeiro paciente, e vaga de fundadora", () => {
+    const d = decidirTesteEFundador({ anteriores: [], fundadoresAtuais: 3 });
+    expect(d.testeAguardando).toBe(true);
     expect(d.fundador).toBe(true);
   });
 
+  it("aguardando o primeiro paciente: liberada, sem data e sem contar dias", () => {
+    const s = situacaoDaAssinatura({ testeAte: null, pagoAte: null, testeAguardando: true }, agora);
+    expect(s).toEqual({ liberado: true, motivo: "teste", ate: null, diasRestantes: null });
+  });
+
+  it("aguardando vale mais que uma data de teste antiga, e o Pix vale mais que aguardando", () => {
+    expect(situacaoDaAssinatura({ testeAte: dias(-5), pagoAte: null, testeAguardando: true }, agora).liberado).toBe(true);
+    expect(situacaoDaAssinatura({ testeAte: null, pagoAte: dias(30), testeAguardando: true }, agora).motivo).toBe("pago");
+  });
+
+  it("aguardando tem 30 dias a partir da aprovação para cadastrar o primeiro paciente", () => {
+    const s = situacaoDaAssinatura({ testeAte: null, pagoAte: null, testeAguardando: true, createdAt: dias(-29) }, agora);
+    expect(s).toMatchObject({ liberado: true, motivo: "teste", ate: null, primeiroPacienteAte: dias(1) });
+  });
+
+  it("passou de 30 dias sem paciente: pausa, com a data do limite", () => {
+    const s = situacaoDaAssinatura({ testeAte: null, pagoAte: null, testeAguardando: true, createdAt: dias(-31) }, agora);
+    expect(s).toEqual({ liberado: false, motivo: "vencido", ate: dias(-1), diasRestantes: null });
+  });
+
+  it("Pix em dia libera mesmo depois do limite", () => {
+    const s = situacaoDaAssinatura({ testeAte: null, pagoAte: dias(10), testeAguardando: true, createdAt: dias(-60) }, agora);
+    expect(s.motivo).toBe("pago");
+  });
+
+  it("o teste dura 14 dias a partir do primeiro paciente", () => {
+    expect(fimDoTeste(agora)).toEqual(dias(14));
+  });
+
   it("CRP ou celular já usados: sem teste, mas herda a fundadora da conta anterior", () => {
-    expect(decidirTesteEFundador({ anteriores: [{ fundador: true }], fundadoresAtuais: 20 }, agora))
-      .toEqual({ testeAte: null, fundador: true });
-    expect(decidirTesteEFundador({ anteriores: [{ fundador: false }], fundadoresAtuais: 0 }, agora))
-      .toEqual({ testeAte: null, fundador: false });
+    expect(decidirTesteEFundador({ anteriores: [{ fundador: true }], fundadoresAtuais: 20 }))
+      .toEqual({ testeAguardando: false, fundador: true });
+    expect(decidirTesteEFundador({ anteriores: [{ fundador: false }], fundadoresAtuais: 0 }))
+      .toEqual({ testeAguardando: false, fundador: false });
   });
 
   it("acabaram as 20 vagas de fundadora", () => {
-    expect(decidirTesteEFundador({ anteriores: [], fundadoresAtuais: 20 }, agora).fundador).toBe(false);
+    expect(decidirTesteEFundador({ anteriores: [], fundadoresAtuais: 20 }).fundador).toBe(false);
   });
 
   it("CRP com ou sem barra é o mesmo", () => {

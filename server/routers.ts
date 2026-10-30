@@ -17,6 +17,7 @@ import {
   criarAssinaturaNaAprovacao,
   exigirAssinaturaAtiva,
   exigirVagaNoPlano,
+  iniciarTesteNoPrimeiroPaciente,
   limitesDoPlano,
   perguntasDaLumaHoje,
   planoDaPsicologa,
@@ -1658,7 +1659,7 @@ export const appRouter = router({
           ? perfil[0].id
           : (await db.insert(therapists).values({ userId: req.userId, crp: req.crp }).returning({ id: therapists.id }))[0].id;
 
-        // Teste grátis de 14 dias — UM por CRP e por celular (o celular do
+        // Direito ao teste grátis — UM por CRP e por celular (o celular do
         // cadastro mora nos dados da conta do Supabase).
         const [conta] = await db.select({ openId: users.openId }).from(users).where(eq(users.id, req.userId)).limit(1);
         const celular = conta?.openId?.startsWith("sb:")
@@ -1693,6 +1694,8 @@ export const appRouter = router({
           crp: therapists.crp,
           testeAte: assinaturas.testeAte,
           pagoAte: assinaturas.pagoAte,
+          testeAguardando: assinaturas.testeAguardando,
+          createdAt: assinaturas.createdAt,
           ciclo: assinaturas.ciclo,
           fundador: assinaturas.fundador,
           planoEscolhido: assinaturas.plano,
@@ -1728,7 +1731,7 @@ export const appRouter = router({
           sobMedida: { valorCombinado: l.valorCombinado, lumaPorDia: l.lumaPorDia, anexoMb: l.anexoMb },
           limites: limitesDoPlano(plano, l),
           valorCentavos: valorDoPlano(pacientes, escolhido, { fundador, ciclo, combinado: l.valorCombinado }),
-          situacao: situacaoDaAssinatura(l.temAssinatura ? { testeAte: l.testeAte, pagoAte: l.pagoAte } : null),
+          situacao: situacaoDaAssinatura(l.temAssinatura ? { testeAte: l.testeAte, pagoAte: l.pagoAte, testeAguardando: l.testeAguardando ?? false, createdAt: l.createdAt } : null),
         };
       }));
     }),
@@ -2137,6 +2140,8 @@ export const appRouter = router({
           // sozinho quando ele entra pela primeira vez (ver pacienteDoUsuario).
           status: "pending",
         });
+
+        await iniciarTesteNoPrimeiroPaciente(db, therapist[0].id);
 
         return result;
       }),

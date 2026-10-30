@@ -62,7 +62,9 @@ export function AssinaturasAdmin() {
         const s = l.situacao;
         const situacao =
           s.motivo === "teste"
-            ? `Teste até ${formatarData(s.ate)}`
+            ? s.ate
+              ? `Teste até ${formatarData(s.ate)}`
+              : "Teste aguardando o 1º paciente"
             : s.motivo === "pago"
               ? `Pago até ${formatarData(s.ate)}`
               : s.ate

@@ -1,4 +1,4 @@
-import { DIAS_DE_TESTE_GRATIS, VAGAS_DE_FUNDADOR, type Ciclo } from "./precos";
+import { DIAS_DE_TESTE_GRATIS, DIAS_PARA_O_PRIMEIRO_PACIENTE, VAGAS_DE_FUNDADOR, type Ciclo } from "./precos";
 
 /**
  * Situação da assinatura da psicóloga. Liberado enquanto o teste grátis OU o
@@ -13,12 +13,19 @@ export type Situacao = {
   ate: Date | null;
   /** Dias inteiros que faltam (0 = vence hoje); null se vencido/sem assinatura. */
   diasRestantes: number | null;
+  /** Só com o teste aguardando: até quando cadastrar o primeiro paciente. */
+  primeiroPacienteAte?: Date;
 };
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 
+/** Último dia para cadastrar o primeiro paciente, contado da aprovação. */
+export function limiteDoPrimeiroPaciente(aprovadaEm: Date): Date {
+  return new Date(aprovadaEm.getTime() + DIAS_PARA_O_PRIMEIRO_PACIENTE * DIA_MS);
+}
+
 export function situacaoDaAssinatura(
-  a: { testeAte: Date | null; pagoAte: Date | null } | null | undefined,
+  a: { testeAte: Date | null; pagoAte: Date | null; testeAguardando?: boolean; createdAt?: Date | null } | null | undefined,
   agora: Date = new Date(),
 ): Situacao {
   if (!a) return { liberado: false, motivo: "sem_assinatura", ate: null, diasRestantes: null };
@@ -26,10 +33,16 @@ export function situacaoDaAssinatura(
   if (a.pagoAte && a.pagoAte > agora) {
     return { liberado: true, motivo: "pago", ate: a.pagoAte, diasRestantes: restante(a.pagoAte) };
   }
+  // O teste só começa a contar no primeiro paciente: até lá, liberada e sem data.
+  // Sem paciente no prazo, o acesso pausa; nada é apagado (decisão de 2026-10-30).
+  const limite = a.testeAguardando && a.createdAt ? limiteDoPrimeiroPaciente(a.createdAt) : null;
+  if (a.testeAguardando && (!limite || limite > agora)) {
+    return { liberado: true, motivo: "teste", ate: null, diasRestantes: null, primeiroPacienteAte: limite ?? undefined };
+  }
   if (a.testeAte && a.testeAte > agora) {
     return { liberado: true, motivo: "teste", ate: a.testeAte, diasRestantes: restante(a.testeAte) };
   }
-  const ate = [a.pagoAte, a.testeAte].filter((d): d is Date => !!d).sort((x, y) => y.getTime() - x.getTime())[0] ?? null;
+  const ate = [a.pagoAte, a.testeAte, limite].filter((d): d is Date => !!d).sort((x, y) => y.getTime() - x.getTime())[0] ?? null;
   return { liberado: false, motivo: "vencido", ate, diasRestantes: null };
 }
 
@@ -47,25 +60,27 @@ export const normalizarDocumento = (valor: string | null | undefined) => (valor 
  * (conta nova da mesma pessoa), não ganha teste nem nova vaga — mas herda a
  * vaga de fundadora se a conta anterior tinha. O celular sozinho não basta
  * (não é verificado por SMS); o CRP, conferido pelo admin, é o que segura.
+ *
+ * O teste nasce aguardando: os dias só contam a partir do primeiro paciente
+ * (decisão de 2026-10-30), para ninguém perder o teste antes de começar a usar.
  */
-export function decidirTesteEFundador(
-  {
-    anteriores,
-    fundadoresAtuais,
-  }: {
-    /** Assinaturas que já usam este CRP ou este celular. */
-    anteriores: Array<{ fundador: boolean }>;
-    fundadoresAtuais: number;
-  },
-  agora: Date = new Date(),
-): { testeAte: Date | null; fundador: boolean } {
+export function decidirTesteEFundador({
+  anteriores,
+  fundadoresAtuais,
+}: {
+  /** Assinaturas que já usam este CRP ou este celular. */
+  anteriores: Array<{ fundador: boolean }>;
+  fundadoresAtuais: number;
+}): { testeAguardando: boolean; fundador: boolean } {
   if (anteriores.length) {
-    return { testeAte: null, fundador: anteriores.some((a) => a.fundador) };
+    return { testeAguardando: false, fundador: anteriores.some((a) => a.fundador) };
   }
-  return {
-    testeAte: new Date(agora.getTime() + DIAS_DE_TESTE_GRATIS * DIA_MS),
-    fundador: fundadoresAtuais < VAGAS_DE_FUNDADOR,
-  };
+  return { testeAguardando: true, fundador: fundadoresAtuais < VAGAS_DE_FUNDADOR };
+}
+
+/** Quando acaba o teste que começa agora. */
+export function fimDoTeste(agora: Date = new Date()): Date {
+  return new Date(agora.getTime() + DIAS_DE_TESTE_GRATIS * DIA_MS);
 }
 
 /**

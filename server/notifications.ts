@@ -13,7 +13,7 @@ import { sendEmail } from "./mailer";
 import { enviarTelegram } from "./telegram";
 import { contarPacientesCobrados, planoDaPsicologa } from "./assinaturas";
 import { precisaAvisarVencimento, situacaoDaAssinatura } from "../shared/assinatura";
-import { formatarReais, valorDoPlano } from "../shared/precos";
+import { DIAS_DE_TESTE_GRATIS, DIAS_PARA_O_PRIMEIRO_PACIENTE, formatarReais, valorDoPlano } from "../shared/precos";
 import { googleCalendarUrl } from "../shared/calendario";
 import { detalhesDoEmail, emailComMarca, esc, primeiroNome } from "./emailLayout";
 
@@ -284,6 +284,7 @@ export async function notifyTherapistRequestReviewed(req: {
     ? `<p>Olá, ${primeiroNome}!</p>
        <p>Seu <strong>acesso profissional foi aprovado</strong>. Entre em
          <a href="${base}/login">${base}</a> — sua área clínica já está liberada.</p>
+       <p>Seus ${DIAS_DE_TESTE_GRATIS} dias de teste grátis só começam a contar quando você cadastrar o primeiro paciente. Você tem ${DIAS_PARA_O_PRIMEIRO_PACIENTE} dias para fazer esse cadastro; depois disso, o acesso pausa.</p>
        <p>Se você já estava com o site aberto, saia e entre de novo para o acesso valer.</p>`
     : `<p>Olá, ${primeiroNome}.</p>
        <p>Sua solicitação de acesso profissional <strong>não foi aprovada</strong>.
@@ -727,6 +728,8 @@ export async function avisarVencimentosDePlano(agora: Date = new Date()): Promis
       therapistId: assinaturas.therapistId,
       testeAte: assinaturas.testeAte,
       pagoAte: assinaturas.pagoAte,
+      testeAguardando: assinaturas.testeAguardando,
+      createdAt: assinaturas.createdAt,
       fundador: assinaturas.fundador,
       ciclo: assinaturas.ciclo,
       plano: assinaturas.plano,
@@ -789,6 +792,8 @@ export async function enviarRelatoriosSemanais(agora: Date = new Date()): Promis
       therapistId: assinaturas.therapistId,
       testeAte: assinaturas.testeAte,
       pagoAte: assinaturas.pagoAte,
+      testeAguardando: assinaturas.testeAguardando,
+      createdAt: assinaturas.createdAt,
       relatorioEnviadoEm: assinaturas.relatorioEnviadoEm,
       nome: users.name,
       email: users.email,

@@ -190,6 +190,8 @@ export const assinaturas = pgTable(
     crp: varchar("crp", { length: 64 }).notNull(),
     celular: varchar("celular", { length: 20 }),
     testeAte: timestamp("testeAte", { withTimezone: true, mode: "date" }),
+    /** Tem direito ao teste, mas ele só começa no primeiro paciente (ver iniciarTesteNoPrimeiroPaciente). */
+    testeAguardando: boolean("testeAguardando").default(false).notNull(),
     pagoAte: timestamp("pagoAte", { withTimezone: true, mode: "date" }),
     ciclo: varchar("ciclo", { length: 10 }).$type<"mensal" | "anual">().default("mensal").notNull(),
     fundador: boolean("fundador").default(false).notNull(),

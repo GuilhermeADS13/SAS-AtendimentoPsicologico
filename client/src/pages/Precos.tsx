@@ -15,6 +15,7 @@ import { linkWhatsAppDoSuporte } from "@/lib/suporte";
 import {
   DESCONTO_FUNDADOR,
   DIAS_DE_TESTE_GRATIS,
+  DIAS_PARA_O_PRIMEIRO_PACIENTE,
   MAX_PACIENTES_NA_TABELA,
   MESES_PAGOS_NO_ANUAL,
   PLANOS,
@@ -62,7 +63,7 @@ const DUVIDAS = [
   },
   {
     pergunta: "Como funciona o teste grátis?",
-    resposta: `São ${DIAS_DE_TESTE_GRATIS} dias com tudo liberado, sem cartão, a partir da aprovação do seu CRP. É um teste por pessoa (por CRP e por celular). Se você não renovar, agenda, chamada e Luma pausam — seus prontuários continuam abertos.`,
+    resposta: `São ${DIAS_DE_TESTE_GRATIS} dias com tudo liberado, sem cartão. Eles só começam a contar quando você cadastra o primeiro paciente, o que precisa acontecer em até ${DIAS_PARA_O_PRIMEIRO_PACIENTE} dias depois da aprovação do seu CRP. É um teste por pessoa (por CRP e por celular). Se você não renovar, agenda, chamada e Luma pausam — seus prontuários continuam abertos.`,
   },
   {
     pergunta: "Como eu pago?",
@@ -289,7 +290,7 @@ export default function Precos() {
             <h2 className="text-2xl font-bold tracking-tight text-foreground">Como assinar</h2>
             <ol className="space-y-4">
               {[
-                ["Crie sua conta", `Depois da verificação do CRP, você usa tudo por ${DIAS_DE_TESTE_GRATIS} dias, de graça.`],
+                ["Crie sua conta", `Depois da verificação do CRP, você usa tudo por ${DIAS_DE_TESTE_GRATIS} dias, de graça, contados a partir do primeiro paciente.`],
                 ["Pague por Pix", "Na aba Assinatura do sistema tem o QR code com o valor certo. Todo mês, ou uma vez por ano com 2 meses grátis."],
                 ["Mande o comprovante", "Pelo WhatsApp, com um toque. A liberação é feita assim que ele chega."],
               ].map(([titulo, texto], i) => (

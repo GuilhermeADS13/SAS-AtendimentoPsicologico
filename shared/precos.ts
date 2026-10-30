@@ -75,6 +75,8 @@ export function planoPara(pacientes: number): Plano {
 
 /** Teste grátis, um por CRP e por celular (ver shared/assinatura.ts). */
 export const DIAS_DE_TESTE_GRATIS = 14;
+/** Prazo depois da aprovação para cadastrar o primeiro paciente e começar o teste. */
+export const DIAS_PARA_O_PRIMEIRO_PACIENTE = 30;
 /** Plano anual: paga 10 meses e leva 12 ("2 meses grátis"). */
 export const MESES_PAGOS_NO_ANUAL = 10;
 /** Psicóloga Fundadora: as 20 primeiras pagam 20% a menos, para sempre. */

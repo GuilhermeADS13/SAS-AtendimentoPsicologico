@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, count, eq, gte, inArray, or, sql } from "drizzle-orm";
+import { and, count, eq, gt, gte, inArray, or, sql } from "drizzle-orm";
 import {
   aiConversations,
   aiMessages,
@@ -13,10 +13,11 @@ import {
 import {
   MENSAGEM_ASSINATURA_VENCIDA,
   decidirTesteEFundador,
+  fimDoTeste,
   normalizarDocumento,
   situacaoDaAssinatura,
 } from "../shared/assinatura";
-import { cabeMaisUmPaciente, planoEfetivo, planoPorId, valorDoPlano } from "../shared/precos";
+import { DIAS_PARA_O_PRIMEIRO_PACIENTE, cabeMaisUmPaciente, planoEfetivo, planoPorId, valorDoPlano } from "../shared/precos";
 import type { getDb } from "./db";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -140,7 +141,7 @@ export async function exigirAssinaturaAtiva(db: Db, user: { id: number; role: st
 /** Para a sala de vídeo, que só conhece o therapistId da consulta. */
 export async function psicologaLiberada(db: Db, therapistId: number): Promise<boolean> {
   const [linha] = await db
-    .select({ role: users.role, testeAte: assinaturas.testeAte, pagoAte: assinaturas.pagoAte, temAssinatura: assinaturas.id })
+    .select({ role: users.role, testeAte: assinaturas.testeAte, pagoAte: assinaturas.pagoAte, testeAguardando: assinaturas.testeAguardando, createdAt: assinaturas.createdAt, temAssinatura: assinaturas.id })
     .from(therapists)
     .innerJoin(users, eq(users.id, therapists.userId))
     .leftJoin(assinaturas, eq(assinaturas.therapistId, therapists.id))
@@ -148,7 +149,9 @@ export async function psicologaLiberada(db: Db, therapistId: number): Promise<bo
     .limit(1);
   if (!linha) return false;
   if (linha.role === "admin") return true;
-  return situacaoDaAssinatura(linha.temAssinatura ? { testeAte: linha.testeAte, pagoAte: linha.pagoAte } : null).liberado;
+  return situacaoDaAssinatura(
+    linha.temAssinatura ? { testeAte: linha.testeAte, pagoAte: linha.pagoAte, testeAguardando: linha.testeAguardando ?? false, createdAt: linha.createdAt } : null,
+  ).liberado;
 }
 
 /**
@@ -164,6 +167,8 @@ export async function planoDaPsicologa(db: Db, therapistId: number) {
       anexoMb: assinaturas.anexoMb,
       testeAte: assinaturas.testeAte,
       pagoAte: assinaturas.pagoAte,
+      testeAguardando: assinaturas.testeAguardando,
+      createdAt: assinaturas.createdAt,
     })
     .from(therapists)
     .innerJoin(users, eq(users.id, therapists.userId))
@@ -174,7 +179,10 @@ export async function planoDaPsicologa(db: Db, therapistId: number) {
   const escolhido = linha?.escolhido ?? "pro";
   const plano = planoEfetivo(escolhido, pacientes);
   const admin = linha?.role === "admin";
-  const emTeste = situacaoDaAssinatura(linha ? { testeAte: linha.testeAte, pagoAte: linha.pagoAte } : null).motivo === "teste";
+  const emTeste =
+    situacaoDaAssinatura(
+      linha ? { testeAte: linha.testeAte, pagoAte: linha.pagoAte, testeAguardando: linha.testeAguardando ?? false, createdAt: linha.createdAt } : null,
+    ).motivo === "teste";
   return { admin, escolhido, pacientes, plano, limites: limitesDoPlano(plano, linha), recursos: recursosDoPlano(plano, admin, emTeste) };
 }
 
@@ -217,15 +225,29 @@ export async function exigirVagaNoPlano(db: Db, therapistId: number): Promise<vo
 }
 
 /**
- * Cria a assinatura na aprovação: 14 dias grátis, a não ser que o CRP ou o
- * celular já tenham usado um (conta nova da mesma pessoa). Idempotente.
+ * Começa a contar os dias do teste: chamada ao cadastrar paciente. Só a primeira
+ * chamada muda algo, porque o WHERE deixa de casar assim que `testeAguardando` cai.
+ * Fora do prazo não começa: cadastrar paciente não exige assinatura ativa, então
+ * sem essa trava um cadastro tardio reabriria o teste de quem já pausou.
+ */
+export async function iniciarTesteNoPrimeiroPaciente(db: Db, therapistId: number, agora: Date = new Date()): Promise<void> {
+  const aprovadaDepoisDe = new Date(agora.getTime() - DIAS_PARA_O_PRIMEIRO_PACIENTE * 24 * 60 * 60 * 1000);
+  await db
+    .update(assinaturas)
+    .set({ testeAte: fimDoTeste(agora), testeAguardando: false })
+    .where(and(eq(assinaturas.therapistId, therapistId), eq(assinaturas.testeAguardando, true), gt(assinaturas.createdAt, aprovadaDepoisDe)));
+}
+
+/**
+ * Cria a assinatura na aprovação com o direito ao teste, a não ser que o CRP ou
+ * o celular já tenham usado um (conta nova da mesma pessoa). Idempotente.
  */
 export async function criarAssinaturaNaAprovacao(
   db: Db,
   { therapistId, crp, celular }: { therapistId: number; crp: string; celular: string | null },
 ): Promise<{ ganhouTeste: boolean; fundador: boolean }> {
   const [existente] = await db.select().from(assinaturas).where(eq(assinaturas.therapistId, therapistId)).limit(1);
-  if (existente) return { ganhouTeste: !!existente.testeAte, fundador: existente.fundador };
+  if (existente) return { ganhouTeste: !!existente.testeAte || existente.testeAguardando, fundador: existente.fundador };
 
   const crpLimpo = normalizarDocumento(crp);
   const celularLimpo = normalizarDocumento(celular) || null;
@@ -238,7 +260,7 @@ export async function criarAssinaturaNaAprovacao(
   const decisao = decidirTesteEFundador({ anteriores, fundadoresAtuais: Number(fundadoresAtuais) });
   await db
     .insert(assinaturas)
-    .values({ therapistId, crp: crpLimpo, celular: celularLimpo, testeAte: decisao.testeAte, fundador: decisao.fundador })
+    .values({ therapistId, crp: crpLimpo, celular: celularLimpo, testeAguardando: decisao.testeAguardando, fundador: decisao.fundador })
     .onConflictDoNothing({ target: assinaturas.therapistId });
-  return { ganhouTeste: !!decisao.testeAte, fundador: decisao.fundador };
+  return { ganhouTeste: decisao.testeAguardando, fundador: decisao.fundador };
 }

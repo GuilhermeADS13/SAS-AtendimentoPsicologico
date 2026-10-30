@@ -343,6 +343,21 @@ describe("solicitação de acesso profissional", () => {
     expect(fonte).toContain('eq(therapistRequests.status, "pending")');
   });
 
+  it("o teste grátis começa ao cadastrar o paciente, depois do insert", () => {
+    const fonte = readFileSync(new URL("./routers.ts", import.meta.url), "utf8");
+    const cadastro = fonte.slice(fonte.indexOf("await exigirVagaNoPlano(db, therapist[0].id);"));
+    expect(cadastro.indexOf("db.insert(patients)")).toBeGreaterThan(-1);
+    expect(cadastro.indexOf("db.insert(patients)")).toBeLessThan(
+      cadastro.indexOf("iniciarTesteNoPrimeiroPaciente(db, therapist[0].id)"),
+    );
+  });
+
+  it("cadastro depois do prazo não reabre o teste de quem já pausou", () => {
+    const fonte = readFileSync(new URL("./assinaturas.ts", import.meta.url), "utf8");
+    const inicio = fonte.slice(fonte.indexOf("export async function iniciarTesteNoPrimeiroPaciente"));
+    expect(inicio.slice(0, inicio.indexOf("\n}\n"))).toContain("gt(assinaturas.createdAt, aprovadaDepoisDe)");
+  });
+
   it("o aviso no celular não leva dado da pessoa", () => {
     const fonte = readFileSync(new URL("./notifications.ts", import.meta.url), "utf8");
     const celular = fonte.slice(

@@ -35,7 +35,7 @@ export default function TherapistRequests() {
         toast.success("Solicitação recusada. A pessoa foi avisada por e-mail.");
       } else if (r.ganhouTeste) {
         toast.success(
-          `Aprovado! A psicóloga já tem acesso, com 14 dias grátis${r.fundador ? " e vaga de Psicóloga Fundadora" : ""}, e foi avisada por e-mail.`,
+          `Aprovado! A psicóloga já tem acesso, com 14 dias grátis a partir do primeiro paciente${r.fundador ? " e vaga de Psicóloga Fundadora" : ""}, e foi avisada por e-mail.`,
         );
       } else {
         // Um teste por pessoa: CRP ou celular já usados por outra conta.

@@ -4,7 +4,7 @@ import { ToolMessage, type BaseMessageLike } from "@langchain/core/messages";
 import { createAgent } from "langchain";
 import { createClinicalTools, fetchTherapistFormat, getScopedPatientName, type AiSourceReference } from "./clinical-tools";
 import { MODELOS_INTERNOS } from "../../shared/prontuario";
-import { DESCONTO_FUNDADOR, DIAS_DE_TESTE_GRATIS, MESES_PAGOS_NO_ANUAL, PLANOS, formatarReais } from "../../shared/precos";
+import { DESCONTO_FUNDADOR, DIAS_DE_TESTE_GRATIS, DIAS_PARA_O_PRIMEIRO_PACIENTE, MESES_PAGOS_NO_ANUAL, PLANOS, formatarReais } from "../../shared/precos";
 import { relatorioDaPsicologa, relatorioEmTexto } from "../relatorioDeGestao";
 import type { AiAccessContext } from "./access";
 import { buildAgentCacheKey, getCachedAgentResponse, setCachedAgentResponse } from "./response-cache";
@@ -315,7 +315,7 @@ export function clinicalSystemPrompt(
     "Menu da profissional: Dashboard; Pacientes / Prontuários; Mensagens; Luma — Assistente IA; Agendamentos / Videochamada; Financeiro; Assinatura; Perfil; Configurações da conta; Ajuda (a dona da clínica tem também Solicitações).",
     // Curto e sempre presente: "quanto custa o Voz?" não é pergunta de "onde/como"
     // e ficava sem resposta quando o passo a passo não entrava.
-    `Assinatura do VozInterior (aba Assinatura): preço fixo por plano — ${RESUMO_DOS_PLANOS}. Teste grátis de ${DIAS_DE_TESTE_GRATIS} dias depois da aprovação do CRP; pagamento só por Pix (QR ou copia e cola, já com o valor), mensal ou anual (paga ${MESES_PAGOS_NO_ANUAL} meses e usa 12); Psicóloga Fundadora paga ${DESCONTO_FUNDADOR * 100}% a menos. Ela escolhe o dia do vencimento num calendário e recebe aviso 3 dias antes; vencida, pausam agenda, videochamada e Luma, mas os prontuários continuam abertos. Paciente marcado como inativo não conta no limite do plano. Cancelamento: devolução integral em 7 dias e depois proporcional aos dias não usados (Termos de Uso).`,
+    `Assinatura do VozInterior (aba Assinatura): preço fixo por plano — ${RESUMO_DOS_PLANOS}. Teste grátis de ${DIAS_DE_TESTE_GRATIS} dias, que começam a contar no primeiro paciente cadastrado, o que precisa acontecer em até ${DIAS_PARA_O_PRIMEIRO_PACIENTE} dias depois da aprovação do CRP; pagamento só por Pix (QR ou copia e cola, já com o valor), mensal ou anual (paga ${MESES_PAGOS_NO_ANUAL} meses e usa 12); Psicóloga Fundadora paga ${DESCONTO_FUNDADOR * 100}% a menos. Ela escolhe o dia do vencimento num calendário e recebe aviso 3 dias antes; vencida, pausam agenda, videochamada e Luma, mas os prontuários continuam abertos. Paciente marcado como inativo não conta no limite do plano. Cancelamento: devolução integral em 7 dias e depois proporcional aos dias não usados (Termos de Uso).`,
     "Pergunta de 'onde vejo/onde fica/como faço aqui' é USO DO SISTEMA: responda indicando a tela, NUNCA recuse como fora de escopo e NUNCA responda 'não encontrei registros' — navegação não depende do prontuário.",
     // Passo a passo detalhado: so quando a pergunta e de navegacao (pesa ~430 tokens).
     querNavegacao

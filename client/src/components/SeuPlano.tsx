@@ -84,7 +84,11 @@ function CartaoDoPlano({ data }: { data: Resumo }) {
   const resta = s.diasRestantes === null ? 0 : Math.min(1, Math.max(0, (s.diasRestantes + 1) / total));
   const rotuloPeriodo =
     s.motivo === "teste"
-      ? `Teste grátis até ${formatarData(s.ate)}`
+      ? s.ate
+        ? `Teste grátis até ${formatarData(s.ate)}`
+        : s.primeiroPacienteAte
+          ? `Cadastre o primeiro paciente até ${formatarData(s.primeiroPacienteAte)} para começar seus ${DIAS_DE_TESTE_GRATIS} dias grátis`
+          : `${DIAS_DE_TESTE_GRATIS} dias grátis a partir do primeiro paciente`
       : s.motivo === "pago"
         ? `Pago até ${formatarData(s.ate)}`
         : s.ate

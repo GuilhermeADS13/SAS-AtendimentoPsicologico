@@ -5,6 +5,7 @@ import { RESPONSAVEL_PELO_SERVICO } from "@/lib/suporte";
 import {
   DESCONTO_FUNDADOR,
   DIAS_DE_TESTE_GRATIS,
+  DIAS_PARA_O_PRIMEIRO_PACIENTE,
   MESES_PAGOS_NO_ANUAL,
   VAGAS_DE_FUNDADOR,
 } from "@shared/precos";
@@ -133,9 +134,11 @@ export default function Termos() {
                 . O valor é fixo dentro do limite de pacientes do plano.
               </li>
               <li>
-                <strong>Teste grátis:</strong> {DIAS_DE_TESTE_GRATIS} dias com tudo liberado, a
-                partir da aprovação do CRP, sem cartão. É um teste por pessoa (por CRP e por
-                celular).
+                <strong>Teste grátis:</strong> {DIAS_DE_TESTE_GRATIS} dias com tudo liberado, sem
+                cartão, contados a partir do cadastro do primeiro paciente, que deve acontecer em
+                até {DIAS_PARA_O_PRIMEIRO_PACIENTE} dias depois da aprovação do CRP. Sem esse
+                cadastro no prazo, o acesso pausa e a conta continua guardada. É um teste por
+                pessoa (por CRP e por celular).
               </li>
               <li>
                 <strong>Psicóloga Fundadora:</strong> as {VAGAS_DE_FUNDADOR} primeiras psicólogas
