@@ -26,6 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MODELOS_INTERNOS } from "@shared/prontuario";
 import EditorDeAnotacao from "@/components/EditorDeAnotacao";
 import { textoSemMarkdown } from "@shared/notasMarkdown";
+import { tempoDaSessao } from "@shared/tempoDaSessao";
 import ChatConversa from "@/components/ChatConversa";
 import { ParticipantesDaConsulta } from "@/components/ParticipantesDaConsulta";
 
@@ -178,10 +179,21 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
     return () => clearInterval(t);
   }, [joined]);
 
-  // O cronômetro só COMEÇA quando o paciente entra na sala.
+  // O relógio só COMEÇA quando o paciente entra na sala, e guarda esse momento:
+  // sem isso, recarregar a página no meio da sessão devolveria a hora inteira.
   useEffect(() => {
-    if (patientPresent && sessionStartRef.current === 0) sessionStartRef.current = Date.now();
-  }, [patientPresent]);
+    if (!patientPresent || sessionStartRef.current !== 0) return;
+    const chave = `sas-sessao-${appointmentId}`;
+    let inicio = Date.now();
+    try {
+      const salvo = Number(sessionStorage.getItem(chave));
+      if (salvo > 0) inicio = salvo;
+      else sessionStorage.setItem(chave, String(inicio));
+    } catch {
+      /* armazenamento bloqueado: conta a partir de agora */
+    }
+    sessionStartRef.current = inicio;
+  }, [patientPresent, appointmentId]);
 
   // Para o paciente, "presente" é ele mesmo — marca ao entrar.
   useEffect(() => {
@@ -340,13 +352,11 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
     toast.success("Link da sala copiado! Envie para o paciente.");
   };
 
-  // Cronômetro: conta a partir de quando o paciente entrou (fica vermelho se passar da duração).
+  // Relógio: desce da duração até zero, a partir de quando o paciente entrou.
   const elapsedSec = patientPresent && sessionStartRef.current > 0
     ? Math.max(0, Math.floor((nowTs - sessionStartRef.current) / 1000))
     : 0;
-  const mm = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
-  const ss = String(elapsedSec % 60).padStart(2, "0");
-  const overtime = durationMin != null && durationMin > 0 && elapsedSec > durationMin * 60;
+  const relogio = tempoDaSessao(elapsedSec, durationMin);
 
   return (
     <DashboardLayout>
@@ -455,8 +465,16 @@ export default function VideoCallDynamic({ roomId }: VideoCallDynamicProps) {
               </div>
             )}
             {patientPresent && (
-              <div className={`pointer-events-none absolute right-3 top-3 z-10 rounded-full px-3 py-1 text-xs font-medium text-white shadow ${overtime ? "bg-red-600/85" : "bg-black/70"}`}>
-                {mm}:{ss}{durationMin ? ` · ${durationMin} min` : ""}
+              // No zero, pisca só para a psicóloga: é ela quem conduz o fim da sessão,
+              // e um alerta piscando na tela do paciente interromperia a fala dele.
+              <div
+                role="timer"
+                aria-label={relogio.esgotado ? "Tempo da consulta encerrado" : "Tempo restante da consulta"}
+                className={`pointer-events-none absolute right-3 top-3 z-10 rounded-full px-3 py-1 font-medium text-white shadow ${
+                  relogio.esgotado ? "bg-red-600 text-sm" : "bg-black/70 text-xs"
+                } ${relogio.esgotado && isTherapist ? "relogio-esgotado" : ""}`}
+              >
+                {relogio.esgotado && isTherapist ? "Tempo encerrado · 00:00" : relogio.texto}
               </div>
             )}
             {!error && (

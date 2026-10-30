@@ -160,6 +160,15 @@
   }
 }
 
+/* Relógio da videochamada no zero. Quem pede menos movimento vê o vermelho fixo. */
+@keyframes relogio-piscando {
+  50% { opacity: 0.25; }
+}
+.relogio-esgotado { animation: relogio-piscando 1s steps(1) infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .relogio-esgotado { animation: none; }
+}
+
 /* Cor e alinhamento da barra de anotações (ver shared/notasMarkdown.ts). */
 .nota-cor-vermelho { color: #b91c1c; }
 .nota-cor-azul { color: #1d4ed8; }
