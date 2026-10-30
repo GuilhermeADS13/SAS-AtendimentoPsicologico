@@ -129,57 +129,66 @@ describe("cabeçalhos de segurança", () => {
     expect(politica).toContain("display-capture=(self)");
   });
 
-  /**
-   * Duas camadas: a parte que NAO depende de dominio externo ja bloqueia
-   * (plugin, troca da base dos links, iframe de terceiro, formulario para fora);
-   * a politica completa (script-src etc.) segue em relatorio ate os logs
-   * mostrarem que da para ligar sem quebrar a chamada.
-   */
-  it("a CSP bloqueia o que e seguro bloquear e relata o resto", () => {
+  /** Sem isto, script injetado leria a sessão e os prontuários. */
+  it("a CSP bloqueia de verdade, sem modo relatorio", () => {
     const { res, cabecalhos } = resposta();
     cabecalhosDeSeguranca(pedido({}), res, vi.fn() as unknown as NextFunction);
     const ativa = cabecalhos["Content-Security-Policy"];
+    expect(ativa).toContain("default-src 'self'");
     expect(ativa).toContain("object-src 'none'");
     expect(ativa).toContain("base-uri 'self'");
     expect(ativa).toContain("frame-ancestors 'none'");
     expect(ativa).toContain("form-action 'self'");
-    // Nada que dependa de dominio externo: isso so entra depois dos relatos.
-    expect(ativa).not.toContain("script-src");
-    expect(cabecalhos["Content-Security-Policy-Report-Only"]).toContain("default-src 'self'");
+    expect(cabecalhos["Content-Security-Policy-Report-Only"]).toBeUndefined();
+  });
+
+  it("o jsDelivr so vale para o MediaPipe, nao para qualquer pacote do npm", () => {
+    const { res, cabecalhos } = resposta();
+    cabecalhosDeSeguranca(pedido({}), res, vi.fn() as unknown as NextFunction);
+    expect(cabecalhos["Content-Security-Policy"]).not.toMatch(/https:\/\/cdn\.jsdelivr\.net[ ;'"]/);
+  });
+
+  it("resposta da API nao fica guardada; pagina do site segue o padrao", () => {
+    const api = resposta();
+    cabecalhosDeSeguranca({ ...pedido({}), path: "/api/trpc/patients.get" } as unknown as Request, api.res, vi.fn() as unknown as NextFunction);
+    expect(api.cabecalhos["Cache-Control"]).toBe("no-store");
+    const site = resposta();
+    cabecalhosDeSeguranca({ ...pedido({}), path: "/records" } as unknown as Request, site.res, vi.fn() as unknown as NextFunction);
+    expect(site.cabecalhos["Cache-Control"]).toBeUndefined();
   });
 
   /** O fundo virtual carrega o MediaPipe do jsDelivr e o modelo do Google Storage. */
-  it("a CSP de relatorio ja preve o fundo virtual da chamada", () => {
+  it("a CSP preve o fundo virtual da chamada", () => {
     const { res, cabecalhos } = resposta();
     cabecalhosDeSeguranca(pedido({}), res, vi.fn() as unknown as NextFunction);
-    const csp = cabecalhos["Content-Security-Policy-Report-Only"];
-    expect(csp).toContain("script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'");
-    expect(csp).toContain("https://storage.googleapis.com");
+    const csp = cabecalhos["Content-Security-Policy"];
+    expect(csp).toContain("script-src 'self' https://cdn.jsdelivr.net/npm/@mediapipe/ 'wasm-unsafe-eval'");
+    expect(csp).toContain("https://storage.googleapis.com/mediapipe-models/");
   });
 
   /**
    * O arquivo compartilhado DENTRO da chamada aparece num <iframe src="blob:">.
    * Sem frame-src, ele herdaria default-src 'self' e o visualizador morreria no
-   * meio do atendimento — e, em modo relatorio, sem ninguem perceber.
+   * meio do atendimento.
    */
   it("a CSP permite o iframe blob: do arquivo compartilhado na chamada", () => {
     const { res, cabecalhos } = resposta();
     cabecalhosDeSeguranca(pedido({}), res, vi.fn() as unknown as NextFunction);
-    expect(cabecalhos["Content-Security-Policy-Report-Only"]).toContain("frame-src 'self' blob:");
+    expect(cabecalhos["Content-Security-Policy"]).toContain("frame-src 'self' blob:");
   });
 
-  /** Modo relatorio sem coleta nao produz evidencia nenhuma. */
+  /** Sem coleta, uma tela quebrada pela CSP passaria sem ninguem saber. */
   it("a CSP aponta para onde enviar as violacoes", () => {
     const { res, cabecalhos } = resposta();
     cabecalhosDeSeguranca(pedido({}), res, vi.fn() as unknown as NextFunction);
-    expect(cabecalhos["Content-Security-Policy-Report-Only"]).toContain("report-uri /api/csp-report");
+    expect(cabecalhos["Content-Security-Policy"]).toContain("report-uri /api/csp-report");
   });
 
   /** Sem estes, some o Supabase e a sinalizacao da sala. */
   it("a CSP permite o Supabase e os WebSockets da chamada", () => {
     const { res, cabecalhos } = resposta();
     cabecalhosDeSeguranca(pedido({}), res, vi.fn() as unknown as NextFunction);
-    const csp = cabecalhos["Content-Security-Policy-Report-Only"];
+    const csp = cabecalhos["Content-Security-Policy"];
     expect(csp).toContain("https://*.supabase.co");
     expect(csp).toContain("wss:");
   });

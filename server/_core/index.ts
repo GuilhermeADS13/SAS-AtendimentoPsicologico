@@ -165,6 +165,9 @@ async function startServer() {
       // API conta como uma só: sem teto, 1 requisição virava centenas de
       // consultas ao banco. O cliente divide os lotes no mesmo tamanho (main.tsx).
       maxBatchSize: 10,
+      // Consulta por POST (main.tsx): em GET, os dados vão na URL, e a URL fica nos
+      // logs do Render e da Cloudflare. A busca nas mensagens levaria texto clínico.
+      allowMethodOverride: true,
       // Erro inesperado: registra a ROTA e o tipo, nunca a mensagem inteira — a de
       // erro de banco traz a consulta e os parâmetros (dado de paciente).
       onError({ error, path }) {

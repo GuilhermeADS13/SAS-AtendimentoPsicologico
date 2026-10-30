@@ -120,18 +120,19 @@ export function limitarRequisicoes(opcoes: { janelaMs: number; maximo: number; m
 }
 
 /**
- * Content-Security-Policy, por enquanto em modo RELATÓRIO.
+ * Content-Security-Policy.
  *
- * CSP errada quebra a aplicação sem erro visível — some um estilo, uma chamada
- * falha, e nada aparece para o usuário além da tela torta. Por isso ela entra
- * primeiro como `-Report-Only`: o navegador NÃO bloqueia nada, só anota no console
- * o que teria bloqueado. Com essa lista na mão dá para apertar o que falta e só
- * então promover para o cabeçalho que bloqueia de verdade.
+ * A sessão do Supabase mora no navegador: script injetado leria a sessão da
+ * psicóloga e todos os prontuários dela. Esta é a barreira quando um filtro
+ * falha. Passou por modo relatório primeiro; em 2026-10-30 os logs só tinham
+ * `eval` do teste de generators do bundle (está em try/catch, sem efeito) e as
+ * telas foram abertas com ela valendo. CSP errada quebra a aplicação sem erro
+ * visível, então domínio novo precisa entrar aqui.
  *
  * `frame-ancestors 'none'` repete o X-Frame-Options porque navegador moderno já
  * prefere a CSP; os dois juntos cobrem o antigo e o novo.
  */
-const CSP_RELATORIO = [
+const CSP = [
   "default-src 'self'",
   "base-uri 'self'",
   "object-src 'none'",
@@ -147,35 +148,23 @@ const CSP_RELATORIO = [
   // jsDelivr (virtualBackground.ts). Sem isto, a CSP valendo apagaria o fundo
   // virtual no meio do atendimento. 'wasm-unsafe-eval' é só para WebAssembly
   // (MediaPipe e o realce de código), não libera eval de JavaScript.
-  "script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'",
+  // Só a pasta do MediaPipe: o jsDelivr inteiro serviria qualquer pacote público do
+  // npm, e aí um atacante publicaria o próprio script e passaria pela CSP.
+  "script-src 'self' https://cdn.jsdelivr.net/npm/@mediapipe/ 'wasm-unsafe-eval'",
   // Supabase (API, Storage, Realtime), os WebSockets da própria sala, os
   // servidores STUN/TURN da videochamada e os arquivos do MediaPipe (WASM no
   // jsDelivr, modelo de recorte no Google Storage).
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co wss: stun: turn: turns: https://cdn.jsdelivr.net https://storage.googleapis.com",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co wss: stun: turn: turns: https://cdn.jsdelivr.net/npm/@mediapipe/ https://storage.googleapis.com/mediapipe-models/",
   "worker-src 'self' blob:",
   // O arquivo compartilhado DENTRO da chamada é exibido num <iframe src="blob:">
   // (WebRTCCall.tsx). Sem esta linha, frame-src herdaria default-src 'self' e o
   // visualizador de documento morreria no meio do atendimento — achado por leitura
   // de código, não pelo relatório: a tela não foi aberta na verificação.
   "frame-src 'self' blob:",
-  // Para onde o navegador manda o que BLOQUEARIA. Sem isto, "modo relatório" não
-  // produz evidência nenhuma: o aviso fica no console de quem navegou e some.
+  // Para onde o navegador manda o que BLOQUEOU: sem isto, uma tela quebrada pela
+  // CSP só apareceria no console de quem navegou.
   "report-uri /api/csp-report",
 ].join("; ");
-
-/**
- * A parte da CSP que JÁ BLOQUEIA. Só regras que não dependem de domínio externo
- * nenhum, então não quebram tela alguma — e cortam caminhos de ataque mesmo que
- * um HTML malicioso passe por algum filtro:
- *  - object-src 'none': nada de <object>/<embed> (plugin);
- *  - base-uri 'self': ninguém troca a base dos links relativos para outro site;
- *  - frame-ancestors 'none': o sistema não abre dentro de iframe de terceiro;
- *  - form-action 'self': formulário só envia para o próprio sistema (formulário
- *    falso injetado não manda a senha para fora).
- * O resto (script-src etc.) continua no relatório até os logs `[csp]` mostrarem
- * que dá para ligar sem quebrar nada.
- */
-const CSP_ATIVA = ["object-src 'none'", "base-uri 'self'", "frame-ancestors 'none'", "form-action 'self'"].join("; ");
 
 /**
  * Cabeçalhos de segurança.
@@ -184,9 +173,12 @@ const CSP_ATIVA = ["object-src 'none'", "base-uri 'self'", "frame-ancestors 'non
  * sem essas três, a videochamada — o núcleo do produto — para de funcionar. O
  * efeito prático é barrar iframe de terceiro de pedir esses recursos.
  */
-export function cabecalhosDeSeguranca(_req: Request, res: Response, next: NextFunction) {
-  res.setHeader("Content-Security-Policy", CSP_ATIVA);
-  res.setHeader("Content-Security-Policy-Report-Only", CSP_RELATORIO);
+export function cabecalhosDeSeguranca(req: Request, res: Response, next: NextFunction) {
+  // Resposta da API traz prontuário e contato: não fica no disco do navegador
+  // (computador compartilhado) nem em proxy. Rota que pode ser guardada, como a
+  // imagem de GIF, troca este valor ao responder.
+  if (req.path?.startsWith("/api/")) res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Content-Security-Policy", CSP);
   res.setHeader(
     "Permissions-Policy",
     "camera=(self), microphone=(self), display-capture=(self), geolocation=(), payment=(), usb=()",

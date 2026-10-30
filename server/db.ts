@@ -12,7 +12,13 @@ export async function getDb() {
     try {
       // `prepare: false` é obrigatório com o pooler de transações do Supabase
       // (porta 6543), que não suporta prepared statements.
-      const client = postgres(process.env.DATABASE_URL, { prepare: false });
+      // Em produção o TLS é obrigatório, sem depender do que estiver na URL: sem
+      // `sslmode` nela, a biblioteca conecta sem criptografia, e por essa conexão
+      // passa todo prontuário entre o Render e o Supabase.
+      const client = postgres(process.env.DATABASE_URL, {
+        prepare: false,
+        ...(process.env.NODE_ENV === "production" ? { ssl: "require" as const } : {}),
+      });
       _db = drizzle(client);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);

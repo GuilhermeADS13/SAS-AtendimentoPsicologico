@@ -57,6 +57,8 @@ const trpcClient = trpc.createClient({
       // O servidor recusa lote com mais de 10 chamadas (maxBatchSize, contra
       // amplificação de DoS); aqui o cliente já divide no mesmo tamanho.
       maxItems: 10,
+      // Em POST, o que se consulta não vai na URL, que fica nos logs de acesso.
+      methodOverride: "POST",
       async headers() {
         // Supabase Auth: envia o access token (JWT) como Bearer. O backend o
         // valida via JWKS e mapeia para a tabela users.

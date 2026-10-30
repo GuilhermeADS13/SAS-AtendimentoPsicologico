@@ -761,24 +761,29 @@ export const appRouter = router({
         // (nem lembrete de consulta). Uso real de "esqueci a senha" fica muito abaixo.
         if (!dentroDoLimite("recuperacao:global", 30, 10 * 60_000)) return { ok: true } as const;
         const base = process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:3000";
-        const link = await gerarLinkDeRecuperacao(input.email, `${base}/redefinir-senha`);
-        if (!link) return { ok: true } as const;
-        const db = await getDb();
-        const nome = db
-          ? (await db.select({ name: users.name }).from(users).where(eq(users.email, input.email)).limit(1))[0]?.name ?? null
-          : null;
-        await sendEmail(
-          input.email,
-          "Redefinir sua senha — VozInterior",
-          emailComMarca({
-            nome,
-            titulo: "Redefinir sua senha",
-            corpo: `<p style="margin:0 0 12px">Recebemos um pedido para redefinir a senha da sua conta no VozInterior. Toque no botão para criar uma senha nova.</p>`,
-            botao: { texto: "Criar nova senha", url: link },
-            observacao: "O link vale por 1 hora e só funciona uma vez. Se não foi você que pediu, ignore este e-mail: sua senha continua a mesma.",
-            base,
-          }),
-        );
+        // Sem `await`: se a resposta esperasse o envio, demoraria mais para quem tem
+        // conta, e o tempo revelaria quem tem cadastro, mesmo com a resposta igual.
+        // Num site de psicologia, isso é dizer quem faz terapia.
+        void (async () => {
+          const link = await gerarLinkDeRecuperacao(input.email, `${base}/redefinir-senha`);
+          if (!link) return;
+          const db = await getDb();
+          const nome = db
+            ? (await db.select({ name: users.name }).from(users).where(eq(users.email, input.email)).limit(1))[0]?.name ?? null
+            : null;
+          await sendEmail(
+            input.email,
+            "Redefinir sua senha — VozInterior",
+            emailComMarca({
+              nome,
+              titulo: "Redefinir sua senha",
+              corpo: `<p style="margin:0 0 12px">Recebemos um pedido para redefinir a senha da sua conta no VozInterior. Toque no botão para criar uma senha nova.</p>`,
+              botao: { texto: "Criar nova senha", url: link },
+              observacao: "O link vale por 1 hora e só funciona uma vez. Se não foi você que pediu, ignore este e-mail: sua senha continua a mesma.",
+              base,
+            }),
+          );
+        })().catch((e) => console.warn("[Recuperacao] envio falhou:", e instanceof Error ? e.name : "erro"));
         return { ok: true } as const;
       }),
     /**
