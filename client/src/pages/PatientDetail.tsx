@@ -275,6 +275,11 @@ export default function PatientDetail() {
   const baixarTcle = async () => {
     try {
       const contrato = await utils.noteTemplates.getContrato.fetch();
+      if (!contrato.texto?.trim()) {
+        toast.info("Envie ou escreva o seu modelo de contrato para gerar o PDF.");
+        setModeloContratoAberto(true);
+        return;
+      }
       await exportTclePDF({
         patient: patient!,
         terms: tcle as TcleData,
@@ -886,7 +891,7 @@ export default function PatientDetail() {
               <div>
                 <h2 className="text-xl font-semibold text-foreground">Contrato e Termo de Consentimento (TCLE)</h2>
                 <p className="text-sm text-muted-foreground">
-                  Termos do contrato terapêutico. Gere o PDF para o paciente assinar.
+                  Preencha os termos deste paciente. O contrato usa o seu modelo, em “Meu modelo”.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">

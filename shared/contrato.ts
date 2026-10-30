@@ -2,8 +2,9 @@ import { z } from "zod";
 
 /**
  * Contrato terapêutico. O modelo é TEXTO com campos `{{assim}}`, preenchidos por
- * paciente na geração do PDF. Cada psicóloga pode ter o seu (enviado em PDF/DOCX
- * ou digitado, em therapists.contratoModelo); sem modelo, vale o CONTRATO_PADRAO.
+ * paciente na geração do PDF. Cada psicóloga usa o SEU, enviado em PDF/DOCX ou
+ * digitado (therapists.contratoModelo). Não há texto padrão de propósito: contrato
+ * é escolha de cada profissional, e o sistema não escreve um por ela.
  *
  * Formato: `# ` é o título do documento, `## ` o de uma seção, e linha em branco
  * separa parágrafos. É texto simples de propósito: dá para conferir e corrigir o
@@ -38,66 +39,6 @@ export type CampoDoContrato = (typeof CAMPOS_DO_CONTRATO)[number]["chave"];
 export const TAMANHO_MAXIMO_DO_CONTRATO = 20000;
 
 export const contratoTextoSchema = z.string().trim().min(1).max(TAMANHO_MAXIMO_DO_CONTRATO);
-
-export const CONTRATO_PADRAO = `# CONTRATO TERAPÊUTICO E TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO
-
-## Paciente
-Nome: {{paciente}}
-Data de nascimento: {{nascimento}}
-CPF: {{cpf_paciente}}
-Endereço: {{endereco}}
-
-## Responsável (paciente menor de idade)
-Nome: {{responsavel}}
-CPF: {{cpf_responsavel}}
-
-## Psicólogo(a)
-Nome: {{psicologa}}
-CRP: {{crp}}
-
-## Atendimento
-A psicoterapia é um processo colaborativo que visa o autoconhecimento e o manejo de demandas emocionais e comportamentais. As sessões têm frequência {{frequencia}} e duração de {{duracao}}, em {{dia_horario}}. Local: {{local}}.
-
-## Duração do processo
-Não há tempo pré-determinado para a conclusão: a duração varia com a necessidade do paciente.
-
-## Sigilo
-Os atendimentos são confidenciais, conforme o Código de Ética Profissional do Psicólogo. O sigilo só poderá ser quebrado em situações de risco de vida para o paciente ou para terceiros, ou por determinação judicial legalmente embasada.
-
-## Registros
-As informações das sessões são registradas em prontuário seguro, de propriedade do paciente e sob a guarda do(a) psicólogo(a) pelo período legal de 5 anos, conforme as normas do CFP e a LGPD.
-
-## Pagamento
-Valor por sessão: {{valor}}
-Forma de pagamento: {{forma_pagamento}}
-Prazo: {{prazo_pagamento}}
-Chave Pix: {{chave_pix}}
-
-## Faltas e cancelamentos
-O horário é reservado exclusivamente ao paciente. Faltas e cancelamentos devem ser avisados com antecedência mínima de {{antecedencia}}; fora desse prazo, procura-se remarcar na mesma semana, conforme a agenda, e, não sendo possível, a sessão é cobrada integralmente. Se a falta for do(a) psicólogo(a), a sessão não é cobrada.
-
-## Atrasos
-Em caso de atraso do paciente, a sessão termina no horário habitual, pois os atendimentos são por hora marcada. Se o atraso for do(a) psicólogo(a), o tempo combinado da sessão é mantido.
-
-## Ausência por longo período
-Em férias, licenças, viagens ou outro afastamento de duas semanas consecutivas ou mais, o paciente que quiser manter o horário reservado paga o valor normal da sessão, e o horário não é destinado a outra pessoa nesse período.
-
-## Documentos psicológicos
-Laudos, relatórios e outros documentos que precisem de mais tempo para serem elaborados devem ser solicitados com 15 dias de antecedência e podem ter taxa adicional, a combinar.
-
-## Considerações finais
-Este contrato mantém a confidencialidade dos dados do paciente e do(a) psicólogo(a). Qualquer alteração só é permitida com o acordo das duas partes.
-
-{{observacoes}}
-
-Data: {{data}}
-
-__________________________________________
-Assinatura do(a) paciente (ou responsável legal)
-
-__________________________________________
-Assinatura e CRP do(a) psicólogo(a)
-`;
 
 const CAMPO = /\{\{\s*([a-z_]+)\s*\}\}/g;
 const CHAVES = new Set<string>(CAMPOS_DO_CONTRATO.map((c) => c.chave));

@@ -75,7 +75,7 @@ export type AnamneseData = Partial<Record<AnamneseChave, string>>;
 
 /**
  * Termo de Consentimento Livre e Esclarecido (TCLE) — os termos variáveis do
- * contrato terapêutico. O texto vem do modelo da psicóloga ou do padrão (ver
+ * contrato terapêutico. O texto vem do modelo da psicóloga (ver
  * shared/contrato.ts); aqui ficam só os valores que mudam por paciente. A data
  * de assinatura é a coluna patients.tcleSignedAt.
  */

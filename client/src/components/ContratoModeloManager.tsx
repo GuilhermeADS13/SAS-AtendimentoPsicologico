@@ -4,8 +4,8 @@ import { uploadModelFile } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, RotateCcw, Upload } from "lucide-react";
-import { CAMPOS_DO_CONTRATO, CONTRATO_PADRAO, TAMANHO_MAXIMO_DO_CONTRATO } from "@shared/contrato";
+import { Loader2, Trash2, Upload } from "lucide-react";
+import { CAMPOS_DO_CONTRATO, TAMANHO_MAXIMO_DO_CONTRATO } from "@shared/contrato";
 
 const ARQUIVO_MAX = 20 * 1024 * 1024; // 20 MB
 
@@ -18,13 +18,13 @@ const ARQUIVO_MAX = 20 * 1024 * 1024; // 20 MB
 export default function ContratoModeloManager() {
   const utils = trpc.useUtils();
   const { data, isLoading } = trpc.noteTemplates.getContrato.useQuery();
-  const [texto, setTexto] = useState(CONTRATO_PADRAO);
+  const [texto, setTexto] = useState("");
   const campoRef = useRef<HTMLTextAreaElement>(null);
   const arquivoRef = useRef<HTMLInputElement>(null);
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
-    if (data) setTexto(data.texto ?? CONTRATO_PADRAO);
+    if (data) setTexto(data.texto ?? "");
   }, [data]);
 
   const salvar = trpc.noteTemplates.saveContrato.useMutation({
@@ -41,10 +41,10 @@ export default function ContratoModeloManager() {
     },
     // O erro é tratado no catch de aoEscolherArquivo, que também cobre o upload.
   });
-  const voltarAoPadrao = trpc.noteTemplates.clearContrato.useMutation({
+  const removerModelo = trpc.noteTemplates.clearContrato.useMutation({
     onSuccess: () => {
       utils.noteTemplates.getContrato.invalidate();
-      toast.success("Voltou ao contrato padrão.");
+      toast.success("Modelo removido.");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -101,15 +101,16 @@ export default function ContratoModeloManager() {
             type="button"
             variant="ghost"
             size="sm"
-            disabled={voltarAoPadrao.isPending}
-            onClick={() => voltarAoPadrao.mutate()}
+            className="text-destructive hover:bg-destructive/10"
+            disabled={removerModelo.isPending}
+            onClick={() => removerModelo.mutate()}
           >
-            <RotateCcw className="mr-1.5 h-4 w-4" />
-            Voltar ao padrão
+            <Trash2 className="mr-1.5 h-4 w-4" />
+            Remover modelo
           </Button>
         )}
         <span className="text-xs text-muted-foreground">
-          {data?.nome ? `Enviado: ${data.nome}` : data?.texto ? "Modelo próprio" : "Usando o modelo padrão"}
+          {data?.nome ? `Enviado: ${data.nome}` : data?.texto ? "Modelo próprio" : "Nenhum modelo ainda"}
         </span>
       </div>
       <p className="text-xs text-muted-foreground">
@@ -145,6 +146,7 @@ export default function ContratoModeloManager() {
         maxLength={TAMANHO_MAXIMO_DO_CONTRATO}
         disabled={isLoading}
         aria-label="Texto do modelo de contrato"
+        placeholder={"Envie o seu contrato ou escreva aqui.\n\nExemplo:\n# CONTRATO TERAPÊUTICO\n\n## Paciente\nNome: {{paciente}}"}
         className="min-h-[320px] text-sm leading-relaxed"
       />
 

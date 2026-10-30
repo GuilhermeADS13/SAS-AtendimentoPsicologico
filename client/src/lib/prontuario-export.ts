@@ -12,7 +12,7 @@
 import type { RouterOutputs } from "@/lib/trpc";
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
 import { ANAMNESE_CAMPOS, TCLE_CAMPOS, SOAP_CAMPOS, type TcleData } from "@shared/prontuario";
-import { CONTRATO_PADRAO, blocosDoContrato, preencherContrato } from "@shared/contrato";
+import { blocosDoContrato, preencherContrato } from "@shared/contrato";
 import { textoSemMarkdown } from "@shared/notasMarkdown";
 
 type Patient = NonNullable<RouterOutputs["patients"]["get"]>;
@@ -318,15 +318,15 @@ export type TcleDocData = {
   emitidoPor?: string | null;
   crp?: string | null;
   pixChave?: string | null;
-  /** Texto do modelo da psicóloga; sem ele, vale o contrato padrão. */
-  modelo?: string | null;
+  /** Texto do modelo da psicóloga. */
+  modelo: string;
 };
 
 /** Preenche o modelo com os dados deste paciente e quebra em seções. */
 function montarTcle(dados: TcleDocData) {
   const t = dados.terms;
   const p = dados.patient;
-  const texto = preencherContrato(dados.modelo?.trim() || CONTRATO_PADRAO, {
+  const texto = preencherContrato(dados.modelo, {
     paciente: `${p.firstName} ${p.lastName}`.trim(),
     nascimento: formatarNascimento(p.dateOfBirth, ""),
     cpf_paciente: t.cpfPaciente,

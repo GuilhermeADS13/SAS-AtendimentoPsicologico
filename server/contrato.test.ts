@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  CAMPOS_DO_CONTRATO,
-  CONTRATO_PADRAO,
-  blocosDoContrato,
-  contratoTextoSchema,
-  preencherContrato,
-} from "../shared/contrato";
+import { blocosDoContrato, contratoTextoSchema, preencherContrato } from "../shared/contrato";
 import { textoSemCortes } from "./ai/document-ingestion";
 
 describe("preenchimento do contrato", () => {
@@ -32,26 +26,19 @@ describe("preenchimento do contrato", () => {
   });
 });
 
-describe("modelo padrão", () => {
-  it("só usa campos que existem", () => {
-    const usados = Array.from(CONTRATO_PADRAO.matchAll(/\{\{([a-z_]+)\}\}/g), (m) => m[1]);
-    const conhecidos = CAMPOS_DO_CONTRATO.map((c) => c.chave as string);
-    expect(usados.filter((c) => !conhecidos.includes(c))).toEqual([]);
+describe("modelo da psicóloga", () => {
+  const modelo = "# MEU CONTRATO\n\n## Pagamento\nValor: {{valor}}\n\n## Sigilo\nTexto próprio.";
+
+  it("título e seções vêm do texto dela", () => {
+    const { titulo, blocos } = blocosDoContrato(modelo);
+    expect(titulo).toBe("MEU CONTRATO");
+    expect(blocos.map((b) => b.titulo)).toEqual(["Pagamento", "Sigilo"]);
+    expect(blocos[0].texto).toContain("{{valor}}");
   });
 
-  it("não traz dado de nenhuma psicóloga", () => {
-    expect(CONTRATO_PADRAO).not.toMatch(/\d{3}\.\d{3}\.\d{3}-\d{2}|@|Recife|Nubank/);
-  });
-
-  it("passa na validação de salvar", () => {
-    expect(contratoTextoSchema.safeParse(CONTRATO_PADRAO).success).toBe(true);
-  });
-
-  it("cada campo tem seção, e o título vira o do documento", () => {
-    const { titulo, blocos } = blocosDoContrato(CONTRATO_PADRAO);
-    expect(titulo).toBe("CONTRATO TERAPÊUTICO E TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO");
-    expect(blocos.map((b) => b.titulo)).toContain("Sigilo");
-    expect(blocos.find((b) => b.titulo === "Pagamento")?.texto).toContain("{{valor}}");
+  it("valida o texto antes de salvar", () => {
+    expect(contratoTextoSchema.safeParse(modelo).success).toBe(true);
+    expect(contratoTextoSchema.safeParse("   ").success).toBe(false);
   });
 });
 

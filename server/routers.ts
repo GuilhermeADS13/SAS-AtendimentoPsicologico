@@ -3238,7 +3238,7 @@ export const appRouter = router({
         }
       }),
 
-    // Volta ao contrato padrão do sistema.
+    // Remove o modelo: gerar contrato volta a pedir um.
     clearContrato: therapistProcedure.mutation(async ({ ctx }) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
