@@ -28,7 +28,9 @@ export function AcoesDoDocumento({ doc, bloqueado }: { doc: Documento; bloqueado
   const visualizacao = visualizacaoDoArquivo(tipo);
   const opcoes = opcoesDeDownload(tipo);
   const [aberto, setAberto] = useState<{ url: string } | null>(null);
-  const [ocupado, setOcupado] = useState(false);
+  // Um botão por vez, e o giro aparece no que foi clicado.
+  const [carregando, setCarregando] = useState<"ver" | "baixar" | null>(null);
+  const ocupado = carregando !== null;
 
   const buscarArquivo = async () => {
     const { url } = await utils.documents.urlDoArquivo.fetch({ id: doc.id });
@@ -38,19 +40,19 @@ export function AcoesDoDocumento({ doc, bloqueado }: { doc: Documento; bloqueado
     return new Blob([await resposta.arrayBuffer()], { type: tipo });
   };
 
-  const comAviso = async (acao: () => Promise<void>) => {
+  const comAviso = async (qual: "ver" | "baixar", acao: () => Promise<void>) => {
     if (bloqueado()) return;
-    setOcupado(true);
+    setCarregando(qual);
     try {
       await acao();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Não foi possível concluir.");
     } finally {
-      setOcupado(false);
+      setCarregando(null);
     }
   };
 
-  const ver = () => comAviso(async () => setAberto({ url: URL.createObjectURL(await buscarArquivo()) }));
+  const ver = () => comAviso("ver", async () => setAberto({ url: URL.createObjectURL(await buscarArquivo()) }));
 
   const fechar = () => {
     if (aberto) URL.revokeObjectURL(aberto.url);
@@ -58,7 +60,7 @@ export function AcoesDoDocumento({ doc, bloqueado }: { doc: Documento; bloqueado
   };
 
   const baixarOriginal = () =>
-    comAviso(async () => {
+    comAviso("baixar", async () => {
       const { url } = await utils.documents.urlDoArquivo.fetch({ id: doc.id, baixar: true });
       if (!url) throw new Error("Não foi possível gerar o link do documento.");
       const link = document.createElement("a");
@@ -69,7 +71,7 @@ export function AcoesDoDocumento({ doc, bloqueado }: { doc: Documento; bloqueado
     });
 
   const baixarEm = (formato: "pdf" | "word") =>
-    comAviso(() =>
+    comAviso("baixar", () =>
       baixarConvertido({ fileName: doc.fileName, fileType: tipo }, formato, {
         arquivo: buscarArquivo,
         texto: async () => (await utils.documents.textoDoArquivo.fetch({ id: doc.id })).texto,
@@ -80,20 +82,20 @@ export function AcoesDoDocumento({ doc, bloqueado }: { doc: Documento; bloqueado
     <>
       {visualizacao && (
         <Button variant="outline" size="sm" onClick={ver} disabled={ocupado}>
-          <Eye className="w-4 h-4 sm:mr-2" />
+          {carregando === "ver" ? <Loader2 className="w-4 h-4 animate-spin sm:mr-2" /> : <Eye className="w-4 h-4 sm:mr-2" />}
           <span className="hidden sm:inline">Ver</span>
         </Button>
       )}
 
       {opcoes.length === 0 ? (
         <Button variant="outline" size="sm" onClick={baixarOriginal} disabled={ocupado} aria-label="Baixar">
-          {ocupado ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          {carregando === "baixar" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
         </Button>
       ) : (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" disabled={ocupado} aria-label="Baixar">
-              {ocupado ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {carregando === "baixar" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               <ChevronDown className="ml-1 w-3 h-3" />
             </Button>
           </DropdownMenuTrigger>
