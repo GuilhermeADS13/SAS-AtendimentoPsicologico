@@ -10,6 +10,7 @@ import {
 } from "../drizzle/schema";
 import { eq, and, or, lt, gte, gt, isNull, inArray, asc } from "drizzle-orm";
 import { sendEmail } from "./mailer";
+import { enviarTelegram } from "./telegram";
 import { contarPacientesCobrados, planoDaPsicologa } from "./assinaturas";
 import { precisaAvisarVencimento, situacaoDaAssinatura } from "../shared/assinatura";
 import { formatarReais, valorDoPlano } from "../shared/precos";
@@ -96,7 +97,12 @@ type SolicitacaoParaAvisar = {
   fullName: string;
   crp: string;
   email: string | null;
+  /** Último aviso enviado; preenchido quer dizer que este é um lembrete. */
+  notifiedAt: Date | null;
 };
+
+/** Enquanto a solicitação estiver pendente, o admin é avisado de novo neste intervalo. */
+export const HORAS_ENTRE_AVISOS_DE_SOLICITACAO = 6;
 
 /** Guarda o motivo da falha na própria solicitação, para ficar visível na tela. */
 async function registrarErro(id: number, motivo: string): Promise<void> {
@@ -108,12 +114,8 @@ async function registrarErro(id: number, motivo: string): Promise<void> {
     .where(eq(therapistRequests.id, id));
 }
 
-/**
- * Manda o e-mail de uma solicitação e marca `notifiedAt`.
- * Devolve false se não deu para enviar — aí `notifiedAt` fica nulo e o próximo
- * ciclo do agendador tenta de novo.
- */
-async function avisarAdmin(req: SolicitacaoParaAvisar): Promise<boolean> {
+/** Manda o e-mail de uma solicitação. Devolve false se não deu para enviar. */
+async function avisarAdminPorEmail(req: SolicitacaoParaAvisar): Promise<boolean> {
   const to = await emailDoAdmin();
   if (!to) {
     const motivo = "sem ADMIN_EMAIL nem usuário admin cadastrado";
@@ -143,7 +145,7 @@ async function avisarAdmin(req: SolicitacaoParaAvisar): Promise<boolean> {
   try {
     entregue = await sendEmail(
       to,
-      `[VozInterior] Solicitação de acesso — ${req.fullName} (CRP ${req.crp})`,
+      `[VozInterior] ${req.notifiedAt ? "Lembrete: " : ""}Solicitação de acesso — ${req.fullName} (CRP ${req.crp})`,
       html,
     );
   } catch (error) {
@@ -159,12 +161,37 @@ async function avisarAdmin(req: SolicitacaoParaAvisar): Promise<boolean> {
     await registrarErro(req.id, "e-mail não configurado (dry-run)");
     return false;
   }
+  return true;
+}
+
+/** Aviso no celular. Sem nome nem CRP: o texto passa por um serviço de fora. */
+async function avisarAdminNoCelular(req: SolicitacaoParaAvisar): Promise<boolean> {
+  const inicio = req.notifiedAt
+    ? "Ainda tem solicitação de CRP esperando no VozInterior."
+    : "Nova solicitação de CRP no VozInterior.";
+  try {
+    return await enviarTelegram(`${inicio} Confira e aprove: ${appUrl()}/solicitacoes`);
+  } catch (error) {
+    console.warn(`[TherapistRequest] falha no Telegram #${req.id}:`, error instanceof Error ? error.message : error);
+    return false;
+  }
+}
+
+/**
+ * Avisa o admin por e-mail e no celular e marca `notifiedAt` (o último aviso).
+ * Um canal não depende do outro: chegou por qualquer um, conta como avisado e o
+ * próximo vai no intervalo de lembrete. Devolve false se nenhum dos dois saiu:
+ * aí `notifiedAt` não muda e o próximo ciclo do agendador tenta de novo.
+ */
+async function avisarAdmin(req: SolicitacaoParaAvisar): Promise<boolean> {
+  const [porEmail, noCelular] = await Promise.all([avisarAdminPorEmail(req), avisarAdminNoCelular(req)]);
+  if (!porEmail && !noCelular) return false;
 
   const db = await getDb();
   if (db) {
     await db
       .update(therapistRequests)
-      .set({ notifiedAt: new Date(), notifyError: null })
+      .set(porEmail ? { notifiedAt: new Date(), notifyError: null } : { notifiedAt: new Date() })
       .where(eq(therapistRequests.id, req.id));
   }
   return true;
@@ -187,6 +214,7 @@ export async function notifyAdminOfTherapistRequest(requestId: number): Promise<
       fullName: therapistRequests.fullName,
       crp: therapistRequests.crp,
       email: therapistRequests.email,
+      notifiedAt: therapistRequests.notifiedAt,
     })
     .from(therapistRequests)
     .where(eq(therapistRequests.id, requestId))
@@ -198,7 +226,8 @@ export async function notifyAdminOfTherapistRequest(requestId: number): Promise<
 
 /**
  * Rede de segurança: reenvia o aviso das solicitações pendentes que ainda não
- * foram notificadas. Roda no ciclo do agendador, a cada 15 min.
+ * foram notificadas e lembra das que seguem sem resposta há
+ * HORAS_ENTRE_AVISOS_DE_SOLICITACAO horas. Roda no ciclo do agendador, a cada 15 min.
  */
 export async function notifyPendingTherapistRequests(): Promise<{
   sent: number;
@@ -207,16 +236,21 @@ export async function notifyPendingTherapistRequests(): Promise<{
   const db = await getDb();
   if (!db) return { sent: 0, failed: 0 };
 
+  const avisadaAntesDe = new Date(Date.now() - HORAS_ENTRE_AVISOS_DE_SOLICITACAO * 60 * 60 * 1000);
   const pendentes = await db
     .select({
       id: therapistRequests.id,
       fullName: therapistRequests.fullName,
       crp: therapistRequests.crp,
       email: therapistRequests.email,
+      notifiedAt: therapistRequests.notifiedAt,
     })
     .from(therapistRequests)
     .where(
-      and(eq(therapistRequests.status, "pending"), isNull(therapistRequests.notifiedAt)),
+      and(
+        eq(therapistRequests.status, "pending"),
+        or(isNull(therapistRequests.notifiedAt), lt(therapistRequests.notifiedAt, avisadaAntesDe)),
+      ),
     )
     .limit(20);
 

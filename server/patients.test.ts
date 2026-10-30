@@ -336,9 +336,21 @@ describe("solicitação de acesso profissional", () => {
     );
     // Falha registra o motivo em vez de sumir no log.
     expect(avisar).toMatch(/registrarErro/);
-    // A rede de segurança existe e só pega pendente ainda não avisado.
+    // A rede de segurança existe e só pega pendente: não avisado ou avisado há tempo.
     expect(fonte).toContain("export async function notifyPendingTherapistRequests");
     expect(fonte).toContain("isNull(therapistRequests.notifiedAt)");
+    expect(fonte).toContain("lt(therapistRequests.notifiedAt, avisadaAntesDe)");
+    expect(fonte).toContain('eq(therapistRequests.status, "pending")');
+  });
+
+  it("o aviso no celular não leva dado da pessoa", () => {
+    const fonte = readFileSync(new URL("./notifications.ts", import.meta.url), "utf8");
+    const celular = fonte.slice(
+      fonte.indexOf("async function avisarAdminNoCelular"),
+      fonte.indexOf("async function avisarAdmin(req"),
+    );
+    expect(celular).toContain("enviarTelegram");
+    expect(celular).not.toMatch(/req\.(fullName|crp|email)/);
   });
 
   it("o agendador roda o reenvio das solicitações", () => {
