@@ -269,35 +269,57 @@ export async function notifyPendingTherapistRequests(): Promise<{
   return { sent, failed };
 }
 
+/**
+ * O e-mail do resultado da análise do CRP. O teste só é citado para quem ganhou:
+ * CRP ou celular já usados em outra conta não têm teste, e o acesso depende do Pix.
+ */
+export function emailDoResultadoDaSolicitacao(
+  req: { fullName: string; approved: boolean; ganhouTeste?: boolean },
+  base: string,
+): { assunto: string; html: string } {
+  if (!req.approved) {
+    return {
+      assunto: "Sobre sua solicitação de acesso — VozInterior",
+      html: emailComMarca({
+        nome: req.fullName,
+        titulo: "Sua solicitação não foi aprovada",
+        corpo: `<p style="margin:0 0 12px">Não conseguimos aprovar seu acesso profissional. Sua conta continua ativa como paciente.</p>`,
+        observacao: "Se acredita que houve um engano, responda este e-mail.",
+        base,
+      }),
+    };
+  }
+
+  const teste = req.ganhouTeste
+    ? `<p style="margin:0 0 12px">Seus ${DIAS_DE_TESTE_GRATIS} dias de teste grátis só começam a contar quando você cadastrar o primeiro paciente.</p>${detalhesDoEmail([
+        ["Teste grátis", `${DIAS_DE_TESTE_GRATIS} dias, a partir do primeiro paciente`],
+        ["Prazo", `${DIAS_PARA_O_PRIMEIRO_PACIENTE} dias para cadastrar o primeiro paciente; depois disso, o acesso pausa`],
+      ])}`
+    : `<p style="margin:0 0 12px">Esse CRP ou celular já usou o teste grátis em outra conta. Para começar a atender, faça o Pix na aba Assinatura.</p>`;
+
+  return {
+    assunto: "Seu cadastro foi aprovado — VozInterior",
+    html: emailComMarca({
+      nome: req.fullName,
+      titulo: "Seu cadastro foi aprovado",
+      corpo: `<p style="margin:0 0 12px">Conferimos seu CRP e sua área clínica já está liberada.</p>${teste}`,
+      botao: { texto: "Entrar no VozInterior", url: `${base}/login` },
+      observacao: "Se você já estava com o site aberto, saia e entre de novo para o acesso valer.",
+      base,
+    }),
+  };
+}
+
 /** Avisa quem pediu acesso profissional do resultado da análise. */
 export async function notifyTherapistRequestReviewed(req: {
   email: string;
   fullName: string;
   approved: boolean;
+  ganhouTeste?: boolean;
 }): Promise<void> {
   if (!req.email) return;
-
-  const base = appUrl();
-  const primeiroNome = req.fullName.trim().split(/\s+/)[0];
-
-  const html = req.approved
-    ? `<p>Olá, ${primeiroNome}!</p>
-       <p>Seu <strong>acesso profissional foi aprovado</strong>. Entre em
-         <a href="${base}/login">${base}</a> — sua área clínica já está liberada.</p>
-       <p>Seus ${DIAS_DE_TESTE_GRATIS} dias de teste grátis só começam a contar quando você cadastrar o primeiro paciente. Você tem ${DIAS_PARA_O_PRIMEIRO_PACIENTE} dias para fazer esse cadastro; depois disso, o acesso pausa.</p>
-       <p>Se você já estava com o site aberto, saia e entre de novo para o acesso valer.</p>`
-    : `<p>Olá, ${primeiroNome}.</p>
-       <p>Sua solicitação de acesso profissional <strong>não foi aprovada</strong>.
-         Sua conta continua ativa como paciente.</p>
-       <p>Se acredita que houve um engano, responda este e-mail.</p>`;
-
-  await sendEmail(
-    req.email,
-    req.approved
-      ? "[VozInterior] Seu acesso profissional foi aprovado"
-      : "[VozInterior] Sobre sua solicitação de acesso profissional",
-    html,
-  );
+  const { assunto, html } = emailDoResultadoDaSolicitacao(req, appUrl());
+  await sendEmail(req.email, assunto, html);
 }
 
 type NotificationRow = typeof notifications.$inferSelect;

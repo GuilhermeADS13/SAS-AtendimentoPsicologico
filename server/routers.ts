@@ -1686,6 +1686,7 @@ export const appRouter = router({
           email: req.email ?? "",
           fullName: req.fullName,
           approved: true,
+          ganhouTeste: assinatura.ganhouTeste,
         }).catch((e) => console.warn("[TherapistRequest] e-mail de aprovação falhou:", e));
 
         return { action: "approved" as const, ganhouTeste: assinatura.ganhouTeste, fundador: assinatura.fundador };
