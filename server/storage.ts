@@ -19,10 +19,13 @@ function storageClient(env: NodeJS.ProcessEnv = process.env) {
 }
 
 /** URL assinada temporária para baixar um arquivo do bucket privado, ou null. */
-export async function signDocumentUrl(fileKey: string, ttlSeconds = 300): Promise<string | null> {
+export async function signDocumentUrl(fileKey: string, ttlSeconds = 300, baixarComo?: string): Promise<string | null> {
   const client = storageClient();
   if (!client) return null;
-  const { data, error } = await client.storage.from(DOCS_BUCKET).createSignedUrl(fileKey, ttlSeconds);
+  // `download` faz o navegador salvar o arquivo em vez de abrir na aba.
+  const { data, error } = await client.storage
+    .from(DOCS_BUCKET)
+    .createSignedUrl(fileKey, ttlSeconds, baixarComo ? { download: baixarComo } : undefined);
   if (error) {
     console.error("Falha ao assinar URL do anexo:", error.message);
     return null;

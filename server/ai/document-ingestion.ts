@@ -42,12 +42,13 @@ export function textoSemCortes(text: string, pageNumber?: number): ExtractedChun
   return content ? [{ content, pageNumber }] : [];
 }
 
-export async function extractPdfText(buffer: Buffer, partir = chunkExtractedText): Promise<ExtractedChunk[]> {
+export async function extractPdfText(buffer: Buffer, partir = chunkExtractedText, { ocr = true } = {}): Promise<ExtractedChunk[]> {
   const parser = new PDFParse({ data: buffer });
   try {
     const result = await parser.getText();
     const textChunks = result.pages.flatMap(page => partir(page.text, page.num));
     if (textChunks.length > 0) return textChunks.map(chunk => ({ ...chunk }));
+    if (!ocr) return [];
 
     const screenshots = await parser.getScreenshot({ scale: 1.5, imageBuffer: true, imageDataUrl: false });
     const worker = await createWorker("por");
@@ -79,12 +80,13 @@ export async function extractClinicalDocument(
   fileType: string,
   fileName: string,
   partir = chunkExtractedText,
+  opcoes: { ocr?: boolean } = {},
 ): Promise<ExtractedChunk[]> {
   if (buffer.byteLength > MAX_FILE_BYTES) throw new Error("Documento excede o limite de 25 MB");
   const normalizedType = fileType.toLowerCase();
   const normalizedName = fileName.toLowerCase();
   if (normalizedType === "application/pdf" || normalizedName.endsWith(".pdf")) {
-    return extractPdfText(buffer, partir);
+    return extractPdfText(buffer, partir, opcoes);
   }
   if (
     normalizedType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||

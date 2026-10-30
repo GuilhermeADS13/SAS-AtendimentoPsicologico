@@ -3336,17 +3336,40 @@ export const appRouter = router({
     // Link temporário do arquivo. Passa por aqui, e não direto pelo Storage, para o
     // download exigir o aparelho confirmado, como o resto do prontuário.
     urlDoArquivo: therapistProcedure
-      .input(z.object({ id: z.number() }))
+      .input(z.object({ id: z.number(), baixar: z.boolean().optional() }))
       .query(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) return { url: null };
         const [doc] = await db
-          .select({ fileKey: documents.fileKey })
+          .select({ fileKey: documents.fileKey, fileName: documents.fileName })
           .from(documents)
           .innerJoin(therapists, eq(therapists.id, documents.therapistId))
           .where(and(eq(documents.id, input.id), eq(therapists.userId, ctx.user.id)))
           .limit(1);
-        return { url: doc ? await signDocumentUrl(doc.fileKey) : null };
+        return { url: doc ? await signDocumentUrl(doc.fileKey, 300, input.baixar ? doc.fileName : undefined) : null };
+      }),
+
+    // Texto do PDF ou DOCX, para baixar no outro formato. Sem leitura de imagem
+    // (OCR): ela segura centenas de MB, e o servidor do plano grátis tem 512.
+    textoDoArquivo: therapistProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return { texto: "" };
+        const [doc] = await db
+          .select({ fileKey: documents.fileKey, fileName: documents.fileName, fileType: documents.fileType })
+          .from(documents)
+          .innerJoin(therapists, eq(therapists.id, documents.therapistId))
+          .where(and(eq(documents.id, input.id), eq(therapists.userId, ctx.user.id)))
+          .limit(1);
+        if (!doc) return { texto: "" };
+        if (!dentroDoLimite(`conversao:${ctx.user.id}`, 10, 60_000)) {
+          throw new Error("Muitas conversões seguidas. Espere um minuto.");
+        }
+        const buffer = await downloadDocumentFile(doc.fileKey);
+        if (!buffer) throw new Error("Não foi possível ler o arquivo.");
+        const paginas = await extractClinicalDocument(buffer, doc.fileType ?? "", doc.fileName, textoSemCortes, { ocr: false });
+        return { texto: paginas.map((p) => p.content).join("\n\n") };
       }),
 
     // Apaga o ARQUIVO primeiro, o registro depois: se falhar no meio, sobra o registro

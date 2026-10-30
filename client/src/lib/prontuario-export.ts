@@ -162,7 +162,7 @@ function montar(dados: ProntuarioData): Prontuario {
   };
 }
 
-function baixar(blob: Blob, arquivo: string): void {
+export function baixar(blob: Blob, arquivo: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

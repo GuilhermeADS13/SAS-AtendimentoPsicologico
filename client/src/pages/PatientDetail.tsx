@@ -5,6 +5,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { uploadDocumentFile } from "@/lib/supabase";
 import { exportProntuarioPDF, exportProntuarioDOCX, exportTclePDF } from "@/lib/prontuario-export";
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
+import { AcoesDoDocumento } from "@/components/AcoesDoDocumento";
 import ContratoModeloManager from "@/components/ContratoModeloManager";
 import EditorDeAnotacao from "@/components/EditorDeAnotacao";
 import { Streamdown } from "streamdown";
@@ -44,7 +45,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, FileText, Calendar, MessageSquare, Pencil, Plus, Upload, Download, Trash2, FileDown, Loader2, Wallet, CheckCircle2, ClipboardList, FileSignature, Save } from "lucide-react";
+import { ArrowLeft, FileText, Calendar, MessageSquare, Pencil, Plus, Upload, Trash2, FileDown, Loader2, Wallet, CheckCircle2, ClipboardList, FileSignature, Save } from "lucide-react";
 import { formatarBRL } from "@shared/dinheiro";
 import { SugestaoDeEmail } from "@/components/SugestaoDeEmail";
 
@@ -419,20 +420,6 @@ export default function PatientDetail() {
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
-  const handleDownload = async (id: number) => {
-    if (avisoExemplo()) return;
-    // Abre a aba antes do `await`: depois dele, o navegador trata como pop-up.
-    const aba = window.open("", "_blank");
-    const { url } = await utils.documents.urlDoArquivo.fetch({ id }).catch(() => ({ url: null }));
-    if (url && aba) {
-      aba.opener = null;
-      aba.location.href = url;
-    } else {
-      aba?.close();
-      toast.error("Não foi possível gerar o link do documento.");
     }
   };
 
@@ -875,14 +862,7 @@ export default function PatientDetail() {
                         </div>
                       </div>
                       <div className="flex gap-2 shrink-0">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownload(doc.id)}
-                          title="Baixar"
-                        >
-                          <Download className="w-4 h-4" />
-                        </Button>
+                        <AcoesDoDocumento doc={doc} bloqueado={avisoExemplo} />
                         <Button
                           variant="ghost"
                           size="sm"
