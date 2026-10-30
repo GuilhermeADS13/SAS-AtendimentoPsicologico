@@ -2,11 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import {
-  uploadDocumentFile,
-  getDocumentSignedUrl,
-  removeDocumentFile,
-} from "@/lib/supabase";
+import { uploadDocumentFile } from "@/lib/supabase";
 import { exportProntuarioPDF, exportProntuarioDOCX, exportTclePDF } from "@/lib/prontuario-export";
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
 import ContratoModeloManager from "@/components/ContratoModeloManager";
@@ -426,30 +422,23 @@ export default function PatientDetail() {
     }
   };
 
-  const handleDownload = async (fileKey: string) => {
+  const handleDownload = async (id: number) => {
     if (avisoExemplo()) return;
-    const url = await getDocumentSignedUrl(fileKey);
-    if (url) window.open(url, "_blank", "noopener");
-    else toast.error("Não foi possível gerar o link do documento.");
+    // Abre a aba antes do `await`: depois dele, o navegador trata como pop-up.
+    const aba = window.open("", "_blank");
+    const { url } = await utils.documents.urlDoArquivo.fetch({ id }).catch(() => ({ url: null }));
+    if (url && aba) {
+      aba.opener = null;
+      aba.location.href = url;
+    } else {
+      aba?.close();
+      toast.error("Não foi possível gerar o link do documento.");
+    }
   };
 
-  /**
-   * Apaga o ARQUIVO primeiro, o registro depois.
-   *
-   * Era o contrário: o registro sumia e o arquivo era "melhor-esforço", com um
-   * comentário prometendo que o órfão "some depois" — não existe rotina nenhuma
-   * que faça isso. E como o remove() não lançava, a falha nem chegava ao aviso.
-   * Resultado: um documento clínico que a psicóloga apagou podia ficar no bucket
-   * para sempre, sem rastro.
-   *
-   * Nesta ordem, o pior caso se inverte: se algo falhar no meio, quem sobra é o
-   * REGISTRO (visível na lista, dá para tentar de novo), nunca o arquivo clínico
-   * escondido no bucket.
-   */
-  const handleDeleteDoc = async (id: number, fileKey: string) => {
+  const handleDeleteDoc = async (id: number) => {
     if (avisoExemplo()) return;
     try {
-      await removeDocumentFile(fileKey);
       await deleteDocument.mutateAsync({ id });
       await documentsQuery.refetch();
       toast.success("Documento removido.");
@@ -889,7 +878,7 @@ export default function PatientDetail() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleDownload(doc.fileKey)}
+                          onClick={() => handleDownload(doc.id)}
                           title="Baixar"
                         >
                           <Download className="w-4 h-4" />
@@ -897,7 +886,7 @@ export default function PatientDetail() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDeleteDoc(doc.id, doc.fileKey)}
+                          onClick={() => handleDeleteDoc(doc.id)}
                           className="text-destructive hover:bg-destructive/10"
                           title="Excluir"
                         >

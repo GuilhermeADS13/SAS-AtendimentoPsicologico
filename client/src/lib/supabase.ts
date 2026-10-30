@@ -54,27 +54,6 @@ export async function uploadDocumentFile(patientId: number, file: File): Promise
   return path;
 }
 
-/** Gera uma URL assinada temporária para baixar/visualizar o documento. */
-export async function getDocumentSignedUrl(path: string): Promise<string | null> {
-  if (!supabase) return null;
-  const { data } = await supabase.storage.from(DOCS_BUCKET).createSignedUrl(path, 60 * 5);
-  return data?.signedUrl ?? null;
-}
-
-/**
- * Remove o arquivo do Storage — e LANÇA se não conseguir.
- *
- * O `remove()` do Supabase não lança quando falha: ele DEVOLVE `{ error }`. Antes
- * esse retorno era ignorado, então uma exclusão que falhava passava como sucesso e
- * o arquivo clínico ficava no bucket sem ninguém saber. Para documento de
- * prontuário isso é LGPD (direito à eliminação), não detalhe.
- */
-export async function removeDocumentFile(path: string): Promise<void> {
-  if (!supabase) return;
-  const { error } = await supabase.storage.from(DOCS_BUCKET).remove([path]);
-  if (error) throw new Error(`Não foi possível apagar o arquivo: ${error.message}`);
-}
-
 /**
  * Anexo do chat: sobe para o bucket privado `documents` sob o uid do remetente
  * (a RLS exige o uid no 1º segmento). O download pelo OUTRO lado é feito por URL

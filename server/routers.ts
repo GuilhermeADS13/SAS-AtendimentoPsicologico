@@ -8,7 +8,7 @@ import { z } from "zod";
 import { iceServersParaChamada } from "./turn";
 import { getDb } from "./db";
 import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessageFeedback, patients, appointments, appointmentParticipants, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users, chatMessages, assinaturas } from "../drizzle/schema";
-import { signDocumentUrl, downloadDocumentFile, removeDocumentFile as removeStorageFile, assinarFotos } from "./storage";
+import { signDocumentUrl, downloadDocumentFile, apagarArquivoDoDocumento, removeDocumentFile as removeStorageFile, assinarFotos } from "./storage";
 import { extractClinicalDocument, textoSemCortes } from "./ai/document-ingestion";
 import { sendEmail } from "./mailer";
 import { celularDaConta, gerarLinkDeCadastro, gerarLinkDeRecuperacao, trocarEmailSupabase } from "./supabaseAdmin";
@@ -3295,7 +3295,24 @@ export const appRouter = router({
         return { success: true, documentId: inserted[0]?.id } as const;
       }),
 
-    // Remove o metadado (o caller apaga o arquivo do Storage usando o fileKey).
+    // Link temporário do arquivo. Passa por aqui, e não direto pelo Storage, para o
+    // download exigir o aparelho confirmado, como o resto do prontuário.
+    urlDoArquivo: therapistProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return { url: null };
+        const [doc] = await db
+          .select({ fileKey: documents.fileKey })
+          .from(documents)
+          .innerJoin(therapists, eq(therapists.id, documents.therapistId))
+          .where(and(eq(documents.id, input.id), eq(therapists.userId, ctx.user.id)))
+          .limit(1);
+        return { url: doc ? await signDocumentUrl(doc.fileKey) : null };
+      }),
+
+    // Apaga o ARQUIVO primeiro, o registro depois: se falhar no meio, sobra o registro
+    // (visível, dá para tentar de novo), nunca o arquivo clínico escondido no bucket.
     delete: therapistProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
@@ -3318,6 +3335,7 @@ export const appRouter = router({
 
         if (!rows.length) throw new Error("Document not found");
 
+        await apagarArquivoDoDocumento(rows[0].fileKey);
         await db.delete(aiDocumentJobs).where(eq(aiDocumentJobs.documentId, input.id));
         await db.delete(aiDocumentChunks).where(eq(aiDocumentChunks.documentId, input.id));
         await db.delete(documents).where(eq(documents.id, input.id));

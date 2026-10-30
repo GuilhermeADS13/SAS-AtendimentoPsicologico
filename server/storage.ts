@@ -63,6 +63,17 @@ export async function downloadDocumentFile(fileKey: string): Promise<Buffer | nu
   return Buffer.from(await data.arrayBuffer());
 }
 
+/**
+ * Apaga um documento do prontuário e LANÇA se não conseguir: excluir é o direito à
+ * eliminação da LGPD, e uma falha não pode passar como sucesso.
+ */
+export async function apagarArquivoDoDocumento(fileKey: string): Promise<void> {
+  const client = storageClient();
+  if (!client) throw new Error("Armazenamento de arquivos indisponível.");
+  const { error } = await client.storage.from(DOCS_BUCKET).remove([fileKey]);
+  if (error) throw new Error(`Não foi possível apagar o arquivo: ${error.message}`);
+}
+
 /** Remove um arquivo do bucket (best-effort; não lança). */
 export async function removeDocumentFile(fileKey: string): Promise<void> {
   const client = storageClient();
