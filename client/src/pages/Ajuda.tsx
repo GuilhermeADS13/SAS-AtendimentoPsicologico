@@ -14,7 +14,7 @@ import { LogoLockup, LumaOwlIcon } from "@/components/Logo";
 import { OPEN_ONBOARDING_EVENT } from "@/components/LumaOnboarding";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useRole } from "@/hooks/useRole";
-import { linkWhatsAppDoSuporte } from "@/lib/suporte";
+import { linkWhatsAppDoSuporte, REDES_SOCIAIS } from "@/lib/suporte";
 import { ArrowLeft, CircleHelp, Mail } from "lucide-react";
 
 const MENSAGEM_PRONTA = "Olá! Preciso de ajuda com o VozInterior.";
@@ -728,6 +728,21 @@ export default function Ajuda() {
               </Card>
             )}
           </div>
+
+          <nav aria-label="Redes sociais" className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+            <span className="text-muted-foreground">Também estamos no</span>
+            {REDES_SOCIAIS.map((r) => (
+              <a
+                key={r.href}
+                href={r.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                {r.rotulo}
+              </a>
+            ))}
+          </nav>
         </div>
     </div>
   );

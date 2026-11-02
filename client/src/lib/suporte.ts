@@ -23,6 +23,13 @@ export const PIX_COPIA_E_COLA =
  */
 export const RESPONSAVEL_PELO_SERVICO = "Guilherme Maciel dos Santos";
 
+/** Perfis da marca, usados no rodapé do site e na Ajuda. */
+export const REDES_SOCIAIS = [
+  { href: "https://www.instagram.com/vozinterior.oficial_/", rotulo: "Instagram" },
+  { href: "https://www.tiktok.com/@vozinterior.oficial_", rotulo: "TikTok" },
+  { href: "https://www.youtube.com/@VozInteriorSuporte", rotulo: "YouTube" },
+];
+
 export function linkWhatsAppDoSuporte(mensagem: string): string | null {
   const digitos = SUPORTE_WHATSAPP.replace(/\D/g, "");
   if (!digitos) return null;

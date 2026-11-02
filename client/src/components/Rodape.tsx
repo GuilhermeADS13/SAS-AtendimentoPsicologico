@@ -1,18 +1,12 @@
 import { Link } from "wouter";
 import { APP_NAME, LogoLockup } from "@/components/Logo";
-import { RESPONSAVEL_PELO_SERVICO } from "@/lib/suporte";
+import { REDES_SOCIAIS, RESPONSAVEL_PELO_SERVICO } from "@/lib/suporte";
 
 const LINKS = [
   { href: "/precos", rotulo: "Preços" },
   { href: "/ajuda", rotulo: "Ajuda" },
   { href: "/termos", rotulo: "Termos de Uso" },
   { href: "/privacidade", rotulo: "Privacidade" },
-];
-
-const REDES = [
-  { href: "https://www.instagram.com/vozinterior.oficial_/", rotulo: "Instagram" },
-  { href: "https://www.tiktok.com/@vozinterior.oficial_", rotulo: "TikTok" },
-  { href: "https://www.youtube.com/@VozInteriorSuporte", rotulo: "YouTube" },
 ];
 
 /**
@@ -45,7 +39,7 @@ export function Rodape() {
             </a>
           </p>
           <nav aria-label="Redes sociais" className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm">
-            {REDES.map((r) => (
+            {REDES_SOCIAIS.map((r) => (
               <a
                 key={r.href}
                 href={r.href}
