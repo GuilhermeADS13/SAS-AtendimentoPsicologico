@@ -135,7 +135,7 @@ const therapistSteps: Step[] = [
     aba: "documents",
     icon: FolderOpen,
     title: "Documentos",
-    body: "Guarde arquivos do paciente, como PDF, fotos e Word. “Ver” abre o documento aqui mesmo, por cima da tela. A seta ao lado salva no computador: o arquivo original ou, quando dá para converter, em PDF ou Word.",
+    body: "Guarde arquivos do paciente, como PDF, fotos e Word. “Ver” abre o documento aqui mesmo, por cima da tela. A seta ao lado salva no computador: o arquivo original ou, quando dá para converter, em PDF ou Word. Tudo aqui é só seu: para o paciente ver um laudo, parecer ou atestado, use “Compartilhar” naquele documento.",
     target: '[data-tour="aba-documents"]',
   },
   {
@@ -240,6 +240,13 @@ const patientSteps: Step[] = [
     title: "Mensagens",
     body: "Converse com a sua psicóloga quando quiser e envie arquivos, emojis e GIFs. Dois tiques (✓✓) quer dizer que ela já leu. Para achar uma mensagem antiga, use a lupa. Mandou errado? Toque na setinha da sua mensagem para editar (até 15 min) ou apagar para todos (até 2 dias).",
     target: '[data-tour="chat-composer"]',
+  },
+  {
+    path: "/documentos",
+    icon: FileText,
+    title: "Meus documentos",
+    body: "Aqui ficam os laudos, pareceres e atestados que a sua psicóloga compartilhar com você. Dá para ver na tela ou salvar no aparelho.",
+    target: '[data-tour="meus-documentos"]',
   },
   {
     path: "/psicologa",

@@ -33,6 +33,7 @@ import {
   Mensagens,
   MyAppointments,
   MyTherapist,
+  MeusDocumentos,
   PatientDetail,
   Precos,
   Privacidade,
@@ -134,6 +135,7 @@ function Router() {
       <Route path={"/mensagens"} component={Mensagens} />
       <Route path={"/consultas"} component={MyAppointments} />
       <Route path={"/psicologa"} component={MyTherapist} />
+      <Route path={"/documentos"} component={MeusDocumentos} />
       <Route path={"/profile"} component={Profile} />
       {/* Sem TherapistOnly: e-mail e senha são da conta, não do papel. */}
       <Route path={"/configuracoes"} component={Configuracoes} />

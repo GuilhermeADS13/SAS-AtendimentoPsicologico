@@ -29,7 +29,7 @@ import { PatientNotificationsBell } from "./PatientNotificationsBell";
 import { LogoFull, LogoLockup, LumaOwlIcon } from "./Logo";
 import LumaOnboarding from "./LumaOnboarding";
 import { AvisoDoPlano } from "./SeuPlano";
-import { BadgeCheck, Brain, Calendar, CircleHelp, CreditCard, LayoutDashboard, LogOut, MessageSquare, PanelLeft, Settings, Stethoscope, UserRound, Users, Video, Wallet } from "lucide-react";
+import { BadgeCheck, Brain, Calendar, CircleHelp, CreditCard, FileText, LayoutDashboard, LogOut, MessageSquare, PanelLeft, Settings, Stethoscope, UserRound, Users, Video, Wallet } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -77,6 +77,7 @@ const adminMenu = [{ icon: BadgeCheck, label: "Solicitações", path: "/solicita
 const patientMenu = [
   { icon: Calendar, label: "Minhas Consultas", path: "/consultas" },
   { icon: MessageSquare, label: "Mensagens", path: "/mensagens" },
+  { icon: FileText, label: "Meus documentos", path: "/documentos" },
   { icon: LumaOwlIcon, label: "Luma — Meu apoio", path: "/luma" },
   { icon: Stethoscope, label: "Minha Psicóloga", path: "/psicologa" },
   // "Meu Cadastro" saiu: o cadastro do paciente agora vive DENTRO de

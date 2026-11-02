@@ -424,6 +424,9 @@ export const documents = pgTable("documents", {
   fileType: varchar("fileType", { length: 50 }).notNull(),
   fileSize: integer("fileSize").notNull(),
   documentType: documentTypeEnum("documentType").default("other").notNull(),
+  /** Como o paciente vê este documento (migração 0050). Nulo = privado, o padrão. */
+  tipoParaPaciente: varchar("tipoParaPaciente", { length: 20 }),
+  compartilhadoEm: timestamp("compartilhadoEm", { withTimezone: true, mode: "date" }),
   description: text("description"),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })

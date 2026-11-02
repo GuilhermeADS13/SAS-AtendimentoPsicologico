@@ -1,6 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { anamneseSchema, tcleSchema, noteTemplatesSchema } from "@shared/prontuario";
 import { TAMANHO_MAXIMO_DO_CONTRATO, contratoTextoSchema } from "@shared/contrato";
+import { tipoParaPacienteSchema } from "@shared/documentosDoPaciente";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, contaProcedure, protectedProcedure, therapistProcedure, adminProcedure, router } from "./_core/trpc";
@@ -1432,6 +1433,44 @@ export const appRouter = router({
         };
       });
     }),
+
+    /**
+     * Documentos que a psicóloga compartilhou com este paciente. Colunas escolhidas
+     * à mão: o caminho no Storage e a descrição interna não saem daqui.
+     */
+    documentos: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return [];
+      const paciente = await pacienteDoUsuario(db, ctx.user);
+      if (!paciente) return [];
+      return db
+        .select({
+          id: documents.id,
+          fileName: documents.fileName,
+          fileType: documents.fileType,
+          tipo: documents.tipoParaPaciente,
+          compartilhadoEm: documents.compartilhadoEm,
+        })
+        .from(documents)
+        .where(and(eq(documents.patientId, paciente.id), isNotNull(documents.tipoParaPaciente)))
+        .orderBy(desc(documents.compartilhadoEm));
+    }),
+
+    // A mesma regra da lista: documento de outro paciente, ou ainda privado, não tem link.
+    urlDoDocumento: protectedProcedure
+      .input(z.object({ id: z.number(), baixar: z.boolean().optional() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return { url: null };
+        const paciente = await pacienteDoUsuario(db, ctx.user);
+        if (!paciente) return { url: null };
+        const [doc] = await db
+          .select({ fileKey: documents.fileKey, fileName: documents.fileName })
+          .from(documents)
+          .where(and(eq(documents.id, input.id), eq(documents.patientId, paciente.id), isNotNull(documents.tipoParaPaciente)))
+          .limit(1);
+        return { url: doc ? await signDocumentUrl(doc.fileKey, 300, input.baixar ? doc.fileName : undefined) : null };
+      }),
 
     /**
      * "Pix copia e cola" da psicóloga do paciente, SEM valor (a tela embute o de
@@ -3332,6 +3371,27 @@ export const appRouter = router({
         }).returning({ id: documents.id });
 
         return { success: true, documentId: inserted[0]?.id } as const;
+      }),
+
+    // Mostra o documento ao paciente, ou volta a deixá-lo privado (tipo nulo).
+    compartilhar: therapistProcedure
+      .input(z.object({ id: z.number(), tipo: tipoParaPacienteSchema.nullable() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const [therapist] = await db
+          .select({ id: therapists.id })
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+        if (!therapist) throw new Error("Therapist not found");
+        const alterados = await db
+          .update(documents)
+          .set({ tipoParaPaciente: input.tipo, compartilhadoEm: input.tipo ? new Date() : null })
+          .where(and(eq(documents.id, input.id), eq(documents.therapistId, therapist.id)))
+          .returning({ id: documents.id });
+        if (!alterados.length) throw new Error("Documento não encontrado.");
+        return { success: true } as const;
       }),
 
     // Link temporário do arquivo. Passa por aqui, e não direto pelo Storage, para o

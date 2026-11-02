@@ -10,10 +10,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { baixarConvertido } from "@/lib/documento-export";
-import { trpc } from "@/lib/trpc";
 import { opcoesDeDownload, visualizacaoDoArquivo } from "@shared/formatosDeDocumento";
 
-type Documento = { id: number; fileName: string; fileType: string | null };
+type Documento = { fileName: string; fileType: string | null };
 
 /**
  * Ver e baixar um documento do prontuário.
@@ -22,18 +21,29 @@ type Documento = { id: number; fileName: string; fileType: string | null };
  * abrir iframe do próprio site, e o link assinado do Storage é de outro domínio.
  * O tipo do blob é o conhecido, nunca o que veio na resposta.
  */
-export function AcoesDoDocumento({ doc, bloqueado }: { doc: Documento; bloqueado: () => boolean }) {
-  const utils = trpc.useUtils();
+export function AcoesDoDocumento({
+  doc,
+  obterUrl,
+  obterTexto,
+  bloqueado,
+}: {
+  doc: Documento;
+  /** O link vem da rota de quem está vendo: a psicóloga e o paciente têm regras diferentes. */
+  obterUrl: (baixar: boolean) => Promise<string | null>;
+  /** Sem ela, só o arquivo original: o paciente não converte formato. */
+  obterTexto?: () => Promise<string>;
+  bloqueado?: () => boolean;
+}) {
   const tipo = doc.fileType ?? "";
   const visualizacao = visualizacaoDoArquivo(tipo);
-  const opcoes = opcoesDeDownload(tipo);
+  const opcoes = obterTexto ? opcoesDeDownload(tipo) : [];
   const [aberto, setAberto] = useState<{ url: string } | null>(null);
   // Um botão por vez, e o giro aparece no que foi clicado.
   const [carregando, setCarregando] = useState<"ver" | "baixar" | null>(null);
   const ocupado = carregando !== null;
 
   const buscarArquivo = async () => {
-    const { url } = await utils.documents.urlDoArquivo.fetch({ id: doc.id });
+    const url = await obterUrl(false);
     if (!url) throw new Error("Não foi possível abrir o documento.");
     const resposta = await fetch(url);
     if (!resposta.ok) throw new Error("Não foi possível abrir o documento.");
@@ -41,7 +51,7 @@ export function AcoesDoDocumento({ doc, bloqueado }: { doc: Documento; bloqueado
   };
 
   const comAviso = async (qual: "ver" | "baixar", acao: () => Promise<void>) => {
-    if (bloqueado()) return;
+    if (bloqueado?.()) return;
     setCarregando(qual);
     try {
       await acao();
@@ -61,7 +71,7 @@ export function AcoesDoDocumento({ doc, bloqueado }: { doc: Documento; bloqueado
 
   const baixarOriginal = () =>
     comAviso("baixar", async () => {
-      const { url } = await utils.documents.urlDoArquivo.fetch({ id: doc.id, baixar: true });
+      const url = await obterUrl(true);
       if (!url) throw new Error("Não foi possível gerar o link do documento.");
       const link = document.createElement("a");
       link.href = url;
@@ -74,7 +84,7 @@ export function AcoesDoDocumento({ doc, bloqueado }: { doc: Documento; bloqueado
     comAviso("baixar", () =>
       baixarConvertido({ fileName: doc.fileName, fileType: tipo }, formato, {
         arquivo: buscarArquivo,
-        texto: async () => (await utils.documents.textoDoArquivo.fetch({ id: doc.id })).texto,
+        texto: obterTexto ?? (async () => ""),
       }),
     );
 

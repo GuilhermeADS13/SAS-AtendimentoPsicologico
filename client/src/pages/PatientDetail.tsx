@@ -6,6 +6,8 @@ import { uploadDocumentFile } from "@/lib/supabase";
 import { exportProntuarioPDF, exportProntuarioDOCX, exportTclePDF } from "@/lib/prontuario-export";
 import { formatarData, formatarDataHora, formatarNascimento } from "@shared/datas";
 import { AcoesDoDocumento } from "@/components/AcoesDoDocumento";
+import { CompartilharDocumento } from "@/components/CompartilharDocumento";
+import { rotuloDoTipo } from "@shared/documentosDoPaciente";
 import ContratoModeloManager from "@/components/ContratoModeloManager";
 import EditorDeAnotacao from "@/components/EditorDeAnotacao";
 import { Streamdown } from "streamdown";
@@ -376,6 +378,13 @@ export default function PatientDetail() {
   const [uploading, setUploading] = useState(false);
   const createDocument = trpc.documents.create.useMutation();
   const deleteDocument = trpc.documents.delete.useMutation();
+  const compartilharDocumento = trpc.documents.compartilhar.useMutation({
+    onSuccess: (_r, { tipo }) => {
+      void documentsQuery.refetch();
+      toast.success(tipo ? "O paciente já pode ver este documento." : "O documento voltou a ser só seu.");
+    },
+    onError: (e) => toast.error(e.message || "Não foi possível alterar o compartilhamento."),
+  });
 
   // Pagamentos DESTE paciente. appointments.list traz todas as consultas da
   // psicóloga; filtramos por este paciente. "Falta pagar" = pendentes que não
@@ -863,11 +872,22 @@ export default function PatientDetail() {
                           <p className="text-xs text-muted-foreground">
                             {formatarData(doc.createdAt)} ·{" "}
                             {Math.max(1, Math.round(doc.fileSize / 1024))} KB
+                            {doc.tipoParaPaciente ? ` · Paciente vê como ${rotuloDoTipo(doc.tipoParaPaciente)}` : ""}
                           </p>
                         </div>
                       </div>
                       <div className="flex gap-2 shrink-0">
-                        <AcoesDoDocumento doc={doc} bloqueado={avisoExemplo} />
+                        <CompartilharDocumento
+                          tipo={doc.tipoParaPaciente}
+                          bloqueado={avisoExemplo}
+                          aoEscolher={(tipo) => compartilharDocumento.mutate({ id: doc.id, tipo })}
+                        />
+                        <AcoesDoDocumento
+                          doc={doc}
+                          bloqueado={avisoExemplo}
+                          obterUrl={async (baixar) => (await utils.documents.urlDoArquivo.fetch({ id: doc.id, baixar })).url}
+                          obterTexto={async () => (await utils.documents.textoDoArquivo.fetch({ id: doc.id })).texto}
+                        />
                         <Button
                           variant="ghost"
                           size="sm"
