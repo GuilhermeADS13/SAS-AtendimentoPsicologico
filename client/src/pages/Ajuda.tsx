@@ -273,8 +273,9 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
           sua senha vazar. Digite o código de 6 números que enviamos para o e-mail da conta.
         </li>
         <li>
-          Depois disso, este aparelho fica confiável por <strong>30 dias</strong>. Limpar os
-          dados do navegador faz o código ser pedido de novo.
+          Com <strong>“Lembrar deste dispositivo por 30 dias”</strong> marcado, o código não é
+          pedido de novo nesse período. Em computador compartilhado, deixe desmarcado: ele volta
+          a ser pedido em 12 horas. Limpar os dados do navegador também faz o código ser pedido.
         </li>
         <li>
           <strong>Trocou de celular ou computador:</strong> não precisa fazer nada. Entre

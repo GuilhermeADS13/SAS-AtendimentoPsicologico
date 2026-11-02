@@ -27,6 +27,7 @@ function ConfirmarAparelho({ aoSair }: { aoSair: () => void }) {
   const [codigo, setCodigo] = useState("");
   const [destino, setDestino] = useState("");
   const [aviso, setAviso] = useState("");
+  const [lembrar, setLembrar] = useState(true);
 
   const enviar = trpc.aparelho.enviarCodigo.useMutation({
     onSuccess: (r) => {
@@ -52,7 +53,7 @@ function ConfirmarAparelho({ aoSair }: { aoSair: () => void }) {
   const aoConfirmar = (e: FormEvent) => {
     e.preventDefault();
     setAviso("");
-    confirmar.mutate({ codigo });
+    confirmar.mutate({ codigo, lembrar });
   };
 
   return (
@@ -63,7 +64,7 @@ function ConfirmarAparelho({ aoSair }: { aoSair: () => void }) {
             <h1 className="text-2xl font-bold text-foreground">Confirme que é você</h1>
             <p className="text-sm text-muted-foreground">
               Este aparelho é novo na sua conta. Enviamos um código de 6 números
-              {destino ? ` para ${destino}` : " para o seu e-mail"}. Você só precisa fazer isso uma vez neste aparelho.
+              {destino ? ` para ${destino}` : " para o seu e-mail"}.
             </p>
           </div>
 
@@ -81,6 +82,20 @@ function ConfirmarAparelho({ aoSair }: { aoSair: () => void }) {
                 className="text-center text-2xl tracking-[0.4em]"
               />
             </div>
+            <label className="flex cursor-pointer items-start gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={lembrar}
+                onChange={(e) => setLembrar(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-primary"
+              />
+              <span>
+                Lembrar deste dispositivo por 30 dias
+                <span className="block text-xs text-muted-foreground">
+                  Em computador compartilhado, deixe desmarcado: o código volta a ser pedido em 12 horas.
+                </span>
+              </span>
+            </label>
             {aviso && (
               <p role="alert" className="text-sm text-destructive">
                 {aviso}

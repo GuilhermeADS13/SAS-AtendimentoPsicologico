@@ -62,7 +62,7 @@ describe("bloqueio na API", () => {
   });
 
   it("código com letra ou tamanho errado nem chega ao banco", async () => {
-    await expect(caller("therapist", false).aparelho.confirmarCodigo({ codigo: "12a456" })).rejects.toThrow();
-    await expect(caller("therapist", false).aparelho.confirmarCodigo({ codigo: "123" })).rejects.toThrow();
+    await expect(caller("therapist", false).aparelho.confirmarCodigo({ codigo: "12a456", lembrar: true })).rejects.toThrow();
+    await expect(caller("therapist", false).aparelho.confirmarCodigo({ codigo: "123", lembrar: false })).rejects.toThrow();
   });
 });

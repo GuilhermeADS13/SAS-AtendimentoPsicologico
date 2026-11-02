@@ -913,16 +913,17 @@ export const appRouter = router({
     }),
 
     confirmarCodigo: contaProcedure
-      .input(z.object({ codigo: z.string().trim().regex(/^\d{6}$/, "Digite os 6 números do código.") }))
+      .input(z.object({ codigo: z.string().trim().regex(/^\d{6}$/, "Digite os 6 números do código."), lembrar: z.boolean() }))
       .mutation(async ({ ctx, input }) => {
-        const token = await confirmarCodigoDeAparelho(ctx.user.id, input.codigo);
+        const token = await confirmarCodigoDeAparelho(ctx.user.id, input.codigo, input.lembrar);
         ctx.res.cookie(COOKIE_DO_APARELHO, token, {
           ...getSessionCookieOptions(ctx.req),
           // Lax e só em /api: o navegador manda nas chamadas e no WebSocket do
           // próprio site, e não o expõe às páginas nem a outros sites.
           sameSite: "lax",
           path: "/api",
-          maxAge: DIAS_DE_APARELHO_CONFIAVEL * 24 * 60 * 60 * 1000,
+          // Sem "lembrar", o cookie não tem validade própria e o banco corta em 12 h.
+          ...(input.lembrar ? { maxAge: DIAS_DE_APARELHO_CONFIAVEL * 24 * 60 * 60 * 1000 } : {}),
         });
         return { success: true } as const;
       }),

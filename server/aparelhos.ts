@@ -9,8 +9,9 @@ import { sendEmail } from "./mailer";
  * Verificação de aparelho novo: segunda etapa sem aplicativo nem SMS.
  *
  * Psicóloga e admin entram com a senha e, num aparelho desconhecido, confirmam um
- * código recebido por e-mail. Daí o aparelho fica confiável por 30 dias. Quem tem
- * só a senha vazada não passa, e trocar de celular ou de número não tranca ninguém.
+ * código recebido por e-mail. Se ela marcar "lembrar", o aparelho fica confiável por
+ * 30 dias; sem marcar, por 12 horas. Quem tem só a senha vazada não passa, e trocar
+ * de celular ou de número não tranca ninguém.
  * Paciente fica de fora: só vê os próprios dados, e mais uma etapa o afastaria.
  *
  * A prova do aparelho é um token aleatório num cookie httpOnly (script não lê). No
@@ -22,6 +23,8 @@ import { sendEmail } from "./mailer";
 
 export const COOKIE_DO_APARELHO = "sas_aparelho";
 export const DIAS_DE_APARELHO_CONFIAVEL = 30;
+/** Sem "lembrar deste dispositivo": computador compartilhado, por exemplo. */
+const HORAS_SEM_LEMBRAR = 12;
 const MINUTOS_DO_CODIGO = 10;
 const MAXIMO_DE_TENTATIVAS = 5;
 /** O cookie é lido a cada requisição, e o chat consulta a cada poucos segundos. */
@@ -119,7 +122,7 @@ export async function enviarCodigoDeAparelho(user: { id: number; name: string | 
  * cookie. A tentativa é contada ANTES de comparar e numa só operação no banco:
  * chamadas em paralelo não ganham tentativas a mais para adivinhar os 6 dígitos.
  */
-export async function confirmarCodigoDeAparelho(userId: number, codigo: string, agora: Date = new Date()): Promise<string> {
+export async function confirmarCodigoDeAparelho(userId: number, codigo: string, lembrar: boolean, agora: Date = new Date()): Promise<string> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
@@ -139,7 +142,7 @@ export async function confirmarCodigoDeAparelho(userId: number, codigo: string, 
   await db.insert(aparelhosConfiaveis).values({
     userId,
     tokenHash: hash(token),
-    expiraEm: new Date(agora.getTime() + DIAS_DE_APARELHO_CONFIAVEL * DIA_MS),
+    expiraEm: new Date(agora.getTime() + (lembrar ? DIAS_DE_APARELHO_CONFIAVEL * DIA_MS : HORAS_SEM_LEMBRAR * 60 * 60_000)),
   });
   return token;
 }
