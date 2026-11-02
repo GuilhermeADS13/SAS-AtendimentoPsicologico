@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { APP_NAME, LogoLockup } from "@/components/Logo";
-import { REDES_SOCIAIS, RESPONSAVEL_PELO_SERVICO } from "@/lib/suporte";
+import { RedesSociais } from "@/components/RedesSociais";
+import { RESPONSAVEL_PELO_SERVICO } from "@/lib/suporte";
 
 const LINKS = [
   { href: "/precos", rotulo: "Preços" },
@@ -38,19 +39,7 @@ export function Rodape() {
               suportevozinterior@gmail.com
             </a>
           </p>
-          <nav aria-label="Redes sociais" className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm">
-            {REDES_SOCIAIS.map((r) => (
-              <a
-                key={r.href}
-                href={r.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-              >
-                {r.rotulo}
-              </a>
-            ))}
-          </nav>
+          <RedesSociais />
         </div>
       </div>
     </footer>

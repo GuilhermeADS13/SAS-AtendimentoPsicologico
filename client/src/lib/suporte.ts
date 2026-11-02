@@ -29,7 +29,7 @@ export const REDES_SOCIAIS = [
   { href: "https://www.tiktok.com/@vozinterior.oficial_", rotulo: "TikTok" },
   { href: "https://www.youtube.com/@VozInteriorSuporte", rotulo: "YouTube" },
   { href: "https://www.facebook.com/profile.php?id=61595885202403", rotulo: "Facebook" },
-];
+] as const;
 
 export function linkWhatsAppDoSuporte(mensagem: string): string | null {
   const digitos = SUPORTE_WHATSAPP.replace(/\D/g, "");
