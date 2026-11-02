@@ -28,6 +28,7 @@ export const REDES_SOCIAIS = [
   { href: "https://www.instagram.com/vozinterior.oficial_/", rotulo: "Instagram" },
   { href: "https://www.tiktok.com/@vozinterior.oficial_", rotulo: "TikTok" },
   { href: "https://www.youtube.com/@VozInteriorSuporte", rotulo: "YouTube" },
+  { href: "https://www.facebook.com/profile.php?id=61595885202403", rotulo: "Facebook" },
 ];
 
 export function linkWhatsAppDoSuporte(mensagem: string): string | null {
