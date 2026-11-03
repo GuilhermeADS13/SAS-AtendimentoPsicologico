@@ -38,7 +38,7 @@ export default function Privacidade() {
               Política de Privacidade
             </h1>
             <p className="text-muted-foreground">
-              VozInterior — Atendimento Psicológico Online · atualizada em outubro de 2026
+              VozInterior — Atendimento Psicológico Online · atualizada em novembro de 2026
             </p>
           </div>
 
@@ -175,6 +175,10 @@ export default function Privacidade() {
                 reconhece, elas são retiradas antes do envio.
               </li>
               <li>
+                CPF, e-mail e telefone digitados na conversa são retirados antes do envio ao
+                provedor de IA.
+              </li>
+              <li>
                 No modo de apoio do paciente, as respostas são prontas, do próprio sistema:
                 nada do que o paciente escreve vai para um provedor de IA.
               </li>
@@ -227,7 +231,11 @@ export default function Privacidade() {
           <section className="space-y-2">
             <h2 className="text-lg font-semibold text-foreground">8. Segurança</h2>
             <p>
-              O acesso ao prontuário é exclusivo da sua psicóloga. Cada sala de vídeo só
+              O acesso ao prontuário é exclusivo da sua psicóloga. Os documentos dele são
+              privados; ela pode compartilhar com o paciente, um por vez, documentos feitos
+              para ele (laudo, parecer, atestado, declaração ou relatório), que ele vê em
+              “Meus documentos”. A psicóloga entra com senha e, em aparelho novo, com um
+              código enviado ao e-mail dela. Cada sala de vídeo só
               aceita quem está <strong>autenticado</strong> e foi convidado para aquela
               consulta (até 4 pessoas, como na terapia de casal); a videochamada é <strong>criptografada de ponta a
               ponta</strong> e <strong>não é gravada</strong> — o conteúdo da sessão não é
