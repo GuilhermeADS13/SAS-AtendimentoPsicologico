@@ -11,6 +11,7 @@ export type SiteHelpTopic =
   | "therapist"
   | "video"
   | "mensagens"
+  | "documentos"
   | "luma"
   | "privacy"
   | "general";
@@ -102,6 +103,21 @@ function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
     };
   }
 
+  // Documento que a psicóloga compartilhou (laudo, atestado...). Antes de "minha
+  // psicóloga" ("o laudo que minha psicóloga mandou") e de Mensagens, que pega "arquivo": "onde baixo o arquivo do laudo?" é daqui. Quem quer MANDAR
+  // um documento para ela continua indo para Mensagens.
+  if (
+    /(documento|laudo|atestado|declaracao|parecer|relatorio)/.test(normalized) &&
+    !/(mandar|enviar|envio|envia|anexar|anexo)/.test(normalized)
+  ) {
+    return {
+      model: "site-help-local",
+      topic: "documentos",
+      content:
+        "Os documentos que a sua psicóloga compartilhar com você (como laudo, atestado, declaração, parecer ou relatório) ficam em “Meus documentos”, no menu — lá você vê e baixa cada um. Se está esperando um documento que ainda não apareceu, fale com ela em “Mensagens”.",
+    };
+  }
+
   // ATENÇÃO À ORDEM: daqui até o fim, os tópicos ESPECÍFICOS vêm antes do tópico
   // genérico de agenda, que casa com "consulta|psicolog|sessao" e engolia todos eles
   // (era por isso que "onde fica minha psicóloga?" e "como entro na consulta?"
@@ -141,7 +157,7 @@ function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
 
   // `arquivo|anexo` soltos: "como envio um arquivo?" não casava com "enviar
   // arquivo" e caía no menu genérico.
-  if (/(mensagem|mensagens|chat|conversar por texto|falar por escrito|mandar recado|arquivo|anexo|anexar|foto para ela|emoji|gif)/.test(normalized)) {
+  if (/(mensagem|mensagens|chat|conversar por texto|falar por escrito|mandar recado|arquivo|anexo|anexar|documento|foto para ela|emoji|gif)/.test(normalized)) {
     return {
       model: "site-help-local",
       topic: "mensagens",
@@ -196,6 +212,6 @@ function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
     model: "site-help-local",
     topic: "general",
     content:
-      "Posso te ajudar a encontrar: Minhas Consultas, Mensagens, Minha Psicóloga, Configurações da conta ou Ajuda. Me diga qual área você quer abrir.",
+      "Posso te ajudar a encontrar: Minhas Consultas, Mensagens, Meus documentos, Minha Psicóloga, Configurações da conta ou Ajuda. Me diga qual área você quer abrir.",
   };
 }

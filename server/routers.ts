@@ -54,6 +54,7 @@ import { TRPCError } from "@trpc/server";
 import { ANOTACOES_RETIRADAS, runOpenSourceAgent, trazAnotacoesClinicas } from "./ai/llm";
 import { relatorioDaPsicologa } from "./relatorioDeGestao";
 import { answerSiteHelp } from "./ai/site-help";
+import { mascararParaIA } from "./ai/data-loss-prevention";
 import { executarAcaoAgenda, horarioEmConflito, resolveAiAccessContext } from "./ai/clinical-tools";
 import { confirmPendingActionByHuman } from "./ai/action-confirmation";
 import { recordAiAuditEvent } from "./ai/audit";
@@ -384,6 +385,10 @@ export const appRouter = router({
         conversationId: z.number().int().positive().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        // Sem IA aqui, mas cada pergunta grava duas linhas: um laço não enche o banco.
+        if (!dentroDoLimite(`luma-site:${ctx.user.id}`, 20, 60_000)) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas perguntas seguidas. Espere um minuto e tente de novo." });
+        }
         const db = await getDb();
         if (!db) throw new Error("Database not available");
         const requestId = input.requestId ?? nanoid(24);
@@ -523,10 +528,12 @@ export const appRouter = router({
             .limit(LUMA_HISTORICO_MAX);
           historicoDoBanco = montarHistoricoDoBanco(persistidas.reverse());
         }
+        // CPF, e-mail, telefone e chaves não saem para o provedor de IA (ver
+        // mascararParaIA); o histórico no banco guarda o texto original.
         const mensagensDoAgente = montarHistoricoDoBanco([
           ...historicoDoBanco,
           { role: "user", content: latestUserMessage.content },
-        ]);
+        ]).map((m) => ({ ...m, content: mascararParaIA(m.content) }));
 
         // Cota diária do plano (Sussurro 5, Voz 15 — shared/precos.ts). Fica DEPOIS do
         // replay acima: repetir uma pergunta já respondida não gasta cota. A Groq
@@ -547,6 +554,13 @@ export const appRouter = router({
               message: `Você já fez as ${limite} perguntas de hoje à Luma (plano ${plano.nome}). A cota volta à meia-noite.`,
             });
           }
+        }
+
+        // Rajada: a cota diária é conferida antes da resposta, então perguntas em
+        // paralelo passariam todas. Isto também protege a cota da Groq, que é
+        // dividida entre todas as psicólogas.
+        if (!dentroDoLimite(`luma:${ctx.user.id}`, 6, 60_000)) {
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas perguntas seguidas à Luma. Espere um minuto e tente de novo." });
         }
 
         // Chama o agente ANTES de qualquer escrita. Se der timeout/erro, o mutation

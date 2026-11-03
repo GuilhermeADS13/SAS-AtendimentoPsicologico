@@ -4,7 +4,7 @@ const PATTERNS: Array<[SensitiveMatch, RegExp]> = [
   ["cpf", /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g],
   ["email", /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi],
   ["phone", /(?<!\d)(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?9?\d{4}[-\s]?\d{4}(?!\d)/g],
-  ["secret", /\b(?:sk|sb_secret|ghp|glpat)_[A-Za-z0-9_-]{8,}\b/g],
+  ["secret", /\b(?:sk|sb_secret|ghp|glpat|gsk)_[A-Za-z0-9_-]{8,}\b/g],
 ];
 
 export function detectSensitiveIdentifiers(value: string): SensitiveMatch[] {
@@ -17,6 +17,25 @@ export function detectSensitiveIdentifiers(value: string): SensitiveMatch[] {
     const probe = new RegExp(pattern.source, pattern.flags.replace("g", ""));
     return probe.test(value);
   }).map(([kind]) => kind);
+}
+
+/** O que entra no lugar de cada dado em mascararParaIA: a Luma sabe que havia algo ali. */
+const NO_LUGAR: Record<SensitiveMatch, string> = {
+  cpf: "[CPF retirado]",
+  email: "[e-mail retirado]",
+  phone: "[telefone retirado]",
+  secret: "[chave retirada]",
+};
+
+/**
+ * Tira CPF, e-mail, telefone e chaves do texto ANTES de ir ao provedor de IA (fora
+ * do Brasil). Nenhuma função da Luma precisa deles: a agenda trabalha com o nome do
+ * paciente, a data e o valor. O original continua no histórico, no nosso banco.
+ */
+export function mascararParaIA(value: string): string {
+  // Chave e e-mail primeiro: os dígitos de dentro deles passariam por telefone.
+  const ordem: SensitiveMatch[] = ["secret", "email", "cpf", "phone"];
+  return ordem.reduce((current, kind) => current.replace(PATTERNS.find(([k]) => k === kind)![1], NO_LUGAR[kind]), value);
 }
 
 export function redactForTelemetry(value: string): string {

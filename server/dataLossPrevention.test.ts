@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   detectSensitiveIdentifiers,
+  mascararParaIA,
   minimizeTelemetryMetadata,
   redactForTelemetry,
 } from "./ai/data-loss-prevention";
@@ -25,6 +26,15 @@ describe("DLP e minimização de telemetria", () => {
 
   it("mascara segredos conhecidos", () => {
     expect(redactForTelemetry("token sk_live_123456789abc")).toBe("token [REDACTED]");
+  });
+
+  it("tira CPF, e-mail, telefone e chave antes de ir à IA, e mantém o que a agenda usa", () => {
+    const texto = mascararParaIA(
+      "Agende a Ana Souza dia 05/11 às 14h, R$ 150,00. CPF 123.456.789-09, ana@example.com, (81) 99999-9999, chave gsk_abcdefgh12345678",
+    );
+    expect(texto).toBe(
+      "Agende a Ana Souza dia 05/11 às 14h, R$ 150,00. CPF [CPF retirado], [e-mail retirado], [telefone retirado], chave [chave retirada]",
+    );
   });
 
   it("limita tamanho e mascara apenas metadata permitido", () => {
