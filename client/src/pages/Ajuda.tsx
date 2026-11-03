@@ -16,6 +16,7 @@ import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useRole } from "@/hooks/useRole";
 import { RedesSociais } from "@/components/RedesSociais";
 import { linkWhatsAppDoSuporte } from "@/lib/suporte";
+import { DIAS_DE_TESTE_GRATIS, DIAS_PARA_O_PRIMEIRO_PACIENTE } from "@shared/precos";
 import { ArrowLeft, CircleHelp, Mail } from "lucide-react";
 
 const MENSAGEM_PRONTA = "Olá! Preciso de ajuda com o VozInterior.";
@@ -153,6 +154,22 @@ const DUVIDAS_PACIENTE: Duvida[] = [
           <strong>“Mensagens”</strong>.
         </li>
         <li>Mensagens novas aparecem com um número ao lado de “Mensagens”, no menu.</li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Onde vejo os documentos que a psicóloga me enviou",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          No menu, abra <strong>Meus documentos</strong>. Ali ficam o laudo, parecer,
+          atestado, declaração ou relatório que a sua psicóloga compartilhou com você.
+        </li>
+        <li>Em cada um você pode ver na tela ou baixar o arquivo.</li>
+        <li>
+          Esperava um documento que não aparece? Peça a ela em <strong>Mensagens</strong>:
+          é ela quem escolhe o que compartilhar.
+        </li>
       </ul>
     ),
   },
@@ -363,6 +380,10 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
           Entre sempre pela consulta do dia. Cada consulta tem a sua sala — link antigo
           leva a uma sala vazia.
         </li>
+        <li>
+          No topo, um <strong>relógio</strong> conta o tempo da consulta a partir da entrada
+          do paciente e pisca em vermelho quando chega a zero.
+        </li>
       </ul>
     ),
   },
@@ -488,6 +509,51 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
     ),
   },
   {
+    pergunta: "Como envio e compartilho documentos do paciente",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Abra o paciente, vá na aba <strong>Documentos</strong> e clique em{" "}
+          <strong>“Enviar documento”</strong>.
+        </li>
+        <li>
+          <strong>“Ver”</strong> abre o arquivo na tela. <strong>“Baixar”</strong> salva o
+          original ou, quando dá para converter, em PDF ou Word.
+        </li>
+        <li>
+          Todo documento nasce <strong>privado</strong>. Para o paciente ver, clique em{" "}
+          <strong>“Compartilhar”</strong> e escolha o tipo (laudo, parecer, atestado,
+          declaração ou relatório). Ele passa a ver e baixar em “Meus documentos”.
+        </li>
+        <li>
+          Mudou de ideia? No mesmo botão, <strong>“Deixar de compartilhar”</strong>.
+          Evolução e anotações de sessão não se compartilham.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Como gero o contrato do paciente",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          O contrato sai do <strong>seu modelo</strong>: o sistema não tem um texto padrão.
+          Abra o paciente, vá na aba <strong>TCLE</strong> e clique em{" "}
+          <strong>“Meu modelo”</strong>.
+        </li>
+        <li>
+          Envie o seu contrato em PDF ou DOCX, ou escreva direto ali. Os{" "}
+          <strong>campos automáticos</strong> (nome do paciente, valor, dia e horário, CRP,
+          chave Pix e outros) são preenchidos com os dados de cada paciente.
+        </li>
+        <li>
+          Depois, em cada paciente, clique em <strong>“Gerar contrato (PDF)”</strong>. O
+          modelo fica salvo para os próximos.
+        </li>
+      </ul>
+    ),
+  },
+  {
     pergunta: "Como envio o meu modelo de prontuário (que a Luma segue)",
     resposta: (
       <ul className="list-disc pl-5 space-y-1">
@@ -572,6 +638,11 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
           Paciente que encerrou o acompanhamento não precisa contar: abra a ficha dele e
           toque em <strong>“Marcar como inativo”</strong>. Quem só entra nas chamadas em
           grupo também não conta.
+        </li>
+        <li>
+          O <strong>teste grátis de {DIAS_DE_TESTE_GRATIS} dias</strong> começa a contar quando
+          você cadastra o primeiro paciente. Para isso, há {DIAS_PARA_O_PRIMEIRO_PACIENTE} dias
+          depois da aprovação do seu CRP.
         </li>
         <li>
           Se o teste ou o Pix vencer, agendar, iniciar chamada e a Luma pausam até a

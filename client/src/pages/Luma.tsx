@@ -68,6 +68,7 @@ const CAPACIDADES_PACIENTE: { icone: LucideIcon; titulo: string; texto: string }
 const ATALHOS_PACIENTE: { icone: LucideIcon; rotulo: string; destino: string }[] = [
   { icone: CalendarDays, rotulo: "Minhas consultas", destino: "/consultas" },
   { icone: MessageSquare, rotulo: "Mensagens com a psicóloga", destino: "/mensagens" },
+  { icone: FileText, rotulo: "Meus documentos", destino: "/documentos" },
   { icone: UserRound, rotulo: "Perfil da psicóloga", destino: "/psicologa" },
 ];
 
