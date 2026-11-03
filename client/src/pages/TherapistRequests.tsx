@@ -18,9 +18,23 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { AlertTriangle, BadgeCheck, ExternalLink, Inbox, X } from "lucide-react";
+import { AlertTriangle, BadgeCheck, ExternalLink, Inbox, Mail, X } from "lucide-react";
 
 type Acao = { id: number; nome: string; crp: string; action: "approve" | "reject" };
+
+const SUPORTE_EMAIL = "suportevozinterior@gmail.com";
+
+/** Texto do aviso de aprovação, o mesmo no WhatsApp e no e-mail. */
+function mensagemDeAprovacao(r: { fullName: string; testeAguardando: boolean | null }): string {
+  const teste = r.testeAguardando
+    ? `\n\nSeus ${DIAS_DE_TESTE_GRATIS} dias grátis começam quando você cadastrar o primeiro paciente. Você tem ${DIAS_PARA_O_PRIMEIRO_PACIENTE} dias para fazer esse cadastro.`
+    : "";
+  return (
+    `Olá, ${r.fullName.trim().split(/\s+/)[0]}! Seu cadastro no VozInterior foi aprovado.\n\n` +
+    `Sua área clínica já está liberada: ${window.location.origin}/login\n` +
+    `Se o site já estava aberto, saia e entre de novo.${teste}`
+  );
+}
 
 /**
  * Link wa.me com o aviso de aprovação pronto. Quem envia é o admin, no aparelho
@@ -36,14 +50,28 @@ function avisoDeAprovacaoNoWhatsApp(r: {
   const digitos = (r.celular || r.telefone || "").replace(/\D/g, "");
   if (!digitos) return null;
   const numero = digitos.startsWith("55") ? digitos : `55${digitos}`; // 55 = Brasil
-  const teste = r.testeAguardando
-    ? `\n\nSeus ${DIAS_DE_TESTE_GRATIS} dias grátis começam quando você cadastrar o primeiro paciente. Você tem ${DIAS_PARA_O_PRIMEIRO_PACIENTE} dias para fazer esse cadastro.`
-    : "";
-  const msg =
-    `Olá, ${r.fullName.trim().split(/\s+/)[0]}! Seu cadastro no VozInterior foi aprovado.\n\n` +
-    `Sua área clínica já está liberada: ${window.location.origin}/login\n` +
-    `Se o site já estava aberto, saia e entre de novo.${teste}`;
-  return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
+  return `https://wa.me/${numero}?text=${encodeURIComponent(mensagemDeAprovacao(r))}`;
+}
+
+/**
+ * Rascunho no Gmail da conta do suporte com o mesmo aviso, para o admin revisar e
+ * enviar com a própria mão (o automático pode ter caído no spam). Gmail, e não
+ * mailto: no Windows sem programa de e-mail configurado, mailto não abre nada.
+ */
+function avisoDeAprovacaoPorEmail(r: { fullName: string; email: string | null; testeAguardando: boolean | null }): string | null {
+  if (!r.email) return null;
+  const campos = {
+    authuser: SUPORTE_EMAIL,
+    view: "cm",
+    fs: "1",
+    to: r.email,
+    su: "Seu cadastro foi aprovado — VozInterior",
+    body: mensagemDeAprovacao(r),
+  };
+  const query = Object.entries(campos)
+    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+    .join("&");
+  return `https://mail.google.com/mail/?${query}`;
 }
 
 /** Fila de quem pediu acesso como psicólogo(a). Só o admin vê. */
@@ -191,6 +219,7 @@ export default function TherapistRequests() {
                 <h2 className="text-lg font-semibold text-foreground">Já analisadas</h2>
                 {analisadas.map((r) => {
                   const whatsapp = r.status === "approved" ? avisoDeAprovacaoNoWhatsApp(r) : null;
+                  const email = r.status === "approved" ? avisoDeAprovacaoPorEmail(r) : null;
                   return (
                     <Card key={r.id}>
                       <CardContent className="flex flex-wrap items-center justify-between gap-4">
@@ -206,6 +235,14 @@ export default function TherapistRequests() {
                               <a href={whatsapp} target="_blank" rel="noopener noreferrer">
                                 <WhatsAppIcon className="mr-2 size-4" />
                                 Avisar no WhatsApp
+                              </a>
+                            </Button>
+                          )}
+                          {email && (
+                            <Button variant="outline" size="sm" asChild>
+                              <a href={email} target="_blank" rel="noopener noreferrer">
+                                <Mail className="mr-2 size-4" />
+                                Avisar por e-mail
                               </a>
                             </Button>
                           )}
