@@ -42,7 +42,8 @@ Estado em 2026-07-15. Em produção: https://sas-atendimento-psicologico.onrende
 - [x] Notificações de presença em tempo real (WebSocket)
 - [x] Registro da chamada no banco (videoCalls) + campo recordingUrl
 - [ ] Gravação de fato — não implementada (a videochamada WebRTC atual não grava)
-- [ ] Tela de histórico de videochamadas
+- [-] ~~Tela de histórico de videochamadas~~ — não fazer (decisão de 2026-11-04): a
+      Agenda já mostra cada consulta pelo dia
 
 ## Prontuários
 - [x] Cadastro, listagem, edição e visualização
@@ -53,7 +54,8 @@ Estado em 2026-07-15. Em produção: https://sas-atendimento-psicologico.onrende
 - [x] Criação, listagem e cancelamento (psicóloga)
 - [x] Status: agendado, realizado, cancelado, não compareceu
 - [x] Confirmação de presença pelo paciente (appointments.confirm + confirmedAt)
-- [ ] Calendário com escolha de horário pelo paciente
+- [-] ~~Calendário com escolha de horário pelo paciente~~ — não fazer (decisão de
+      2026-11-04): quem controla a agenda é a psicóloga
 
 ## Lembretes e Notificações
 - [x] Fila de e-mail com retentativa (agendador a cada 15 min)
