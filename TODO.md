@@ -26,7 +26,7 @@ Estado em 2026-07-15. Em produção: https://sas-atendimento-psicologico.onrende
 - [x] Excluir paciente: apaga quem não tem histórico, arquiva quem tem (guarda de 5 anos)
 - [x] Bloqueio de e-mail duplicado no cadastro
 - [x] Sino de notificações in-app
-- [ ] Linha do tempo de progresso do paciente
+- [x] Linha do tempo de progresso do paciente — aba "Evolução" do prontuário (shared/evolucao.ts)
 
 ## Área do paciente
 - [x] "Minhas Consultas" como tela inicial (próximas + anteriores, entrar na sala)

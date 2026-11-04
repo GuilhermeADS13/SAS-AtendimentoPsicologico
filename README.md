@@ -31,8 +31,9 @@ o servidor só intermedeia o aperto de mão.
 
 ### 📋 Prontuário, documentos e contrato
 
-- Pacientes, sessões, anotações e evolução, nos itens do registro documental da
-  Resolução CFP 001/2009
+- Pacientes, sessões e anotações, nos itens do registro documental da Resolução CFP 001/2009
+- **Evolução**: linha do tempo das sessões, com marcos automáticos (início, retorno após
+  pausa, a cada 10 sessões), fases do tratamento, humor de 0 a 10 e registro SOAP
 - **Documentos**: a psicóloga envia, vê, baixa (PDF/Word) e **compartilha um a um** com o
   paciente, que os encontra em "Meus documentos"
 - **Contrato (TCLE)**: cada psicóloga usa o próprio modelo; os campos do paciente são
@@ -332,7 +333,6 @@ Política de privacidade, Termos de Uso e reembolso: `/privacidade` e `/termos`.
 
 ## 🚀 Próximos passos
 
-- [ ] Linha do tempo do progresso do paciente
 - [ ] E-mails com remetente de domínio próprio (menos risco de cair no spam)
 - [ ] Recuperação de acesso por SMS
 
