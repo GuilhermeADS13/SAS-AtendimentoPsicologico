@@ -1,8 +1,10 @@
 # 🧠 VozInterior — Plataforma de Atendimento Psicológico Online
 
-Plataforma web para psicólogas atenderem online: videochamada própria, prontuários,
-agenda, financeiro e uma assistente de IA (a **Luma**). Feita para uso clínico real —
-com os cuidados de privacidade que isso exige.
+Plataforma web para psicólogas atenderem online: agenda, prontuário, videochamada própria,
+mensagens, financeiro com Pix e uma assistente de IA (a **Luma**). Feita para uso clínico
+real, com os cuidados de privacidade que isso exige.
+
+Site: <https://sas-atendimento-psicologico.onrender.com>
 
 ![CI](https://github.com/GuilhermeADS13/SAS-AtendimentoPsicologico/actions/workflows/ci.yml/badge.svg)
 ![Status](https://img.shields.io/badge/status-em%20produção-brightgreen)
@@ -13,56 +15,70 @@ com os cuidados de privacidade que isso exige.
 
 ## 🎯 Funcionalidades
 
-### 🎥 Videochamada própria (WebRTC P2P)
+### 🎥 Videochamada própria (WebRTC)
 
-Sem provedor externo, sem conta e sem cartão. O vídeo vai **direto entre os dois
-navegadores**; o servidor só intermedeia o aperto de mão.
+Sem provedor externo, sem conta e sem cartão. O vídeo vai **direto entre os navegadores**;
+o servidor só intermedeia o aperto de mão.
 
-- **1:1 peer-to-peer** — mídia não passa pelo servidor (menos custo, menos exposição)
-- **Sinalização própria** — WebSocket em `/api/ws/rtc`, só repassa `offer`/`answer`/ICE
-- **STUN + TURN** — TURN da Metered cobre redes onde o P2P não fecha (NAT simétrico,
-  4G, firewall corporativo); inclui `turns:` em TLS/443, indistinguível de HTTPS
-- **Desfoque de fundo** — nativo do navegador, sem biblioteca extra (onde há suporte)
-- **Compartilhamento de tela**, seleção de câmera/microfone e aviso de presença
-  (`/api/ws/presence`) quando o paciente entra na sala
+- **Até 4 pessoas** (casal e família): a psicóloga convida participantes ao agendar ou
+  durante a chamada
+- **Sinalização própria**: WebSocket em `/api/ws/rtc`, só repassa `offer`/`answer`/ICE
+- **STUN + TURN**: o TURN da Metered cobre redes onde a conexão direta não fecha (NAT
+  simétrico, 4G, firewall corporativo), inclusive `turns:` em TLS/443
+- **Fundo virtual** (MediaPipe), compartilhamento de tela, troca de câmera, microfone e
+  alto-falante durante a chamada, relógio da sessão e envio de arquivo
+- Recurso que o navegador não tem fica **escondido**, em vez de virar botão que não faz nada
 
-### 🤖 Luma — assistente de IA
+### 📋 Prontuário, documentos e contrato
 
-- **Escopo trancado** — responde sobre o **uso do sistema** e sobre os dados do
-  próprio usuário; nunca dá conselho clínico ou diagnóstico
-- **Protocolo de crise** — sinais de sofrimento acionam resposta fixa com **CVV 188**
-  e **SAMU 192**, sem passar pelo modelo
-- **RAG** — busca em documentos indexados (pgvector), com filtro de escopo no `WHERE`
-- **Ações com confirmação** — agendar/alterar só depois de o usuário confirmar
-- **Failover de provedor** — se o LLM principal fica sem cota (429), a Luma cai para
-  um backup configurado, sem quebrar a conversa
-- **Tour de boas-vindas** — na primeira entrada, a Luma apresenta cada aba do sistema
+- Pacientes, sessões, anotações e evolução, nos itens do registro documental da
+  Resolução CFP 001/2009
+- **Documentos**: a psicóloga envia, vê, baixa (PDF/Word) e **compartilha um a um** com o
+  paciente, que os encontra em "Meus documentos"
+- **Contrato (TCLE)**: cada psicóloga usa o próprio modelo; os campos do paciente são
+  preenchidos sozinhos e o contrato sai em PDF. Não há texto padrão
 
-### 📋 Prontuários e sessões
+O paciente cadastrado pela psicóloga fica **Aguardando cadastro** até criar a conta com o
+mesmo e-mail; aí vira **Ativo**.
 
-Cadastro de pacientes, histórico clínico, anotações por sessão e evolução ao longo
-do tempo. Upload de documentos com indexação assíncrona (fila + OCR).
+### 📅 Agenda, mensagens e financeiro
 
-O paciente cadastrado pela psicóloga fica **Aguardando cadastro** até criar a conta
-com o mesmo e-mail — aí vira **Ativo**. Ele mantém os próprios dados de contato, com
-**telefone obrigatório** (usado nos avisos por WhatsApp).
+- Agenda com consultas **semanais repetidas**, status (agendada, realizada, cancelada,
+  a confirmar), confirmação de presença pelo paciente e exportação para **Google Agenda e
+  `.ics`**
+- **Lembretes por e-mail** e avisos por **WhatsApp** com a mensagem pronta (lembrete,
+  cancelamento, cobrança)
+- **Mensagens** entre psicóloga e paciente, com busca, emojis, edição e exclusão
+- **Financeiro**: recebido e a receber; o paciente paga a consulta **por Pix direto para a
+  psicóloga** (copia e cola ou QR) e a psicóloga confirma
 
-### 📅 Agenda e financeiro
+### 💳 Planos e assinatura
 
-Calendário, status (agendado / realizado / cancelado / a confirmar), filtros por
-data e por pagamento, duração flexível, exportação para **Google Calendar e `.ics`**,
-**lembretes automáticos por e-mail** e **avisos semiautomáticos por WhatsApp** (abre a
-conversa com a mensagem pronta — lembrete, cancelamento ou cobrança).
+Planos por número de pacientes (**Sussurro**, **Voz** e **Coro** sob medida), pagos por Pix,
+mensal ou anual. **14 dias grátis**, contados a partir do primeiro paciente. Detalhes em
+[`shared/precos.ts`](./shared/precos.ts) e na página `/precos`.
 
-### 👤 Autenticação e papéis
+### 🤖 Luma, assistente de IA
 
-Login por **Supabase Auth** (e-mail e senha, com recuperação). Dois papéis:
-psicóloga e paciente — ver [Papéis e cadastro](#-papéis-e-cadastro-de-psicólogas).
+- **Ajuda no uso do sistema**, para psicóloga e paciente, com um tour na primeira entrada
+- **Agenda pela conversa**: marca, remarca e cancela consultas e registra pagamentos, sempre
+  **depois de a psicóloga confirmar**
+- **No prontuário, só a estrutura** (o que falta preencher): a Luma **não lê** sessões,
+  anotações nem documentos de pacientes
+- **Nunca dá conselho clínico ou diagnóstico**; sinais de crise acionam resposta fixa com
+  **CVV 188** e **SAMU 192**, sem passar pelo modelo
+- **CPF, e-mail, telefone e chaves saem do texto** antes de ir ao provedor de IA
+- **Failover**: se o provedor principal fica sem cota (429), a conversa segue num backup
+
+### 👤 Cadastro e papéis
+
+Login por **Supabase Auth** (e-mail e senha). Psicóloga e paciente têm áreas diferentes;
+ver [Papéis e cadastro](#-papéis-e-cadastro-de-psicólogas).
 
 ### 🎨 Identidade visual
 
-Paleta bege (`#EAD2A8`) e marrom (`#8B6946`), responsiva em desktop, tablet e mobile,
-com navegação por teclado.
+Verde da logo (`#215756`) sobre fundo creme, com tema claro e escuro, responsiva em
+celular, tablet e computador, e navegação por teclado.
 
 ---
 
@@ -72,7 +88,7 @@ com navegação por teclado.
 
 - **Node.js 22+** (a imagem de produção usa `node:22-slim`)
 - **pnpm 10+**
-- Conta no [Supabase](https://supabase.com) — Postgres + Auth + pgvector
+- **Docker Desktop**, para o banco local de desenvolvimento
 
 ### Instalação
 
@@ -82,59 +98,68 @@ cd SAS-AtendimentoPsicologico
 pnpm install
 ```
 
-### Variáveis de ambiente
+### Desenvolvimento com o Supabase local (recomendado)
 
-Copie `.env.example` para `.env.local` e preencha. O mínimo para subir:
+O Supabase roda no Docker, com a mesma estrutura de produção e **sem nenhum dado real**.
 
 ```bash
-# Banco — pooler de transações do Supabase (porta 6543). Senha com "@" vira "%40".
-DATABASE_URL=postgresql://postgres.<projeto>:<senha>@aws-0-<regiao>.pooler.supabase.com:6543/postgres
-JWT_SECRET=uma-chave-forte
+npx supabase@2.121.0 start -x vector,logflare,imgproxy,edge-runtime   # sobe o Supabase local
+pnpm dev:local                                                        # http://localhost:3000
+npx supabase@2.121.0 stop                                             # desliga
+```
 
-# Autenticação (Supabase)
+Na primeira vez:
+
+1. Gere a chave do JWT local: crie `supabase/signing_keys.json` com `[]` e rode
+   `npx supabase@2.121.0 gen signing-key --algorithm ES256` dentro de `supabase/`
+   (o arquivo fica fora do git)
+2. Crie o `.env.supabase.local` com os valores de `npx supabase@2.121.0 status -o env`:
+   `DATABASE_URL` (DB_URL), `VITE_SUPABASE_URL` e `SUPABASE_URL` (API_URL),
+   `VITE_SUPABASE_PUBLISHABLE_KEY` (PUBLISHABLE_KEY), `SUPABASE_SERVICE_ROLE_KEY`
+   (SECRET_KEY), mais `DEV_AUTH=true` e `VERIFICACAO_DE_APARELHO=desligada`
+
+A estrutura vem de [`supabase/migrations/`](./supabase/migrations), aplicada pelo
+`start` e pelo `npx supabase@2.121.0 db reset --local`. O painel do banco local fica em
+`http://127.0.0.1:54323` e os e-mails de login em `http://127.0.0.1:54324`.
+
+> ⚠️ **`pnpm dev` usa o `.env.local`.** Se ele apontar para o Supabase de produção, o
+> sistema rodando no seu computador **escreve no banco real**. Para testar, use `pnpm dev:local`.
+
+### Variáveis de ambiente
+
+A lista completa, comentada, está em [`.env.example`](./.env.example). O mínimo:
+
+```bash
+DATABASE_URL=postgresql://...          # Postgres (em produção, pooler do Supabase, porta 6543)
 VITE_SUPABASE_URL=https://<projeto>.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=<chave publicável>
 SUPABASE_URL=https://<projeto>.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=<service role — só no servidor>
+SUPABASE_SERVICE_ROLE_KEY=<só no servidor>
 ```
 
-> ⚠️ **Cuidado com o `.env.local`.** Se o `DATABASE_URL` apontar para o Supabase de
-> produção, `pnpm dev` escreve no banco real. Use um projeto separado para desenvolver.
-
-### Variáveis opcionais (vídeo, IA, e-mail)
+Opcionais:
 
 ```bash
-# TURN (videochamada em redes restritivas) — sem isso, só STUN
-METERED_DOMAIN=<seu-subdominio>.metered.live
-METERED_API_KEY=<API Key da credencial — NUNCA a Secret Key>
-# METERED_REGION: deixe VAZIA. O painel em "Global (automático)" já roteia para o
-# servidor mais próximo, e essa variável sobrescreveria isso por uma região fixa.
-# Luma (IA)
+# TURN (videochamada em redes restritivas). Sem isso, só STUN.
+METERED_DOMAIN=<subdominio>.metered.live
+METERED_API_KEY=<API Key da credencial, nunca a Secret Key>
+
+# Luma (IA): API compatível com OpenAI (Groq no plano grátis)
 AI_AGENT_ENABLED=true
 LLM_BASE_URL=https://api.groq.com/openai/v1
 LLM_API_KEY=<chave>
 LLM_MODEL=openai/gpt-oss-120b
-# Backup opcional p/ o rate limit (429): LLM_FALLBACK_1_BASE_URL / _API_KEY / _MODEL
-# Embeddings do RAG: precisa de um endpoint com /embeddings próprio.
-LLM_EMBEDDING_BASE_URL=<url>
-LLM_EMBEDDING_MODEL=<modelo>
-AI_RAG_ENABLED=true
+# AI_RAG_ENABLED e AI_CLINICAL_TOOLS_ENABLED ligam as ferramentas da agenda
+# Backup no 429: LLM_FALLBACK_1_BASE_URL / _API_KEY / _MODEL
 
-# E-mail (lembretes e avisos) — ver a seção do Gmail abaixo
+# E-mail: Brevo (API HTTP) ou SMTP; sem nenhum, só registra no log
 NOTIFICATIONS_ENABLED=true
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=...
-SMTP_PASS=...
-SMTP_FROM=...
-ADMIN_EMAIL=...
-```
+BREVO_API_KEY=<chave>
+ADMIN_EMAIL=<quem recebe os pedidos de acesso de psicólogas>
+# Aviso do pedido no celular: TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID
 
-### Banco e execução
-
-```bash
-pnpm db:push     # drizzle-kit generate && migrate
-pnpm dev         # http://localhost:3000
+# Código por e-mail em aparelho novo; "desligada" só em emergência
+VERIFICACAO_DE_APARELHO=
 ```
 
 ---
@@ -143,18 +168,21 @@ pnpm dev         # http://localhost:3000
 
 ```text
 ├── client/src/
-│   ├── pages/              # Dashboard, Appointments, Records, Financeiro,
-│   │                       # Luma, VideoCallDynamic, Login, Ajuda, Privacidade…
-│   └── components/         # WebRTCCall, AIChatBox, LumaOnboarding, AddToCalendar…
+│   ├── pages/              # Dashboard, Agenda, Prontuários, Financeiro, Mensagens,
+│   │                       # Luma, Videochamada, Preços, Ajuda, Termos, Privacidade…
+│   ├── components/         # WebRTCCall, AIChatBox, LumaOnboarding, AddToCalendar…
+│   └── lib/                # Supabase, tRPC, suporte, origem do cadastro
 ├── server/
 │   ├── routers.ts          # Procedures tRPC
-│   ├── signaling.ts        # WebSocket WebRTC (/api/ws/rtc)
+│   ├── signaling.ts        # WebSocket da videochamada (/api/ws/rtc)
 │   ├── turn.ts             # Credenciais ICE (STUN + TURN)
-│   ├── notifications.ts    # Lembretes por e-mail
-│   ├── ai/                 # Luma: llm, rag, clinical-tools, clinical-safety, worker
-│   └── _core/              # Express, tRPC, auth, roteador de upgrade WS
-├── drizzle/                # schema.ts (17 tabelas) + migrations
-├── shared/                 # Código compartilhado (calendario, datas, dinheiro, crp…)
+│   ├── notifications.ts    # Lembretes e avisos
+│   ├── mailer.ts           # E-mail (Brevo, SMTP ou só log)
+│   ├── ai/                 # Luma: llm, clinical-tools, clinical-safety, DLP, site-help
+│   └── _core/              # Express, tRPC, autenticação, carga do .env
+├── shared/                 # Regras compartilhadas (preços, Pix, CRP, datas, contrato…)
+├── drizzle/                # schema.ts (22 tabelas) + migrações de produção
+├── supabase/               # Supabase local de desenvolvimento (config + migrações)
 ├── e2e/                    # Playwright
 └── docs/                   # Notas de arquitetura e operação
 ```
@@ -163,73 +191,79 @@ pnpm dev         # http://localhost:3000
 
 ## 🔧 Tecnologias
 
-| Camada       | Stack                                                                         |
-| ------------ | ----------------------------------------------------------------------------  |
-| **Frontend** | React 19, TypeScript, Tailwind CSS 4, tRPC, Wouter, shadcn/ui, TanStack Query |
-| **Backend**  | Express 4, tRPC 11, Drizzle ORM, `ws` (presença + sinalização), Jose          |
-| **Banco**    | Supabase — Postgres (driver `postgres-js`) + **pgvector**                     |
-| **IA**       | LangChain, LlamaIndex, LLM via API compatível com OpenAI (Groq)               |
-| **Vídeo**    | WebRTC nativo + TURN (Metered)                                                |
-| **DevOps**   | Vite, Vitest, Playwright, Docker, GitHub Actions, Render                      |
+| Camada       | Stack                                                                          |
+| ------------ | ------------------------------------------------------------------------------ |
+| **Frontend** | React 19, TypeScript, Tailwind CSS 4, tRPC, Wouter, shadcn/ui, TanStack Query  |
+| **Backend**  | Express 4, tRPC 11, Drizzle ORM, `ws` (presença e sinalização), Jose           |
+| **Banco**    | Supabase: Postgres (driver `postgres-js`), Auth e Storage                      |
+| **IA**       | LangChain, LLM por API compatível com OpenAI (Groq)                            |
+| **Vídeo**    | WebRTC nativo, TURN (Metered), MediaPipe (fundo virtual)                       |
+| **DevOps**   | Vite, Vitest, Playwright, Docker, GitHub Actions, Render                       |
 
 ---
 
 ## 📊 Banco de Dados
 
-17 tabelas, em três grupos:
+22 tabelas, em quatro grupos:
 
-**Clínico** — `users`, `therapists`, `therapistRequests`, `patients`,
-`appointments`, `sessions`, `sessionNotes`, `documents`, `videoCalls`,
-`notifications`
+**Clínico**: `users`, `therapists`, `therapistRequests`, `patients`, `appointments`,
+`appointmentParticipants`, `sessions`, `sessionNotes`, `documents`, `videoCalls`,
+`chatMessages`, `notifications`
 
-**IA (Luma)** — `aiConversations`, `aiMessages`, `aiMessageFeedback`,
-`aiMemories`, `aiAuditEvents`
+**Conta e assinatura**: `assinaturas`, `codigosDeAparelho`, `aparelhosConfiaveis`
 
-**Indexação/RAG** — `aiDocumentJobs`, `aiDocumentChunks` (com coluna `vector`)
+**IA (Luma)**: `aiConversations`, `aiMessages`, `aiMessageFeedback`, `aiMemories`,
+`aiAuditEvents`
 
-> O RLS está **ligado em todas as tabelas e sem políticas** — de propósito. O acesso
-> é feito pelo backend via Drizzle (não pelo PostgREST), então nenhuma política é
-> necessária. Isso vale **enquanto** o frontend usar `supabase-js` apenas para auth.
-> Definição completa em [`drizzle/schema.ts`](./drizzle/schema.ts).
+**Legado**: `aiDocumentJobs`, `aiDocumentChunks` (da busca em documentos, desligada em
+outubro de 2026)
+
+> O RLS está **ligado em todas as tabelas e sem políticas**, de propósito. O acesso é feito
+> pelo backend via Drizzle (não pelo PostgREST), então nenhuma política é necessária. Isso
+> vale **enquanto** o frontend usar `supabase-js` só para login e arquivos. Definição
+> completa em [`drizzle/schema.ts`](./drizzle/schema.ts).
+
+As migrações de produção ficam em `drizzle/` e `drizzle/migrations/`, e **são aplicadas
+antes do push** que depende delas.
 
 ---
 
 ## 🎥 Como funciona a videochamada
 
 ```text
-Terapeuta ──┐                             ┌── Paciente
+Psicóloga ──┐                             ┌── Paciente
             ├─ /api/ws/rtc (sinalização) ─┤     offer/answer/ICE
             └─────── mídia direta P2P ────┘     (não passa pelo servidor)
 ```
 
-1. Os dois entram pela mesma consulta (sala `apt<id>-<token>`, validada no servidor)
-2. A **terapeuta inicia a oferta** (evita colisão de negociação)
-3. O cliente busca os servidores ICE em `videoCalls.iceServers` — a chave da Metered
-   **fica no servidor** e nunca vai para o bundle
-4. Se o caminho direto falhar, a mídia passa pelo **TURN**; caso contrário, vai direto
+1. Todos entram pela mesma consulta (sala validada no servidor); consulta cancelada não
+   abre, e o paciente perde o acesso 2 horas depois do fim
+2. A **psicóloga inicia a oferta** (evita colisão de negociação)
+3. O cliente busca os servidores ICE no servidor: a chave da Metered **nunca vai para o
+   navegador**
+4. Se o caminho direto falhar, a mídia passa pelo **TURN**
 
-**Sem `METERED_*` configurado, funciona só com STUN** — a chamada não quebra, mas
-redes restritivas podem não conectar. Se a chave for rotacionada e a variável não for
-atualizada junto, o sistema volta **silenciosamente** para STUN (proposital: o TURN
-nunca pode derrubar uma consulta) — então a falha não aparece sozinha.
+**Sem `METERED_*`, funciona só com STUN.** A chamada não quebra, mas redes restritivas
+podem não conectar. Se a chave for trocada e a variável não acompanhar, o sistema volta
+**em silêncio** para STUN (proposital: o TURN nunca pode derrubar uma consulta).
 
 ---
 
 ## 🧪 Testes
 
 ```bash
-pnpm check                     # typecheck
-pnpm test                      # unitários (Vitest)
-pnpm test:e2e                  # Playwright
+pnpm check                               # typecheck
+pnpm test                                # unitários (Vitest)
+pnpm test:e2e                            # Playwright
 E2E_BASE_URL=https://... pnpm test:e2e   # contra um ambiente já publicado
 ```
 
-São ~30 arquivos de teste no `server/` — incluindo segurança clínica
-(`clinicalSafety`), prevenção de vazamento (`dataLossPrevention`, `vectorSecurity`),
-pagamentos, política de senha, TURN e o fluxo de ponta a ponta.
+São 77 arquivos de teste, com cerca de 920 testes, incluindo segurança clínica
+(`clinicalSafety`), retirada de dados pessoais antes da IA (`dataLossPrevention`), Pix,
+senhas vazadas, código de aparelho novo e TURN.
 
-> **`E2E_BASE_URL` importa:** sem ela, o Playwright sobe um servidor local que usa o
-> `.env.local` — e, se ele apontar para produção, o teste **escreve no banco real**.
+> **Sem `E2E_BASE_URL`, o Playwright sobe um servidor local com o `.env.local`.** Se ele
+> apontar para produção, o teste **escreve no banco real**.
 
 ---
 
@@ -241,53 +275,37 @@ pnpm build && pnpm start
 
 ### Render (produção atual)
 
-Roda o container completo (Express + WebSocket + agendador) no **plano free**.
-Ressalva: dorme após ~15 min sem uso (a próxima visita leva ~50s para acordar).
+Roda o container completo (Express, WebSocket e agendador) no **plano grátis**. Um job do
+`pg_cron` no Supabase acessa o site de tempos em tempos para ele não dormir (com pausa de
+madrugada).
 
 1. **New → Blueprint** → conecte o repositório (o `render.yaml` faz o resto)
 2. Preencha as variáveis marcadas como `sync: false`
-3. Cada push na **`main` redeploya sozinho** (`autoDeploy`) — ou seja, **push na
-   `main` é deploy em produção**
+3. Cada push na **`main` é publicado sozinho**: **push na `main` é deploy em produção**
+
+O banco de produção tem backup noturno criptografado num repositório privado separado.
 
 ---
 
 ## 👥 Papéis e cadastro de psicólogas
 
-| Papel                                 | Acesso                                                                              |
-| ------------------------------------- | ----------------------------------------------------------------------------------- |
-| **Psicóloga** (`admin` / `therapist`) | Prontuários, sessões, agenda, financeiro, documentos, Luma com ferramentas clínicas |
-| **Paciente**                          | O próprio cadastro, suas consultas, videochamada e a Luma no escopo dele            |
+| Papel                                 | Acesso                                                                           |
+| ------------------------------------- | -------------------------------------------------------------------------------- |
+| **Psicóloga** (`admin` / `therapist`) | Prontuários, agenda, financeiro, documentos, mensagens, assinatura e a Luma      |
+| **Paciente**                          | O próprio cadastro, consultas, documentos compartilhados, mensagens e a Luma     |
 
-Todo cadastro novo entra como **paciente**. Quem marca *"Sou psicólogo(a)"* informa o
-**CRP** e gera uma **solicitação pendente** — que **não dá acesso**: o CRP é informação
-pública, então o número não prova identidade. A liberação é **manual**, após conferir o
-CRP no [Cadastro Nacional de Psicólogos](https://cadastro.cfp.org.br).
+Todo cadastro novo entra como **paciente**. Quem marca *"Sim, sou psicólogo(a)"* (o botão
+de teste grátis já abre o cadastro assim) informa o **CRP** e gera uma **solicitação
+pendente**, que **não dá acesso**: o CRP é público, então o número não prova identidade. A
+liberação é **manual**, depois de conferir o CRP no
+[Cadastro Nacional de Psicólogos](https://cadastro.cfp.org.br). Enquanto espera, a pessoa vê
+um aviso em "Minhas consultas".
 
-**Para aprovar:** entre como `admin` e use a página **Solicitações** (`/solicitacoes`,
-visível só para admin) — ela lista os pedidos pendentes, com aviso de quantos aguardam,
-e aprova ou recusa com um clique.
+**Para aprovar:** entre como `admin` e use **Solicitações** (`/solicitacoes`). O pedido
+chega por e-mail (e Telegram, se configurado), com lembrete se ficar parado. Ao aprovar, a
+psicóloga recebe um e-mail; a tela também tem atalhos para avisar por e-mail ou WhatsApp.
 
-> O usuário precisa **sair e entrar** de novo para o novo papel valer.
-
-### E-mails com Gmail (grátis)
-
-O Gmail **não aceita a senha da conta** no SMTP — é preciso uma **Senha de App**:
-
-1. Ligue a **verificação em 2 etapas** em [myaccount.google.com/security](https://myaccount.google.com/security)
-2. Gere em [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
-   → "Outro (nome personalizado)" → `SAS` → copie os **16 caracteres**
-
-| Variável                | Valor                                            |
-| ----------              | -------                                          |
-| `SMTP_HOST`             | `smtp.gmail.com`                                 |
-| `SMTP_PORT`             | `587`                                            |
-| `SMTP_USER`             | seu e-mail do Gmail                              |
-| `SMTP_PASS`             | a **senha de app** (16 caracteres, sem espaços)  |
-| `SMTP_FROM`             | o mesmo e-mail (o Gmail exige remetente = conta) |
-| `ADMIN_EMAIL`           | quem recebe os avisos de solicitação             |
-| `NOTIFICATIONS_ENABLED` | `true` (liga também os lembretes)                |
-
-> Limite do Gmail: ~500 e-mails/dia — de sobra para esse uso.
+> A psicóloga precisa **sair e entrar** de novo para o novo papel valer.
 
 ---
 
@@ -295,43 +313,44 @@ O Gmail **não aceita a senha da conta** no SMTP — é preciso uma **Senha de A
 
 Por ser um sistema **clínico**, alguns pontos são inegociáveis:
 
-- **Autenticação** — Supabase Auth; senhas nunca trafegam nem são guardadas pela aplicação
-- **Autorização por escopo** — o filtro do paciente entra no `WHERE`, **antes** de montar
-  o contexto do RAG; dados não cruzam entre pacientes
-- **A Luma não dá conselho clínico** — escopo trancado, protocolo de crise (CVV 188 /
-  SAMU 192) e recusa de assuntos fora do sistema
+- **Login**: Supabase Auth, com confirmação de e-mail, **senha já vazada recusada**
+  (HaveIBeenPwned, por k-anonimato) e **código por e-mail em aparelho novo** para
+  psicólogas e admin
+- **Autorização por dono**: toda rota filtra pela psicóloga ou pelo paciente; dados não
+  cruzam entre contas
+- **A Luma não lê dados clínicos** e não dá conselho clínico; dados pessoais saem do texto
+  antes do provedor de IA
+- **Navegador**: CSP obrigatória, Markdown exibido passa por filtro contra XSS, `no-store`
+  na API e consultas tRPC por POST (texto clínico não vai para URL nem log)
 - **Sem dados clínicos em log ou em mensagem de commit**
-- **SQL injection** — prevenido pelo Drizzle; **XSS** — sanitização do React
-- **Segredos** — só no host (Render). Se um vazar, **rotacione**: chave nova no
-  painel *e* variável atualizada no mesmo momento
+- **Segredos só no host** (Render). Se um vazar, troque a chave no painel **e** a variável,
+  no mesmo momento
 
-Política de privacidade e LGPD estão publicadas em `/privacidade`.
+Política de privacidade, Termos de Uso e reembolso: `/privacidade` e `/termos`.
 
 ---
 
 ## 🚀 Próximos passos
 
-- [ ] Videochamada em grupo (hoje é 1:1)
-- [ ] Gravação de sessões
-- [ ] Relatórios clínicos em PDF
-- [ ] Pagamento online integrado
-- [ ] App mobile
+- [ ] Linha do tempo do progresso do paciente
+- [ ] E-mails com remetente de domínio próprio (menos risco de cair no spam)
+- [ ] Recuperação de acesso por SMS
 
 ---
 
 ## 🆘 Problemas comuns
 
 **A videochamada não conecta em uma rede específica**
-Provavelmente NAT simétrico ou firewall. Confira se `METERED_DOMAIN` e
-`METERED_API_KEY` estão preenchidas — sem elas, só há STUN.
+Provavelmente NAT simétrico ou firewall. Confira se `METERED_DOMAIN` e `METERED_API_KEY`
+estão preenchidas; sem elas, só há STUN.
 
 **O banco não conecta**
-Confira o `DATABASE_URL` (Postgres, porta **6543**, senha com `@` escrita como `%40`)
-e rode `pnpm db:push`.
+Em produção, confira o `DATABASE_URL` (pooler do Supabase, porta **6543**, senha com `@`
+escrita como `%40`). No desenvolvimento, confira se o Docker e o Supabase local estão de pé.
 
-**A Luma responde, mas não acha nada nos documentos**
-O RAG precisa de `LLM_EMBEDDING_BASE_URL` apontando para um endpoint com `/embeddings`
-próprio. Sem isso a indexação falha e a busca volta vazia.
+**A Luma não responde**
+Confira `AI_AGENT_ENABLED=true` e as variáveis `LLM_*`. No Supabase local elas não vêm
+preenchidas.
 
 ---
 
@@ -341,4 +360,4 @@ MIT — veja [LICENSE](LICENSE).
 
 ---
 
-**Versão:** 1.0.1 · **Última atualização:** Setembro de 2026 · **Status:** ✅ em produção
+**Versão:** 1.0.1 · **Última atualização:** Novembro de 2026 · **Status:** ✅ em produção
