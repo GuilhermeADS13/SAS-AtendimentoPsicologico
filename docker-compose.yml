@@ -24,8 +24,6 @@ services:
       - PORT=3000
       # Postgres do Supabase — use o pooler de transações (porta 6543).
       - DATABASE_URL=${DATABASE_URL}
-      - JWT_SECRET=${JWT_SECRET}
-      - OAUTH_SERVER_URL=${OAUTH_SERVER_URL:-https://api.manus.im}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))\""]

@@ -25,12 +25,8 @@ services:
       # DATABASE_URL: use o pooler do Supabase; se a senha tiver @, use %40.
       - key: DATABASE_URL
         sync: false
-      - key: JWT_SECRET
-        sync: false
       - key: SUPABASE_URL
         value: https://icaybuutkfzpqplsqhtb.supabase.co
-      - key: OAUTH_SERVER_URL
-        value: https://api.manus.im
 
       # ── E-mails (API HTTP da Brevo) ─────────────────────────────────────
       # NÃO use SMTP aqui: o plano free do Render bloqueia as portas 25/465/587
