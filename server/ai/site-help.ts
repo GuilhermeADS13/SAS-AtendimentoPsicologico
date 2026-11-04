@@ -195,7 +195,7 @@ function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
       model: "site-help-local",
       topic: "profile",
       content:
-        "Para atualizar seus dados (nome, telefone, endereço) ou trocar a senha, abra “Configurações da conta” no menu: altere o que precisar e salve. A troca de e-mail tem um passo a mais, por segurança — enviamos um código de verificação para o seu e-mail, e a mudança só vale depois que você digitar esse código.",
+        "Para atualizar seus dados (nome, telefone, endereço) ou trocar a senha, abra “Configurações da conta” no menu: altere o que precisar e salve. A troca de e-mail tem um passo a mais, por segurança — enviamos um código de verificação para o seu e-mail, e a mudança só vale depois que você digitar esse código. Ali também você escolhe quais avisos da agenda recebe por e-mail, baixa os seus dados em “Meus dados” e, se perder o celular, usa “Sair de todos os aparelhos”.",
     };
   }
 

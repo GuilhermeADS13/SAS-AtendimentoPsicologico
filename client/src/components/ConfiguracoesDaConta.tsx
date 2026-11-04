@@ -80,7 +80,7 @@ export function SegurancaDaConta({ confirmaAparelho }: { confirmaAparelho: boole
   };
 
   return (
-    <Card>
+    <Card data-tour="config-seguranca">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ShieldCheck className="w-5 h-5 text-primary" />
@@ -221,7 +221,7 @@ export function AvisosPorEmailCard() {
   };
 
   return (
-    <Card>
+    <Card data-tour="config-avisos">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Bell className="w-5 h-5 text-primary" />
