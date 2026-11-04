@@ -24,7 +24,8 @@ describe("cadastro pedido na URL de /login", () => {
 
   it("os botões de teste grátis da home e de preços usam o link do cadastro de psicóloga", () => {
     expect(ler("client/src/pages/Precos.tsx")).toContain("href={LINK_CADASTRO_PSICOLOGA}");
-    expect(ler("client/src/pages/Home.tsx").match(/setLocation\(LINK_CADASTRO_PSICOLOGA\)/g)?.length).toBe(2);
+    // Topo ("Testar grátis"), "Começar agora" e "Acessar plataforma".
+    expect(ler("client/src/pages/Home.tsx").match(/setLocation\(LINK_CADASTRO_PSICOLOGA\)/g)?.length).toBe(3);
   });
 });
 

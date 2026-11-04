@@ -19,8 +19,8 @@ export const BRAND_TEAL = "#215756";
 /**
  * Ícone da Luma: o mascote de coruja, usado no chat, no menu lateral, no tour e
  * nos planos. Desde 2026-10-27 é a Luma 3D (render de frente da folha de
- * personagem, /luma-3d.webp) — o Guilherme preferiu ao desenho plano antigo
- * (/luma-owl.png). O render tem fundo verde-escuro, então vai num quadrado de
+ * personagem, /luma-3d.webp) — o Guilherme preferiu ao desenho plano antigo,
+ * que saiu do projeto. O render tem fundo verde-escuro, então vai num quadrado de
  * cantos arredondados, como ícone de app.
  */
 export function LumaOwlIcon({ className = "w-8 h-8" }: { className?: string }) {
@@ -50,7 +50,9 @@ export function LogoMark({ className = "w-8 h-8" }: { className?: string }) {
 export function LogoFull({ className = "w-48" }: { className?: string }) {
   return (
     <img
-      src="/vozinterior-logo.png"
+      src="/vozinterior-logo.webp"
+      width={440}
+      height={332}
       alt={`${APP_NAME} — ${APP_TAGLINE}`}
       className={`${className} h-auto object-contain`}
     />

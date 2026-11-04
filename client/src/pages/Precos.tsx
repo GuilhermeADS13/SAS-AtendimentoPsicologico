@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { LogoLockup } from "@/components/Logo";
 import { LumaDoPlano } from "@/components/LumaDoPlano";
 import { Rodape } from "@/components/Rodape";
+import { WhatsAppFlutuante } from "@/components/WhatsAppFlutuante";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { linkWhatsAppDoSuporte } from "@/lib/suporte";
 import { LINK_CADASTRO_PSICOLOGA } from "@shared/entradaNoSite";
@@ -123,9 +124,15 @@ export default function Precos() {
           <Link href="/" aria-label="Página inicial">
             <LogoLockup />
           </Link>
-          <Button size="sm" asChild>
-            <Link href="/login">Entrar</Link>
-          </Button>
+          {/* Quem chega pela bio cai aqui: o "Testar grátis" fica à vista sem rolar. */}
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Button size="sm" variant="ghost" asChild>
+              <Link href="/login">Entrar</Link>
+            </Button>
+            <Button size="sm" asChild>
+              <Link href={LINK_CADASTRO_PSICOLOGA}>Testar grátis</Link>
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -322,6 +329,7 @@ export default function Precos() {
         </section>
       </main>
       <Rodape />
+      <WhatsAppFlutuante />
     </div>
   );
 }

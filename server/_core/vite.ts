@@ -5,6 +5,8 @@ import { nanoid } from "nanoid";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
+import { htmlComMetadados, urlBase } from "../paginaHtml";
+import { rotaExiste } from "../../shared/paginasDoSite";
 
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
@@ -38,8 +40,9 @@ export async function setupVite(app: Express, server: Server) {
         `src="/src/main.tsx"`,
         `src="/src/main.tsx?v=${nanoid()}"`
       );
+      template = htmlComMetadados(template, url, urlBase(req));
       const page = await vite.transformIndexHtml(url, template);
-      res.status(200).set({ "Content-Type": "text/html" }).end(page);
+      res.status(rotaExiste(url) ? 200 : 404).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);
       next(e);
@@ -58,10 +61,19 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  // index: false — senão o express.static responderia "/" com o index.html cru,
+  // sem o título e a prévia de compartilhamento da página inicial.
+  app.use(express.static(distPath, { index: false }));
 
-  // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+  // Toda página é o mesmo index.html (SPA), com o título e a prévia de cada uma
+  // (server/paginaHtml.ts). Endereço que não existe sai com 404 de verdade: com
+  // 200, o Google indexava qualquer URL inventada como uma cópia da inicial.
+  let indexHtml: string | null = null;
+  app.use("*", (req, res) => {
+    indexHtml ??= fs.readFileSync(path.resolve(distPath, "index.html"), "utf-8");
+    res
+      .status(rotaExiste(req.originalUrl) ? 200 : 404)
+      .set({ "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" })
+      .send(htmlComMetadados(indexHtml, req.originalUrl, urlBase(req)));
   });
 }

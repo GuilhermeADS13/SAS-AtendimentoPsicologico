@@ -1,7 +1,8 @@
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
+import { metaDaPagina } from "@shared/paginasDoSite";
 
 // Carregadas junto do bundle: são o primeiro contato e precisam pintar na hora.
 import Home from "@/pages/Home";
@@ -56,6 +57,20 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import PortaoDoAparelho from "./components/PortaoDoAparelho";
 import { TherapistOnly } from "./components/TherapistOnly";
 import { ThemeProvider } from "./contexts/ThemeContext";
+
+/**
+ * Título e descrição da aba ao navegar. O servidor já entrega certo na primeira
+ * abertura (server/paginaHtml.ts); aqui é a troca entre páginas sem recarregar.
+ */
+function TituloDaPagina() {
+  const [local] = useLocation();
+  useEffect(() => {
+    const meta = metaDaPagina(local);
+    document.title = meta.titulo;
+    document.querySelector('meta[name="description"]')?.setAttribute("content", meta.descricao);
+  }, [local]);
+  return null;
+}
 
 function Router() {
   // Rotas clínicas ficam atrás do TherapistOnly; o paciente só acessa /profile
@@ -162,6 +177,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <PortaoDoAparelho>
+            <TituloDaPagina />
             <Router />
           </PortaoDoAparelho>
         </TooltipProvider>

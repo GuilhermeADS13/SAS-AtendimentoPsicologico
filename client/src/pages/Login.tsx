@@ -13,7 +13,7 @@ import {
   validatePassword,
   PASSWORD_RULE_LABELS,
 } from "@shared/passwordPolicy";
-import { AlertCircle, Check, X } from "lucide-react";
+import { AlertCircle, Check, MailCheck, X } from "lucide-react";
 import { emailValido, mensagemDeErroDeAcesso } from "@shared/erroDeAcesso";
 import { celularValido, mascaraTelefone, soDigitos } from "@shared/telefone";
 import { LogoFull, APP_NAME, APP_TAGLINE } from "@/components/Logo";
@@ -32,6 +32,8 @@ export default function Login() {
   // ligado, outro jeito de recuperar o acesso.
   const [celular, setCelular] = useState("");
   const [loading, setLoading] = useState(false);
+  // Cadastro enviado: o cartão vira a tela de "confira seu e-mail".
+  const [enviadoPara, setEnviadoPara] = useState<{ email: string; psicologa: boolean } | null>(null);
   // Erros NA TELA, junto do campo (borda vermelha + frase embaixo). Antes era só
   // um aviso no canto, em inglês ("Invalid login credentials"), e o campo errado
   // não ficava marcado. `credenciais` = e-mail/senha não conferem: marca os dois.
@@ -172,11 +174,11 @@ export default function Login() {
         origem: origemGuardada(),
         aceitouPolitica: true,
       });
-      // Mensagem igual tenha ou não conta (não revela quem está cadastrado): quem
-      // já tem conta recebe, no próprio e-mail, o aviso com o "criar nova senha".
-      toast.success(`Enviamos um e-mail para ${email.trim()}. Abra para continuar (confira também o spam).`, {
-        duration: 15000,
-      });
+      // Mesma tela tenha ou não conta (não revela quem está cadastrado): quem já
+      // tem conta recebe, no próprio e-mail, o aviso com o "criar nova senha".
+      // Antes era um aviso que sumia em 15 s; quem se distraía ficava sem saber o
+      // que fazer.
+      setEnviadoPara({ email: email.trim(), psicologa: isPsychologist });
     } catch (e) {
       toast.error(e instanceof Error && !e.message.startsWith("[") ? e.message : "Não foi possível criar a conta. Confira os dados.");
     } finally {
@@ -222,6 +224,8 @@ export default function Login() {
               Login indisponível: defina <code>VITE_SUPABASE_URL</code> e{" "}
               <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> no ambiente.
             </p>
+          ) : enviadoPara ? (
+            <ConfiraSeuEmail {...enviadoPara} aoVoltar={() => setEnviadoPara(null)} />
           ) : (
             // Alvos de toque: campos e botões vinham com 36px de altura (abas com
             // 29px) — abaixo dos ~44px confortáveis para dedo, logo na primeira
@@ -517,5 +521,26 @@ export default function Login() {
         </a>
       </p>
     </main>
+  );
+}
+
+/** Depois do cadastro: o que fazer agora, sem depender de um aviso que some. */
+function ConfiraSeuEmail({ email, psicologa, aoVoltar }: { email: string; psicologa: boolean; aoVoltar: () => void }) {
+  return (
+    <div className="space-y-4 pt-2 text-center" role="status">
+      <MailCheck className="mx-auto h-10 w-10 text-primary" aria-hidden="true" />
+      <h2 className="text-xl font-semibold text-foreground">Confira seu e-mail</h2>
+      <p className="text-sm text-muted-foreground">
+        Enviamos um link para <strong className="break-all text-foreground">{email}</strong>. Abra o e-mail e toque no
+        botão para ativar a sua conta.
+      </p>
+      <ul className="space-y-1 rounded-lg bg-muted/60 p-3 text-left text-sm text-muted-foreground">
+        <li>Não chegou em alguns minutos? Procure em Spam e em Promoções.</li>
+        {psicologa && <li>Depois de entrar, seu CRP passa pela verificação; avisamos por e-mail quando liberar.</li>}
+      </ul>
+      <Button type="button" variant="outline" className="w-full" onClick={aoVoltar}>
+        Voltar para entrar
+      </Button>
+    </div>
   );
 }

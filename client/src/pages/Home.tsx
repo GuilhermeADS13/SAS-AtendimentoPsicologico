@@ -3,6 +3,7 @@ import { useRole } from "@/hooks/useRole";
 import { Button } from "@/components/ui/button";
 import { LogoLockup, LogoMark } from "@/components/Logo";
 import { Rodape } from "@/components/Rodape";
+import { WhatsAppFlutuante } from "@/components/WhatsAppFlutuante";
 import {
   ArrowRight,
   Calendar,
@@ -77,12 +78,17 @@ export default function Home() {
       <nav className="sticky top-0 z-50 bg-background/85 backdrop-blur-md border-b border-border">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           <LogoLockup markClassName="w-8 h-8" />
-          <div className="flex items-center gap-2">
-            <Button onClick={() => setLocation("/precos")} size="sm" variant="ghost">
+          {/* "Testar grátis" no topo, sempre à vista. No celular o "Preços" sai
+              daqui para caber (fica no rodapé, e o link da bio já leva a /precos). */}
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Button onClick={() => setLocation("/precos")} size="sm" variant="ghost" className="hidden sm:inline-flex">
               Preços
             </Button>
-            <Button onClick={() => setLocation("/login")} size="sm">
+            <Button onClick={() => setLocation("/login")} size="sm" variant="ghost">
               Entrar
+            </Button>
+            <Button onClick={() => setLocation(LINK_CADASTRO_PSICOLOGA)} size="sm">
+              Testar grátis
             </Button>
           </div>
         </div>
@@ -183,6 +189,7 @@ export default function Home() {
       </main>
 
       <Rodape />
+      <WhatsAppFlutuante />
     </div>
   );
 }

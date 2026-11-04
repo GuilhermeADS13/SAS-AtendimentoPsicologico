@@ -12,6 +12,7 @@ import { serveStatic, setupVite } from "./vite";
 import { cabecalhosDeSeguranca, ehChamadaDaLuma, limitarConexoes, limitarRequisicoes } from "./seguranca";
 import { ehErroDeBanco } from "./trpc";
 import { rotaDoGif } from "../gifs";
+import { robotsTxt, sitemapXml, urlBase } from "../paginaHtml";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -178,6 +179,15 @@ async function startServer() {
       },
     })
   );
+  // Para buscadores: o que pode ser lido e o mapa das páginas públicas. Antes do
+  // site, que devolveria a página inicial nestes endereços (ver server/paginaHtml.ts).
+  app.get("/robots.txt", (req, res) => {
+    res.type("text/plain").send(robotsTxt(urlBase(req)));
+  });
+  app.get("/sitemap.xml", (req, res) => {
+    res.type("application/xml").send(sitemapXml(urlBase(req)));
+  });
+
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
