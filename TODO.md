@@ -1,6 +1,7 @@
 # Plataforma de Atendimento Psicológico Online — TODO
 
-Estado em 2026-07-15. Em produção: https://sas-atendimento-psicologico.onrender.com
+Estado conferido no código, no banco e no Render em 2026-11-04. Em produção:
+https://sas-atendimento-psicologico.onrender.com
 
 > A URL ainda tem o nome antigo porque o subdomínio `.onrender.com` é atribuído
 > na criação do serviço e **não muda com rename** — trocar exige recriar o
@@ -16,9 +17,9 @@ Estado em 2026-07-15. Em produção: https://sas-atendimento-psicologico.onrende
 - [x] Aprovar/recusar solicitação pela interface (/solicitacoes, só admin) + e-mail ao solicitante
 
 ## Design e Identidade Visual
-- [x] Paleta de cores (#EAD2A8, #8B6946) no Tailwind
+- [x] Paleta da marca VozInterior: verde da logo (#215756) sobre creme, tema claro e escuro
 - [x] Layout responsivo e acessível
-- [ ] **Logo da Beatriz Chagas** — ainda é o quadrado "BC" em Login.tsx:101
+- [x] Logo — o quadrado "BC" saiu; o login usa a logo do VozInterior (LogoFull)
 
 ## Área da psicóloga
 - [x] Dashboard com indicadores
@@ -41,7 +42,8 @@ Estado em 2026-07-15. Em produção: https://sas-atendimento-psicologico.onrende
 - [x] Anotações da sessão com auto-save durante a chamada
 - [x] Notificações de presença em tempo real (WebSocket)
 - [x] Registro da chamada no banco (videoCalls) + campo recordingUrl
-- [ ] Gravação de fato — não implementada (a videochamada WebRTC atual não grava)
+- [ ] Gravação — não implementada e não recomendada (vídeo clínico, peso de LGPD);
+      falta só a decisão final
 - [-] ~~Tela de histórico de videochamadas~~ — não fazer (decisão de 2026-11-04): a
       Agenda já mostra cada consulta pelo dia
 
@@ -61,25 +63,32 @@ Estado em 2026-07-15. Em produção: https://sas-atendimento-psicologico.onrende
 - [x] Fila de e-mail com retentativa (agendador a cada 15 min)
 - [x] Alertas para a psicóloga (novo agendamento, cancelamento, nova solicitação de CRP)
 - [x] Aviso de solicitação com notifiedAt/notifyError (não se perde, mostra o motivo da falha)
-- [ ] **Envio de e-mail via API HTTP da Brevo** — código pronto; falta o usuário pôr
-      BREVO_API_KEY (xkeysib-...) no Render. O Render free bloqueia SMTP.
+- [x] Envio de e-mail pela API HTTP da Brevo — BREVO_API_KEY configurada no Render
+      (o Render free bloqueia SMTP)
 - [ ] Deliverability: remetente é @gmail (freemail) → Gmail/Outlook mandam p/ spam.
       Resolve com domínio próprio (o mesmo do item da URL).
 
 ## Infra, Segurança e Testes
 - [x] Postgres no Supabase (migrado do MySQL) via pooler de transações
-- [x] RLS ligado em todas as 10 tabelas (sem políticas = trancado na API pública)
+- [x] RLS ligado em todas as 22 tabelas (sem políticas = trancado na API pública)
 - [x] Auth SÓ Supabase — login OAuth do Manus (forjável) removido, 9 arquivos mortos apagados
 - [x] Senha forte imposta no Supabase Auth (min 8, maiúscula/minúscula/número/símbolo)
 - [x] Deploy contínuo no Render (Docker, plano free)
 - [x] CI no GitHub Actions (typecheck + testes unitários + integração com Postgres)
 - [x] Schema do código == banco de produção (auditado programaticamente em 2026-07-15)
-- [ ] **Rotacionar segredos que vazaram no chat**: JWT_SECRET, senha do banco,
-      App Password do Gmail, PAT do Supabase, chave da Brevo
+- [ ] **Rotacionar segredos que vazaram no chat**: senha do banco, App Password do
+      Gmail, PAT do Supabase, chave da Brevo e chave da Groq. O JWT_SECRET não é mais usado:
+      basta removê-lo (ver a limpeza de variáveis abaixo)
 - [x] **Banco separado para dev** — `pnpm dev:local` usa o Supabase local no Docker
       (`supabase/`, `.env.supabase.local`). O `pnpm dev` continua apontando para produção.
-- [ ] Leaked Password Protection (HaveIBeenPwned) — só no plano Pro do Supabase
-- [ ] Sem FOREIGN KEY no banco: órfão é possível. Evitado no código; considerar FKs.
-- [ ] Ligar "Leaked Password Protection" no painel do Supabase Auth
-- [ ] Backup e recuperação de dados
-- [ ] Remover resíduo do framework Manus em `server/_core/`
+- [x] Senha vazada recusada (HaveIBeenPwned, k-anonimato) — feita no próprio app
+      (shared/senhaVazada.ts), porque a do Supabase só existe no plano Pro
+- [ ] Chaves estrangeiras: 7 existem (consultas, pacientes, participantes, assinaturas,
+      aparelhos); sessões, anotações, documentos, mensagens e tabelas da IA seguem sem FK.
+      Órfão é evitado no código
+- [x] Backup noturno criptografado no repo privado `vozinterior-backups` (sucesso todo dia)
+- [x] Resíduo do Manus em `server/_core/` removido (sobram só comentários). Fica o plugin
+      de edição `vite-plugin-manus-runtime`, que só roda no dev
+- [ ] **Limpar variáveis sem uso no Render**: `LLM_EMBEDDING_*` (3), `AI_WORKER_INLINE`,
+      `VITE_MIROTALK_URL` e `OAUTH_SERVER_URL`. `JWT_SECRET` e `OAUTH_SERVER_URL` ainda são
+      lidas em `server/_core/env.ts`, mas nada usa — dá para tirar das duas pontas
