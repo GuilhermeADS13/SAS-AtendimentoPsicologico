@@ -58,8 +58,9 @@ jobs:
 
       # Sem DATABASE_URL: exercita o comportamento sem banco (procedures retornam
       # vazio / rejeitam). O teste de integração fica SKIPPED aqui.
-      - name: Testes unitários
-        run: pnpm test
+      # Com cobertura: abaixo do piso de vitest.config.ts o passo falha.
+      - name: Testes unitários (com piso de cobertura)
+        run: pnpm test:coverage
 
       - name: Aplicar migrations no Postgres de teste
         run: pnpm drizzle-kit migrate

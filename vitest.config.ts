@@ -19,5 +19,16 @@ export default defineConfig({
     // testes de data passariam trivialmente — o bug de fuso (nascimento um dia
     // atrás, e-mail com horário errado) só aparece em fuso negativo.
     env: { TZ: "America/Sao_Paulo" },
+    // `pnpm test:coverage` (o CI usa): mede o que os testes executam no servidor e
+    // no código compartilhado. Os pisos ficam logo abaixo do medido em 04/11/2026:
+    // um teste apagado, ou código novo sem teste, derruba o CI. Ao subir a
+    // cobertura, suba o piso junto.
+    coverage: {
+      provider: "v8",
+      include: ["server/**", "shared/**"],
+      exclude: ["**/*.test.ts", "**/*.spec.ts"],
+      reporter: ["text-summary"],
+      thresholds: { lines: 47, statements: 47, functions: 72, branches: 83 },
+    },
   },
 });

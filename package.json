@@ -13,6 +13,7 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:integration": "vitest run integration.test",
+    "test:coverage": "vitest run --coverage",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "db:migrate:supabase": "bash scripts/apply-supabase-migration.sh",
     "test:e2e": "playwright test",
