@@ -40,7 +40,9 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Calendar, MessageCircle, Search, Video, UserRound, CheckCircle2 } from "lucide-react";
+import { BadgeCheck, Calendar, MessageCircle, Search, Video, UserRound, CheckCircle2 } from "lucide-react";
+import { linkWhatsAppDoSuporte } from "@/lib/suporte";
+import { DIAS_DE_TESTE_GRATIS, DIAS_PARA_O_PRIMEIRO_PACIENTE } from "@shared/precos";
 import { LumaOwlIcon } from "@/components/Logo";
 import AddToCalendar from "@/components/AddToCalendar";
 import { PagamentoDaConsulta } from "@/components/PagamentoDaConsulta";
@@ -60,6 +62,11 @@ export default function MyAppointments() {
   const utils = trpc.useUtils();
   const { data: appointments = [], isLoading } = trpc.me.appointments.useQuery();
   const { data: profile } = trpc.me.profile.useQuery();
+  const { data: pedidoProfissional } = trpc.me.therapistRequest.useQuery();
+  const whatsLiberacao =
+    pedidoProfissional?.status === "pending"
+      ? linkWhatsAppDoSuporte("Olá! Criei minha conta de psicóloga no VozInterior e estou aguardando a liberação do CRP.")
+      : null;
   // Foto da psicóloga nos cards (bucket privado → URL assinada; a regra do bucket
   // libera a foto de psicóloga para quem está logado).
   const { data: psi } = trpc.me.therapist.useQuery();
@@ -136,6 +143,39 @@ export default function MyAppointments() {
           </div>
         </div>
 
+        {/* Psicóloga que acabou de se cadastrar cai aqui (a conta é de paciente até o
+            CRP ser verificado). Sem este aviso, ela via uma área de paciente vazia e
+            não sabia que o pedido estava em análise: o aviso só existia no Perfil. */}
+        {pedidoProfissional?.status === "pending" && (
+          <Card className="border-primary/40 bg-primary/5">
+            <CardContent className="space-y-3 p-5">
+              <div className="flex items-start gap-3">
+                <BadgeCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-foreground">Seu acesso de psicóloga está em análise</p>
+                  <p className="text-sm text-muted-foreground">
+                    Estamos conferindo o CRP {pedidoProfissional.crp} no Cadastro Nacional de Psicólogos. Quando
+                    for liberado, você recebe um e-mail e, ao entrar de novo, o seu painel já aparece. Até lá, esta é a
+                    área do paciente.
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Os {DIAS_DE_TESTE_GRATIS} dias grátis só começam a contar quando você cadastrar o primeiro
+                    paciente (você tem até {DIAS_PARA_O_PRIMEIRO_PACIENTE} dias para isso).
+                  </p>
+                </div>
+              </div>
+              {whatsLiberacao && (
+                <Button asChild variant="outline" className="w-full sm:w-auto">
+                  <a href={whatsLiberacao} target="_blank" rel="noopener noreferrer">
+                    <MessageCircle className="mr-2 h-4 w-4" />
+                    Falar com a gente no WhatsApp
+                  </a>
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         <Card className="overflow-hidden border-primary/25 bg-gradient-to-r from-primary/10 via-white to-secondary/20 shadow-sm">
           <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
@@ -164,7 +204,9 @@ export default function MyAppointments() {
         </Card>
 
         {/* Sem cadastro ainda, a psicóloga não consegue agendar. */}
-        {!isLoading && !profile && (
+        {/* Psicóloga aguardando o CRP não é paciente: o "complete seu cadastro para a
+            psicóloga" só confundia. */}
+        {!isLoading && !profile && pedidoProfissional?.status !== "pending" && (
           <Card className="border-primary/40 bg-primary/5">
             <CardContent className="flex items-center justify-between gap-4">
               <div>

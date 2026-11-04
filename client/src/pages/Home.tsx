@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
+import { LINK_CADASTRO_PSICOLOGA } from "@shared/entradaNoSite";
 
 const FEATURES = [
   {
@@ -109,7 +110,7 @@ export default function Home() {
           </p>
 
           <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
-            <Button onClick={() => setLocation("/login")} size="lg" className="gap-2">
+            <Button onClick={() => setLocation(LINK_CADASTRO_PSICOLOGA)} size="lg" className="gap-2">
               Começar agora
               <ArrowRight className="w-4 h-4" />
             </Button>
@@ -169,7 +170,7 @@ export default function Home() {
             Crie sua conta. Assim que o seu CRP for verificado, é só começar a atender.
           </p>
           <Button
-            onClick={() => setLocation("/login")}
+            onClick={() => setLocation(LINK_CADASTRO_PSICOLOGA)}
             size="lg"
             variant="secondary"
             className="mt-8 gap-2"

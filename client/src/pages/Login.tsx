@@ -19,6 +19,8 @@ import { celularValido, mascaraTelefone, soDigitos } from "@shared/telefone";
 import { LogoFull, APP_NAME, APP_TAGLINE } from "@/components/Logo";
 import { maskCrp, isValidCrp } from "@shared/crp";
 import { SugestaoDeEmail } from "@/components/SugestaoDeEmail";
+import { cadastroPedidoNaUrl } from "@shared/entradaNoSite";
+import { origemGuardada } from "@/lib/origem";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -50,8 +52,10 @@ export default function Login() {
   };
 
   // Cadastro: paciente (padrão) ou psicólogo(a) — este último vira solicitação
-  // pendente com o CRP, aprovada manualmente pelo admin.
-  const [isPsychologist, setIsPsychologist] = useState(false);
+  // pendente com o CRP, aprovada manualmente pelo admin. O botão "Testar grátis"
+  // chega com ?criar=psicologa e já abre o cadastro como psicóloga.
+  const [pedido] = useState(() => cadastroPedidoNaUrl(window.location.search));
+  const [isPsychologist, setIsPsychologist] = useState(pedido.psicologa);
   const [crp, setCrp] = useState("");
   // LGPD: dado de saúde exige consentimento explícito — sem marcar, não cria conta.
   const [aceitouPolitica, setAceitouPolitica] = useState(false);
@@ -165,6 +169,7 @@ export default function Login() {
         nome: name.trim(),
         celular: soDigitos(celular),
         crp: isPsychologist ? crp.trim() : undefined,
+        origem: origemGuardada(),
         aceitouPolitica: true,
       });
       // Mensagem igual tenha ou não conta (não revela quem está cadastrado): quem
@@ -224,7 +229,7 @@ export default function Login() {
             // cada controle, a altura é ajustada aqui de uma vez, e volta ao
             // padrão do app no desktop (sm:).
             <Tabs
-              defaultValue="login"
+              defaultValue={pedido.aba}
               // As duas abas dividem e-mail/senha: o erro de uma não pode aparecer na outra.
               onValueChange={() => setErros({})}
               className="w-full [&_button[data-slot=tabs-trigger]]:h-10 [&_input]:h-11 sm:[&_button[data-slot=tabs-trigger]]:h-9 sm:[&_input]:h-9"

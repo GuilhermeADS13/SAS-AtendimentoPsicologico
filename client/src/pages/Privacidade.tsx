@@ -68,6 +68,8 @@ export default function Privacidade() {
                 <strong>Conta:</strong> nome, e-mail, celular e senha (a senha é guardada de
                 forma criptografada — nem nós conseguimos lê-la). O celular serve para
                 contato sobre as consultas e, quando disponível, para recuperar o acesso.
+                Se você chegou por um link nosso nas redes sociais, guardamos também de qual
+                rede veio (por exemplo, "instagram"), só para saber quais canais funcionam.
               </li>
               <li>
                 <strong>Cadastro:</strong> telefone, data de nascimento, endereço e

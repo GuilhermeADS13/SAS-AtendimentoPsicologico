@@ -12,6 +12,7 @@ import { LumaDoPlano } from "@/components/LumaDoPlano";
 import { Rodape } from "@/components/Rodape";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { linkWhatsAppDoSuporte } from "@/lib/suporte";
+import { LINK_CADASTRO_PSICOLOGA } from "@shared/entradaNoSite";
 import {
   DESCONTO_FUNDADOR,
   DIAS_DE_TESTE_GRATIS,
@@ -273,7 +274,7 @@ export default function Precos() {
                     )
                   ) : (
                     <Button asChild variant={destaque ? "default" : "outline"} className="w-full gap-2">
-                      <Link href="/login">
+                      <Link href={LINK_CADASTRO_PSICOLOGA}>
                         Testar {DIAS_DE_TESTE_GRATIS} dias grátis
                         <ArrowRight className="w-4 h-4" />
                       </Link>

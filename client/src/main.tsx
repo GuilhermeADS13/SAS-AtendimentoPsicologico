@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
 import { getAccessToken } from "./lib/supabase";
+import { guardarOrigemDaUrl } from "./lib/origem";
 import "./index.css";
 
 // Limpeza de dado legado: a chave "manus-runtime-user-info" guardava o usuário
@@ -16,6 +17,10 @@ import "./index.css";
 try {
   localStorage.removeItem("manus-runtime-user-info");
 } catch {}
+
+// De onde a pessoa veio (?origem= no link da bio). Roda aqui porque ela pode
+// chegar por qualquer página, não só por /login.
+guardarOrigemDaUrl();
 
 const queryClient = new QueryClient();
 

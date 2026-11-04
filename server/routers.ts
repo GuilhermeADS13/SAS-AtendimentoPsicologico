@@ -38,6 +38,7 @@ import { pagamentoDaConsulta } from "../shared/pagamentoDaConsulta";
 import { planoEfetivo, planoPorId, valorDoPlano } from "../shared/precos";
 import { PASSWORD_MAX_LENGTH, validatePassword } from "../shared/passwordPolicy";
 import { CRP_REGEX } from "../shared/crp";
+import { ORIGEM_REGEX } from "../shared/entradaNoSite";
 import { celularValido, soDigitos, telefoneValido } from "../shared/telefone";
 import { nascimentoValido } from "../shared/datas";
 import { VALOR_MAXIMO_DA_CONSULTA } from "../shared/dinheiro";
@@ -833,6 +834,9 @@ export const appRouter = router({
         // Psicóloga: o pedido de acesso profissional sai no 1º login confirmado
         // (ver pedidoDeCrpPendente em _core/context.ts).
         crp: z.string().trim().regex(CRP_REGEX).optional(),
+        // De onde a pessoa veio (?origem= no link da bio de cada rede), para saber
+        // qual rede traz cadastro. Ver shared/entradaNoSite.ts.
+        origem: z.string().regex(ORIGEM_REGEX).optional(),
         // LGPD: dado de saúde exige consentimento explícito.
         aceitouPolitica: z.literal(true),
       }))
@@ -848,6 +852,7 @@ export const appRouter = router({
         const base = process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:3000";
         const dados: Record<string, string> = { name: input.nome, telefone: soDigitos(input.celular) };
         if (input.crp) dados.crp_solicitado = input.crp;
+        if (input.origem) dados.origem = input.origem;
         const link = await gerarLinkDeCadastro(input.email, input.senha, dados, `${base}/login?confirmado=1`);
         // E-mail já cadastrado: a TELA não diz isso (num site de psicologia, revelaria
         // a qualquer um que a pessoa faz terapia), mas o DONO do e-mail é avisado, no
