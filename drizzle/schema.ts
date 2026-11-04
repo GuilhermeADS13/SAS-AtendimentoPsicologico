@@ -1,4 +1,5 @@
 import { boolean, customType, index, integer, jsonb, pgEnum, pgTable, serial, smallint, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
+import type { AvisosPorEmail } from "../shared/avisosPorEmail";
 import { relations } from "drizzle-orm";
 import type { AnamneseData, TcleData, NoteTemplate } from "../shared/prontuario";
 import type { TipoChavePix } from "../shared/pix";
@@ -93,6 +94,8 @@ export const users = pgTable("users", {
   emailChangeCodeHash: text("emailChangeCodeHash"),
   emailChangeExpires: timestamp("emailChangeExpires", { withTimezone: true, mode: "date" }),
   emailChangeAttempts: integer("emailChangeAttempts").default(0).notNull(),
+  /** Avisos de consulta que a pessoa quer por e-mail (migração 0051). Nulo = todos. */
+  avisosPorEmail: jsonb("avisosPorEmail").$type<Partial<AvisosPorEmail>>(),
 });
 
 export type User = typeof users.$inferSelect;
@@ -148,6 +151,10 @@ export const aparelhosConfiaveis = pgTable("aparelhosConfiaveis", {
   tokenHash: varchar("tokenHash", { length: 64 }).notNull().unique(),
   expiraEm: timestamp("expiraEm", { withTimezone: true, mode: "date" }).notNull(),
   criadoEm: timestamp("criadoEm", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  /** "Chrome no Windows" (migração 0051): para a pessoa reconhecer o aparelho na lista. */
+  navegador: varchar("navegador", { length: 80 }),
+  /** Último uso, gravado no máximo uma vez por hora (migração 0051). */
+  ultimoUsoEm: timestamp("ultimoUsoEm", { withTimezone: true, mode: "date" }),
 });
 
 /**

@@ -31,6 +31,7 @@ const MAXIMO_DE_TENTATIVAS = 5;
 const CACHE_MS = 5 * 60_000;
 
 const DIA_MS = 24 * 60 * 60_000;
+const HORA_MS = 60 * 60_000;
 const hash = (texto: string) => createHash("sha256").update(texto).digest("hex");
 
 export function precisaVerificarAparelho(role: string, env: NodeJS.ProcessEnv = process.env): boolean {
@@ -66,11 +67,15 @@ async function aparelhoEhConfiavel(userId: number, token: string, agora: Date): 
   const db = await getDb();
   if (!db) return false;
   const [linha] = await db
-    .select({ expiraEm: aparelhosConfiaveis.expiraEm })
+    .select({ id: aparelhosConfiaveis.id, expiraEm: aparelhosConfiaveis.expiraEm, ultimoUsoEm: aparelhosConfiaveis.ultimoUsoEm })
     .from(aparelhosConfiaveis)
     .where(and(eq(aparelhosConfiaveis.userId, userId), eq(aparelhosConfiaveis.tokenHash, tokenHash), gt(aparelhosConfiaveis.expiraEm, agora)))
     .limit(1);
   if (!linha) return false;
+  // "Último uso" da lista de aparelhos: no máximo uma escrita por hora por aparelho.
+  if (!linha.ultimoUsoEm || agora.getTime() - linha.ultimoUsoEm.getTime() > HORA_MS) {
+    await db.update(aparelhosConfiaveis).set({ ultimoUsoEm: agora }).where(eq(aparelhosConfiaveis.id, linha.id));
+  }
   if (confiaveisEmCache.size > 5000) confiaveisEmCache.clear();
   confiaveisEmCache.set(chave, { expira: linha.expiraEm.getTime(), revalidarEm: agora.getTime() + CACHE_MS });
   return true;
@@ -122,7 +127,13 @@ export async function enviarCodigoDeAparelho(user: { id: number; name: string | 
  * cookie. A tentativa é contada ANTES de comparar e numa só operação no banco:
  * chamadas em paralelo não ganham tentativas a mais para adivinhar os 6 dígitos.
  */
-export async function confirmarCodigoDeAparelho(userId: number, codigo: string, lembrar: boolean, agora: Date = new Date()): Promise<string> {
+export async function confirmarCodigoDeAparelho(
+  userId: number,
+  codigo: string,
+  lembrar: boolean,
+  agora: Date = new Date(),
+  navegador: string | null = null,
+): Promise<string> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
@@ -143,6 +154,64 @@ export async function confirmarCodigoDeAparelho(userId: number, codigo: string, 
     userId,
     tokenHash: hash(token),
     expiraEm: new Date(agora.getTime() + (lembrar ? DIAS_DE_APARELHO_CONFIAVEL * DIA_MS : HORAS_SEM_LEMBRAR * 60 * 60_000)),
+    navegador: navegador?.slice(0, 80) ?? null,
+    ultimoUsoEm: agora,
   });
   return token;
+}
+
+/** Tira do cache os aparelhos desta conta (todos, ou só um hash): sem isso, o removido seguiria valendo até 5 min. */
+function esquecerDoCache(userId: number, tokenHash?: string) {
+  for (const chave of Array.from(confiaveisEmCache.keys())) {
+    if (tokenHash ? chave === `${userId}:${tokenHash}` : chave.startsWith(`${userId}:`)) confiaveisEmCache.delete(chave);
+  }
+}
+
+/**
+ * Aparelhos confirmados desta conta, ainda válidos, do mais usado para o menos.
+ * `esteAparelho` marca o do cookie atual. O token e o hash nunca saem daqui.
+ */
+export async function listarAparelhos(userId: number, cabecalhoCookie: string | undefined, agora: Date = new Date()) {
+  const db = await getDb();
+  if (!db) return [];
+  const token = lerCookie(cabecalhoCookie, COOKIE_DO_APARELHO);
+  const hashAtual = token ? hash(token) : null;
+  const linhas = await db
+    .select()
+    .from(aparelhosConfiaveis)
+    .where(and(eq(aparelhosConfiaveis.userId, userId), gt(aparelhosConfiaveis.expiraEm, agora)));
+  return linhas
+    .map((a) => ({
+      id: a.id,
+      navegador: a.navegador,
+      confirmadoEm: a.criadoEm,
+      ultimoUsoEm: a.ultimoUsoEm,
+      expiraEm: a.expiraEm,
+      esteAparelho: a.tokenHash === hashAtual,
+    }))
+    .sort((x, y) => Number(y.esteAparelho) - Number(x.esteAparelho) || (y.ultimoUsoEm ?? y.confirmadoEm).getTime() - (x.ultimoUsoEm ?? x.confirmadoEm).getTime());
+}
+
+/** Tira um aparelho desta conta: na próxima chamada ele pede o código de novo. */
+export async function removerAparelho(userId: number, id: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const removidos = await db
+    .delete(aparelhosConfiaveis)
+    .where(and(eq(aparelhosConfiaveis.id, id), eq(aparelhosConfiaveis.userId, userId)))
+    .returning({ tokenHash: aparelhosConfiaveis.tokenHash });
+  for (const r of removidos) esquecerDoCache(userId, r.tokenHash);
+  return removidos.length > 0;
+}
+
+/** "Sair de todos os aparelhos": nenhum continua confiável, nem este. */
+export async function removerTodosOsAparelhos(userId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const removidos = await db
+    .delete(aparelhosConfiaveis)
+    .where(eq(aparelhosConfiaveis.userId, userId))
+    .returning({ id: aparelhosConfiaveis.id });
+  esquecerDoCache(userId);
+  return removidos.length;
 }

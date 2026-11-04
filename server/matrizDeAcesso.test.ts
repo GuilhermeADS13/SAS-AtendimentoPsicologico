@@ -41,6 +41,8 @@ const ESPERADO: Record<Nivel, string[]> = {
     "aparelho.confirmarCodigo", "aparelho.enviarCodigo",
   ],
   logada: [
+    "aparelho.listar", "aparelho.remover", "aparelho.sairDeTodos", "me.avisosPorEmail",
+    "me.definirAvisosPorEmail", "me.exportarMeusDados",
     "ai.history", "ai.siteHelp", "appointments.roomAccess", "chat.attachmentUrl", "chat.delete",
     "chat.edit", "chat.gifs", "chat.gifsDisponiveis", "chat.limiteDeAnexo", "chat.markRead",
     "chat.messages", "chat.send", "chat.setTyping", "chat.typingStatus", "chat.unreadCount",

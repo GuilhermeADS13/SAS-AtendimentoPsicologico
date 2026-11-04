@@ -16,8 +16,13 @@ import {
   DIAS_DE_APARELHO_CONFIAVEL,
   confirmarCodigoDeAparelho,
   enviarCodigoDeAparelho,
+  listarAparelhos,
   mascararEmail,
+  removerAparelho,
+  removerTodosOsAparelhos,
 } from "./aparelhos";
+import { nomeDoNavegador } from "../shared/navegador";
+import { TIPOS_DE_AVISO, avisosComPadrao } from "../shared/avisosPorEmail";
 import { sendEmail } from "./mailer";
 import { celularDaConta, gerarLinkDeCadastro, gerarLinkDeRecuperacao, trocarEmailSupabase } from "./supabaseAdmin";
 import {
@@ -935,7 +940,9 @@ export const appRouter = router({
     confirmarCodigo: contaProcedure
       .input(z.object({ codigo: z.string().trim().regex(/^\d{6}$/, "Digite os 6 números do código."), lembrar: z.boolean() }))
       .mutation(async ({ ctx, input }) => {
-        const token = await confirmarCodigoDeAparelho(ctx.user.id, input.codigo, input.lembrar);
+        const token = await confirmarCodigoDeAparelho(
+          ctx.user.id, input.codigo, input.lembrar, new Date(), nomeDoNavegador(ctx.req.headers["user-agent"]),
+        );
         ctx.res.cookie(COOKIE_DO_APARELHO, token, {
           ...getSessionCookieOptions(ctx.req),
           // Lax e só em /api: o navegador manda nas chamadas e no WebSocket do
@@ -947,6 +954,27 @@ export const appRouter = router({
         });
         return { success: true } as const;
       }),
+
+    /** Configurações → Aparelhos conectados: os confirmados desta conta, com o atual marcado. */
+    listar: protectedProcedure.query(({ ctx }) => listarAparelhos(ctx.user.id, ctx.req.headers.cookie)),
+
+    /** Tira um aparelho desta conta (perdeu o celular, usou um computador alheio). */
+    remover: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        if (!(await removerAparelho(ctx.user.id, input.id))) throw new Error("Aparelho não encontrado.");
+        return { success: true } as const;
+      }),
+
+    /**
+     * "Sair de todos os aparelhos": nenhum aparelho segue confiável, nem este. A
+     * tela, em seguida, encerra as sessões no Supabase (signOut global).
+     */
+    sairDeTodos: protectedProcedure.mutation(async ({ ctx }) => {
+      const removidos = await removerTodosOsAparelhos(ctx.user.id);
+      ctx.res.clearCookie(COOKIE_DO_APARELHO, { ...getSessionCookieOptions(ctx.req), path: "/api" });
+      return { removidos };
+    }),
   }),
 
   // Área do PACIENTE: só o próprio cadastro e as próprias consultas.
@@ -1014,6 +1042,77 @@ export const appRouter = router({
      * um valor só. O e-mail vem de `ctx.user`, que o contexto já sincroniza a
      * cada requisição a partir do token do Supabase.
      */
+    /** Avisos de consulta por e-mail que a pessoa escolheu (Configurações). */
+    avisosPorEmail: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return avisosComPadrao(null);
+      const [linha] = await db.select({ avisos: users.avisosPorEmail }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      return avisosComPadrao(linha?.avisos);
+    }),
+
+    definirAvisosPorEmail: protectedProcedure
+      .input(z.object(Object.fromEntries(TIPOS_DE_AVISO.map(({ id }) => [id, z.boolean()])) as Record<(typeof TIPOS_DE_AVISO)[number]["id"], z.ZodBoolean>))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        await db.update(users).set({ avisosPorEmail: avisosComPadrao(input) }).where(eq(users.id, ctx.user.id));
+        return { success: true } as const;
+      }),
+
+    /**
+     * "Baixar meus dados" (LGPD, art. 18): o que o sistema guarda DESTA conta. Os
+     * dados dos pacientes de uma psicóloga não entram: são de outras pessoas, e a
+     * psicóloga os vê e exporta em cada prontuário.
+     */
+    exportarMeusDados: protectedProcedure.mutation(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      const [conta] = await db
+        .select({ nome: users.name, email: users.email, papel: users.role, criadaEm: users.createdAt, ultimoAcesso: users.lastSignedIn, avisos: users.avisosPorEmail })
+        .from(users)
+        .where(eq(users.id, ctx.user.id))
+        .limit(1);
+      const dados: Record<string, unknown> = {
+        geradoEm: new Date().toISOString(),
+        conta: { ...conta, avisosPorEmail: avisosComPadrao(conta?.avisos), avisos: undefined },
+        aparelhosConectados: (await listarAparelhos(ctx.user.id, undefined)).map(({ navegador, confirmadoEm, ultimoUsoEm, expiraEm }) => ({
+          navegador, confirmadoEm, ultimoUsoEm, expiraEm,
+        })),
+      };
+      const [perfil] = await db.select().from(therapists).where(eq(therapists.userId, ctx.user.id)).limit(1);
+      if (perfil) {
+        const [assinatura] = await db.select().from(assinaturas).where(eq(assinaturas.therapistId, perfil.id)).limit(1);
+        dados.perfilProfissional = {
+          crp: perfil.crp, especialidades: perfil.specialties, bio: perfil.bio, formacao: perfil.formacao,
+          publicoAtendido: perfil.publicoAtendido, valorDaSessaoCentavos: perfil.sessionPrice, telefone: perfil.phone,
+        };
+        dados.assinatura = assinatura
+          ? { plano: assinatura.plano, ciclo: assinatura.ciclo, pagoAte: assinatura.pagoAte, testeAte: assinatura.testeAte, fundadora: assinatura.fundador, criadaEm: assinatura.createdAt }
+          : null;
+      }
+      // Só para quem não é psicóloga: pacienteDoUsuario também fecha o vínculo de um
+      // convite pelo e-mail, e isso não pode acontecer por um clique em "Baixar dados".
+      const paciente = perfil ? null : await pacienteDoUsuario(db, ctx.user);
+      if (paciente) {
+        dados.cadastroDePaciente = {
+          nome: paciente.firstName, sobrenome: paciente.lastName, email: paciente.email, telefone: paciente.phone,
+          endereco: paciente.address, nascimento: paciente.dateOfBirth,
+        };
+        dados.consultas = (
+          await db
+            .select({ data: appointments.scheduledAt, duracaoMin: appointments.duration, situacao: appointments.status, valorCentavos: appointments.price, paga: appointments.paid })
+            .from(appointments)
+            .where(eq(appointments.patientId, paciente.id))
+            .orderBy(desc(appointments.scheduledAt))
+        );
+        dados.documentosRecebidos = await db
+          .select({ arquivo: documents.fileName, tipo: documents.tipoParaPaciente, compartilhadoEm: documents.compartilhadoEm })
+          .from(documents)
+          .where(and(eq(documents.patientId, paciente.id), isNotNull(documents.tipoParaPaciente)));
+      }
+      return dados;
+    }),
+
     contato: protectedProcedure.query(async ({ ctx }) => {
       const db = await getDb();
       const email = ctx.user.email ?? "";

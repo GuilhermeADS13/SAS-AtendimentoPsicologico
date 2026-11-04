@@ -16,6 +16,7 @@ import { precisaAvisarVencimento, situacaoDaAssinatura } from "../shared/assinat
 import { DIAS_DE_TESTE_GRATIS, DIAS_PARA_O_PRIMEIRO_PACIENTE, formatarReais, valorDoPlano } from "../shared/precos";
 import { googleCalendarUrl } from "../shared/calendario";
 import { detalhesDoEmail, emailComMarca, esc, primeiroNome } from "./emailLayout";
+import { avisoLigado, type TipoDeAviso } from "../shared/avisosPorEmail";
 
 /**
  * Base dos links enviados por e-mail.
@@ -579,16 +580,18 @@ export async function sendAppointmentReminders() {
         )
       );
 
+    const preferencias = new Map<number, unknown>();
     for (const record of upcomingAppointments) {
       // Um lembrete para CADA lado: paciente E psicóloga. Cada um tem o seu dedup
       // (por recipientType), para não repetir e-mail nem um bloquear o outro.
-      const destinatarios: Array<{ tipo: "patient" | "therapist"; email: string | null }> = [
-        { tipo: "patient", email: record.patient.email },
-        { tipo: "therapist", email: record.therapistEmail },
+      const destinatarios: Array<{ tipo: "patient" | "therapist"; email: string | null; userId: number | null }> = [
+        { tipo: "patient", email: record.patient.email, userId: record.patient.userId },
+        { tipo: "therapist", email: record.therapistEmail, userId: record.therapist.userId },
       ];
 
-      for (const { tipo, email } of destinatarios) {
+      for (const { tipo, email, userId } of destinatarios) {
         if (!email) continue;
+        if (!(await querAviso(db, userId, "lembrete", preferencias))) continue;
         const jaExiste = await db
           .select()
           .from(notifications)
@@ -621,6 +624,19 @@ export async function sendAppointmentReminders() {
 }
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
+/**
+ * A pessoa quer este aviso? (Configurações → Avisos por e-mail.) Quem não tem conta
+ * (paciente só convidado) recebe tudo. A preferência é lida uma vez por ciclo.
+ */
+async function querAviso(db: Db, userId: number | null | undefined, tipo: TipoDeAviso, cache: Map<number, unknown>): Promise<boolean> {
+  if (!userId) return true;
+  if (!cache.has(userId)) {
+    const [linha] = await db.select({ avisos: users.avisosPorEmail }).from(users).where(eq(users.id, userId)).limit(1);
+    cache.set(userId, linha?.avisos ?? null);
+  }
+  return avisoLigado(cache.get(userId), tipo);
+}
 
 /**
  * As consultas criadas NO MESMO lote (a "repetir por N semanas" insere todas de
@@ -667,7 +683,9 @@ export async function sendTherapistAlerts() {
       .select({
         appointment: appointments,
         patientEmail: patients.email,
+        patientUserId: patients.userId,
         therapistEmail: users.email,
+        therapistUserId: therapists.userId,
       })
       .from(appointments)
       .innerJoin(patients, eq(appointments.patientId, patients.id))
@@ -681,6 +699,7 @@ export async function sendTherapistAlerts() {
         ),
       );
 
+    const preferencias = new Map<number, unknown>();
     // Um lote = mesmo paciente + mesmo instante de criação. O aviso fica preso à
     // PRIMEIRA data do lote; o e-mail lista as demais.
     const lotes = new Map<string, typeof recentes>();
@@ -693,12 +712,13 @@ export async function sendTherapistAlerts() {
       lote.sort((a, b) => a.appointment.scheduledAt.getTime() - b.appointment.scheduledAt.getTime());
       const primeira = lote[0];
       const ids = lote.map((r) => r.appointment.id);
-      const destinatarios: Array<{ tipo: "patient" | "therapist"; email: string | null }> = [
-        { tipo: "patient", email: primeira.patientEmail },
-        { tipo: "therapist", email: primeira.therapistEmail },
+      const destinatarios: Array<{ tipo: "patient" | "therapist"; email: string | null; userId: number | null }> = [
+        { tipo: "patient", email: primeira.patientEmail, userId: primeira.patientUserId },
+        { tipo: "therapist", email: primeira.therapistEmail, userId: primeira.therapistUserId },
       ];
-      for (const { tipo, email } of destinatarios) {
+      for (const { tipo, email, userId } of destinatarios) {
         if (!email) continue;
+        if (!(await querAviso(db, userId, "consultaNova", preferencias))) continue;
         // Dedup pelo LOTE inteiro: se a primeira for cancelada antes do envio, a
         // "primeira" muda — e não pode sair um segundo aviso do mesmo lote.
         const jaExiste = await db
@@ -973,7 +993,10 @@ export async function sendCancellationAlerts() {
         )
       );
 
+    const preferencias = new Map<number, unknown>();
     for (const record of cancelledAppointments) {
+      const pacienteQuer = await querAviso(db, record.patient.userId, "cancelamento", preferencias);
+      const psicologaQuer = await querAviso(db, record.therapist.userId, "cancelamento", preferencias);
       // Enviar para paciente
       const patientNotification = await db
         .select()
@@ -987,7 +1010,7 @@ export async function sendCancellationAlerts() {
         )
         .limit(1);
 
-      if (patientNotification.length === 0) {
+      if (patientNotification.length === 0 && pacienteQuer) {
         await db.insert(notifications).values({
           appointmentId: record.appointment.id,
           recipientType: "patient",
@@ -998,7 +1021,7 @@ export async function sendCancellationAlerts() {
       }
 
       // Enviar para psicóloga
-      if (record.therapistUser.email) {
+      if (record.therapistUser.email && psicologaQuer) {
         const therapistNotification = await db
           .select()
           .from(notifications)

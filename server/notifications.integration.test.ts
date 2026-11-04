@@ -50,7 +50,7 @@ describe.runIf(RUN)("lembretes e avisos por e-mail (Postgres real)", () => {
       await sql`delete from patients where "therapistId" = ${t.id}`;
       await sql`delete from therapists where id = ${t.id}`;
     }
-    await sql`delete from users where id = ${USER_ID}`;
+    await sql`delete from users where id in (${USER_ID}, ${USER_ID + 1})`;
   }
 
   async function agendar(emHoras: number, status = "scheduled", criadaEm = new Date()) {
@@ -114,6 +114,25 @@ describe.runIf(RUN)("lembretes e avisos por e-mail (Postgres real)", () => {
     expect(await avisos("appointment_cancelled", [consulta.cancelada])).toEqual([
       `${consulta.cancelada}:patient`, `${consulta.cancelada}:therapist`,
     ]);
+  });
+
+  it("quem desligou um aviso nas Configurações não recebe esse aviso; o outro lado recebe", async () => {
+    // Paciente com conta que desligou o lembrete e o aviso de cancelamento.
+    await sql`insert into users (id, "openId", name, email, role, "avisosPorEmail")
+              values (${USER_ID + 1}, 'sb:notif-pac', 'Pac Prefere', 'pac-prefere@teste.local', 'user', ${sql.json({ lembrete: false, cancelamento: false })})`;
+    const [pac] = await sql`insert into patients ("therapistId", "firstName", "lastName", email, "userId")
+                            values (${therapistId}, 'Pac', 'Prefere', 'pac-prefere@teste.local', ${USER_ID + 1}) returning id`;
+    const [lembrar] = await sql`insert into appointments ("therapistId", "patientId", "scheduledAt", duration, "createdAt")
+                                values (${therapistId}, ${pac.id}, ${new Date(Date.now() + 4 * HORA)}, 50, ${new Date(Date.now() - 30 * 60_000)}) returning id`;
+    const [cancelar] = await sql`insert into appointments ("therapistId", "patientId", "scheduledAt", duration, status, "createdAt")
+                                 values (${therapistId}, ${pac.id}, ${new Date(Date.now() + 50 * HORA)}, 50, 'cancelled', ${new Date(Date.now() - 40 * 60_000)}) returning id`;
+    await sendAppointmentReminders();
+    await sendTherapistAlerts();
+    await sendCancellationAlerts();
+    expect(await avisos("appointment_reminder", [lembrar.id])).toEqual([`${lembrar.id}:therapist`]);
+    expect(await avisos("appointment_cancelled", [cancelar.id])).toEqual([`${cancelar.id}:therapist`]);
+    // "Consulta marcada" ele deixou ligado: chega para os dois.
+    expect(await avisos("new_appointment", [lembrar.id])).toEqual([`${lembrar.id}:patient`, `${lembrar.id}:therapist`]);
   });
 
   it("a fila marca enviado, falha (com o motivo) ou deixa pendente quando o e-mail não está configurado", async () => {
