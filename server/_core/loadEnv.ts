@@ -4,7 +4,12 @@
 //
 // Ordem: .env.local (dev) primeiro, depois .env — sem sobrescrever o que já
 // existir no ambiente do processo.
+//
+// ENV_FILE troca o .env.local por outro arquivo. O `pnpm dev:local` usa
+// .env.supabase.local, que aponta para o Supabase no Docker: o .env.local aponta
+// para o banco de PRODUÇÃO. As VITE_* lidas aqui também valem para o front, porque
+// o Vite não sobrescreve o que já está no ambiente do processo.
 import { config } from "dotenv";
 
-config({ path: ".env.local" });
+config({ path: process.env.ENV_FILE || ".env.local" });
 config();

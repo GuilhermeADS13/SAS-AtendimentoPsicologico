@@ -3,7 +3,8 @@ import { config } from "dotenv";
 
 // Carrega .env.local (dev) e depois .env — sem sobrescrever o que já existir no
 // ambiente. Assim `pnpm drizzle-kit migrate` acha a DATABASE_URL local.
-config({ path: ".env.local" });
+// ENV_FILE=.env.supabase.local aponta para o Supabase no Docker (ver loadEnv.ts).
+config({ path: process.env.ENV_FILE || ".env.local" });
 config();
 
 const connectionString = process.env.DATABASE_URL;

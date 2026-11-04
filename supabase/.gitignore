@@ -1,0 +1,11 @@
+# Supabase
+.branches
+.temp
+
+# dotenvx
+.env.keys
+.env.local
+.env.*.local
+
+# Chave privada do JWT do Supabase local (gerada por supabase gen signing-key)
+signing_keys.json

@@ -74,7 +74,8 @@ Estado em 2026-07-15. Em produção: https://sas-atendimento-psicologico.onrende
 - [x] Schema do código == banco de produção (auditado programaticamente em 2026-07-15)
 - [ ] **Rotacionar segredos que vazaram no chat**: JWT_SECRET, senha do banco,
       App Password do Gmail, PAT do Supabase, chave da Brevo
-- [ ] **Projeto Supabase separado para dev** — hoje `.env.local` aponta para produção
+- [x] **Banco separado para dev** — `pnpm dev:local` usa o Supabase local no Docker
+      (`supabase/`, `.env.supabase.local`). O `pnpm dev` continua apontando para produção.
 - [ ] Leaked Password Protection (HaveIBeenPwned) — só no plano Pro do Supabase
 - [ ] Sem FOREIGN KEY no banco: órfão é possível. Evitado no código; considerar FKs.
 - [ ] Ligar "Leaked Password Protection" no painel do Supabase Auth
