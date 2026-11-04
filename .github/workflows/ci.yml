@@ -77,29 +77,14 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
 
-      # Migracoes que ALTERAM tabelas existentes (ADD COLUMN) vivem em
-      # drizzle/migrations/ e NAO sao aplicadas pelo `drizzle-kit migrate`, que
-      # olha so ./drizzle (ver drizzle.config.ts: out). Sem aplica-las, o SELECT
-      # do Drizzle -- que expande TODAS as colunas do schema.ts -- quebra no teste
-      # de integracao com "column does not exist" (foi o que derrubou o CI quando
-      # therapists.phone entrou). Todas sao ADD COLUMN IF NOT EXISTS, seguras de
-      # reaplicar. Ao criar uma migracao de coluna nova em drizzle/migrations/,
-      # adicione o arquivo a esta lista.
-      - name: Aplicar migracoes de coluna (drizzle/migrations) no Postgres de teste
-        run: |
-          for f in \
-            drizzle/migrations/0022_onboarding_seen.sql \
-            drizzle/migrations/0023_therapist_phone.sql \
-            drizzle/migrations/0025_patient_guardian.sql \
-            drizzle/migrations/0026_patient_user_fk.sql \
-            drizzle/migrations/0027_prontuario_cfp.sql \
-            drizzle/migrations/0028_note_templates.sql \
-            drizzle/migrations/0029_chat_messages.sql \
-            drizzle/migrations/0030_prontuario_model.sql \
-            drizzle/migrations/0032_email_change_code.sql; do
-            echo "aplicando $f"
-            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f "$f"
-          done
+      # Migracoes em drizzle/migrations/ NAO sao aplicadas pelo `drizzle-kit
+      # migrate`, que olha so ./drizzle. Sem elas, o SELECT do Drizzle -- que
+      # expande TODAS as colunas do schema.ts -- quebra com "column does not
+      # exist". A lista escrita a mao parou na 0032 e deixou o CI vermelho de
+      # 21/10 a 04/11/2026; o script aplica a pasta inteira, em ordem, e pula so
+      # as que dependem de objetos do Supabase (ver scripts/migracoes-de-teste.sh).
+      - name: Aplicar migracoes (drizzle/migrations) no Postgres de teste
+        run: sh scripts/migracoes-de-teste.sh
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
 

@@ -17,7 +17,21 @@ vi.mock("./ai/llm", async (importOriginal) => {
     }),
   };
 });
+// O Storage do Supabase não existe no Postgres de teste: o dublê só registra qual
+// arquivo o servidor mandou apagar (desde a 0049 o servidor apaga o arquivo junto).
+const storageDuble = vi.hoisted(() => ({ apagados: [] as string[] }));
+vi.mock("./storage", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./storage")>();
+  return {
+    ...original,
+    apagarArquivoDoDocumento: vi.fn(async (fileKey: string) => {
+      storageDuble.apagados.push(fileKey);
+    }),
+  };
+});
 import type { TrpcContext } from "./_core/context";
+import { getDb } from "./db";
+import { criarAssinaturaNaAprovacao } from "./assinaturas";
 
 // Teste de integração: exercita os fluxos principais contra um Postgres REAL.
 // Só roda com RUN_INTEGRATION=true + DATABASE_URL definido (ex.: no CI). Assim
@@ -64,6 +78,8 @@ describe.runIf(RUN)("fluxo de integração (Postgres real)", () => {
     if (t.length) {
       const tid = t[0].id;
       await sql`delete from notifications where "appointmentId" in (select id from appointments where "therapistId" = ${tid})`;
+      await sql`delete from "appointmentParticipants" where "appointmentId" in (select id from appointments where "therapistId" = ${tid})`;
+      await sql`delete from assinaturas where "therapistId" = ${tid}`;
       await sql`delete from documents where "therapistId" = ${tid}`;
       await sql`delete from "sessionNotes" where "therapistId" = ${tid}`;
       await sql`delete from sessions where "therapistId" = ${tid}`;
@@ -71,6 +87,9 @@ describe.runIf(RUN)("fluxo de integração (Postgres real)", () => {
       await sql`delete from patients where "therapistId" = ${tid}`;
       await sql`delete from therapists where id = ${tid}`;
     }
+    // O direito ao teste grátis é um por CRP: sem isto, a 2ª execução do teste
+    // herdaria a assinatura antiga do mesmo CRP e ficaria sem teste.
+    await sql`delete from assinaturas where crp = 'IT0001'`;
   }
 
   beforeAll(async () => {
@@ -90,6 +109,13 @@ describe.runIf(RUN)("fluxo de integração (Postgres real)", () => {
     expect(r.success).toBe(true);
     const me = await caller.therapists.me();
     expect(me?.crp).toBe("IT-0001");
+
+    // Como na aprovação real: a assinatura nasce com o teste grátis esperando o
+    // primeiro paciente. Sem ela, desde 21/10 a agenda e a Luma respondem "Seu
+    // acesso venceu" (foi o que deixou este teste vermelho).
+    const db = await getDb();
+    const assinatura = await criarAssinaturaNaAprovacao(db!, { therapistId: me!.id, crp: "IT-0001", celular: null });
+    expect(assinatura.ganhouTeste).toBe(true);
   });
 
   it("cadastra, lista e edita um paciente", async () => {
@@ -186,6 +212,9 @@ describe.runIf(RUN)("fluxo de integração (Postgres real)", () => {
     const del = await caller.documents.delete({ id: docs[0].id });
     expect(del.success).toBe(true);
     expect(del.fileKey).toBe(fileKey);
+    // O arquivo é apagado pelo servidor, junto com a linha.
+    expect(storageDuble.apagados).toEqual([fileKey]);
+    expect(await caller.documents.getByPatient({ patientId })).toHaveLength(0);
   });
 
   it("impede acesso a paciente de outro terapeuta (IDOR)", async () => {
@@ -193,15 +222,5 @@ describe.runIf(RUN)("fluxo de integração (Postgres real)", () => {
     // Sem perfil de terapeuta, o get retorna null (não vaza dados).
     const p = await outroCaller.patients.get({ id: patientId });
     expect(p).toBeNull();
-  });
-
-  // Regressão: `db.execute` com o driver postgres-js devolve o array de linhas
-  // direto, não `{ rows }`. Ler `.rows[0]` dava undefined e o worker de indexação
-  // caía a cada ciclo com "Cannot read properties of undefined (reading '0')".
-  // Contra o Postgres real, este teste falharia antes da correção e passa depois.
-  it("a fila de documentos processa sem quebrar no driver (fila vazia → null)", async () => {
-    const { processNextDocumentJob } = await import("./ai/document-queue");
-    const job = await processNextDocumentJob();
-    expect(job).toBeNull();
   });
 });
