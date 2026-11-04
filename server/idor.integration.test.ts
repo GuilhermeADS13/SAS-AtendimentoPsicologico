@@ -230,4 +230,16 @@ describe.runIf(RUN)("IDOR: ninguém mexe no que é de outra conta (Postgres real
     expect(await fotografia()).toBe(antes);
     expect(storageDuble.chamadas).toEqual([]);
   });
+
+  it("sala com token errado não abre, e consulta cancelada fecha a sala até para o dono", async () => {
+    const tokenErrado = alvo.sala.replace(/-.+$/, "-tokenErradoTokenX");
+    expect((await p.appointments.roomAccess({ roomId: tokenErrado })).allowed).toBe(false);
+    expect((await a.appointments.roomAccess({ roomId: tokenErrado })).allowed).toBe(false);
+    // Outra consulta, com o token desta: o token vale para UMA consulta.
+    expect((await p.appointments.roomAccess({ roomId: alvo.sala.replace(/^apt\d+/, `apt${alvo.consulta + 1}`) })).allowed).toBe(false);
+
+    await a.appointments.updateStatus({ id: alvo.consulta, status: "cancelled" });
+    expect((await p.appointments.roomAccess({ roomId: alvo.sala })).allowed).toBe(false);
+    expect((await a.appointments.roomAccess({ roomId: alvo.sala })).allowed).toBe(false);
+  });
 });
