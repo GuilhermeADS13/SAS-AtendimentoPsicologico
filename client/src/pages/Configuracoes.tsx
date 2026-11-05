@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { formatarMesAno } from "@shared/datas";
+import { mascaraTelefone } from "@shared/telefone";
 import { supabase } from "@/lib/supabase";
 import { trpc } from "@/lib/trpc";
 import { useRole } from "@/hooks/useRole";
@@ -106,6 +107,19 @@ export default function Configuracoes() {
 
   const [editandoTelefone, setEditandoTelefone] = useState(false);
   const [telefone, setTelefone] = useState("");
+  // Paciente que a psicóloga ainda não cadastrou: o celular fica na conta e é
+  // editado aqui (com ficha, ele é editado em "Meus dados").
+  const celularNaConta = !isTherapist && contato?.temFicha === false;
+
+  // Conta que só entra pelo Google: não tem senha, então trocar senha ou e-mail
+  // (os dois pedem a senha atual) não se aplica.
+  const [soGoogle, setSoGoogle] = useState(false);
+  useEffect(() => {
+    void supabase?.auth.getSession().then(({ data }) => {
+      const provedores = (data.session?.user.app_metadata?.providers as string[] | undefined) ?? [];
+      setSoGoogle(provedores.length > 0 && !provedores.includes("email"));
+    });
+  }, []);
 
   // Só preenche quando os dados chegam: iniciar o input com "" e sobrescrever
   // depois apagaria o que a pessoa já tivesse digitado.
@@ -114,9 +128,11 @@ export default function Configuracoes() {
   }, [contato]);
 
   const salvarTelefone = trpc.me.updatePhone.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Telefone atualizado.");
       setEditandoTelefone(false);
+      // Sem ficha, o celular foi para a conta: renova a sessão para a tela já ler o novo.
+      if (celularNaConta) await supabase?.auth.refreshSession();
       utils.me.contato.invalidate();
     },
     onError: (e) => toast.error(e.message),
@@ -303,29 +319,48 @@ export default function Configuracoes() {
                   <ValorAtual valor={contato?.email} vazio="Nenhum e-mail definido" />
                 )}
               </div>
-              <Button variant="outline" size="sm" className="h-10 sm:h-8" onClick={() => setDialogoEmail(true)}>
-                Alterar e-mail
-              </Button>
+              {soGoogle ? (
+                <p className="text-xs text-muted-foreground">É o e-mail da sua conta Google.</p>
+              ) : (
+                <Button variant="outline" size="sm" className="h-10 sm:h-8" onClick={() => setDialogoEmail(true)}>
+                  Alterar e-mail
+                </Button>
+              )}
             </Linha>
 
             <Separator />
 
             <Linha
               titulo="Senha"
-              descricao="Usada para entrar. Pedimos a senha atual antes de trocar, para ninguém alterar seus dados de acesso por você."
+              descricao={
+                soGoogle
+                  ? "Como você entra no sistema."
+                  : "Usada para entrar. Pedimos a senha atual antes de trocar, para ninguém alterar seus dados de acesso por você."
+              }
             >
-              <div className="flex items-center gap-3">
-                <KeyRound className="w-4 h-4 shrink-0 text-muted-foreground" />
-                <p className="text-sm font-medium tracking-widest text-foreground">••••••••</p>
-              </div>
-              <Button variant="outline" size="sm" className="h-10 sm:h-8" onClick={() => setDialogoSenha(true)}>
-                Alterar senha
-              </Button>
+              {soGoogle ? (
+                <div className="flex items-start gap-3">
+                  <KeyRound className="mt-0.5 w-4 h-4 shrink-0 text-muted-foreground" />
+                  <p className="text-sm text-foreground">
+                    Você entra com o Google, então esta conta não tem senha aqui. Para mudar a senha, use a sua conta Google.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3">
+                    <KeyRound className="w-4 h-4 shrink-0 text-muted-foreground" />
+                    <p className="text-sm font-medium tracking-widest text-foreground">••••••••</p>
+                  </div>
+                  <Button variant="outline" size="sm" className="h-10 sm:h-8" onClick={() => setDialogoSenha(true)}>
+                    Alterar senha
+                  </Button>
+                </>
+              )}
             </Linha>
           </CardContent>
         </Card>
 
-        {isTherapist && (
+        {(isTherapist || celularNaConta) && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -356,7 +391,7 @@ export default function Configuracoes() {
                       placeholder="(00) 00000-0000"
                       maxLength={20}
                       value={telefone}
-                      onChange={(e) => setTelefone(e.target.value)}
+                      onChange={(e) => setTelefone(celularNaConta ? mascaraTelefone(e.target.value) : e.target.value)}
                       className="max-w-xs"
                     />
                   </div>

@@ -47,7 +47,7 @@ import { planoEfetivo, planoPorId, valorDoPlano } from "../shared/precos";
 import { PASSWORD_MAX_LENGTH, validatePassword } from "../shared/passwordPolicy";
 import { CRP_REGEX } from "../shared/crp";
 import { ORIGEM_REGEX } from "../shared/entradaNoSite";
-import { celularValido, soDigitos, telefoneValido } from "../shared/telefone";
+import { celularValido, mascaraTelefone, soDigitos, telefoneValido } from "../shared/telefone";
 import { nascimentoValido } from "../shared/datas";
 import { VALOR_MAXIMO_DA_CONSULTA } from "../shared/dinheiro";
 import { FASES_VALORES } from "../shared/evolucao";
@@ -1178,7 +1178,11 @@ export const appRouter = router({
       }
 
       const paciente = await pacienteDoUsuario(db, ctx.user);
-      return { email, phone: paciente?.phone ?? "" };
+      if (paciente) return { email, phone: paciente.phone ?? "", temFicha: true };
+      // Sem ficha (a psicóloga ainda não cadastrou): o celular mora na conta, como
+      // no cadastro. Quando a ficha nascer, ele é copiado para lá.
+      const daConta = ctx.user.openId.startsWith("sb:") ? await celularDaConta(ctx.user.openId.slice(3)) : null;
+      return { email, phone: daConta ? mascaraTelefone(daConta) : "", temFicha: false };
     }),
 
     /**
@@ -1210,9 +1214,11 @@ export const appRouter = router({
 
         const paciente = await pacienteDoUsuario(db, ctx.user);
         if (!paciente) {
-          throw new Error(
-            "Seu cadastro precisa ser feito pela sua psicóloga. Peça a ela para cadastrar este e-mail e tente de novo.",
-          );
+          // Ainda sem ficha: grava na conta (user_metadata.telefone), como o cadastro.
+          if (!celularValido(input.phone)) throw new Error("Informe um celular com DDD, por exemplo (81) 99999-0000.");
+          if (!ctx.user.openId.startsWith("sb:")) throw new Error("Conta sem login do Supabase.");
+          await completarCadastroNaConta(ctx.user.openId.slice(3), { telefone: soDigitos(input.phone) });
+          return { ok: true };
         }
         await db.update(patients).set({ phone }).where(eq(patients.id, paciente.id));
         return { ok: true };
