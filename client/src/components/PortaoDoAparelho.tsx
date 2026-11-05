@@ -22,17 +22,31 @@ export default function PortaoDoAparelho({ children }: { children: ReactNode }) 
   return <ConfirmarAparelho aoSair={() => void logout()} />;
 }
 
+const ESPERA_PARA_REENVIAR_MS = 60_000;
+
 function ConfirmarAparelho({ aoSair }: { aoSair: () => void }) {
   const utils = trpc.useUtils();
   const [codigo, setCodigo] = useState("");
   const [destino, setDestino] = useState("");
   const [aviso, setAviso] = useState("");
   const [lembrar, setLembrar] = useState(true);
+  // O servidor aceita um código por minuto: o botão de reenviar mostra quanto falta.
+  const [reenviarEm, setReenviarEm] = useState(0);
+  const [agora, setAgora] = useState(() => Date.now());
+  const faltam = Math.max(0, Math.ceil((reenviarEm - agora) / 1000));
+  useEffect(() => {
+    if (!faltam) return;
+    const relogio = setInterval(() => setAgora(Date.now()), 1000);
+    return () => clearInterval(relogio);
+  }, [faltam]);
 
   const enviar = trpc.aparelho.enviarCodigo.useMutation({
     onSuccess: (r) => {
       setDestino(r.destino);
-      setAviso(r.enviado ? "" : "Espere um minuto para pedir outro código.");
+      // Enviado agora, ou recusado por ser cedo demais: nos dois casos, 1 minuto de espera.
+      setAviso("");
+      setAgora(Date.now());
+      setReenviarEm(Date.now() + ESPERA_PARA_REENVIAR_MS);
     },
     onError: (e) => setAviso(e.message),
   });
@@ -113,13 +127,18 @@ function ConfirmarAparelho({ aoSair }: { aoSair: () => void }) {
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={enviar.isPending}
+                className="tabular-nums"
+                disabled={enviar.isPending || faltam > 0}
                 onClick={() => {
                   setAviso("");
                   enviar.mutate();
                 }}
               >
-                {enviar.isPending ? "Enviando..." : "Reenviar código"}
+                {enviar.isPending
+                  ? "Enviando..."
+                  : faltam > 0
+                    ? `Reenviar em ${Math.floor(faltam / 60)}:${String(faltam % 60).padStart(2, "0")}`
+                    : "Reenviar código"}
               </Button>
               <Button type="button" variant="ghost" size="sm" onClick={aoSair}>
                 Sair
