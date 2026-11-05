@@ -62,7 +62,9 @@ export default function PatientProfile({ embedded = false }: { embedded?: boolea
       setForm({
         firstName: profile.firstName ?? "",
         lastName: profile.lastName ?? "",
-        phone: profile.phone ?? "",
+        // A ficha é ligada à conta no 1º acesso, antes de o servidor copiar o
+        // celular do cadastro para ela: enquanto isso, vale o da conta.
+        phone: profile.phone || celularDaConta,
         dateOfBirth: toDateInput(profile.dateOfBirth),
         address: profile.address ?? "",
         photoKey: profile.photoKey ?? "",

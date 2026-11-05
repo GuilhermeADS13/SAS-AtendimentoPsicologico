@@ -2578,13 +2578,10 @@ export const appRouter = router({
         return { success: true } as const;
       }),
 
-    // Tira o paciente da grade da psicóloga.
-    //
-    // Só apaga de verdade quem não tem nada clínico registrado (cadastro errado,
-    // duplicata, teste). Havendo sessão/anotação/documento/consulta, o registro
-    // é ARQUIVADO em vez de apagado: o prontuário tem guarda obrigatória de 5
-    // anos (CFP 001/2009), então sumir com ele seria perder prova de
-    // atendimento. Arquivado sai da lista, mas continua acessível pelo id.
+    // "Excluir" da grade: apaga de vez, mas só quem não tem prontuário (cadastro
+    // errado, duplicata, teste). Havendo sessão/anotação/documento/consulta
+    // realizada, recusa e manda arquivar: o prontuário tem guarda obrigatória de
+    // 5 anos (CFP 001/2009). "Arquivar" é patients.update com status "archived".
     delete: therapistProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
@@ -2608,35 +2605,36 @@ export const appRouter = router({
         if (!owned.length) throw new Error("Patient not found for this therapist");
 
         const [apts, sess, notes, docs] = await Promise.all([
-          db.select({ id: appointments.id }).from(appointments).where(eq(appointments.patientId, input.id)),
+          db.select({ id: appointments.id, status: appointments.status }).from(appointments).where(eq(appointments.patientId, input.id)),
           db.select({ id: sessions.id }).from(sessions).where(eq(sessions.patientId, input.id)),
           db.select({ id: sessionNotes.id }).from(sessionNotes).where(eq(sessionNotes.patientId, input.id)),
           db.select({ id: documents.id }).from(documents).where(eq(documents.patientId, input.id)),
         ]);
 
-        const clinico = sess.length + notes.length + docs.length;
-
-        if (clinico > 0 || apts.length > 0) {
-          await db
-            .update(patients)
-            .set({ status: "archived" })
-            .where(eq(patients.id, input.id));
-
-          return {
-            action: "archived" as const,
-            consultas: apts.length,
-            sessoes: sess.length,
-            anotacoes: notes.length,
-            documentos: docs.length,
-          };
+        // Prontuário (sessão, anotação, documento ou consulta realizada) tem guarda
+        // obrigatória de 5 anos (Resolução CFP 001/2009): esse paciente só pode ser
+        // ARQUIVADO (patients.update com status "archived"), nunca apagado.
+        const realizadas = apts.filter((a) => a.status === "completed").length;
+        if (sess.length + notes.length + docs.length + realizadas > 0) {
+          throw new Error(
+            "Este paciente tem prontuário (sessões, anotações, documentos ou consultas realizadas). " +
+              "A Resolução CFP 001/2009 exige guardá-lo por 5 anos: use Arquivar.",
+          );
         }
 
-        // Sem histórico: não há FK no banco, então não existe cascade para
-        // deixar órfão. Some com a linha.
+        // Sem prontuário: apaga a ficha e as consultas agendadas/canceladas. Não há
+        // FK no banco (sem cascade), então cada tabela ligada sai aqui.
+        const idsDasConsultas = apts.map((a) => a.id);
+        if (idsDasConsultas.length) {
+          await db.delete(notifications).where(inArray(notifications.appointmentId, idsDasConsultas));
+          await db.delete(appointmentParticipants).where(inArray(appointmentParticipants.appointmentId, idsDasConsultas));
+          await db.delete(appointments).where(inArray(appointments.id, idsDasConsultas));
+        }
+        await db.delete(appointmentParticipants).where(eq(appointmentParticipants.patientId, input.id));
         await db.delete(videoCalls).where(eq(videoCalls.patientId, input.id));
         await db.delete(patients).where(eq(patients.id, input.id));
 
-        return { action: "deleted" as const };
+        return { action: "deleted" as const, consultas: apts.length };
       }),
   }),
 

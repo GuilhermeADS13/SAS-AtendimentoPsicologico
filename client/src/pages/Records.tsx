@@ -148,20 +148,33 @@ export default function Records() {
   });
   const [cadastroBarrado, setCadastroBarrado] = useState<Parameters<typeof createPatient.mutate>[0] | null>(null);
 
-  // Paciente a excluir (o AlertDialog abre com ele).
+  // Paciente escolhido em "Arquivar ou excluir": a 1ª janela oferece as duas
+  // opções; "Excluir" pede uma 2ª confirmação, porque não tem volta.
   const [toDelete, setToDelete] = useState<{ id: number; nome: string } | null>(null);
+  const [confirmarExclusao, setConfirmarExclusao] = useState(false);
+  const fecharJanelas = () => {
+    setToDelete(null);
+    setConfirmarExclusao(false);
+  };
 
   const deletePatient = trpc.patients.delete.useMutation({
-    onSuccess: (r) => {
+    onSuccess: () => {
       utils.patients.list.invalidate();
-      setToDelete(null);
-      toast.success(
-        r.action === "deleted"
-          ? "Paciente excluído."
-          : `Paciente arquivado — o prontuário foi mantido (${r.sessoes} sessão(ões), ${r.consultas} consulta(s)).`,
-      );
+      fecharJanelas();
+      toast.success("Paciente excluído.");
     },
-    onError: (e) => toast.error(e.message || "Erro ao excluir paciente"),
+    onError: (e) => {
+      fecharJanelas();
+      toast.error(e.message || "Erro ao excluir paciente");
+    },
+  });
+  const arquivarPaciente = trpc.patients.update.useMutation({
+    onSuccess: () => {
+      utils.patients.list.invalidate();
+      fecharJanelas();
+      toast.success("Paciente arquivado. O prontuário continua guardado.");
+    },
+    onError: (e) => toast.error(e.message || "Erro ao arquivar paciente"),
   });
 
   // Arquivado sai da grade, mas o prontuário continua no banco.
@@ -606,7 +619,7 @@ export default function Records() {
                             onClick={() => setToDelete({ id: p.id, nome: p.nome })}
                           >
                             <Trash2 className="size-4" />
-                            Excluir ou arquivar
+                            Arquivar ou excluir
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -692,18 +705,53 @@ export default function Records() {
         )}
       </div>
 
-      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
+      <AlertDialog open={!!toDelete && !confirmarExclusao} onOpenChange={(o) => !o && fecharJanelas()}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir {toDelete?.nome}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              O paciente sai da sua grade. Se ele já tiver consulta, sessão ou
-              documento registrado, o prontuário é <strong>arquivado</strong> em vez
-              de apagado — a guarda do prontuário é obrigatória por 5 anos.
+            <AlertDialogTitle>Arquivar ou excluir {toDelete?.nome}?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  <strong>Arquivar:</strong> o paciente sai da sua grade e o prontuário continua guardado.
+                  É o caminho para quem já teve atendimento: a Resolução CFP 001/2009 exige guardar o
+                  prontuário por 5 anos.
+                </p>
+                <p>
+                  <strong>Excluir:</strong> apaga de vez a ficha e as consultas agendadas. Só é possível
+                  para quem ainda não tem prontuário (sessões, anotações, documentos ou consultas realizadas).
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <Button
+              variant="outline"
+              disabled={arquivarPaciente.isPending}
+              onClick={() => toDelete && arquivarPaciente.mutate({ id: toDelete.id, status: "archived" })}
+            >
+              {arquivarPaciente.isPending ? "Arquivando..." : "Arquivar"}
+            </Button>
+            <Button variant="destructive" onClick={() => setConfirmarExclusao(true)}>
+              Excluir
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!toDelete && confirmarExclusao} onOpenChange={(o) => !o && !deletePatient.isPending && fecharJanelas()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {toDelete?.nome} de vez?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A ficha e as consultas agendadas deste paciente serão apagadas. <strong>Não dá para desfazer.</strong>{" "}
+              Se ele tiver conta no VozInterior, a conta continua existindo, mas deixa de estar ligada a você.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletePatient.isPending} onClick={() => setConfirmarExclusao(false)}>
+              Voltar
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
@@ -712,7 +760,7 @@ export default function Records() {
               disabled={deletePatient.isPending}
               className="bg-destructive hover:bg-destructive/90"
             >
-              {deletePatient.isPending ? "Excluindo..." : "Excluir"}
+              {deletePatient.isPending ? "Excluindo..." : "Sim, excluir"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

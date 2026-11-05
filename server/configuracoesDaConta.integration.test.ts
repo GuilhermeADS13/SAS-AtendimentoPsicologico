@@ -121,6 +121,90 @@ describe.runIf(RUN)("configurações da conta (Postgres real)", () => {
     expect(Date.now() - new Date(a.ultimoUsoEm).getTime()).toBeLessThan(60_000);
   });
 
+  it("aparelho confirmado antes de existir o nome do navegador ganha o nome no próximo uso", async () => {
+    const token = await aparelhoConfirmado(ID.BIA, "provisorio");
+    await sql`update "aparelhosConfiaveis" set navegador = null where navegador = 'provisorio' and "userId" = ${ID.BIA}`;
+    expect(await aparelhoLiberado({ id: ID.BIA, role: "therapist" }, cookieDe(token), new Date(), "Opera no Windows")).toBe(true);
+    const lista = await appRouter.createCaller(ctx(ID.BIA, "therapist", cookieDe(token))).aparelho.listar();
+    expect(lista.find((a) => a.esteAparelho)?.navegador).toBe("Opera no Windows");
+  });
+
+  it("paciente: aparelhos = logins abertos no Supabase, só os da conta, e sai de um deles", async () => {
+    // No Supabase de verdade a tabela já existe; no Postgres do CI, cria o essencial.
+    await sql`create schema if not exists auth`;
+    await sql`create table if not exists auth.sessions (
+      id uuid primary key, user_id uuid not null, created_at timestamptz, updated_at timestamptz,
+      refreshed_at timestamp, user_agent text, not_after timestamptz)`;
+    const uidPac = "a0000000-0000-4000-8000-000000000001";
+    const uidOutro = "a0000000-0000-4000-8000-000000000002";
+    const [s1, s2, s3, sOutro] = [
+      "b0000000-0000-4000-8000-000000000001", "b0000000-0000-4000-8000-000000000002",
+      "b0000000-0000-4000-8000-000000000003", "b0000000-0000-4000-8000-000000000004",
+    ];
+    await sql`delete from auth.sessions where user_id in ${sql([uidPac, uidOutro])}`;
+    const opera = "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/130.0 Safari/537.36 OPR/115.0";
+    const iphone = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile Safari/604.1";
+    await sql`insert into auth.sessions (id, user_id, created_at, updated_at, user_agent, not_after) values
+      (${s1}, ${uidPac}, now() - interval '1 day', now(), ${opera}, null),
+      (${s2}, ${uidPac}, now() - interval '3 day', now() - interval '2 day', ${iphone}, null),
+      (${s3}, ${uidPac}, now() - interval '9 day', now() - interval '9 day', ${opera}, now() - interval '1 day'),
+      (${sOutro}, ${uidOutro}, now(), now(), ${opera}, null)`;
+
+    const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
+    const contexto = ctx(ID.PAC, "user");
+    contexto.user!.openId = `sb:${uidPac}`;
+    (contexto.req.headers as Record<string, string>).authorization = `Bearer ${b64({ alg: "ES256" })}.${b64({ session_id: s1 })}.x`;
+    const pac = appRouter.createCaller(contexto);
+
+    // Vencida (not_after no passado) e a de outra conta ficam de fora.
+    const lista = await pac.aparelho.sessoes();
+    expect(lista.map((s) => [s.id, s.navegador, s.estaSessao])).toEqual([
+      [s1, "Opera no Windows", true],
+      [s2, "Safari no iPhone", false],
+    ]);
+
+    await expect(pac.aparelho.encerrarSessao({ id: sOutro })).rejects.toThrow(/não encontrado/);
+    await pac.aparelho.encerrarSessao({ id: s2 });
+    expect((await pac.aparelho.sessoes()).map((s) => s.id)).toEqual([s1]);
+    expect(await sql`select id from auth.sessions where id = ${sOutro}`).toHaveLength(1);
+    await sql`delete from auth.sessions where user_id in ${sql([uidPac, uidOutro])}`;
+  });
+
+  it("excluir paciente: sem prontuário apaga ficha e consultas; com prontuário recusa e só arquiva", async () => {
+    const [t] = await sql`insert into therapists ("userId", crp) values (${ID.ANA}, '99/500001') returning id`;
+    const ana = appRouter.createCaller(ctx(ID.ANA, "therapist"));
+
+    // Só consulta agendada (com participante e aviso): sai tudo.
+    const [semProntuario] = await sql`insert into patients ("therapistId", "firstName", "lastName", email)
+                                      values (${t.id}, 'Sem', 'Prontuario', 'sem-pront@teste.local') returning id`;
+    const [extra] = await sql`insert into patients ("therapistId", "firstName", "lastName", email)
+                              values (${t.id}, 'Extra', 'Grupo', 'extra-grupo@teste.local') returning id`;
+    const [agendada] = await sql`insert into appointments ("therapistId", "patientId", "scheduledAt", duration)
+                                 values (${t.id}, ${semProntuario.id}, now() + interval '1 day', 50) returning id`;
+    await sql`insert into "appointmentParticipants" ("appointmentId", "patientId") values (${agendada.id}, ${extra.id})`;
+    await sql`insert into notifications ("appointmentId", "recipientType", "recipientEmail", "notificationType")
+              values (${agendada.id}, 'patient', 'sem-pront@teste.local', 'appointment_reminder')`;
+    expect(await ana.patients.delete({ id: semProntuario.id })).toEqual({ action: "deleted", consultas: 1 });
+    expect(await sql`select id from patients where id = ${semProntuario.id}`).toHaveLength(0);
+    expect(await sql`select id from appointments where id = ${agendada.id}`).toHaveLength(0);
+    expect(await sql`select id from notifications where "appointmentId" = ${agendada.id}`).toHaveLength(0);
+    expect(await sql`select id from "appointmentParticipants" where "appointmentId" = ${agendada.id}`).toHaveLength(0);
+    expect(await sql`select id from patients where id = ${extra.id}`).toHaveLength(1);
+
+    // Consulta realizada é prontuário: excluir recusa e nada muda; arquivar funciona.
+    const [comProntuario] = await sql`insert into patients ("therapistId", "firstName", "lastName", email)
+                                      values (${t.id}, 'Com', 'Prontuario', 'com-pront@teste.local') returning id`;
+    await sql`insert into appointments ("therapistId", "patientId", "scheduledAt", duration, status)
+              values (${t.id}, ${comProntuario.id}, now() - interval '1 day', 50, 'completed')`;
+    await expect(ana.patients.delete({ id: comProntuario.id })).rejects.toThrow(/CFP 001\/2009.*Arquivar/);
+    expect(await sql`select status from patients where id = ${comProntuario.id}`).toEqual([{ status: "active" }]);
+    await ana.patients.update({ id: comProntuario.id, status: "archived" });
+    expect(await sql`select status from patients where id = ${comProntuario.id}`).toEqual([{ status: "archived" }]);
+
+    // Paciente de outra psicóloga: nem excluir.
+    await expect(appRouter.createCaller(ctx(ID.BIA, "therapist")).patients.delete({ id: extra.id })).rejects.toThrow();
+  });
+
   it("avisos por e-mail: cada conta guarda os próprios, e o padrão é tudo ligado", async () => {
     const ana = appRouter.createCaller(ctx(ID.ANA, "therapist"));
     const bia = appRouter.createCaller(ctx(ID.BIA, "therapist"));
