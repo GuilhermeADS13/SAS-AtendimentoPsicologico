@@ -269,8 +269,6 @@ export default function Login() {
               </TabsList>
 
               <TabsContent value="login" className="space-y-4 pt-4">
-                <BotaoGoogle aoTocar={() => void entrarComGoogle(false)} />
-                <Divisoria />
                 {/* <form>: o Enter em qualquer campo já entra. */}
                 <form
                   className="space-y-4"
@@ -335,14 +333,11 @@ export default function Login() {
                   Esqueci minha senha
                 </button>
                 </form>
+                <Divisoria />
+                <BotaoGoogle aoTocar={() => void entrarComGoogle(false)} />
               </TabsContent>
 
               <TabsContent value="signup" className="space-y-4 pt-4">
-                <BotaoGoogle aoTocar={() => void entrarComGoogle(isPsychologist)} />
-                <p className="text-center text-xs text-muted-foreground">
-                  Com o Google, você completa celular{isPsychologist ? ", CRP" : ""} e o aceite dos termos logo depois.
-                </p>
-                <Divisoria />
                 <div className="space-y-2">
                   <Label htmlFor="name">Nome</Label>
                   <Input
@@ -534,6 +529,11 @@ export default function Login() {
                 >
                   {loading ? "Criando..." : "Criar conta"}
                 </Button>
+                <Divisoria />
+                <BotaoGoogle aoTocar={() => void entrarComGoogle(isPsychologist)} />
+                <p className="text-center text-xs text-muted-foreground">
+                  Com o Google, você completa celular{isPsychologist ? ", CRP" : ""} e o aceite dos termos logo depois.
+                </p>
               </TabsContent>
             </Tabs>
           )}
@@ -596,7 +596,7 @@ function Divisoria() {
   return (
     <div className="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden="true">
       <span className="h-px flex-1 bg-border" />
-      ou com e-mail
+      ou
       <span className="h-px flex-1 bg-border" />
     </div>
   );
