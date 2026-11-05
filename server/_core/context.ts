@@ -7,6 +7,7 @@ import { upsertUser, getUserByOpenId } from "../db";
 import { registrarPedidoDoCadastro } from "../pedidoProfissional";
 import { guardarTelefoneDoCadastro } from "../telefoneDoCadastro";
 import { cadastroPendente } from "../../shared/cadastroPendente";
+import { nomeDoNavegador } from "../../shared/navegador";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
@@ -97,7 +98,9 @@ export async function createContext(
     req: opts.req,
     res: opts.res,
     user,
-    aparelhoVerificado: user ? await aparelhoLiberado(user, opts.req.headers.cookie) : true,
+    aparelhoVerificado: user
+      ? await aparelhoLiberado(user, opts.req.headers.cookie, new Date(), nomeDoNavegador(opts.req.headers["user-agent"]))
+      : true,
     cadastroPendente: user ? pendente : false,
   };
 }

@@ -58,7 +58,7 @@ export function mascararEmail(email: string): string {
 
 const confiaveisEmCache = new Map<string, { expira: number; revalidarEm: number }>();
 
-async function aparelhoEhConfiavel(userId: number, token: string, agora: Date): Promise<boolean> {
+async function aparelhoEhConfiavel(userId: number, token: string, agora: Date, navegador?: string): Promise<boolean> {
   const tokenHash = hash(token);
   const chave = `${userId}:${tokenHash}`;
   const emCache = confiaveisEmCache.get(chave);
@@ -67,14 +67,23 @@ async function aparelhoEhConfiavel(userId: number, token: string, agora: Date): 
   const db = await getDb();
   if (!db) return false;
   const [linha] = await db
-    .select({ id: aparelhosConfiaveis.id, expiraEm: aparelhosConfiaveis.expiraEm, ultimoUsoEm: aparelhosConfiaveis.ultimoUsoEm })
+    .select({
+      id: aparelhosConfiaveis.id,
+      expiraEm: aparelhosConfiaveis.expiraEm,
+      ultimoUsoEm: aparelhosConfiaveis.ultimoUsoEm,
+      navegador: aparelhosConfiaveis.navegador,
+    })
     .from(aparelhosConfiaveis)
     .where(and(eq(aparelhosConfiaveis.userId, userId), eq(aparelhosConfiaveis.tokenHash, tokenHash), gt(aparelhosConfiaveis.expiraEm, agora)))
     .limit(1);
   if (!linha) return false;
   // "Último uso" da lista de aparelhos: no máximo uma escrita por hora por aparelho.
-  if (!linha.ultimoUsoEm || agora.getTime() - linha.ultimoUsoEm.getTime() > HORA_MS) {
-    await db.update(aparelhosConfiaveis).set({ ultimoUsoEm: agora }).where(eq(aparelhosConfiaveis.id, linha.id));
+  // Aparelho confirmado antes de existir o nome do navegador ganha o nome aqui.
+  const mudancas: { ultimoUsoEm?: Date; navegador?: string } = {};
+  if (!linha.ultimoUsoEm || agora.getTime() - linha.ultimoUsoEm.getTime() > HORA_MS) mudancas.ultimoUsoEm = agora;
+  if (!linha.navegador && navegador) mudancas.navegador = navegador;
+  if (mudancas.ultimoUsoEm || mudancas.navegador) {
+    await db.update(aparelhosConfiaveis).set(mudancas).where(eq(aparelhosConfiaveis.id, linha.id));
   }
   if (confiaveisEmCache.size > 5000) confiaveisEmCache.clear();
   confiaveisEmCache.set(chave, { expira: linha.expiraEm.getTime(), revalidarEm: agora.getTime() + CACHE_MS });
@@ -86,11 +95,12 @@ export async function aparelhoLiberado(
   user: { id: number; role: string },
   cabecalhoCookie: string | undefined,
   agora: Date = new Date(),
+  navegador?: string,
 ): Promise<boolean> {
   if (!precisaVerificarAparelho(user.role)) return true;
   const token = lerCookie(cabecalhoCookie, COOKIE_DO_APARELHO);
   if (!token) return false;
-  return aparelhoEhConfiavel(user.id, token, agora);
+  return aparelhoEhConfiavel(user.id, token, agora, navegador);
 }
 
 /** Gera o código, guarda só o hash e envia. Lança se o e-mail não sair. */

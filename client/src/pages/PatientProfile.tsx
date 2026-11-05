@@ -81,8 +81,10 @@ export default function PatientProfile({ embedded = false }: { embedded?: boolea
       return;
     }
     // Ainda sem cadastro: aproveita o nome informado na criação da conta,
-    // para o paciente não precisar digitar de novo.
-    if (user?.name) {
+    // para o paciente não precisar digitar de novo. Só depois de saber que não há
+    // convite: antes, o nome da conta (o do Google, por exemplo) entrava enquanto o
+    // convite carregava e tomava o lugar do que a psicóloga digitou.
+    if (semConvite && user?.name) {
       const [first, ...rest] = user.name.trim().split(/\s+/);
       setForm((f) => ({
         ...f,
@@ -90,7 +92,7 @@ export default function PatientProfile({ embedded = false }: { embedded?: boolea
         lastName: f.lastName || rest.join(" "),
       }));
     }
-  }, [profile, user, convite, celularDaConta]);
+  }, [profile, user, convite, celularDaConta, semConvite]);
 
   const save = trpc.me.saveProfile.useMutation({
     onSuccess: () => {
