@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { supabase } from "@/lib/supabase";
+import { mascaraTelefone } from "@shared/telefone";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +47,16 @@ export default function PatientProfile({ embedded = false }: { embedded?: boolea
   // Sem cadastro e sem convite: não há o que salvar — o servidor recusaria.
   const semConvite = !isLoading && !profile && !carregandoConvite && !convite;
 
+  // Celular informado ao criar a conta (fica nos dados da conta, como no cadastro
+  // por e-mail ou no "Falta pouco" do Google): entra quando a psicóloga não pôs um.
+  const [celularDaConta, setCelularDaConta] = useState("");
+  useEffect(() => {
+    void supabase?.auth.getSession().then(({ data }) => {
+      const telefone = data.session?.user.user_metadata?.telefone;
+      if (typeof telefone === "string" && telefone) setCelularDaConta(mascaraTelefone(telefone));
+    });
+  }, []);
+
   useEffect(() => {
     if (profile) {
       setForm({
@@ -64,7 +76,7 @@ export default function PatientProfile({ embedded = false }: { embedded?: boolea
         ...f,
         firstName: f.firstName || convite.firstName || "",
         lastName: f.lastName || convite.lastName || "",
-        phone: f.phone || convite.phone || "",
+        phone: f.phone || convite.phone || celularDaConta,
       }));
       return;
     }
@@ -78,7 +90,7 @@ export default function PatientProfile({ embedded = false }: { embedded?: boolea
         lastName: f.lastName || rest.join(" "),
       }));
     }
-  }, [profile, user, convite]);
+  }, [profile, user, convite, celularDaConta]);
 
   const save = trpc.me.saveProfile.useMutation({
     onSuccess: () => {

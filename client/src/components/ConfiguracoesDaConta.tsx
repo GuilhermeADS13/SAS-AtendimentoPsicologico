@@ -42,7 +42,10 @@ function Linha({ titulo, descricao, children }: { titulo: string; descricao: str
 
 const ehCelular = (navegador: string | null) => !!navegador && /iPhone|iPad|Android/.test(navegador);
 
-/** Aparelhos conectados (só psicóloga e admin, que confirmam aparelho) e "sair de todos". */
+/**
+ * Aparelhos conectados e "sair de todos". Psicóloga e admin veem os aparelhos
+ * confirmados por código; o paciente, os logins abertos (server/sessoesDaConta.ts).
+ */
 export function SegurancaDaConta({ confirmaAparelho }: { confirmaAparelho: boolean }) {
   const utils = trpc.useUtils();
   const { data: aparelhos = [], isLoading } = trpc.aparelho.listar.useQuery(undefined, { enabled: confirmaAparelho });
@@ -65,6 +68,26 @@ export function SegurancaDaConta({ confirmaAparelho }: { confirmaAparelho: boole
     onError: (e) => toast.error(e.message),
   });
   const removerTodos = trpc.aparelho.sairDeTodos.useMutation();
+
+  // Paciente não confirma aparelho por código: os aparelhos dele são os logins abertos.
+  const { data: sessoes = [], isLoading: carregandoSessoes } = trpc.aparelho.sessoes.useQuery(undefined, {
+    enabled: !confirmaAparelho,
+  });
+  const [sessaoParaEncerrar, setSessaoParaEncerrar] = useState<{ id: string; nome: string; estaSessao: boolean } | null>(null);
+  const encerrar = trpc.aparelho.encerrarSessao.useMutation({
+    onSuccess: async () => {
+      const eraEsta = sessaoParaEncerrar?.estaSessao;
+      setSessaoParaEncerrar(null);
+      if (eraEsta) {
+        await supabase?.auth.signOut({ scope: "local" });
+        window.location.href = "/login";
+        return;
+      }
+      toast.success("Pronto. Esse aparelho sai da sua conta em até 1 hora.");
+      utils.aparelho.sessoes.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const confirmarSairDeTodos = async () => {
     setSaindo(true);
@@ -133,6 +156,50 @@ export function SegurancaDaConta({ confirmaAparelho }: { confirmaAparelho: boole
             <Separator />
           </>
         )}
+        {!confirmaAparelho && (
+          <>
+            <Linha
+              titulo="Aparelhos conectados"
+              descricao="Onde a sua conta está aberta. Cada navegador conta como um aparelho. Não reconhece algum? Toque em “Sair”."
+            >
+              {carregandoSessoes ? (
+                <p className="text-sm text-muted-foreground">Carregando...</p>
+              ) : sessoes.length === 0 ? (
+                <p className="text-sm italic text-muted-foreground">Nenhum aparelho encontrado.</p>
+              ) : (
+                <ul className="divide-y divide-border rounded-lg border border-border">
+                  {sessoes.map((s) => {
+                    const Icone = ehCelular(s.navegador) ? Smartphone : Monitor;
+                    return (
+                      <li key={s.id} className="flex flex-wrap items-center gap-3 p-3">
+                        <Icone className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                        <div className="min-w-0 flex-1">
+                          <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
+                            {s.navegador}
+                            {s.estaSessao && <Badge variant="secondary">Este aparelho</Badge>}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Último uso: {formatarDataHora(s.ultimoUso)}
+                            {" · "}entrou em {formatarDataHora(s.criadaEm)}
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-10 sm:h-8"
+                          onClick={() => setSessaoParaEncerrar({ id: s.id, nome: s.navegador, estaSessao: s.estaSessao })}
+                        >
+                          Sair
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Linha>
+            <Separator />
+          </>
+        )}
         <Linha
           titulo="Sair de todos os aparelhos"
           descricao="Encerra a sua conta em todos os aparelhos, inclusive neste. Use se perdeu o celular ou acha que alguém entrou na sua conta."
@@ -164,6 +231,31 @@ export function SegurancaDaConta({ confirmaAparelho }: { confirmaAparelho: boole
               }}
             >
               {remover.isPending ? "Removendo..." : "Remover"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!sessaoParaEncerrar} onOpenChange={(o) => !o && setSessaoParaEncerrar(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sair do {sessaoParaEncerrar?.nome}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {sessaoParaEncerrar?.estaSessao
+                ? "É o aparelho que você está usando agora: você sai da conta em seguida e precisa entrar de novo."
+                : "Esse aparelho sai da sua conta em até 1 hora e, para voltar, vai precisar entrar de novo."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={encerrar.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                if (sessaoParaEncerrar) encerrar.mutate({ id: sessaoParaEncerrar.id });
+              }}
+            >
+              {encerrar.isPending ? "Saindo..." : "Sair"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

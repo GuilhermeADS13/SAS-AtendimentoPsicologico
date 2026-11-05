@@ -27,6 +27,7 @@ import { sendEmail } from "./mailer";
 import { celularDaConta, completarCadastroNaConta, gerarLinkDeCadastro, gerarLinkDeRecuperacao, trocarEmailSupabase } from "./supabaseAdmin";
 import { registrarPedidoDoCadastro } from "./pedidoProfissional";
 import { guardarTelefoneDoCadastro } from "./telefoneDoCadastro";
+import { encerrarSessao, listarSessoes, sessaoDoToken } from "./sessoesDaConta";
 import {
   anexoMaxMbDaPsicologa,
   contarPacientesCobrados,
@@ -1007,6 +1008,23 @@ export const appRouter = router({
       ctx.res.clearCookie(COOKIE_DO_APARELHO, { ...getSessionCookieOptions(ctx.req), path: "/api" });
       return { removidos };
     }),
+
+    /** Paciente (não confirma aparelho): as sessões abertas da conta, com o navegador e o último uso. */
+    sessoes: protectedProcedure.query(({ ctx }) =>
+      ctx.user.openId.startsWith("sb:")
+        ? listarSessoes(ctx.user.openId.slice(3), sessaoDoToken(ctx.req.headers.authorization))
+        : [],
+    ),
+
+    /** Tira o login de um aparelho desta conta. */
+    encerrarSessao: protectedProcedure
+      .input(z.object({ id: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        if (!ctx.user.openId.startsWith("sb:") || !(await encerrarSessao(ctx.user.openId.slice(3), input.id))) {
+          throw new Error("Aparelho não encontrado.");
+        }
+        return { success: true } as const;
+      }),
   }),
 
   // Área do PACIENTE: só o próprio cadastro e as próprias consultas.
