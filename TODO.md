@@ -55,6 +55,13 @@ https://sas-atendimento-psicologico.onrender.com
 - [x] Cadastro, listagem, edição e visualização
 - [x] Registro e histórico de sessões (evolução clínica)
 - [x] Upload/download/exclusão de documentos (Supabase Storage privado + URL assinada)
+- [x] Arquivar ou excluir paciente (2026-11-05): excluir de vez só sem prontuário, com
+      confirmação; com prontuário, só arquiva (guarda de 5 anos, CFP 001/2009). Filtro
+      "Arquivados" na grade, com "Reativar". Arquivado não conta no limite do plano
+- [ ] **Futuro:** apagar sozinho o arquivado com mais de 5 anos desde o último registro
+      (ficha, sessões, anotações, consultas e os anexos no Storage). Não é urgente: em
+      2026-11-05 o banco tinha 15 MB (8 pacientes com tudo ≈ 220 kB; o grátis dá 500 MB
+      de banco e 1 GB de arquivos) e nenhum prontuário fará 5 anos antes de 2031
 
 ## Agendamento
 - [x] Criação, listagem e cancelamento (psicóloga)
