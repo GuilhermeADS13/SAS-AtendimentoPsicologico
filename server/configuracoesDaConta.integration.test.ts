@@ -201,6 +201,14 @@ describe.runIf(RUN)("configurações da conta (Postgres real)", () => {
     await ana.patients.update({ id: comProntuario.id, status: "archived" });
     expect(await sql`select status from patients where id = ${comProntuario.id}`).toEqual([{ status: "archived" }]);
 
+    // Reativar: sem conta volta "Aguardando cadastro"; com conta, "Ativo".
+    await ana.patients.update({ id: comProntuario.id, status: "active" });
+    expect(await sql`select status from patients where id = ${comProntuario.id}`).toEqual([{ status: "pending" }]);
+    await sql`update patients set status = 'archived', "userId" = ${ID.PAC} where id = ${comProntuario.id}`;
+    await ana.patients.update({ id: comProntuario.id, status: "active" });
+    expect(await sql`select status from patients where id = ${comProntuario.id}`).toEqual([{ status: "active" }]);
+    await sql`update patients set "userId" = null where id = ${comProntuario.id}`;
+
     // Paciente de outra psicóloga: nem excluir.
     await expect(appRouter.createCaller(ctx(ID.BIA, "therapist")).patients.delete({ id: extra.id })).rejects.toThrow();
   });

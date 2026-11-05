@@ -2549,7 +2549,8 @@ export const appRouter = router({
         if (input.medicalHistory !== undefined) set.medicalHistory = input.medicalHistory;
         if (input.emergencyContact !== undefined) set.emergencyContact = input.emergencyContact;
         if (input.emergencyPhone !== undefined) set.emergencyPhone = input.emergencyPhone;
-        if (input.status !== undefined) set.status = input.status;
+        // Quem ainda não criou a conta volta como "Aguardando cadastro", não "Ativo".
+        if (input.status !== undefined) set.status = input.status === "active" && !owned[0].userId ? "pending" : input.status;
         if (input.dateOfBirth !== undefined) {
           set.dateOfBirth = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
         }

@@ -13,6 +13,7 @@ import {
   Plus,
   Search,
   Trash2,
+  ArchiveRestore,
   UserPlus,
   X,
 } from "lucide-react";
@@ -72,7 +73,7 @@ const emptyForm = {
   medicalHistory: "",
 };
 
-type Filtro = "todos" | "active" | "pending" | "inactive";
+type Filtro = "todos" | "active" | "pending" | "inactive" | "archived";
 type Ordem = "nome" | "proxima" | "recentes";
 
 const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -105,6 +106,7 @@ const STATUS: Record<string, { rotulo: string; classe: string }> = {
   active: { rotulo: "Ativo", classe: "bg-primary/10 text-primary" },
   pending: { rotulo: "Aguardando cadastro", classe: "bg-amber-100 text-amber-800" },
   inactive: { rotulo: "Inativo", classe: "bg-muted text-muted-foreground" },
+  archived: { rotulo: "Arquivado", classe: "bg-muted text-muted-foreground" },
 };
 
 export default function Records() {
@@ -176,9 +178,14 @@ export default function Records() {
     },
     onError: (e) => toast.error(e.message || "Erro ao arquivar paciente"),
   });
-
-  // Arquivado sai da grade, mas o prontuário continua no banco.
-  const naGrade = useMemo(() => patients.filter((p) => p.status !== "archived"), [patients]);
+  const reativarPaciente = trpc.patients.update.useMutation({
+    onSuccess: () => {
+      utils.patients.list.invalidate();
+      toast.success("Paciente reativado: voltou para a sua grade.");
+    },
+    // Passou do teto do plano: o servidor recusa e explica.
+    onError: (e) => toast.error(e.message || "Erro ao reativar paciente"),
+  });
 
   const linhas = useMemo(() => {
     const agora = relogio.getTime();
@@ -196,21 +203,24 @@ export default function Records() {
       }
       porPaciente.set(c.patientId, atual);
     }
-    return naGrade.map((p) => ({
+    return patients.map((p) => ({
       ...p,
       nome: `${p.firstName} ${p.lastName}`.trim(),
       ...porPaciente.get(p.id),
       // `pendencias` vem pronto do servidor (CFP 001/2009): a tela precisa saber o
       // que falta, e o conteúdo do prontuário não precisa trafegar para isso.
     }));
-  }, [naGrade, consultas, relogio]);
+  }, [patients, consultas, relogio]);
 
+  // Arquivado fica fora de "Todos" (sai da grade), mas o prontuário continua
+  // guardado e aparece no filtro "Arquivados", de onde dá para reativar.
   const contagem = useMemo(
     () => ({
-      todos: linhas.length,
+      todos: linhas.filter((p) => p.status !== "archived").length,
       active: linhas.filter((p) => p.status === "active").length,
       pending: linhas.filter((p) => p.status === "pending").length,
       inactive: linhas.filter((p) => p.status === "inactive").length,
+      archived: linhas.filter((p) => p.status === "archived").length,
     }),
     [linhas],
   );
@@ -218,7 +228,7 @@ export default function Records() {
   const termo = busca.trim().toLocaleLowerCase("pt-BR");
   const termoDigitos = termo.replace(/\D/g, "");
   const visiveis = linhas
-    .filter((p) => filtro === "todos" || p.status === filtro)
+    .filter((p) => (filtro === "todos" ? p.status !== "archived" : p.status === filtro))
     .filter((p) => {
       if (!termo) return true;
       if (`${p.nome} ${p.email}`.toLocaleLowerCase("pt-BR").includes(termo)) return true;
@@ -410,7 +420,7 @@ export default function Records() {
         </header>
 
         {/* Busca, filtros e ordem */}
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
           <div className="relative w-full lg:max-w-sm">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -432,14 +442,15 @@ export default function Records() {
             )}
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:justify-end">
-            <div role="tablist" aria-label="Filtrar por situação" className="flex w-full gap-1 rounded-xl border bg-card p-1 sm:w-auto">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between lg:justify-end">
+            <div role="tablist" aria-label="Filtrar por situação" className="flex w-full min-w-0 gap-1 overflow-x-auto rounded-xl border bg-card p-1 sm:w-auto">
               {(
                 [
                   ["todos", "Todos"],
                   ["active", "Ativos"],
                   ["pending", "Aguardando"],
                   ...(contagem.inactive > 0 ? [["inactive", "Inativos"] as const] : []),
+                  ...(contagem.archived > 0 || filtro === "archived" ? [["archived", "Arquivados"] as const] : []),
                 ] as Array<readonly [Filtro, string]>
               ).map(([valor, rotulo]) => (
                 <button
@@ -601,10 +612,12 @@ export default function Records() {
                             <FolderOpen className="size-4" />
                             Abrir prontuário
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setLocation(`/appointments?novo=1&paciente=${p.id}`)}>
-                            <CalendarPlus className="size-4" />
-                            Agendar consulta
-                          </DropdownMenuItem>
+                          {p.status !== "archived" && (
+                            <DropdownMenuItem onClick={() => setLocation(`/appointments?novo=1&paciente=${p.id}`)}>
+                              <CalendarPlus className="size-4" />
+                              Agendar consulta
+                            </DropdownMenuItem>
+                          )}
                           {whatsapp && (
                             <DropdownMenuItem asChild>
                               <a href={whatsapp} target="_blank" rel="noopener noreferrer">
@@ -614,13 +627,23 @@ export default function Records() {
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={() => setToDelete({ id: p.id, nome: p.nome })}
-                          >
-                            <Trash2 className="size-4" />
-                            Arquivar ou excluir
-                          </DropdownMenuItem>
+                          {p.status === "archived" ? (
+                            <DropdownMenuItem
+                              disabled={reativarPaciente.isPending}
+                              onClick={() => reativarPaciente.mutate({ id: p.id, status: "active" })}
+                            >
+                              <ArchiveRestore className="size-4" />
+                              Reativar paciente
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => setToDelete({ id: p.id, nome: p.nome })}
+                            >
+                              <Trash2 className="size-4" />
+                              Arquivar ou excluir
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -641,14 +664,14 @@ export default function Records() {
                     <Info
                       rotulo="Próxima"
                       className="col-span-2 pl-[52px] lg:col-span-1 lg:pl-0"
-                      ocultarNoCelular={!p.proxima && p.status === "inactive"}
+                      ocultarNoCelular={!p.proxima && (p.status === "inactive" || p.status === "archived")}
                     >
                       {p.proxima ? (
                         <span className="inline-flex items-center gap-1.5 text-foreground">
                           <CalendarClock className="size-3.5 text-primary" />
                           {diaEHora(p.proxima)}
                         </span>
-                      ) : p.status === "inactive" ? (
+                      ) : p.status === "inactive" || p.status === "archived" ? (
                         <span className="text-muted-foreground">—</span>
                       ) : (
                         <button
