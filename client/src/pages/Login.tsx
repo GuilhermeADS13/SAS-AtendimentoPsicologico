@@ -21,6 +21,7 @@ import { maskCrp, isValidCrp } from "@shared/crp";
 import { SugestaoDeEmail } from "@/components/SugestaoDeEmail";
 import { cadastroPedidoNaUrl } from "@shared/entradaNoSite";
 import { origemGuardada } from "@/lib/origem";
+import { CHAVE_QUER_SER_PSICOLOGA } from "@/components/PortaoDoCadastro";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -66,6 +67,23 @@ export default function Login() {
   const cadastrar = trpc.auth.signUp.useMutation();
 
   const senhaChecks = getPasswordChecks(password);
+
+  /**
+   * Login pelo Google (Supabase OAuth). Volta para /login?entrou=google, onde a
+   * sessão abre sozinha; quem é novo completa o cadastro no PortaoDoCadastro.
+   */
+  const entrarComGoogle = async (comoPsicologa: boolean) => {
+    if (!supabase) return;
+    try {
+      if (comoPsicologa) localStorage.setItem(CHAVE_QUER_SER_PSICOLOGA, "1");
+      else localStorage.removeItem(CHAVE_QUER_SER_PSICOLOGA);
+    } catch {}
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/login?entrou=google` },
+    });
+    if (error) toast.error("Não foi possível abrir o login do Google. Tente de novo.");
+  };
 
   const afterAuth = async () => {
     // Revalida o auth.me (o token já vai no header) e entra na área do papel.
@@ -189,12 +207,19 @@ export default function Login() {
   // Voltou pelo link de confirmação (/login?confirmado=1#access_token=…): o
   // Supabase abre a sessão sozinho a partir do endereço; aqui só segue para a área.
   useEffect(() => {
-    if (!supabase || !new URLSearchParams(window.location.search).has("confirmado")) return;
+    const params = new URLSearchParams(window.location.search);
+    // O Google (ou o Supabase) devolve o erro no endereço: cancelou, negou acesso...
+    const erroDoGoogle = params.get("error_description") ?? new URLSearchParams(window.location.hash.slice(1)).get("error_description");
+    if (erroDoGoogle) {
+      toast.error("O login com o Google não foi concluído. Tente de novo ou entre com e-mail e senha.");
+      return;
+    }
+    if (!supabase || (!params.has("confirmado") && !params.has("entrou"))) return;
     let feito = false;
     const entrar = () => {
       if (feito) return;
       feito = true;
-      toast.success("E-mail confirmado! Bem-vinda ao VozInterior.");
+      if (params.has("confirmado")) toast.success("E-mail confirmado! Bem-vinda ao VozInterior.");
       void afterAuth();
     };
     const { data: sub } = supabase.auth.onAuthStateChange((_evento, sessao) => {
@@ -244,6 +269,8 @@ export default function Login() {
               </TabsList>
 
               <TabsContent value="login" className="space-y-4 pt-4">
+                <BotaoGoogle aoTocar={() => void entrarComGoogle(false)} />
+                <Divisoria />
                 {/* <form>: o Enter em qualquer campo já entra. */}
                 <form
                   className="space-y-4"
@@ -311,6 +338,11 @@ export default function Login() {
               </TabsContent>
 
               <TabsContent value="signup" className="space-y-4 pt-4">
+                <BotaoGoogle aoTocar={() => void entrarComGoogle(isPsychologist)} />
+                <p className="text-center text-xs text-muted-foreground">
+                  Com o Google, você completa celular{isPsychologist ? ", CRP" : ""} e o aceite dos termos logo depois.
+                </p>
+                <Divisoria />
                 <div className="space-y-2">
                   <Label htmlFor="name">Nome</Label>
                   <Input
@@ -541,6 +573,31 @@ function ConfiraSeuEmail({ email, psicologa, aoVoltar }: { email: string; psicol
       <Button type="button" variant="outline" className="w-full" onClick={aoVoltar}>
         Voltar para entrar
       </Button>
+    </div>
+  );
+}
+
+/** "Continuar com Google", com o G nas cores oficiais (diretriz de marca do Google). */
+function BotaoGoogle({ aoTocar }: { aoTocar: () => void }) {
+  return (
+    <Button type="button" variant="outline" className="h-11 w-full gap-3 sm:h-10" onClick={aoTocar}>
+      <svg viewBox="0 0 48 48" className="h-5 w-5" aria-hidden="true">
+        <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.5z" />
+        <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+        <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+        <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.5z" />
+      </svg>
+      Continuar com Google
+    </Button>
+  );
+}
+
+function Divisoria() {
+  return (
+    <div className="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden="true">
+      <span className="h-px flex-1 bg-border" />
+      ou com e-mail
+      <span className="h-px flex-1 bg-border" />
     </div>
   );
 }

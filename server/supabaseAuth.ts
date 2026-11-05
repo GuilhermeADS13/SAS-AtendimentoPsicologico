@@ -34,6 +34,17 @@ export interface SupabaseTokenUser {
   crpSolicitado?: string;
   /** Celular informado no cadastro (só dígitos) — ver telefoneDoCadastro.ts. */
   telefone?: string;
+  /** Como a conta entra: "email", "google"... (app_metadata do Supabase). */
+  provedores: string[];
+  /** Quando aceitou Termos e Privacidade, para quem entrou pelo Google (ver cadastroPendente). */
+  aceitouPoliticaEm?: string;
+}
+
+/** app_metadata.providers (lista) ou app_metadata.provider (um só); só textos. */
+function provedoresDoToken(appMetadata: unknown): string[] {
+  const app = (appMetadata as Record<string, unknown> | undefined) ?? {};
+  const lista = Array.isArray(app.providers) ? app.providers : app.provider !== undefined ? [app.provider] : [];
+  return lista.filter((p): p is string => typeof p === "string");
 }
 
 export async function verifySupabaseToken(
@@ -64,6 +75,8 @@ export async function verifySupabaseToken(
       name,
       crpSolicitado: typeof meta.crp_solicitado === "string" ? meta.crp_solicitado : undefined,
       telefone: typeof meta.telefone === "string" ? meta.telefone : undefined,
+      provedores: provedoresDoToken(payload.app_metadata),
+      aceitouPoliticaEm: typeof meta.aceite_politica_em === "string" ? meta.aceite_politica_em : undefined,
     };
   } catch {
     // Token inválido/expirado/assinatura incorreta.

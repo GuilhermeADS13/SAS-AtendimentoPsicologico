@@ -6,6 +6,7 @@ import { verifySupabaseToken } from "../supabaseAuth";
 import { upsertUser, getUserByOpenId } from "../db";
 import { registrarPedidoDoCadastro } from "../pedidoProfissional";
 import { guardarTelefoneDoCadastro } from "../telefoneDoCadastro";
+import { cadastroPendente } from "../../shared/cadastroPendente";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
@@ -13,6 +14,8 @@ export type TrpcContext = {
   user: User | null;
   /** `false` barra a API: psicóloga ou admin em aparelho sem confirmar. */
   aparelhoVerificado?: boolean;
+  /** `true` barra a API: conta do Google sem o aceite e os dados do cadastro. */
+  cadastroPendente?: boolean;
 };
 
 /** Última sincronização da conta com o token do Supabase (openId → e-mail e quando). */
@@ -22,6 +25,7 @@ export async function createContext(
   opts: CreateExpressContextOptions
 ): Promise<TrpcContext> {
   let user: User | null = null;
+  let pendente = false;
 
   // Autenticação: SÓ Supabase. O login OAuth do Manus foi removido — ele
   // validava um cookie/Bearer JWT assinado com JWT_SECRET (o mesmo segredo do
@@ -57,6 +61,7 @@ export async function createContext(
             ultimoSincronismo.set(openId, { email, quando: Date.now() });
           }
           user = (await getUserByOpenId(openId)) ?? null;
+          pendente = cadastroPendente(sbUser);
           // Psicóloga que se cadastrou com CRP: o pedido de acesso sai no 1º login
           // confirmado (ver pedidoProfissional.ts). Junto da sincronização, não a
           // cada requisição.
@@ -93,5 +98,6 @@ export async function createContext(
     res: opts.res,
     user,
     aparelhoVerificado: user ? await aparelhoLiberado(user, opts.req.headers.cookie) : true,
+    cadastroPendente: user ? pendente : false,
   };
 }

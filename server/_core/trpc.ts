@@ -1,4 +1,4 @@
-import { APARELHO_ERR_MSG, NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
+import { APARELHO_ERR_MSG, CADASTRO_PENDENTE_ERR_MSG, NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
@@ -84,10 +84,22 @@ const exigirAparelho = t.middleware(async ({ ctx, next }) => {
   return next();
 });
 
-/** Só para confirmar o próprio aparelho: é o que funciona antes da verificação. */
+/**
+ * Conta do Google que ainda não aceitou os Termos nem informou o celular (ver
+ * shared/cadastroPendente.ts). Só `true` barra: chamadas internas de teste não
+ * preenchem o campo.
+ */
+const exigirCadastroCompleto = t.middleware(async ({ ctx, next }) => {
+  if (ctx.cadastroPendente === true) {
+    throw new TRPCError({ code: "FORBIDDEN", message: CADASTRO_PENDENTE_ERR_MSG });
+  }
+  return next();
+});
+
+/** Só para confirmar o próprio aparelho e completar o cadastro: funciona antes dos dois. */
 export const contaProcedure = t.procedure.use(requireUser);
 
-export const protectedProcedure = t.procedure.use(requireUser).use(exigirAparelho);
+export const protectedProcedure = t.procedure.use(requireUser).use(exigirCadastroCompleto).use(exigirAparelho);
 
 /**
  * Acesso clínico (prontuários, agendamentos, sessões, documentos).
@@ -111,7 +123,7 @@ export const therapistProcedure = t.procedure.use(
 
     return next({ ctx: { ...ctx, user: ctx.user } });
   }),
-).use(exigirAparelho);
+).use(exigirCadastroCompleto).use(exigirAparelho);
 
 export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {

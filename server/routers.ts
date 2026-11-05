@@ -24,7 +24,9 @@ import {
 import { nomeDoNavegador } from "../shared/navegador";
 import { TIPOS_DE_AVISO, avisosComPadrao } from "../shared/avisosPorEmail";
 import { sendEmail } from "./mailer";
-import { celularDaConta, gerarLinkDeCadastro, gerarLinkDeRecuperacao, trocarEmailSupabase } from "./supabaseAdmin";
+import { celularDaConta, completarCadastroNaConta, gerarLinkDeCadastro, gerarLinkDeRecuperacao, trocarEmailSupabase } from "./supabaseAdmin";
+import { registrarPedidoDoCadastro } from "./pedidoProfissional";
+import { guardarTelefoneDoCadastro } from "./telefoneDoCadastro";
 import {
   anexoMaxMbDaPsicologa,
   contarPacientesCobrados,
@@ -769,7 +771,37 @@ export const appRouter = router({
   }),
 
   auth: router({
-    me: publicProcedure.query(({ ctx }) => (ctx.user ? { ...ctx.user, aparelhoVerificado: ctx.aparelhoVerificado !== false } : null)),
+    me: publicProcedure.query(({ ctx }) =>
+      ctx.user
+        ? { ...ctx.user, aparelhoVerificado: ctx.aparelhoVerificado !== false, cadastroPendente: ctx.cadastroPendente === true }
+        : null,
+    ),
+
+    /**
+     * Quem entrou pelo Google completa aqui o que o cadastro por e-mail já pede:
+     * aceite dos Termos e da Privacidade (LGPD), celular e, se for psicóloga, o
+     * CRP. Grava na conta do Supabase (como o cadastro por e-mail) e já registra o
+     * telefone e o pedido de CRP. A tela renova a sessão em seguida, e o token novo
+     * libera a API (ver shared/cadastroPendente.ts).
+     */
+    completarCadastro: contaProcedure
+      .input(z.object({
+        celular: z.string().trim().max(20).refine(celularValido, "Informe um celular com DDD, por exemplo (81) 99999-0000."),
+        crp: z.string().trim().regex(CRP_REGEX).optional(),
+        origem: z.string().regex(ORIGEM_REGEX).optional(),
+        aceitouPolitica: z.literal(true),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!ctx.cadastroPendente) throw new Error("Seu cadastro já está completo.");
+        if (!ctx.user.openId.startsWith("sb:")) throw new Error("Conta sem login do Supabase.");
+        const dados: Record<string, string> = { telefone: soDigitos(input.celular), aceite_politica_em: new Date().toISOString() };
+        if (input.crp) dados.crp_solicitado = input.crp;
+        if (input.origem) dados.origem = input.origem;
+        await completarCadastroNaConta(ctx.user.openId.slice(3), dados);
+        await guardarTelefoneDoCadastro(ctx.user, dados.telefone);
+        if (input.crp) await registrarPedidoDoCadastro(ctx.user, input.crp);
+        return { success: true } as const;
+      }),
 
     /**
      * "Esqueci minha senha" com o NOSSO e-mail (marca, logo e o nome da pessoa)

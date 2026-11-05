@@ -38,7 +38,7 @@ const ESPERADO: Record<Nivel, string[]> = {
     "auth.signUp", "system.health",
   ],
   conta: [
-    "aparelho.confirmarCodigo", "aparelho.enviarCodigo",
+    "aparelho.confirmarCodigo", "aparelho.enviarCodigo", "auth.completarCadastro",
   ],
   logada: [
     "aparelho.listar", "aparelho.remover", "aparelho.sairDeTodos", "me.avisosPorEmail",

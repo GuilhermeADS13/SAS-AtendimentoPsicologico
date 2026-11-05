@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
 
 /** Páginas sem dado clínico. A Ajuda fica aberta: é onde se procura quem travou aqui. */
-const ROTAS_ABERTAS = ["/", "/login", "/redefinir-senha", "/ajuda", "/privacidade", "/termos", "/precos"];
+export const ROTAS_ABERTAS = ["/", "/login", "/redefinir-senha", "/ajuda", "/privacidade", "/termos", "/precos"];
 
 /**
  * Psicóloga ou admin em aparelho novo confirma um código do e-mail antes de ver o

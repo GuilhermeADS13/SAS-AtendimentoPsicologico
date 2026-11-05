@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { APARELHO_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
+import { APARELHO_ERR_MSG, CADASTRO_PENDENTE_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
@@ -30,7 +30,9 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
   // O aparelho deixou de valer (venceram os 30 dias) com a tela aberta: atualizar
   // quem está logado faz a tela de confirmação aparecer no lugar.
-  if (error.message === APARELHO_ERR_MSG) {
+  // Mesma coisa com o cadastro pendente (conta do Google sem o aceite): a tela de
+  // completar cadastro aparece no lugar.
+  if (error.message === APARELHO_ERR_MSG || error.message === CADASTRO_PENDENTE_ERR_MSG) {
     void queryClient.invalidateQueries({ queryKey: [["auth", "me"]] });
     return;
   }

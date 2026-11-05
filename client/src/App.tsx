@@ -55,6 +55,7 @@ function CarregandoRota() {
 }
 import ErrorBoundary from "./components/ErrorBoundary";
 import PortaoDoAparelho from "./components/PortaoDoAparelho";
+import PortaoDoCadastro from "./components/PortaoDoCadastro";
 import { TherapistOnly } from "./components/TherapistOnly";
 import { ThemeProvider } from "./contexts/ThemeContext";
 
@@ -177,8 +178,10 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <PortaoDoAparelho>
-            <TituloDaPagina />
-            <Router />
+            <PortaoDoCadastro>
+              <TituloDaPagina />
+              <Router />
+            </PortaoDoCadastro>
           </PortaoDoAparelho>
         </TooltipProvider>
       </ThemeProvider>

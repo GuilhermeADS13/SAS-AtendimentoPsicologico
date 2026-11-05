@@ -70,6 +70,8 @@ export default function Privacidade() {
                 contato sobre as consultas e, quando disponível, para recuperar o acesso.
                 Se você chegou por um link nosso nas redes sociais, guardamos também de qual
                 rede veio (por exemplo, "instagram"), só para saber quais canais funcionam.
+                Se entrar com o Google, recebemos dele o seu nome e o seu e-mail; a sua senha
+                do Google nunca passa por nós.
               </li>
               <li>
                 <strong>Cadastro:</strong> telefone, data de nascimento, endereço e

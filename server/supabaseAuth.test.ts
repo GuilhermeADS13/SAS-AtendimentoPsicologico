@@ -74,7 +74,21 @@ describe("verifySupabaseToken", () => {
       name: "Ana",
       crpSolicitado: "06/123456",
       telefone: "81999990000",
+      provedores: [],
+      aceitouPoliticaEm: undefined,
     });
+  });
+
+  it("lê como a conta entra (e-mail, Google) e o aceite gravado depois do Google", async () => {
+    const t = await token({
+      app_metadata: { provider: "google", providers: ["google"] },
+      user_metadata: { full_name: "Ana Google", aceite_politica_em: "2026-11-04T12:00:00.000Z" },
+    });
+    expect(await verificar(t)).toMatchObject({ provedores: ["google"], aceitouPoliticaEm: "2026-11-04T12:00:00.000Z" });
+    const soUm = await token({ app_metadata: { provider: "email" } });
+    expect((await verificar(soUm))?.provedores).toEqual(["email"]);
+    const lixo = await token({ app_metadata: { providers: ["google", 7, null] } });
+    expect((await verificar(lixo))?.provedores).toEqual(["google"]);
   });
 
   it("usa full_name quando não há name", async () => {
@@ -84,7 +98,10 @@ describe("verifySupabaseToken", () => {
 
   it("ignora dados do cadastro que não são texto (objeto no lugar do nome, etc.)", async () => {
     const t = await token({ email: 123, user_metadata: { name: { $ne: null }, crp_solicitado: ["x"], telefone: 81 } });
-    expect(await verificar(t)).toEqual({ sub: "uid-da-ana", email: undefined, name: undefined, crpSolicitado: undefined, telefone: undefined });
+    expect(await verificar(t)).toEqual({
+      sub: "uid-da-ana", email: undefined, name: undefined, crpSolicitado: undefined, telefone: undefined,
+      provedores: [], aceitouPoliticaEm: undefined,
+    });
   });
 
   it("recusa token vencido", async () => {

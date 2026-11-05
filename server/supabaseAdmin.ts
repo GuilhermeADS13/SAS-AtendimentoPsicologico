@@ -81,3 +81,19 @@ export async function trocarEmailSupabase(authUid: string, novoEmail: string): P
   });
   if (error) throw error;
 }
+
+/**
+ * Grava nos dados da conta (user_metadata) o que o cadastro por e-mail já pedia e
+ * o login pelo Google não traz: aceite, celular, CRP e origem. Junta com o que já
+ * existe (nome e foto do Google ficam), porque a atualização substitui o objeto.
+ */
+export async function completarCadastroNaConta(authUid: string, dados: Record<string, string>): Promise<void> {
+  const client = adminClient();
+  if (!client) throw new Error("Serviço de conta indisponível.");
+  const { data, error: erroAoLer } = await client.auth.admin.getUserById(authUid);
+  if (erroAoLer || !data.user) throw new Error("Conta não encontrada.");
+  const { error } = await client.auth.admin.updateUserById(authUid, {
+    user_metadata: { ...(data.user.user_metadata ?? {}), ...dados },
+  });
+  if (error) throw error;
+}
