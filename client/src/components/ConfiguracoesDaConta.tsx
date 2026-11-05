@@ -1,6 +1,7 @@
 import { ReactNode, useState } from "react";
 import { toast } from "sonner";
-import { Bell, Download, LogOut, Monitor, ShieldCheck, Smartphone, UserX } from "lucide-react";
+import { Bell, Download, LogOut, ShieldCheck, UserX } from "lucide-react";
+import { LogoDoNavegador } from "@/components/LogoDoNavegador";
 import { trpc } from "@/lib/trpc";
 import { supabase } from "@/lib/supabase";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +41,6 @@ function Linha({ titulo, descricao, children }: { titulo: string; descricao: str
   );
 }
 
-const ehCelular = (navegador: string | null) => !!navegador && /iPhone|iPad|Android/.test(navegador);
 
 /**
  * Aparelhos conectados e "sair de todos". Psicóloga e admin veem os aparelhos
@@ -125,10 +125,9 @@ export function SegurancaDaConta({ confirmaAparelho }: { confirmaAparelho: boole
                 <ul className="divide-y divide-border rounded-lg border border-border">
                   {aparelhos.map((a) => {
                     const nome = a.navegador ?? "Aparelho confirmado antes de novembro de 2026";
-                    const Icone = ehCelular(a.navegador) ? Smartphone : Monitor;
                     return (
                       <li key={a.id} className="flex flex-wrap items-center gap-3 p-3">
-                        <Icone className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                        <LogoDoNavegador navegador={a.navegador} />
                         <div className="min-w-0 flex-1">
                           <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
                             {nome}
@@ -169,10 +168,9 @@ export function SegurancaDaConta({ confirmaAparelho }: { confirmaAparelho: boole
               ) : (
                 <ul className="divide-y divide-border rounded-lg border border-border">
                   {sessoes.map((s) => {
-                    const Icone = ehCelular(s.navegador) ? Smartphone : Monitor;
                     return (
                       <li key={s.id} className="flex flex-wrap items-center gap-3 p-3">
-                        <Icone className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                        <LogoDoNavegador navegador={s.navegador} />
                         <div className="min-w-0 flex-1">
                           <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
                             {s.navegador}
