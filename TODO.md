@@ -15,6 +15,10 @@ https://sas-atendimento-psicologico.onrender.com
 - [x] Gestão de papéis: `therapistProcedure` (admin/therapist) vs `protectedProcedure` (paciente)
 - [x] Paciente não enxerga prontuário — só suas consultas e seu cadastro
 - [x] Aprovar/recusar solicitação pela interface (/solicitacoes, só admin) + e-mail ao solicitante
+- [x] Entrar com o Google (2026-11-05): projeto `vozinterior-513817` no Google Cloud, app
+      publicado ("Em produção"), suporte = suportevozinterior@. Conta nova pelo Google fica com
+      o cadastro pendente até aceitar Termos/Privacidade e informar celular (e CRP), e a API só
+      libera `auth.completarCadastro` (`shared/cadastroPendente.ts`). Apple ficou de fora (pago)
 
 ## Design e Identidade Visual
 - [x] Paleta da marca VozInterior: verde da logo (#215756) sobre creme, tema claro e escuro
@@ -78,7 +82,7 @@ https://sas-atendimento-psicologico.onrender.com
 - [x] Schema do código == banco de produção (auditado programaticamente em 2026-07-15)
 - [ ] **Rotacionar segredos que vazaram no chat**: senha do banco, App Password do
       Gmail, PAT do Supabase, chave da Brevo e chave da Groq. O JWT_SECRET não é mais usado:
-      basta removê-lo (ver a limpeza de variáveis abaixo)
+      basta removê-lo do Render (ver a limpeza de variáveis abaixo)
 - [x] **Banco separado para dev** — `pnpm dev:local` usa o Supabase local no Docker
       (`supabase/`, `.env.supabase.local`). O `pnpm dev` continua apontando para produção.
 - [x] Senha vazada recusada (HaveIBeenPwned, k-anonimato) — feita no próprio app
@@ -90,5 +94,5 @@ https://sas-atendimento-psicologico.onrender.com
 - [x] Resíduo do Manus em `server/_core/` removido (sobram só comentários). Fica o plugin
       de edição `vite-plugin-manus-runtime`, que só roda no dev
 - [ ] **Limpar variáveis sem uso no Render**: `LLM_EMBEDDING_*` (3), `AI_WORKER_INLINE`,
-      `VITE_MIROTALK_URL` e `OAUTH_SERVER_URL`. `JWT_SECRET` e `OAUTH_SERVER_URL` ainda são
-      lidas em `server/_core/env.ts`, mas nada usa — dá para tirar das duas pontas
+      `VITE_MIROTALK_URL`, `OAUTH_SERVER_URL` e `JWT_SECRET`. O código não lê mais nenhuma
+      delas (fe06a60c); falta só apagar no painel do Render (é manual: segredo)

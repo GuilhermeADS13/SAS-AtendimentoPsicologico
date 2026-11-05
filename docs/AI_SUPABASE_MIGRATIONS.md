@@ -16,7 +16,6 @@ A aplicação usa `DATABASE_URL` para o backend e para as ferramentas Drizzle. A
 | `LLM_MODEL` | Backend | Nome do modelo open source aprovado |
 | `LLM_TEMPERATURE` | Backend | Parâmetro operacional do modelo |
 | `LLM_MAX_TOKENS` | Backend | Limite máximo de saída |
-| `JWT_SECRET` | Backend | Segredo usado pela autenticação da aplicação |
 | `VITE_*` | Frontend | Somente valores públicos, como URL pública da aplicação |
 
 Para desenvolvimento local, crie `.env.local`, que já deve estar no `.gitignore`:
@@ -141,7 +140,7 @@ Se uma credencial for exposta, revogue-a imediatamente no Supabase ou no provedo
 
 ## 7. Configuração no provedor de deploy
 
-No provedor que executa o backend, cadastre `DATABASE_URL`, `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`, `JWT_SECRET`, `AI_AGENT_ENABLED`, `AI_RAG_ENABLED`, `AI_CLINICAL_TOOLS_ENABLED` e `AI_OCR_MIN_CONFIDENCE` como variáveis privadas. Não configure `DATABASE_URL` no projeto frontend nem em variáveis públicas.
+No provedor que executa o backend, cadastre `DATABASE_URL`, `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`, `AI_AGENT_ENABLED`, `AI_RAG_ENABLED`, `AI_CLINICAL_TOOLS_ENABLED` e `AI_OCR_MIN_CONFIDENCE` como variáveis privadas. Não configure `DATABASE_URL` no projeto frontend nem em variáveis públicas.
 
 Faça a migração em um job administrativo separado do processo que serve o frontend. Depois, reinicie o backend para garantir que o novo código e o schema estejam sincronizados.
 
