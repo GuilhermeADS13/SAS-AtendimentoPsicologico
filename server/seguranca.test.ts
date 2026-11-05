@@ -142,6 +142,26 @@ describe("cabeçalhos de segurança", () => {
     expect(cabecalhos["Content-Security-Policy-Report-Only"]).toBeUndefined();
   });
 
+  it("script inline e o Supabase local so sao liberados no modo dev, nunca fora dele", () => {
+    const fora = resposta();
+    cabecalhosDeSeguranca(pedido({}), fora.res, vi.fn() as unknown as NextFunction);
+    const csp = fora.cabecalhos["Content-Security-Policy"];
+    expect(csp.match(/script-src[^;]*/)?.[0]).not.toContain("unsafe-inline");
+    expect(csp).not.toContain("127.0.0.1");
+
+    vi.stubEnv("NODE_ENV", "development");
+    try {
+      const dev = resposta();
+      cabecalhosDeSeguranca(pedido({}), dev.res, vi.fn() as unknown as NextFunction);
+      const csp = dev.cabecalhos["Content-Security-Policy"];
+      expect(csp).toMatch(/script-src 'self' 'unsafe-inline'/);
+      expect(csp).toContain("http://127.0.0.1:54321");
+      expect(csp).toContain("object-src 'none'");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("o jsDelivr so vale para o MediaPipe, nao para qualquer pacote do npm", () => {
     const { res, cabecalhos } = resposta();
     cabecalhosDeSeguranca(pedido({}), res, vi.fn() as unknown as NextFunction);

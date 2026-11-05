@@ -167,6 +167,16 @@ const CSP = [
 ].join("; ");
 
 /**
+ * Só no `pnpm dev`/`dev:local`: o Vite injeta um script inline (o "preamble" do
+ * React) e o Supabase local responde em http://127.0.0.1:54321. Com a CSP de
+ * produção, a tela travava em "Carregando" e o login local não saía.
+ */
+const CSP_DE_DESENVOLVIMENTO = CSP.replace("script-src 'self'", "script-src 'self' 'unsafe-inline'").replace(
+  "connect-src 'self'",
+  "connect-src 'self' http://127.0.0.1:54321 http://localhost:54321 ws://localhost:*",
+);
+
+/**
  * Cabeçalhos de segurança.
  *
  * A Permissions-Policy declara `self` para câmera, microfone e captura de tela:
@@ -178,7 +188,7 @@ export function cabecalhosDeSeguranca(req: Request, res: Response, next: NextFun
   // (computador compartilhado) nem em proxy. Rota que pode ser guardada, como a
   // imagem de GIF, troca este valor ao responder.
   if (req.path?.startsWith("/api/")) res.setHeader("Cache-Control", "no-store");
-  res.setHeader("Content-Security-Policy", CSP);
+  res.setHeader("Content-Security-Policy", process.env.NODE_ENV === "development" ? CSP_DE_DESENVOLVIMENTO : CSP);
   res.setHeader(
     "Permissions-Policy",
     "camera=(self), microphone=(self), display-capture=(self), geolocation=(), payment=(), usb=()",
