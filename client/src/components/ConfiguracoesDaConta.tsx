@@ -1,6 +1,7 @@
 import { ReactNode, useState } from "react";
 import { toast } from "sonner";
-import { Bell, Download, LogOut, ShieldCheck, UserX } from "lucide-react";
+import { Bell, Download, LogOut, ShieldCheck, Smartphone, UserX } from "lucide-react";
+import { abertoComoApp, ehAparelhoApple, instalarApp, usePodeInstalar } from "@/lib/instalarApp";
 import { LogoDoNavegador } from "@/components/LogoDoNavegador";
 import { trpc } from "@/lib/trpc";
 import { supabase } from "@/lib/supabase";
@@ -283,6 +284,59 @@ export function SegurancaDaConta({ confirmaAparelho }: { confirmaAparelho: boole
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </Card>
+  );
+}
+
+/**
+ * "Instalar o app" (lib/instalarApp.ts). O botão só aparece quando o navegador
+ * consegue instalar de verdade; no iPhone/iPad, o caminho é pelo Safari.
+ */
+export function AplicativoCard() {
+  const podeInstalar = usePodeInstalar();
+  const instalado = abertoComoApp();
+  const apple = ehAparelhoApple();
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Smartphone className="w-5 h-5 text-primary" />
+          Aplicativo
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <Linha
+          titulo="Instalar o VozInterior"
+          descricao="Abre com um toque pela tela inicial do celular ou do computador, sem baixar nada de loja."
+        >
+          {instalado ? (
+            <p className="text-sm text-muted-foreground">O VozInterior já está instalado neste aparelho.</p>
+          ) : podeInstalar ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 sm:h-8"
+              onClick={async () => {
+                if (await instalarApp()) toast.success("Pronto! O VozInterior foi instalado.");
+              }}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Instalar o app
+            </Button>
+          ) : apple ? (
+            <p className="text-sm text-muted-foreground">
+              No <strong className="text-foreground">Safari</strong>, toque em <strong className="text-foreground">Compartilhar</strong>{" "}
+              (o quadrado com a seta) e depois em <strong className="text-foreground">Adicionar à Tela de Início</strong>.
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Abra o menu do navegador e procure <strong className="text-foreground">Instalar o app</strong> ou{" "}
+              <strong className="text-foreground">Adicionar à tela inicial</strong>. No Chrome e no Edge, o botão aparece aqui.
+            </p>
+          )}
+        </Linha>
+      </CardContent>
     </Card>
   );
 }

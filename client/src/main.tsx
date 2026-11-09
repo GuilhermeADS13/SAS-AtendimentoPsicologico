@@ -7,6 +7,7 @@ import superjson from "superjson";
 import App from "./App";
 import { getAccessToken } from "./lib/supabase";
 import { guardarOrigemDaUrl } from "./lib/origem";
+import { registrarServiceWorker } from "./lib/instalarApp";
 import "./index.css";
 
 // Limpeza de dado legado: a chave "manus-runtime-user-info" guardava o usuário
@@ -91,6 +92,9 @@ const trpcClient = trpc.createClient({
     }),
   ],
 });
+
+// Instalar como app: o service worker e o pedido do navegador (lib/instalarApp.ts).
+registrarServiceWorker();
 
 createRoot(document.getElementById("root")!).render(
   <trpc.Provider client={trpcClient} queryClient={queryClient}>

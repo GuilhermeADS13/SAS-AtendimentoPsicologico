@@ -28,7 +28,7 @@ import { mensagemDeErroDeAcesso } from "@shared/erroDeAcesso";
 import { senhaVazadaNoNavegador } from "@/lib/senhaVazada";
 import { Check, X, Mail, KeyRound, Phone, ShieldCheck, Info } from "lucide-react";
 import { SugestaoDeEmail } from "@/components/SugestaoDeEmail";
-import { AvisosPorEmailCard, MeusDados, SegurancaDaConta } from "@/components/ConfiguracoesDaConta";
+import { AplicativoCard, AvisosPorEmailCard, MeusDados, SegurancaDaConta } from "@/components/ConfiguracoesDaConta";
 
 /**
  * Configurações da conta: e-mail, senha e telefone.
@@ -448,6 +448,7 @@ export default function Configuracoes() {
         </div>
 
         <SegurancaDaConta confirmaAparelho={isTherapist || isAdmin} />
+        <AplicativoCard />
         <AvisosPorEmailCard />
         <MeusDados psicologa={isTherapist || isAdmin} />
       </div>
