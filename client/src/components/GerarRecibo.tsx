@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, FileDown } from "lucide-react";
+import { AlertTriangle, FileDown, ImagePlus, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { baixarReciboPdf } from "@/lib/recibo-pdf";
+import { baixarReciboPdf, imagemDoComprovante, type Comprovante } from "@/lib/recibo-pdf";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +20,7 @@ const nomeDoMes = (chave: string) => {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 };
 const dataCurta = (d: Date) => d.toLocaleDateString("pt-BR", { timeZone: FUSO });
+const MAX_COMPROVANTES = 5;
 
 /** "Rua X, 100, Recife/PE" -> "Recife/PE": a cidade para a linha da data. */
 function cidadeDoEndereco(endereco: string): string {
@@ -71,6 +72,23 @@ export function GerarRecibo({
   const [pagadorNome, setPagadorNome] = useState("");
   const [pagadorCpf, setPagadorCpf] = useState("");
   const [gerando, setGerando] = useState(false);
+  // Prints do Pix que o paciente mandou: só vão para o PDF, não ficam guardados.
+  const [comprovantes, setComprovantes] = useState<(Comprovante & { nome: string })[]>([]);
+
+  const anexar = async (arquivos: FileList | null) => {
+    const lista = Array.from(arquivos ?? []);
+    if (!lista.length) return;
+    const cabem = MAX_COMPROVANTES - comprovantes.length;
+    if (lista.length > cabem) toast.error(`Até ${MAX_COMPROVANTES} comprovantes por recibo.`);
+    for (const arquivo of lista.slice(0, Math.max(0, cabem))) {
+      try {
+        const img = await imagemDoComprovante(arquivo);
+        setComprovantes((atual) => [...atual, { ...img, nome: arquivo.name }]);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Não deu para abrir a imagem.");
+      }
+    }
+  };
 
   // Ao abrir: mês mais recente com consulta paga, todas marcadas, e os dados salvos.
   useEffect(() => {
@@ -82,6 +100,7 @@ export function GerarRecibo({
     setOutroPagou(false);
     setPagadorNome("");
     setPagadorCpf("");
+    setComprovantes([]);
   }, [aberto]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -129,7 +148,7 @@ export function GerarRecibo({
         }
       }
       const arquivo = `recibo-${nomePaciente}-${mes}`.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\w-]+/g, "-");
-      await baixarReciboPdf(dados, `${arquivo}.pdf`);
+      await baixarReciboPdf(dados, `${arquivo}.pdf`, comprovantes);
       toast.success("Recibo baixado.");
       aoFechar();
     } catch (e) {
@@ -254,6 +273,49 @@ export function GerarRecibo({
                     />
                   </div>
                 </div>
+              )}
+            </fieldset>
+
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-semibold text-foreground">Comprovante do Pix (opcional)</legend>
+              <p className="text-xs text-muted-foreground">
+                O print que o paciente te mandou entra numa página no fim do recibo. Não fica guardado no sistema.
+              </p>
+              {comprovantes.length > 0 && (
+                <ul className="space-y-1.5">
+                  {comprovantes.map((c, i) => (
+                    <li key={i} className="flex items-center gap-3 rounded-md border p-1.5 text-sm">
+                      <img src={c.dataUrl} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
+                      <span className="min-w-0 flex-1 truncate">{c.nome}</span>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 shrink-0"
+                        aria-label={`Tirar ${c.nome}`}
+                        onClick={() => setComprovantes((atual) => atual.filter((_, j) => j !== i))}
+                      >
+                        <X className="size-4" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {comprovantes.length < MAX_COMPROVANTES && (
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm text-foreground hover:bg-muted/50 focus-within:ring-2 focus-within:ring-ring">
+                  <ImagePlus className="size-4" aria-hidden />
+                  Anexar comprovante
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="sr-only"
+                    onChange={(e) => {
+                      void anexar(e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
               )}
             </fieldset>
 

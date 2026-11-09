@@ -16,6 +16,7 @@ import {
   Bell,
   Settings,
   ShieldCheck,
+  Smartphone,
   Stethoscope,
   TrendingUp,
   Users,
@@ -153,7 +154,7 @@ const therapistSteps: Step[] = [
     aba: "pagamentos",
     icon: Wallet,
     title: "Pagamentos",
-    body: "O valor de cada consulta deste paciente, o que já foi pago e o que falta. Dá para marcar como pago ali mesmo.",
+    body: "O valor de cada consulta deste paciente, o que já foi pago e o que falta. Dá para marcar como pago ali mesmo. Em “Gerar recibo” você baixa o recibo em PDF das sessões pagas do mês, com o seu CPF e endereço para o paciente usar no Imposto de Renda. Se ele te mandou o print do Pix, anexe que vai junto.",
     target: '[data-tour="aba-pagamentos"]',
   },
   {
@@ -222,6 +223,13 @@ const therapistSteps: Step[] = [
   },
   {
     path: "/configuracoes",
+    icon: Smartphone,
+    title: "Instalar como app",
+    body: "Coloque o VozInterior na tela inicial do celular ou do computador e abra direto, como um aplicativo. Toque em “Instalar o app”; se o botão não aparecer, siga a dica que fica aqui (no iPhone, é pelo Safari).",
+    target: '[data-tour="config-app"]',
+  },
+  {
+    path: "/configuracoes",
     icon: Bell,
     title: "Avisos e seus dados",
     body: "Escolha quais avisos da agenda chegam no seu e-mail: lembrete, consulta marcada e cancelamento. O código de acesso e os avisos do plano sempre chegam. Mais abaixo, em “Meus dados”, você baixa os dados da sua conta.",
@@ -285,6 +293,13 @@ const patientSteps: Step[] = [
     title: "Configurações da conta",
     body: "Aqui ficam seus dados de cadastro, como o telefone, e o acesso à conta. Para mudar o e-mail, mando um código para ele. Para mudar a senha, peço a senha atual.",
     target: '[data-tour="config-dados"]',
+  },
+  {
+    path: "/configuracoes",
+    icon: Smartphone,
+    title: "Instalar como app",
+    body: "Coloque o VozInterior na tela inicial do celular e abra direto, como um aplicativo. Toque em “Instalar o app”; se o botão não aparecer, siga a dica que fica aqui (no iPhone, é pelo Safari).",
+    target: '[data-tour="config-app"]',
   },
   {
     path: "/configuracoes",

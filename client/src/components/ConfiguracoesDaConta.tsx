@@ -298,7 +298,7 @@ export function AplicativoCard() {
   const apple = ehAparelhoApple();
 
   return (
-    <Card>
+    <Card data-tour="config-app">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Smartphone className="w-5 h-5 text-primary" />
