@@ -49,6 +49,7 @@ import { CRP_REGEX } from "../shared/crp";
 import { ORIGEM_REGEX } from "../shared/entradaNoSite";
 import { celularValido, mascaraTelefone, soDigitos, telefoneValido } from "../shared/telefone";
 import { nascimentoValido } from "../shared/datas";
+import { cpfValido, soDigitosDoCpf } from "../shared/recibo";
 import { VALOR_MAXIMO_DA_CONSULTA } from "../shared/dinheiro";
 import { FASES_VALORES } from "../shared/evolucao";
 import { FREQUENCIA_REGEX } from "../shared/frequencia";
@@ -2218,6 +2219,28 @@ export const appRouter = router({
       }),
 
     /**
+     * CPF e endereço de atendimento, para o recibo valer no Imposto de Renda
+     * (shared/recibo.ts). Separado do `upsert`, como o Pix: salvar o perfil não pode
+     * apagar estes dados. Vazio apaga.
+     */
+    definirDadosDoRecibo: therapistProcedure
+      .input(z.object({
+        cpf: z.string().trim().max(14).refine((c) => c === "" || cpfValido(c), "CPF inválido. Confira os números."),
+        endereco: z.string().trim().max(300),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const atualizados = await db
+          .update(therapists)
+          .set({ cpf: input.cpf ? soDigitosDoCpf(input.cpf) : null, endereco: input.endereco || null })
+          .where(eq(therapists.userId, ctx.user.id))
+          .returning({ id: therapists.id });
+        if (!atualizados.length) throw new Error("Complete seu perfil profissional antes.");
+        return { ok: true } as const;
+      }),
+
+    /**
      * Chave Pix para receber dos pacientes. Separado do `upsert` de propósito:
      * aquele regrava o perfil inteiro, e salvar a bio não pode apagar a chave.
      * O dinheiro vai direto do paciente para ela — o VozInterior não intermedia.
@@ -2461,6 +2484,30 @@ export const appRouter = router({
         const atualizados = await db
           .update(patients)
           .set({ frequencia: input.frequencia })
+          .where(and(eq(patients.id, input.patientId), eq(patients.therapistId, therapist[0].id)))
+          .returning({ id: patients.id });
+        if (!atualizados.length) throw new Error("Paciente não encontrado.");
+        return { ok: true } as const;
+      }),
+
+    /** CPF do paciente para o recibo (shared/recibo.ts). Vazio apaga. */
+    definirCpf: therapistProcedure
+      .input(z.object({
+        patientId: z.number().int(),
+        cpf: z.string().trim().max(14).refine((c) => c === "" || cpfValido(c), "CPF inválido. Confira os números."),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const therapist = await db
+          .select({ id: therapists.id })
+          .from(therapists)
+          .where(eq(therapists.userId, ctx.user.id))
+          .limit(1);
+        if (!therapist.length) throw new Error("Therapist not found");
+        const atualizados = await db
+          .update(patients)
+          .set({ cpf: input.cpf ? soDigitosDoCpf(input.cpf) : null })
           .where(and(eq(patients.id, input.patientId), eq(patients.therapistId, therapist[0].id)))
           .returning({ id: patients.id });
         if (!atualizados.length) throw new Error("Paciente não encontrado.");

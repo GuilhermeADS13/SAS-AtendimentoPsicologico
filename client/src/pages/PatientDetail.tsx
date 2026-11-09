@@ -50,6 +50,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, FileText, Calendar, MessageSquare, Pencil, Plus, Upload, Trash2, FileDown, Loader2, Wallet, CheckCircle2, ClipboardList, FileSignature, Save } from "lucide-react";
 import { formatarBRL } from "@shared/dinheiro";
 import { SugestaoDeEmail } from "@/components/SugestaoDeEmail";
+import { GerarRecibo } from "@/components/GerarRecibo";
 
 // Renderiza um formulário de campos agrupados (anamnese, TCLE) a partir da
 // configuração única de shared/prontuario.ts — sem repetir a lista de campos.
@@ -402,6 +403,9 @@ export default function PatientDetail() {
     .filter((a) => a.paid)
     .reduce((soma, a) => soma + (a.price ?? 0), 0);
   const temPagamentos = consultasDoPaciente.some((a) => (a.price ?? 0) > 0 || a.paid);
+  const [reciboAberto, setReciboAberto] = useState(false);
+  // O recibo fala em "sessões realizadas": falta e cancelada não entram.
+  const pagasParaRecibo = consultasDoPaciente.filter((a) => a.paid && ativa(a));
 
   const setPayment = trpc.appointments.setPayment.useMutation({
     onSuccess: () => {
@@ -964,17 +968,34 @@ export default function PatientDetail() {
           <TabsContent value="pagamentos" className="space-y-4" data-tour="aba-pagamentos">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-xl font-semibold text-foreground">Pagamentos</h2>
-              <span className="text-sm">
-                {faltaPagar > 0 ? (
-                  <>
-                    Falta{" "}
-                    <strong className="text-yellow-700">{formatarBRL(faltaPagar)}</strong>
-                  </>
-                ) : (
-                  <span className="text-muted-foreground">Em dia</span>
+              <div className="flex items-center gap-3">
+                <span className="text-sm">
+                  {faltaPagar > 0 ? (
+                    <>
+                      Falta{" "}
+                      <strong className="text-yellow-700">{formatarBRL(faltaPagar)}</strong>
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">Em dia</span>
+                  )}
+                </span>
+                {pagasParaRecibo.length > 0 && (
+                  <Button size="sm" variant="outline" onClick={() => setReciboAberto(true)}>
+                    <FileDown className="mr-1.5 h-4 w-4" />
+                    Gerar recibo
+                  </Button>
                 )}
-              </span>
+              </div>
             </div>
+            {patient && (
+              <GerarRecibo
+                aberto={reciboAberto}
+                aoFechar={() => setReciboAberto(false)}
+                paciente={patient}
+                consultas={pagasParaRecibo}
+                exemplo={!!dadosExemplo}
+              />
+            )}
 
             {consultasDoPaciente.filter(ativa).length === 0 ? (
               <Card>

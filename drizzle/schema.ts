@@ -1,6 +1,6 @@
 import { boolean, customType, index, integer, jsonb, pgEnum, pgTable, serial, smallint, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 import type { AvisosPorEmail } from "../shared/avisosPorEmail";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import type { AnamneseData, TcleData, NoteTemplate } from "../shared/prontuario";
 import type { TipoChavePix } from "../shared/pix";
 
@@ -195,6 +195,9 @@ export const therapists = pgTable("therapists", {
   pixTipo: varchar("pixTipo", { length: 12 }).$type<TipoChavePix>(),
   pixChave: varchar("pixChave", { length: 77 }),
   pixCidade: varchar("pixCidade", { length: 15 }),
+  /** Recibo para o Imposto de Renda (migração 0052): CPF e endereço de quem atende. Opcionais. */
+  cpf: varchar("cpf", { length: 14 }),
+  endereco: text("endereco"),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
     .defaultNow()
@@ -265,6 +268,8 @@ export const patients = pgTable("patients", {
   phone: varchar("phone", { length: 20 }),
   dateOfBirth: timestamp("dateOfBirth", { withTimezone: true, mode: "date" }),
   address: text("address"),
+  /** CPF do paciente para o recibo (migração 0052). Opcional. */
+  cpf: varchar("cpf", { length: 14 }),
   /** Path da foto no bucket `avatars`. Opcional — o paciente põe se quiser. */
   photoKey: text("photoKey"),
   medicalHistory: text("medicalHistory"),
@@ -304,6 +309,25 @@ export const patients = pgTable("patients", {
 
 export type Patient = typeof patients.$inferSelect;
 export type InsertPatient = typeof patients.$inferInsert;
+
+/**
+ * Lista de espera (migração 0052): quem quer um horário com a psicóloga e quando.
+ * diasDaSemana: 0 = domingo ... 6 = sábado. periodos: "manha" | "tarde" | "noite".
+ * Quando uma consulta é desmarcada, a Agenda mostra quem da lista quer aquele horário.
+ */
+export const listaDeEspera = pgTable(
+  "listaDeEspera",
+  {
+    id: serial("id").primaryKey(),
+    therapistId: integer("therapistId").notNull().references(() => therapists.id, { onDelete: "cascade" }),
+    patientId: integer("patientId").notNull().references(() => patients.id, { onDelete: "cascade" }),
+    diasDaSemana: smallint("diasDaSemana").array().notNull().default(sql`'{}'`),
+    periodos: text("periodos").array().notNull().default(sql`'{}'`),
+    observacao: text("observacao"),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("listaDeEspera_psicologa_paciente").on(table.therapistId, table.patientId)],
+);
 
 /**
  * Agendamentos.
