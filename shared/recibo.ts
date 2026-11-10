@@ -125,7 +125,7 @@ export function textoDoRecibo(dados: DadosDoRecibo): { titulo: string; corpo: st
       : `, ${datas.length === 1 ? "prestada" : "prestadas"} a ${dados.paciente.nome}${dados.paciente.cpf && cpfValido(dados.paciente.cpf) ? ` (CPF ${mascaraCpf(dados.paciente.cpf)})` : ""}`;
   const corpo = [
     // O espaço do "R$ 300,00" do toLocaleString é o inseparável (U+00A0): no PDF vira lixo.
-    `Recebi de ${quemPagou.nome}${cpfDeQuemPagou} a quantia de ${formatarBRL(total).replace(/ /g, " ")} (${valorPorExtenso(total)}), referente ${sessoes}${beneficiario}.`,
+    `Recebi de ${quemPagou.nome}${cpfDeQuemPagou} a quantia de ${formatarBRL(total).replace(/\u00a0/g, " ")} (${valorPorExtenso(total)}), referente ${sessoes}${beneficiario}.`,
     "Para clareza, firmo o presente recibo.",
   ];
   const local = `${dados.cidade?.trim() ? `${dados.cidade.trim()}, ` : ""}${dataPorExtenso(dados.emitidoEm)}.`;

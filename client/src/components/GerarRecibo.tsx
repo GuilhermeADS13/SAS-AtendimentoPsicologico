@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, FileDown, ImagePlus, X } from "lucide-react";
+import { AlertTriangle, FileDown, ImagePlus, Share2, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { baixarReciboPdf, imagemDoComprovante, type Comprovante } from "@/lib/recibo-pdf";
+import {
+  baixarArquivo,
+  enviarArquivo,
+  imagemDoComprovante,
+  podeEnviarArquivo,
+  reciboEmPdf,
+  reciboEmWord,
+  type Comprovante,
+} from "@/lib/recibo-export";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -130,7 +138,10 @@ export function GerarRecibo({
   const salvarPsicologa = trpc.therapists.definirDadosDoRecibo.useMutation();
   const salvarPaciente = trpc.patients.definirCpf.useMutation();
 
-  const gerar = async () => {
+  const [formato, setFormato] = useState<"pdf" | "word">("pdf");
+  const [enviaArquivo] = useState(podeEnviarArquivo);
+
+  const gerar = async (acao: "baixar" | "enviar") => {
     if (!escolhidas.length) return toast.error("Marque pelo menos uma consulta.");
     if (cpfDigitadoErrado) return toast.error("Há um CPF com número errado. Confira antes de gerar.");
     setGerando(true);
@@ -147,10 +158,32 @@ export function GerarRecibo({
           utils.patients.get.invalidate({ id: paciente.id });
         }
       }
-      const arquivo = `recibo-${nomePaciente}-${mes}`.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\w-]+/g, "-");
-      await baixarReciboPdf(dados, `${arquivo}.pdf`, comprovantes);
-      toast.success("Recibo baixado.");
-      aoFechar();
+      const arquivo = `recibo-${nomePaciente}-${mes}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w-]+/g, "-");
+      const blob = formato === "pdf" ? await reciboEmPdf(dados, comprovantes) : await reciboEmWord(dados, comprovantes);
+      const nome = `${arquivo}.${formato === "pdf" ? "pdf" : "docx"}`;
+      if (acao === "baixar") {
+        baixarArquivo(blob, nome);
+        toast.success("Recibo baixado.");
+        aoFechar();
+        return;
+      }
+      const titulo = `Recibo de ${nomePaciente}`;
+      const r = await enviarArquivo(blob, nome, titulo);
+      if (r === "enviado") aoFechar();
+      // O navegador só abre a lista de apps logo depois de um toque, e gerar o
+      // arquivo levou tempo demais: o arquivo já está pronto, é só tocar de novo.
+      if (r === "sem-permissao") {
+        toast("Recibo pronto.", {
+          duration: 15_000,
+          action: {
+            label: "Enviar",
+            onClick: () =>
+              void enviarArquivo(blob, nome, titulo)
+                .then((r2) => r2 === "enviado" && aoFechar())
+                .catch(() => toast.error("Não deu para enviar. Use “Baixar” e mande pelo app.")),
+          },
+        });
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Não foi possível gerar o recibo.");
     } finally {
@@ -327,6 +360,36 @@ export function GerarRecibo({
                 </span>
               </p>
             )}
+
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-semibold text-foreground">Formato</legend>
+              <div className="grid grid-cols-2 gap-2" role="radiogroup">
+                {(
+                  [
+                    ["pdf", "PDF", "Pronto para mandar"],
+                    ["word", "Word", "Dá para editar"],
+                  ] as const
+                ).map(([valor, rotulo, dica]) => (
+                  <label
+                    key={valor}
+                    className={`flex cursor-pointer flex-col rounded-lg border px-3 py-2 text-sm transition-colors focus-within:ring-2 focus-within:ring-ring ${
+                      formato === valor ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="recibo-formato"
+                      value={valor}
+                      checked={formato === valor}
+                      onChange={() => setFormato(valor)}
+                      className="sr-only"
+                    />
+                    <span className="font-medium text-foreground">{rotulo}</span>
+                    <span className="text-xs text-muted-foreground">{dica}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
           </div>
         )}
 
@@ -334,10 +397,18 @@ export function GerarRecibo({
           <Button variant="outline" onClick={aoFechar} disabled={gerando}>
             Cancelar
           </Button>
+          {pagas.length > 0 && enviaArquivo && (
+            <Button variant="outline" onClick={() => void gerar("enviar")} disabled={gerando || escolhidas.length === 0}>
+              <Share2 className="mr-2 size-4" />
+              Enviar para…
+            </Button>
+          )}
           {pagas.length > 0 && (
-            <Button onClick={() => void gerar()} disabled={gerando || escolhidas.length === 0}>
+            <Button onClick={() => void gerar("baixar")} disabled={gerando || escolhidas.length === 0}>
               <FileDown className="mr-2 size-4" />
-              {gerando ? "Gerando..." : `Baixar recibo (${formatarBRL(escolhidas.reduce((s, c) => s + c.valorCentavos, 0))})`}
+              {gerando
+                ? "Gerando..."
+                : `Baixar ${formato === "pdf" ? "PDF" : "Word"} (${formatarBRL(escolhidas.reduce((s, c) => s + c.valorCentavos, 0))})`}
             </Button>
           )}
         </DialogFooter>
