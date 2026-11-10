@@ -57,6 +57,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import PortaoDoAparelho from "./components/PortaoDoAparelho";
 import PortaoDoCadastro from "./components/PortaoDoCadastro";
 import { TherapistOnly } from "./components/TherapistOnly";
+import { EntrarNaDemonstracao, FaixaDaDemonstracao } from "./components/FaixaDaDemonstracao";
 import { ThemeProvider } from "./contexts/ThemeContext";
 
 /**
@@ -90,6 +91,8 @@ function Router() {
       <Route path={"/termos"} component={Termos} />
       {/* Pública: é a vitrine para quem ainda não tem conta. */}
       <Route path={"/precos"} component={Precos} />
+      {/* Pública: o sistema com dados fictícios, sem cadastro (lib/demonstracao.ts). */}
+      <Route path={"/demonstracao"} component={EntrarNaDemonstracao} />
       {import.meta.env.VITE_E2E === "true" && (
         <Route path={"/__e2e__/agent-chat"} component={E2EAgentChat} />
       )}
@@ -177,6 +180,7 @@ function App() {
       >
         <TooltipProvider>
           <Toaster />
+          <FaixaDaDemonstracao />
           <PortaoDoAparelho>
             <PortaoDoCadastro>
               <TituloDaPagina />

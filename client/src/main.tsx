@@ -8,6 +8,7 @@ import App from "./App";
 import { getAccessToken } from "./lib/supabase";
 import { guardarOrigemDaUrl } from "./lib/origem";
 import { registrarServiceWorker } from "./lib/instalarApp";
+import { emDemonstracao, linkDaDemonstracao } from "./lib/demonstracao";
 import "./index.css";
 
 // Limpeza de dado legado: a chave "manus-runtime-user-info" guardava o usuário
@@ -65,7 +66,9 @@ queryClient.getMutationCache().subscribe(event => {
 });
 
 const trpcClient = trpc.createClient({
-  links: [
+  // Demonstração (lib/demonstracao.ts): nada vai à API; os dados fictícios
+  // respondem aqui mesmo e toda gravação é recusada.
+  links: emDemonstracao() ? [linkDaDemonstracao] : [
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,

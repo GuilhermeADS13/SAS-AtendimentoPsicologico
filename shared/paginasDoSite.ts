@@ -64,7 +64,7 @@ export const PAGINAS_PUBLICAS: readonly PaginaPublica[] = [
  * que não casar com nenhuma é 404 de verdade, com o status certo para o Google.
  */
 export const ROTAS_DO_APP: readonly string[] = [
-  "/", "/login", "/redefinir-senha", "/ajuda", "/privacidade", "/termos", "/precos", "/__e2e__/agent-chat",
+  "/", "/login", "/redefinir-senha", "/ajuda", "/privacidade", "/termos", "/precos", "/demonstracao", "/__e2e__/agent-chat",
   "/luma", "/dashboard", "/videocall/:roomId", "/records", "/records/:id", "/appointments", "/financeiro",
   "/assinatura", "/solicitacoes", "/mensagens", "/consultas", "/psicologa", "/documentos", "/profile",
   "/configuracoes", "/404",

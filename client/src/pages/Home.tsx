@@ -23,6 +23,7 @@ import {
 import { useEffect, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { LINK_CADASTRO_PSICOLOGA } from "@shared/entradaNoSite";
+import { entrarNaDemonstracao } from "@/lib/demonstracao";
 import {
   DESCONTO_FUNDADOR,
   DIAS_DE_TESTE_GRATIS,
@@ -229,8 +230,9 @@ export default function Home() {
                   Testar grátis por {DIAS_DE_TESTE_GRATIS} dias
                   <ArrowRight className="w-4 h-4" />
                 </Button>
-                <Button onClick={() => irPara("funcionalidades")} size="lg" variant="outline">
-                  Ver como funciona
+                {/* O sistema de verdade, com dados fictícios e sem cadastro (lib/demonstracao.ts). */}
+                <Button onClick={() => entrarNaDemonstracao()} size="lg" variant="outline">
+                  Ver por dentro, sem cadastro
                 </Button>
               </div>
               <ul className="mt-7 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
