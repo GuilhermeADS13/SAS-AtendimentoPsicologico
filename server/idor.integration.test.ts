@@ -97,7 +97,8 @@ describe.runIf(RUN)("IDOR: ninguém mexe no que é de outra conta (Postgres real
     const notas = await sql`select * from "sessionNotes" where "patientId" = ${alvo.paciente} order by id`;
     const docs = await sql`select * from documents where "patientId" = ${alvo.paciente} order by id`;
     const participantes = await sql`select * from "appointmentParticipants" where "appointmentId" = ${alvo.consulta}`;
-    return JSON.stringify({ pac, con, ses, notas, docs, participantes });
+    const espera = await sql`select * from "listaDeEspera" where "patientId" = ${alvo.paciente}`;
+    return JSON.stringify({ pac, con, ses, notas, docs, participantes, espera });
   }
 
   beforeAll(async () => {
@@ -134,6 +135,7 @@ describe.runIf(RUN)("IDOR: ninguém mexe no que é de outra conta (Postgres real
       fileUrl: "x", fileType: "application/pdf", fileSize: 1024, documentType: "report",
     });
     alvo.documento = (await a.documents.getByPatient({ patientId: alvo.paciente }))[0].id;
+    await a.listaDeEspera.salvar({ patientId: alvo.paciente, diasDaSemana: [1], periodos: ["manha"], observacao: SEGREDO });
   });
 
   afterAll(async () => {
@@ -186,6 +188,9 @@ describe.runIf(RUN)("IDOR: ninguém mexe no que é de outra conta (Postgres real
       "videoCalls.start": () => b.videoCalls.start({ appointmentId: alvo.consulta, patientId: alvo.paciente, roomId: alvo.sala }),
       "appointments.roomAccess": () => b.appointments.roomAccess({ roomId: alvo.sala }),
       "chat.messages": () => b.chat.messages({ patientId: alvo.paciente }),
+      "patients.definirCpf": () => b.patients.definirCpf({ patientId: alvo.paciente, cpf: "52998224725" }),
+      "listaDeEspera.salvar": () => b.listaDeEspera.salvar({ patientId: alvo.paciente, diasDaSemana: [], periodos: [] }),
+      "listaDeEspera.remover": () => b.listaDeEspera.remover({ patientId: alvo.paciente }),
     };
 
     const vazamentos: string[] = [];
@@ -202,6 +207,7 @@ describe.runIf(RUN)("IDOR: ninguém mexe no que é de outra conta (Postgres real
     expect(JSON.stringify(await b.patients.list())).not.toContain(SEGREDO);
     expect((await b.appointments.list()).map((c: { id: number }) => c.id)).not.toContain(alvo.consulta);
     expect(JSON.stringify(await b.sessions.list())).not.toContain(SEGREDO);
+    expect(JSON.stringify(await b.listaDeEspera.listar())).not.toContain(SEGREDO);
   });
 
   it("outro paciente não vê nem mexe na consulta, no documento e na sala do paciente alheio", async () => {
