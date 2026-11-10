@@ -67,7 +67,7 @@ const ESPERADO: Record<Nivel, string[]> = {
     "noteTemplates.importarContrato", "noteTemplates.list", "noteTemplates.save",
     "noteTemplates.saveContrato", "noteTemplates.saveModelo", "notifications.dismiss",
     "notifications.dismissAll", "notifications.list", "patients.create",
-    "patients.definirCpf", "patients.definirFrequencia", "patients.delete", "patients.fotos", "patients.get",
+    "patients.definirCpf", "patients.definirFrequencia", "patients.delete", "patients.fotos", "patients.get", "patients.importar",
     "patients.list", "patients.update", "sessionNotes.getByAppointment",
     "sessionNotes.getByPatient", "sessionNotes.save", "sessions.classificar", "sessions.create",
     "sessions.getByPatient", "sessions.list", "therapists.definirDadosDoRecibo", "therapists.definirPix",

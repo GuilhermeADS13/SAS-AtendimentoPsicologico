@@ -80,7 +80,7 @@ const therapistSteps: Step[] = [
     path: "/records",
     icon: Users,
     title: "Cadastrar pacientes",
-    body: "Comece por aqui: toque em “Novo Paciente” para cadastrar. Depois, o ícone de olho abre o prontuário, com histórico, sessões, a evolução em linha do tempo, documentos e TCLE. Cada plano tem um limite de pacientes; se passar, eu te mostro como trocar de plano. Quem encerrou o acompanhamento você marca como inativo no prontuário, e deixa de contar.",
+    body: "Comece por aqui: toque em “Novo Paciente” para cadastrar. Já tem a lista no Excel? “Importar planilha” cadastra todos de uma vez, mostrando antes o que vai entrar. Depois, o ícone de olho abre o prontuário, com histórico, sessões, a evolução em linha do tempo, documentos e TCLE. Cada plano tem um limite de pacientes; se passar, eu te mostro como trocar de plano. Quem encerrou o acompanhamento você marca como inativo no prontuário, e deixa de contar.",
     target: '[data-tour="novo-paciente"]',
   },
   {

@@ -39,6 +39,7 @@ import {
   perguntasDaLumaHoje,
   planoDaPsicologa,
   resumoDaAssinatura,
+  vagasNoPlano,
 } from "./assinaturas";
 import { diaDeVencimentoValido, ehCortesia, novoPagoAte, situacaoDaAssinatura } from "../shared/assinatura";
 import { TIPOS_DE_CHAVE_PIX, lerPixCopiaECola, montarPixEstatico, normalizarChavePix } from "../shared/pix";
@@ -50,6 +51,7 @@ import { ORIGEM_REGEX } from "../shared/entradaNoSite";
 import { celularValido, mascaraTelefone, soDigitos, telefoneValido } from "../shared/telefone";
 import { nascimentoValido } from "../shared/datas";
 import { cpfValido, soDigitosDoCpf } from "../shared/recibo";
+import { MAX_LINHAS_DA_IMPORTACAO } from "../shared/importarPacientes";
 import { VALOR_MAXIMO_DA_CONSULTA } from "../shared/dinheiro";
 import { FASES_VALORES } from "../shared/evolucao";
 import { FREQUENCIA_REGEX } from "../shared/frequencia";
@@ -2435,6 +2437,75 @@ export const appRouter = router({
         await iniciarTesteNoPrimeiroPaciente(db, therapist[0].id);
 
         return result;
+      }),
+
+    /**
+     * Cadastra de uma vez os pacientes de uma planilha (shared/importarPacientes.ts
+     * lê e valida no navegador; aqui valida de novo). Quem já tem ficha com o mesmo
+     * e-mail fica de fora, sem erro. Se os novos não cabem no plano, nada é gravado:
+     * ela decide entre tirar linhas ou mudar de plano. Ninguém recebe e-mail: cada
+     * paciente fica "aguardando cadastro", como no cadastro manual.
+     */
+    importar: therapistProcedure
+      .input(z.object({
+        pacientes: z
+          .array(z.object({
+            firstName: z.string().trim().min(1).max(128),
+            lastName: z.string().trim().max(128),
+            email: z.string().trim().email().max(320),
+            phone: telefoneOpcional,
+            dateOfBirth: nascimentoOpcional,
+            cpf: z.string().optional().refine((c) => !c || cpfValido(c), "CPF inválido."),
+            address: z.string().trim().max(300).optional(),
+          }))
+          .min(1)
+          .max(MAX_LINHAS_DA_IMPORTACAO),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const [therapist] = await db.select({ id: therapists.id }).from(therapists).where(eq(therapists.userId, ctx.user.id)).limit(1);
+        if (!therapist) throw new Error("Therapist not found");
+
+        // Mesmo e-mail duas vezes na planilha: vale a primeira.
+        const porEmail = new Map<string, (typeof input.pacientes)[number]>();
+        for (const p of input.pacientes) {
+          const email = normalizarEmail(p.email);
+          if (!porEmail.has(email)) porEmail.set(email, p);
+        }
+        const existentes = await db
+          .select({ email: patients.email })
+          .from(patients)
+          .where(and(eq(patients.therapistId, therapist.id), inArray(patients.email, Array.from(porEmail.keys()))));
+        const jaCadastrados = new Set(existentes.map((e) => e.email));
+        const novos = Array.from(porEmail.entries()).filter(([email]) => !jaCadastrados.has(email));
+        if (!novos.length) return { criados: 0, jaCadastrados: Array.from(jaCadastrados) };
+
+        const { vagas, plano, ate } = await vagasNoPlano(db, therapist.id);
+        if (vagas !== null && novos.length > vagas) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message:
+              `Seu plano ${plano} vai até ${ate} pacientes e ${vagas === 0 ? "não cabe mais nenhum" : `cabem mais ${vagas}`}. ` +
+              `A planilha tem ${novos.length} pacientes novos: tire alguns ou mude de plano na aba Assinatura.`,
+          });
+        }
+
+        await db.insert(patients).values(
+          novos.map(([email, p]) => ({
+            therapistId: therapist.id,
+            firstName: p.firstName,
+            lastName: p.lastName,
+            email,
+            phone: p.phone || null,
+            dateOfBirth: p.dateOfBirth ? new Date(p.dateOfBirth) : null,
+            cpf: p.cpf ? soDigitosDoCpf(p.cpf) : null,
+            address: p.address || null,
+            status: "pending" as const,
+          })),
+        );
+        await iniciarTesteNoPrimeiroPaciente(db, therapist.id);
+        return { criados: novos.length, jaCadastrados: Array.from(jaCadastrados) };
       }),
 
     // Busca um paciente pelo id (somente se pertence ao terapeuta logado).

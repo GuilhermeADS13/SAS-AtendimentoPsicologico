@@ -230,6 +230,17 @@ export async function exigirVagaNoPlano(db: Db, therapistId: number): Promise<vo
 }
 
 /**
+ * Quantos pacientes ainda cabem no plano (importação em lote). null = sem teto
+ * (Coro, admin). Mesma conta do `exigirVagaNoPlano`, só que para N de uma vez.
+ */
+export async function vagasNoPlano(db: Db, therapistId: number): Promise<{ vagas: number | null; plano: string; ate: number | null }> {
+  const p = await planoDaPsicologa(db, therapistId);
+  const atual = planoPorId(p.escolhido);
+  if (p.admin || atual.ate === null) return { vagas: null, plano: atual.nome, ate: atual.ate };
+  return { vagas: Math.max(0, atual.ate - p.pacientes), plano: atual.nome, ate: atual.ate };
+}
+
+/**
  * Começa a contar os dias do teste: chamada ao cadastrar paciente. Só a primeira
  * chamada muda algo, porque o WHERE deixa de casar assim que `testeAguardando` cai.
  * Fora do prazo não começa: cadastrar paciente não exige assinatura ativa, então

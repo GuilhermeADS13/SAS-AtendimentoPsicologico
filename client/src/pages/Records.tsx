@@ -64,6 +64,7 @@ import { cn } from "@/lib/utils";
 import { FUSO_BR, formatarData, formatarHora } from "@shared/datas";
 import { mascaraTelefone } from "@shared/telefone";
 import { SugestaoDeEmail } from "@/components/SugestaoDeEmail";
+import { ImportarPacientes } from "@/components/ImportarPacientes";
 
 const emptyForm = {
   firstName: "",
@@ -316,6 +317,8 @@ export default function Records() {
               </DialogContent>
             </Dialog>
 
+            <ImportarPacientes />
+
             <Dialog
               open={isOpen}
               onOpenChange={(aberto) => {
@@ -324,7 +327,7 @@ export default function Records() {
               }}
             >
               <DialogTrigger asChild>
-                <Button data-tour="novo-paciente">
+                <Button data-tour="novo-paciente" className="col-span-2 sm:col-span-1">
                   <UserPlus className="size-4" />
                   Novo paciente
                 </Button>
