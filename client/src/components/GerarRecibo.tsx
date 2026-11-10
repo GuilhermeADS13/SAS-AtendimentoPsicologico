@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, FileDown, ImagePlus, Share2, X } from "lucide-react";
+import { AlertTriangle, FileDown, ImagePlus, Pencil, RotateCcw, Share2, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { baixar } from "@/lib/prontuario-export";
@@ -15,10 +15,21 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatarBRL } from "@shared/dinheiro";
 import { FUSO_BR } from "@shared/datas";
-import { cpfValido, mascaraCpf, oQueFaltaNoRecibo, soDigitosDoCpf, type DadosDoRecibo } from "@shared/recibo";
+import {
+  cpfValido,
+  mascaraCpf,
+  oQueFaltaNoRecibo,
+  soDigitosDoCpf,
+  textoDoRecibo,
+  textoEditado,
+  textoParaEditar,
+  type DadosDoRecibo,
+  type TextoParaEditar,
+} from "@shared/recibo";
 
 // Criado uma vez: o mês de cada consulta paga é calculado a cada redesenho.
 const FORMATO_DO_MES = new Intl.DateTimeFormat("en-CA", { timeZone: FUSO_BR, year: "numeric", month: "2-digit" });
@@ -83,6 +94,10 @@ export function GerarRecibo({
   const [gerando, setGerando] = useState(false);
   // Prints do Pix que o paciente mandou: só vão para o PDF, não ficam guardados.
   const [comprovantes, setComprovantes] = useState<(Comprovante & { nome: string })[]>([]);
+  // Texto editado por ela antes de baixar (null = o automático). `baseDaEdicao` é o
+  // automático do momento em que ela abriu a edição: se os dados mudarem depois, avisa.
+  const [edicao, setEdicao] = useState<TextoParaEditar | null>(null);
+  const [baseDaEdicao, setBaseDaEdicao] = useState("");
 
   const anexar = async (arquivos: FileList | null) => {
     const lista = Array.from(arquivos ?? []);
@@ -115,6 +130,7 @@ export function GerarRecibo({
     setPagadorNome("");
     setPagadorCpf("");
     setComprovantes([]);
+    setEdicao(null);
     dadosDoPerfilPreenchidos.current = false;
   }, [aberto]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -139,6 +155,12 @@ export function GerarRecibo({
     emitidoEm: new Date(),
   };
   const falta = oQueFaltaNoRecibo(dados);
+  const automatico = textoDoRecibo(dados);
+  const mudouDepoisDeEditar = edicao !== null && baseDaEdicao !== JSON.stringify(automatico);
+  const editarTexto = () => {
+    setEdicao(textoParaEditar(automatico));
+    setBaseDaEdicao(JSON.stringify(automatico));
+  };
   const cpfDigitadoErrado = [cpf, cpfPaciente, outroPagou ? pagadorCpf : ""].some(
     (c) => soDigitosDoCpf(c).length > 0 && !cpfValido(c),
   );
@@ -152,6 +174,8 @@ export function GerarRecibo({
   const gerar = async (acao: "baixar" | "enviar") => {
     if (!escolhidas.length) return toast.error("Marque pelo menos uma consulta.");
     if (cpfDigitadoErrado) return toast.error("Há um CPF com número errado. Confira antes de gerar.");
+    const texto = edicao ? textoEditado(edicao) : automatico;
+    if (!texto.corpo.length) return toast.error("O texto do recibo está vazio. Escreva o texto ou volte ao automático.");
     setGerando(true);
     try {
       if (!exemplo) {
@@ -167,7 +191,7 @@ export function GerarRecibo({
         }
       }
       const arquivo = `recibo-${nomePaciente}-${mes}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w-]+/g, "-");
-      const blob = formato === "pdf" ? await reciboEmPdf(dados, comprovantes) : await reciboEmWord(dados, comprovantes);
+      const blob = formato === "pdf" ? await reciboEmPdf(dados, comprovantes, texto) : await reciboEmWord(dados, comprovantes, texto);
       const nome = `${arquivo}.${formato === "pdf" ? "pdf" : "docx"}`;
       if (acao === "baixar") {
         baixar(blob, nome);
@@ -368,6 +392,72 @@ export function GerarRecibo({
                 </span>
               </p>
             )}
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-foreground">Texto do recibo</p>
+                {edicao ? (
+                  <Button type="button" variant="ghost" size="sm" className="h-8" onClick={() => setEdicao(null)}>
+                    <RotateCcw className="mr-1.5 size-3.5" />
+                    Voltar ao automático
+                  </Button>
+                ) : (
+                  <Button type="button" variant="outline" size="sm" className="h-8" onClick={editarTexto}>
+                    <Pencil className="mr-1.5 size-3.5" />
+                    Ver e editar
+                  </Button>
+                )}
+              </div>
+              {!edicao ? (
+                <p className="text-xs text-muted-foreground">
+                  Sai com o texto automático. Quer trocar alguma palavra, como “avaliação psicológica” no lugar de
+                  “psicoterapia”? Toque em “Ver e editar”.
+                </p>
+              ) : (
+                <div className="space-y-3 rounded-lg border p-3">
+                  {mudouDepoisDeEditar && (
+                    <div className="flex flex-col gap-2 rounded-md border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-900 sm:flex-row sm:items-center">
+                      <p className="flex-1">Você mudou as sessões ou os dados depois de editar: o texto abaixo não acompanhou.</p>
+                      <Button type="button" size="sm" variant="outline" className="h-7 shrink-0 bg-card text-xs" onClick={editarTexto}>
+                        Usar o texto novo
+                      </Button>
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="recibo-texto">Texto (cada parágrafo numa linha)</Label>
+                    <Textarea
+                      id="recibo-texto"
+                      rows={7}
+                      maxLength={3000}
+                      value={edicao.corpo}
+                      onChange={(e) => setEdicao({ ...edicao, corpo: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="recibo-local">Cidade e data</Label>
+                    <Input
+                      id="recibo-local"
+                      maxLength={120}
+                      value={edicao.local}
+                      onChange={(e) => setEdicao({ ...edicao, local: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="recibo-assinatura">Assinatura (uma informação por linha)</Label>
+                    <Textarea
+                      id="recibo-assinatura"
+                      rows={4}
+                      maxLength={600}
+                      value={edicao.assinatura}
+                      onChange={(e) => setEdicao({ ...edicao, assinatura: e.target.value })}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    O valor no alto do recibo vem das sessões marcadas. Se mudar o valor no texto, confira se os dois batem.
+                  </p>
+                </div>
+              )}
+            </div>
 
             <fieldset className="space-y-2">
               <legend className="text-sm font-semibold text-foreground">Formato</legend>

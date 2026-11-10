@@ -112,8 +112,31 @@ export function totalDoRecibo(dados: Pick<DadosDoRecibo, "consultas">): number {
   return dados.consultas.reduce((soma, c) => soma + c.valorCentavos, 0);
 }
 
+export type TextoDoRecibo = { titulo: string; corpo: string[]; local: string; assinatura: string[] };
+
+/** O texto como aparece para editar: um parágrafo por linha (com linha em branco entre eles). */
+export type TextoParaEditar = { corpo: string; local: string; assinatura: string };
+
+export function textoParaEditar(t: TextoDoRecibo): TextoParaEditar {
+  return { corpo: t.corpo.join("\n\n"), local: t.local, assinatura: t.assinatura.join("\n") };
+}
+
+/**
+ * O que ela editou de volta para o recibo. Cada linha com texto vira um parágrafo
+ * (o que ela vê é o que sai); linhas em branco só separam. O título continua RECIBO,
+ * e o valor no alto continua vindo das sessões marcadas.
+ */
+export function textoEditado(e: TextoParaEditar): TextoDoRecibo {
+  const linhas = (s: string) =>
+    s
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+  return { titulo: "RECIBO", corpo: linhas(e.corpo), local: e.local.trim(), assinatura: linhas(e.assinatura) };
+}
+
 /** O texto do recibo, em parágrafos, igual para o PDF e para a prévia na tela. */
-export function textoDoRecibo(dados: DadosDoRecibo): { titulo: string; corpo: string[]; local: string; assinatura: string[] } {
+export function textoDoRecibo(dados: DadosDoRecibo): TextoDoRecibo {
   const total = totalDoRecibo(dados);
   const quemPagou = dados.pagador?.nome?.trim() ? dados.pagador : dados.paciente;
   const cpfDeQuemPagou = quemPagou.cpf && cpfValido(quemPagou.cpf) ? `, CPF ${mascaraCpf(quemPagou.cpf)},` : "";

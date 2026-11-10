@@ -154,7 +154,7 @@ const therapistSteps: Step[] = [
     aba: "pagamentos",
     icon: Wallet,
     title: "Pagamentos",
-    body: "O valor de cada consulta deste paciente, o que já foi pago e o que falta. Dá para marcar como pago ali mesmo. Em “Gerar recibo” você faz o recibo das sessões pagas do mês, em PDF ou Word, com o seu CPF e endereço para o paciente usar no Imposto de Renda. Se ele te mandou o print do Pix, anexe que vai junto. No celular, “Enviar para…” manda o arquivo direto pelo WhatsApp ou outro app.",
+    body: "O valor de cada consulta deste paciente, o que já foi pago e o que falta. Dá para marcar como pago ali mesmo. Em “Gerar recibo” você faz o recibo das sessões pagas do mês, em PDF ou Word, com o seu CPF e endereço para o paciente usar no Imposto de Renda. Se ele te mandou o print do Pix, anexe que vai junto. Quer mudar alguma palavra? Em “Ver e editar” você ajusta o texto antes de baixar. No celular, “Enviar para…” manda o arquivo direto pelo WhatsApp ou outro app.",
     target: '[data-tour="aba-pagamentos"]',
   },
   {

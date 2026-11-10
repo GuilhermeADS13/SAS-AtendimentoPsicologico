@@ -1,6 +1,15 @@
 /** Recibo de pagamento: CPF, valor por extenso e o texto (shared/recibo.ts). */
 import { describe, expect, it } from "vitest";
-import { cpfValido, mascaraCpf, oQueFaltaNoRecibo, textoDoRecibo, valorPorExtenso, type DadosDoRecibo } from "../shared/recibo";
+import {
+  cpfValido,
+  mascaraCpf,
+  oQueFaltaNoRecibo,
+  textoDoRecibo,
+  textoEditado,
+  textoParaEditar,
+  valorPorExtenso,
+  type DadosDoRecibo,
+} from "../shared/recibo";
 
 describe("CPF", () => {
   it("aceita CPF com dígitos certos, com ou sem máscara", () => {
@@ -74,5 +83,30 @@ describe("texto do recibo", () => {
     expect(oQueFaltaNoRecibo(semDados)).toEqual(["o seu CPF", "o seu endereço de atendimento", "o CPF do paciente"]);
     // CPF inválido não entra no texto.
     expect(textoDoRecibo(semDados).corpo[0]).toMatch(/^Recebi de Ana a quantia/);
+  });
+});
+
+describe("texto editado antes de baixar", () => {
+  it("abrir a edição e não mexer devolve o mesmo recibo", () => {
+    const t = textoDoRecibo(base);
+    expect(textoEditado(textoParaEditar(t))).toEqual(t);
+  });
+
+  it("cada linha com texto vira um parágrafo; linhas em branco e espaços sobram", () => {
+    const t = textoEditado({
+      corpo: "  Recebi de Ana R$ 300,00 referente a avaliação psicológica.  \r\n\r\n\r\nPara clareza, firmo o presente recibo.\n",
+      local: "  Olinda/PE, 10 de novembro de 2026.  ",
+      assinatura: "Beatriz Almeida\n\nCRP 02/31234\n",
+    });
+    expect(t).toEqual({
+      titulo: "RECIBO",
+      corpo: ["Recebi de Ana R$ 300,00 referente a avaliação psicológica.", "Para clareza, firmo o presente recibo."],
+      local: "Olinda/PE, 10 de novembro de 2026.",
+      assinatura: ["Beatriz Almeida", "CRP 02/31234"],
+    });
+  });
+
+  it("texto apagado fica vazio (a tela barra antes de gerar)", () => {
+    expect(textoEditado({ corpo: "  \n \n", local: "", assinatura: "" }).corpo).toEqual([]);
   });
 });

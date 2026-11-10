@@ -1,5 +1,5 @@
 import { formatarBRL } from "@shared/dinheiro";
-import { textoDoRecibo, totalDoRecibo, type DadosDoRecibo } from "@shared/recibo";
+import { textoDoRecibo, totalDoRecibo, type DadosDoRecibo, type TextoDoRecibo } from "@shared/recibo";
 
 /** Imagem do comprovante já pronta para o PDF (JPEG). */
 export type Comprovante = { dataUrl: string; largura: number; altura: number };
@@ -36,17 +36,29 @@ export async function imagemDoComprovante(arquivo: File): Promise<Comprovante> {
 /**
  * Recibo de pagamento em PDF (A4), com o texto de shared/recibo.ts. O jspdf entra
  * por import() dinâmico, como no prontuário: só carrega quando alguém gera um recibo.
- * Os comprovantes anexados entram depois, um por página.
+ * Os comprovantes anexados entram depois, um por página. `texto` é o que ela editou
+ * na janela (sem edição, o automático).
  */
-export async function reciboEmPdf(dados: DadosDoRecibo, comprovantes: Comprovante[] = []): Promise<Blob> {
+export async function reciboEmPdf(
+  dados: DadosDoRecibo,
+  comprovantes: Comprovante[] = [],
+  texto: TextoDoRecibo = textoDoRecibo(dados),
+): Promise<Blob> {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const largura = doc.internal.pageSize.getWidth();
+  const altura = doc.internal.pageSize.getHeight();
   const margem = 64;
   const util = largura - margem * 2;
   const verde = "#215756";
-  const texto = textoDoRecibo(dados);
   let y = 84;
+  // Texto editado pode ficar comprido: o que não cabe passa para a página seguinte
+  // (acima do rodapé), em vez de sumir pela borda.
+  const caber = (alturaDoBloco: number) => {
+    if (y + alturaDoBloco <= altura - 70) return;
+    doc.addPage();
+    y = 72;
+  };
 
   // Título e valor em destaque.
   doc.setFont("helvetica", "bold");
@@ -67,37 +79,46 @@ export async function reciboEmPdf(dados: DadosDoRecibo, comprovantes: Comprovant
   doc.setFontSize(12);
   doc.setTextColor("#1f2d2d");
   for (const paragrafo of texto.corpo) {
-    const linhas = doc.splitTextToSize(paragrafo, util) as string[];
-    doc.text(linhas, margem, y, { lineHeightFactor: 1.6 });
-    y += linhas.length * 12 * 1.6 + 14;
+    for (const linha of doc.splitTextToSize(paragrafo, util) as string[]) {
+      caber(12 * 1.6);
+      doc.text(linha, margem, y);
+      y += 12 * 1.6;
+    }
+    y += 14;
   }
 
   // Local e data.
   y += 14;
-  doc.text(texto.local, margem, y);
+  if (texto.local) {
+    caber(16);
+    doc.text(texto.local, margem, y);
+  }
 
-  // Assinatura.
+  // Assinatura: a linha e o nome ficam juntos na mesma página.
+  const partesDaAssinatura = texto.assinatura.flatMap((linha, i) =>
+    (doc.splitTextToSize(linha, util) as string[]).map((parte) => ({ parte, destaque: i === 0 })),
+  );
   y += 90;
+  caber(18 + partesDaAssinatura.length * 15);
   doc.setDrawColor("#9aa5a5");
   doc.setLineWidth(0.6);
   doc.line(margem, y, margem + 260, y);
   y += 18;
-  texto.assinatura.forEach((linha, i) => {
-    doc.setFont("helvetica", i === 0 ? "bold" : "normal");
-    doc.setFontSize(i === 0 ? 12 : 10.5);
-    doc.setTextColor(i === 0 ? "#1f2d2d" : "#4b5757");
-    for (const parte of doc.splitTextToSize(linha, util) as string[]) {
-      doc.text(parte, margem, y);
-      y += 15;
-    }
-  });
+  for (const { parte, destaque } of partesDaAssinatura) {
+    doc.setFont("helvetica", destaque ? "bold" : "normal");
+    doc.setFontSize(destaque ? 12 : 10.5);
+    doc.setTextColor(destaque ? "#1f2d2d" : "#4b5757");
+    doc.text(parte, margem, y);
+    y += 15;
+  }
 
-  // Rodapé discreto.
-  const altura = doc.internal.pageSize.getHeight();
+  // Rodapé discreto, na primeira página.
+  doc.setPage(1);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
   doc.setTextColor("#8a9696");
   doc.text("Recibo emitido pelo VozInterior.", margem, altura - 40);
+  doc.setPage(doc.getNumberOfPages());
 
   comprovantes.forEach((c, i) => {
     doc.addPage();
@@ -126,9 +147,12 @@ function bytesDoDataUrl(dataUrl: string): Uint8Array {
 }
 
 /** O mesmo recibo em Word (.docx), para quem quer ajustar o texto ou imprimir no timbrado. */
-export async function reciboEmWord(dados: DadosDoRecibo, comprovantes: Comprovante[] = []): Promise<Blob> {
+export async function reciboEmWord(
+  dados: DadosDoRecibo,
+  comprovantes: Comprovante[] = [],
+  texto: TextoDoRecibo = textoDoRecibo(dados),
+): Promise<Blob> {
   const { AlignmentType, BorderStyle, Document, ImageRun, Packer, Paragraph, TabStopType, TextRun } = await import("docx");
-  const texto = textoDoRecibo(dados);
   const verde = "215756";
   const fonte = "Arial";
   // A4 com margens de ~2,3 cm: 9026 twips úteis (a tabulação do valor vai até a borda direita).
