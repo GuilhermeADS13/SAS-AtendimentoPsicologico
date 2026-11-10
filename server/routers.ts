@@ -776,9 +776,23 @@ export const appRouter = router({
   }),
 
   auth: router({
+    // Lista FECHADA de campos: a linha inteira de `users` levava ao navegador o hash
+    // do código de troca de e-mail (sha256 de 6 dígitos, quebrável na hora), e com
+    // ele dava para trocar o e-mail da conta para um endereço alheio, sem acesso à
+    // caixa, e herdar a ficha de paciente convidado com aquele e-mail.
     me: publicProcedure.query(({ ctx }) =>
       ctx.user
-        ? { ...ctx.user, aparelhoVerificado: ctx.aparelhoVerificado !== false, cadastroPendente: ctx.cadastroPendente === true }
+        ? {
+            id: ctx.user.id,
+            name: ctx.user.name,
+            email: ctx.user.email,
+            role: ctx.user.role,
+            loginMethod: ctx.user.loginMethod,
+            createdAt: ctx.user.createdAt,
+            lastSignedIn: ctx.user.lastSignedIn,
+            aparelhoVerificado: ctx.aparelhoVerificado !== false,
+            cadastroPendente: ctx.cadastroPendente === true,
+          }
         : null,
     ),
 
