@@ -8,7 +8,7 @@ import { publicProcedure, contaProcedure, protectedProcedure, therapistProcedure
 import { z } from "zod";
 import { iceServersParaChamada } from "./turn";
 import { getDb } from "./db";
-import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessageFeedback, patients, appointments, appointmentParticipants, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users, chatMessages, assinaturas } from "../drizzle/schema";
+import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessageFeedback, patients, listaDeEspera, appointments, appointmentParticipants, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users, chatMessages, assinaturas } from "../drizzle/schema";
 import { signDocumentUrl, downloadDocumentFile, apagarArquivoDoDocumento, removeDocumentFile as removeStorageFile, assinarFotos } from "./storage";
 import { extractClinicalDocument, textoSemCortes } from "./ai/document-ingestion";
 import {
@@ -52,6 +52,7 @@ import { celularValido, mascaraTelefone, soDigitos, telefoneValido } from "../sh
 import { nascimentoValido } from "../shared/datas";
 import { cpfValido, soDigitosDoCpf } from "../shared/recibo";
 import { MAX_LINHAS_DA_IMPORTACAO } from "../shared/importarPacientes";
+import { IDS_DOS_PERIODOS } from "../shared/listaDeEspera";
 import { VALOR_MAXIMO_DA_CONSULTA } from "../shared/dinheiro";
 import { FASES_VALORES } from "../shared/evolucao";
 import { FREQUENCIA_REGEX } from "../shared/frequencia";
@@ -2760,6 +2761,77 @@ export const appRouter = router({
         await db.delete(patients).where(eq(patients.id, input.id));
 
         return { action: "deleted" as const, consultas: apts.length };
+      }),
+  }),
+
+  /**
+   * Lista de espera (shared/listaDeEspera.ts): quem quer horário, que dias e que
+   * períodos. Só a psicóloga vê e mexe; ninguém é avisado sozinho.
+   */
+  listaDeEspera: router({
+    listar: therapistProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return [];
+      return db
+        .select({
+          patientId: listaDeEspera.patientId,
+          firstName: patients.firstName,
+          lastName: patients.lastName,
+          phone: patients.phone,
+          diasDaSemana: listaDeEspera.diasDaSemana,
+          periodos: listaDeEspera.periodos,
+          observacao: listaDeEspera.observacao,
+          createdAt: listaDeEspera.createdAt,
+        })
+        .from(listaDeEspera)
+        .innerJoin(therapists, eq(therapists.id, listaDeEspera.therapistId))
+        .innerJoin(patients, eq(patients.id, listaDeEspera.patientId))
+        .where(eq(therapists.userId, ctx.user.id))
+        // Quem chegou primeiro aparece primeiro.
+        .orderBy(asc(listaDeEspera.createdAt));
+    }),
+
+    /** Põe na lista ou muda a preferência de quem já está (um registro por paciente). */
+    salvar: therapistProcedure
+      .input(z.object({
+        patientId: z.number().int(),
+        diasDaSemana: z.array(z.number().int().min(0).max(6)).max(7),
+        periodos: z.array(z.enum(IDS_DOS_PERIODOS)).max(3),
+        observacao: z.string().trim().max(300).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const [paciente] = await db
+          .select({ therapistId: patients.therapistId })
+          .from(patients)
+          .innerJoin(therapists, eq(therapists.id, patients.therapistId))
+          .where(and(eq(patients.id, input.patientId), eq(therapists.userId, ctx.user.id)))
+          .limit(1);
+        if (!paciente) throw new Error("Paciente não encontrado.");
+        const valores = {
+          diasDaSemana: Array.from(new Set(input.diasDaSemana)).sort(),
+          periodos: Array.from(new Set(input.periodos)),
+          observacao: input.observacao || null,
+        };
+        await db
+          .insert(listaDeEspera)
+          .values({ therapistId: paciente.therapistId, patientId: input.patientId, ...valores })
+          .onConflictDoUpdate({ target: [listaDeEspera.therapistId, listaDeEspera.patientId], set: valores });
+        return { ok: true } as const;
+      }),
+
+    remover: therapistProcedure
+      .input(z.object({ patientId: z.number().int() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const [therapist] = await db.select({ id: therapists.id }).from(therapists).where(eq(therapists.userId, ctx.user.id)).limit(1);
+        if (!therapist) throw new Error("Therapist not found");
+        await db
+          .delete(listaDeEspera)
+          .where(and(eq(listaDeEspera.therapistId, therapist.id), eq(listaDeEspera.patientId, input.patientId)));
+        return { ok: true } as const;
       }),
   }),
 

@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { urlDaSala } from "@/lib/sala";
+import { HorarioLivre, ListaDeEspera } from "@/components/ListaDeEspera";
+import { querEsteHorario } from "@shared/listaDeEspera";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { formatarData, formatarHora, instanteEmBrasilia, partesEmBrasilia } from "@shared/datas";
@@ -42,7 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, CreditCard, Table as TableIcon, CalendarDays, Filter, Loader2, Pencil, RotateCcw, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Calendar, Clock, CheckCircle, XCircle, Copy, ExternalLink, CreditCard, Table as TableIcon, CalendarDays, Filter, Loader2, Pencil, RotateCcw, Search, ChevronLeft, ChevronRight, Hourglass } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { CalendarioAgenda } from "@/components/CalendarioAgenda";
@@ -73,6 +75,11 @@ export default function Appointments() {
 
   const { data: appointments = [] } = trpc.appointments.list.useQuery();
   const { data: patients = [] } = trpc.patients.list.useQuery();
+  // Lista de espera: ao cancelar uma consulta futura, quem da lista quer aquele horário.
+  const { data: listaDeEspera = [] } = trpc.listaDeEspera.listar.useQuery();
+  const [horarioLivre, setHorarioLivre] = useState<{ quando: Date; patientId: number } | null>(null);
+  const interessadosNo = (quando: Date, patientId: number) =>
+    listaDeEspera.filter((e) => e.patientId !== patientId && querEsteHorario(e, quando));
   // Fotos dos pacientes (assinadas no servidor; a URL vale 1 h).
   const { data: fotos = {} } = trpc.patients.fotos.useQuery(undefined, { staleTime: 50 * 60_000 });
   // Preço padrão da psicóloga: preenche o valor de cada consulta nova.
@@ -206,6 +213,10 @@ export default function Appointments() {
       // um clique, e a psicóloga precisa ler a mensagem antes de enviar.
       const appt = appointments.find((a) => a.id === vars.id);
       const href = appt ? whatsappHref(appt, "cancelamento") : null;
+      if (appt) {
+        const quando = new Date(appt.scheduledAt);
+        if (quando > new Date() && interessadosNo(quando, appt.patientId).length) setHorarioLivre({ quando, patientId: appt.patientId });
+      }
 
       if (!href) {
         toast.success("Consulta cancelada", {
@@ -435,6 +446,7 @@ export default function Appointments() {
             E das setas de período. */}
         <div className="space-y-6" data-tour="nova-consulta">
         {/* Nova Consulta */}
+        <div className="flex flex-col gap-2 sm:flex-row">
         <Dialog
           open={isOpen}
           onOpenChange={(aberto) => {
@@ -630,6 +642,8 @@ export default function Appointments() {
             </div>
           </DialogContent>
         </Dialog>
+        <ListaDeEspera pacientes={patients} />
+        </div>
 
         {/* Período: Semana / Mês / Todas, com setas para andar (inclusive para a
             frente, nas consultas futuras). Vale para a tabela. */}
@@ -860,6 +874,19 @@ export default function Appointments() {
                       {appointment.confirmedAt ? (
                         <p className="text-xs text-green-700 dark:text-green-400">✓ Presença confirmada</p>
                       ) : null}
+                      {status === "cancelled" && scheduled > new Date() && (() => {
+                        const n = interessadosNo(scheduled, appointment.patientId).length;
+                        return n ? (
+                          <button
+                            type="button"
+                            onClick={() => setHorarioLivre({ quando: scheduled, patientId: appointment.patientId })}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
+                          >
+                            <Hourglass className="size-3.5" aria-hidden />
+                            {n} da lista de espera {n === 1 ? "quer" : "querem"} este horário
+                          </button>
+                        ) : null;
+                      })()}
                       <div className="flex flex-wrap items-center justify-between gap-2 border-y py-2.5">
                         <div className="flex items-start gap-2">
                           <CreditCard className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -1191,6 +1218,12 @@ export default function Appointments() {
           </CardContent>
         </Card>
       </div>
+
+      <HorarioLivre
+        quando={horarioLivre?.quando ?? null}
+        interessados={horarioLivre ? interessadosNo(horarioLivre.quando, horarioLivre.patientId) : []}
+        aoFechar={() => setHorarioLivre(null)}
+      />
 
       <AlertDialog open={!!confirmarRealizada} onOpenChange={(o) => !o && setConfirmarRealizada(null)}>
         <AlertDialogContent>
