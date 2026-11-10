@@ -186,18 +186,6 @@ export async function reciboEmWord(dados: DadosDoRecibo, comprovantes: Comprovan
   return Packer.toBlob(new Document({ sections: [{ children: filhos }] }));
 }
 
-/** Baixa o arquivo no aparelho. */
-export function baixarArquivo(blob: Blob, nome: string): void {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = nome;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
 /**
  * O aparelho sabe mandar ARQUIVO para outro app (WhatsApp, e-mail...)? Celular
  * quase sempre; no computador depende do navegador. Sem isso o botão nem aparece.

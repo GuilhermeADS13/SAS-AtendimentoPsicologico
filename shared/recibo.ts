@@ -8,6 +8,7 @@
  * avisa o que falta (`oQueFaltaNoRecibo`).
  */
 import { formatarBRL } from "./dinheiro";
+import { FUSO_BR } from "./datas";
 
 export function soDigitosDoCpf(cpf: string): string {
   return cpf.replace(/\D/g, "").slice(0, 11);
@@ -103,10 +104,9 @@ export type DadosDoRecibo = {
   emitidoEm: Date;
 };
 
-const FUSO = "America/Sao_Paulo";
-const data = (d: Date) => d.toLocaleDateString("pt-BR", { timeZone: FUSO });
+const data = (d: Date) => d.toLocaleDateString("pt-BR", { timeZone: FUSO_BR });
 const dataPorExtenso = (d: Date) =>
-  d.toLocaleDateString("pt-BR", { timeZone: FUSO, day: "numeric", month: "long", year: "numeric" });
+  d.toLocaleDateString("pt-BR", { timeZone: FUSO_BR, day: "numeric", month: "long", year: "numeric" });
 
 export function totalDoRecibo(dados: Pick<DadosDoRecibo, "consultas">): number {
   return dados.consultas.reduce((soma, c) => soma + c.valorCentavos, 0);

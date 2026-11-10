@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, FileDown, ImagePlus, Share2, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { baixar } from "@/lib/prontuario-export";
 import {
-  baixarArquivo,
   enviarArquivo,
   imagemDoComprovante,
   podeEnviarArquivo,
@@ -17,17 +17,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatarBRL } from "@shared/dinheiro";
+import { FUSO_BR } from "@shared/datas";
 import { cpfValido, mascaraCpf, oQueFaltaNoRecibo, soDigitosDoCpf, type DadosDoRecibo } from "@shared/recibo";
 
-const FUSO = "America/Sao_Paulo";
-const chaveDoMes = (d: Date) =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: FUSO, year: "numeric", month: "2-digit" }).format(d).slice(0, 7);
+// Criado uma vez: o mês de cada consulta paga é calculado a cada redesenho.
+const FORMATO_DO_MES = new Intl.DateTimeFormat("en-CA", { timeZone: FUSO_BR, year: "numeric", month: "2-digit" });
+const chaveDoMes = (d: Date) => FORMATO_DO_MES.format(d).slice(0, 7);
 const nomeDoMes = (chave: string) => {
   const [ano, mes] = chave.split("-").map(Number);
   const texto = new Date(Date.UTC(ano, mes - 1, 15)).toLocaleDateString("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" });
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 };
-const dataCurta = (d: Date) => d.toLocaleDateString("pt-BR", { timeZone: FUSO });
+const dataCurta = (d: Date) => d.toLocaleDateString("pt-BR", { timeZone: FUSO_BR });
 const MAX_COMPROVANTES = 5;
 
 /** "Rua X, 100, Recife/PE" -> "Recife/PE": a cidade para a linha da data. */
@@ -99,6 +100,11 @@ export function GerarRecibo({
   };
 
   // Ao abrir: mês mais recente com consulta paga, todas marcadas, e os dados salvos.
+  // Os dados salvos entram UMA vez por abertura. Depois de salvar, o perfil é
+  // buscado de novo, e regravar os campos apagaria o que ela digitou (a cidade,
+  // que não fica salva) com a janela ainda aberta.
+  const dadosDoPerfilPreenchidos = useRef(false);
+
   useEffect(() => {
     if (!aberto) return;
     const primeiro = meses[0] ?? "";
@@ -109,10 +115,12 @@ export function GerarRecibo({
     setPagadorNome("");
     setPagadorCpf("");
     setComprovantes([]);
+    dadosDoPerfilPreenchidos.current = false;
   }, [aberto]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!aberto || !perfil) return;
+    if (!aberto || !perfil || dadosDoPerfilPreenchidos.current) return;
+    dadosDoPerfilPreenchidos.current = true;
     setCpf(perfil.cpf ? mascaraCpf(perfil.cpf) : "");
     setEndereco(perfil.endereco ?? "");
     setCidade(cidadeDoEndereco(perfil.endereco ?? ""));
@@ -162,7 +170,7 @@ export function GerarRecibo({
       const blob = formato === "pdf" ? await reciboEmPdf(dados, comprovantes) : await reciboEmWord(dados, comprovantes);
       const nome = `${arquivo}.${formato === "pdf" ? "pdf" : "docx"}`;
       if (acao === "baixar") {
-        baixarArquivo(blob, nome);
+        baixar(blob, nome);
         toast.success("Recibo baixado.");
         aoFechar();
         return;

@@ -51,6 +51,7 @@ import { ArrowLeft, FileText, Calendar, MessageSquare, Pencil, Plus, Upload, Tra
 import { formatarBRL } from "@shared/dinheiro";
 import { SugestaoDeEmail } from "@/components/SugestaoDeEmail";
 import { GerarRecibo } from "@/components/GerarRecibo";
+import { emDemonstracao } from "@/lib/demonstracao";
 
 // Renderiza um formulário de campos agrupados (anamnese, TCLE) a partir da
 // configuração única de shared/prontuario.ts — sem repetir a lista de campos.
@@ -404,8 +405,9 @@ export default function PatientDetail() {
     .reduce((soma, a) => soma + (a.price ?? 0), 0);
   const temPagamentos = consultasDoPaciente.some((a) => (a.price ?? 0) > 0 || a.paid);
   const [reciboAberto, setReciboAberto] = useState(false);
-  // O recibo fala em "sessões realizadas": falta e cancelada não entram.
-  const pagasParaRecibo = consultasDoPaciente.filter((a) => a.paid && ativa(a));
+  // O recibo fala em "sessões realizadas": falta e cancelada não entram. E só o que
+  // tem valor: paga sem valor não tem o que pôr no recibo (o botão nem aparece).
+  const pagasParaRecibo = consultasDoPaciente.filter((a) => a.paid && ativa(a) && (a.price ?? 0) > 0);
 
   const setPayment = trpc.appointments.setPayment.useMutation({
     onSuccess: () => {
@@ -993,7 +995,9 @@ export default function PatientDetail() {
                 aoFechar={() => setReciboAberto(false)}
                 paciente={patient}
                 consultas={pagasParaRecibo}
-                exemplo={!!dadosExemplo}
+                // Na demonstração (lib/demonstracao.ts) também não grava: o recibo sai
+                // com o CPF digitado, sem tentar salvar (o que a demonstração recusaria).
+                exemplo={!!dadosExemplo || emDemonstracao()}
               />
             )}
 
