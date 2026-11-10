@@ -10,23 +10,23 @@ const TAMANHO_MAXIMO = 5 * 1024 * 1024;
  * e o DOMParser do navegador lê o XML. Evita uma biblioteca de Excel inteira para
  * o que aqui é só "nome, e-mail, telefone".
  */
-export async function lerPlanilha(arquivo: File): Promise<{ linhas: Celula[][]; linhaDoCabecalho: number }> {
-  const linhas = await lerLinhas(arquivo);
+export async function lerPlanilha(arquivo: File): Promise<{ linhas: Celula[][]; linhaDoCabecalho: number; data1904: boolean }> {
+  const { linhas, data1904 } = await lerLinhas(arquivo);
   // O cabeçalho é a primeira linha com algo escrito; o número dela entra na prévia.
   let linhaDoCabecalho = 1;
   while (linhas.length && linhas[0].every((c) => c === null || String(c).trim() === "")) {
     linhas.shift();
     linhaDoCabecalho++;
   }
-  return { linhas, linhaDoCabecalho };
+  return { linhas, linhaDoCabecalho, data1904 };
 }
 
-async function lerLinhas(arquivo: File): Promise<Celula[][]> {
+async function lerLinhas(arquivo: File): Promise<{ linhas: Celula[][]; data1904: boolean }> {
   if (arquivo.size > TAMANHO_MAXIMO) throw new Error("Planilha grande demais (máximo de 5 MB).");
   const nome = arquivo.name.toLowerCase();
   const bytes = new Uint8Array(await arquivo.arrayBuffer());
 
-  if (nome.endsWith(".csv") || nome.endsWith(".txt")) return lerCsv(decodificarTexto(bytes));
+  if (nome.endsWith(".csv") || nome.endsWith(".txt")) return { linhas: lerCsv(decodificarTexto(bytes)), data1904: false };
   if (nome.endsWith(".xls")) {
     throw new Error("Esse é o formato antigo do Excel (.xls). No Excel, use “Salvar como” → “Pasta de Trabalho do Excel (.xlsx)” ou “CSV”.");
   }
@@ -54,7 +54,10 @@ function indiceDaColuna(ref: string): number {
   return n - 1;
 }
 
-async function lerXlsx(bytes: Uint8Array): Promise<Celula[][]> {
+/** Linha mais baixa que ainda aceitamos ler: a importação vai até 500 pacientes. */
+const ULTIMA_LINHA = 20_000;
+
+async function lerXlsx(bytes: Uint8Array): Promise<{ linhas: Celula[][]; data1904: boolean }> {
   const { unzipSync, strFromU8 } = await import("fflate");
   let arquivos: Record<string, Uint8Array>;
   try {
@@ -71,8 +74,12 @@ async function lerXlsx(bytes: Uint8Array): Promise<Celula[][]> {
   const workbook = texto("xl/workbook.xml");
   const rels = texto("xl/_rels/workbook.xml.rels");
   let caminhoDaAba = "xl/worksheets/sheet1.xml";
-  if (workbook && rels) {
-    const primeira = tags(xml(workbook), "sheet")[0];
+  // Pasta com o sistema de data 1904 (Excel antigo de Mac): as datas contam de outro dia.
+  const docDoWorkbook = workbook ? xml(workbook) : null;
+  const pr = docDoWorkbook ? tags(docDoWorkbook, "workbookPr")[0] : undefined;
+  const data1904 = /^(1|true)$/i.test(pr?.getAttribute("date1904") ?? "");
+  if (docDoWorkbook && rels) {
+    const primeira = tags(docDoWorkbook, "sheet")[0];
     const id = primeira?.getAttribute("r:id") ?? primeira?.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id");
     const rel = tags(xml(rels), "Relationship").find((r) => r.getAttribute("Id") === id);
     const alvo = rel?.getAttribute("Target");
@@ -89,6 +96,7 @@ async function lerXlsx(bytes: Uint8Array): Promise<Celula[][]> {
   for (const row of tags(xml(aba), "row")) {
     const numero = Number(row.getAttribute("r")) || linhas.length + 1;
     const celulas: Celula[] = [];
+    let colunaSemEndereco = 0;
     for (const c of tags(row, "c")) {
       const tipo = c.getAttribute("t");
       const v = tags(c, "v")[0]?.textContent ?? null;
@@ -99,11 +107,19 @@ async function lerXlsx(bytes: Uint8Array): Promise<Celula[][]> {
       else if (tipo === "b") valor = v === "1" ? "VERDADEIRO" : "FALSO";
       else if (tipo === "e") valor = null;
       else valor = v === null || v === "" ? null : Number(v);
-      celulas[indiceDaColuna(c.getAttribute("r") ?? "")] = valor;
+      // Sem o endereço ("B2"), a célula vem na ordem: alguns programas o omitem.
+      const ref = c.getAttribute("r");
+      const coluna = ref ? indiceDaColuna(ref) : colunaSemEndereco;
+      colunaSemEndereco = coluna + 1;
+      celulas[coluna] = valor;
     }
+    // Linha só com formatação (o Excel grava assim até lá embaixo): não conta, e não
+    // obriga a criar todas as vazias até ela.
+    if (celulas.every((c) => c === null || c === undefined || String(c).trim() === "")) continue;
+    if (numero > ULTIMA_LINHA) throw new Error("A planilha passa de 20 mil linhas. Deixe só a lista de pacientes e envie de novo.");
     // Linha 5 do Excel fica no índice 4, com as vazias no meio (o número da linha bate na prévia).
     while (linhas.length < numero - 1) linhas.push([]);
     linhas[numero - 1] = Array.from(celulas, (c) => c ?? null);
   }
-  return linhas;
+  return { linhas, data1904 };
 }

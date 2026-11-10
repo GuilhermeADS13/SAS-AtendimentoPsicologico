@@ -8,6 +8,7 @@
  * O que vier errado e for opcional (telefone, nascimento, CPF) não barra a
  * linha: o campo fica em branco e a prévia avisa.
  */
+import { z } from "zod";
 import { cpfValido, soDigitosDoCpf } from "./recibo";
 import { mascaraTelefone, soDigitos, telefoneValido } from "./telefone";
 import { nascimentoValido } from "./datas";
@@ -44,7 +45,7 @@ export type LinhaLida = {
 const semAcento = (s: string) =>
   s
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036F]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
@@ -95,7 +96,7 @@ export function oQueFaltaNasColunas(mapa: Partial<Record<Campo, number>>): strin
  * primeira linha), aspas para campos com separador ou quebra de linha.
  */
 export function lerCsv(texto: string): string[][] {
-  const t = texto.replace(/^﻿/, "");
+  const t = texto.replace(/^\uFEFF/, "");
   const primeira = t.slice(0, t.search(/\r?\n|$/));
   const contar = (sep: string) => primeira.split(sep).length;
   const sep = [";", ",", "\t"].reduce((melhor, s) => (contar(s) > contar(melhor) ? s : melhor), ";");
@@ -131,16 +132,23 @@ export function lerCsv(texto: string): string[][] {
   return linhas;
 }
 
-/** Excel guarda data como número de dias desde 30/12/1899. */
-function dataDoExcel(serial: number): string | null {
-  if (!Number.isFinite(serial) || serial < 1 || serial > 80000) return null;
-  const d = new Date(Date.UTC(1899, 11, 30) + Math.round(serial) * 86_400_000);
+/**
+ * Excel guarda data como número de dias desde 30/12/1899 (ou desde 01/01/1904 nas
+ * pastas com o "sistema de data 1904", do Excel antigo de Mac).
+ *
+ * Abaixo de 2200 (antes de 1906) não é nascimento: quase sempre é o ANO sozinho
+ * ("1990" viraria 12/06/1905 e passaria sem aviso). Vira "data inválida" na prévia.
+ */
+function dataDoExcel(serial: number, data1904 = false): string | null {
+  if (!Number.isFinite(serial) || serial < 2200 || serial > 80000) return null;
+  const dias = Math.round(serial) + (data1904 ? 1462 : 0);
+  const d = new Date(Date.UTC(1899, 11, 30) + dias * 86_400_000);
   return d.toISOString().slice(0, 10);
 }
 
 /** "05/03/1990", "5/3/90", "1990-03-05" ou número do Excel -> "1990-03-05"; null se não der. */
-export function lerNascimento(valor: Celula, agora = new Date()): string | null {
-  if (typeof valor === "number") return dataDoExcel(valor);
+export function lerNascimento(valor: Celula, agora = new Date(), data1904 = false): string | null {
+  if (typeof valor === "number") return dataDoExcel(valor, data1904);
   const v = String(valor ?? "").trim();
   if (!v) return null;
   let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(v);
@@ -152,18 +160,28 @@ export function lerNascimento(valor: Celula, agora = new Date()): string | null 
     if (m[3].length === 2) ano += ano + 2000 > agora.getFullYear() ? 1900 : 2000;
     return `${ano}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
   }
-  if (/^\d+(\.\d+)?$/.test(v)) return dataDoExcel(Number(v));
+  if (/^\d+(\.\d+)?$/.test(v)) return dataDoExcel(Number(v), data1904);
   return null;
 }
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/**
+ * O MESMO teste de e-mail do servidor (patients.importar usa z.string().email()):
+ * uma regra mais frouxa aqui aprovava na prévia um "ana@gmail.com." que o servidor
+ * recusava, e a recusa derrubava o lote inteiro.
+ */
+const EMAIL = z.string().email().max(320);
 const texto = (c: Celula | undefined) => (c === null || c === undefined ? "" : String(c)).replace(/\s+/g, " ").trim();
 
 /**
  * Linhas da planilha (a primeira é o cabeçalho) -> pacientes, com o motivo de
  * cada linha que ficou de fora. Linhas totalmente vazias são ignoradas.
  */
-export function lerPacientes(linhas: Celula[][], linhaDoCabecalho = 1, agora = new Date()): { colunas: Partial<Record<Campo, number>>; linhas: LinhaLida[] } {
+export function lerPacientes(
+  linhas: Celula[][],
+  linhaDoCabecalho = 1,
+  agora = new Date(),
+  { data1904 = false }: { data1904?: boolean } = {},
+): { colunas: Partial<Record<Campo, number>>; linhas: LinhaLida[] } {
   const [cabecalho = [], ...dados] = linhas;
   const colunas = mapearColunas(cabecalho);
   const vistos = new Set<string>();
@@ -190,7 +208,7 @@ export function lerPacientes(linhas: Celula[][], linhaDoCabecalho = 1, agora = n
     const fora = (erro: string) => lidas.push({ linha, paciente: null, erro, avisos: [] });
     if (!firstName) return fora("sem nome");
     if (!email) return fora("sem e-mail");
-    if (!EMAIL.test(email) || email.length > 320) return fora(`e-mail inválido (${email})`);
+    if (!EMAIL.safeParse(email).success) return fora(`e-mail inválido (${email})`);
     if (vistos.has(email)) return fora("e-mail repetido na planilha");
     vistos.add(email);
 
@@ -206,7 +224,7 @@ export function lerPacientes(linhas: Celula[][], linhaDoCabecalho = 1, agora = n
 
     const celulaNascimento = colunas.nascimento === undefined ? null : celulas[colunas.nascimento] ?? null;
     if (texto(celulaNascimento)) {
-      const data = lerNascimento(celulaNascimento, agora);
+      const data = lerNascimento(celulaNascimento, agora, data1904);
       if (data && nascimentoValido(data, agora)) paciente.dateOfBirth = data;
       else avisos.push("data de nascimento inválida");
     }

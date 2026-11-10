@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { lerCsv, lerNascimento, lerPacientes, mapearColunas, oQueFaltaNasColunas } from "../shared/importarPacientes";
 
 const agora = new Date("2026-11-10T12:00:00-03:00");
@@ -23,7 +24,7 @@ describe("cabeçalho da planilha", () => {
 
 describe("CSV", () => {
   it("lê o ponto e vírgula do Excel brasileiro, com aspas e BOM", () => {
-    expect(lerCsv('﻿Nome;E-mail\r\n"Silva; Ana";ana@x.com\r\nBia;"b""@x.com"\r\n')).toEqual([
+    expect(lerCsv('\uFEFFNome;E-mail\r\n"Silva; Ana";ana@x.com\r\nBia;"b""@x.com"\r\n')).toEqual([
       ["Nome", "E-mail"],
       ["Silva; Ana", "ana@x.com"],
       ["Bia", 'b"@x.com'],
@@ -109,6 +110,32 @@ describe("linhas viram pacientes", () => {
     );
     expect(linhas[0].paciente).toEqual({ firstName: "Ana", lastName: "", email: "a@x.com" });
     expect(linhas[0].avisos).toEqual(["telefone sem DDD ou incompleto", "data de nascimento inválida", "CPF inválido"]);
+  });
+
+  it("só aprova e-mail que o servidor também aceita (senão o lote inteiro cairia)", () => {
+    const servidor = z.string().trim().email().max(320); // o mesmo de patients.importar
+    const emails = ["ana@gmail.com.", "ana@x.com;", "ana@@x.com", "ana@x", "ana.@x.com", "ana@x.com", "ana.souza+psi@x.com.br"];
+    const { linhas } = lerPacientes([["Nome", "Email"], ...emails.map((e) => ["Ana", e])], 1, agora);
+    for (const l of linhas) {
+      const aprovado = l.paciente !== null;
+      expect(aprovado, emails[l.linha - 2]).toBe(servidor.safeParse(emails[l.linha - 2]).success);
+    }
+    expect(linhas.filter((l) => l.paciente).map((l) => l.paciente!.email)).toEqual(["ana@x.com", "ana.souza+psi@x.com.br"]);
+  });
+
+  it("ano sozinho não vira data: '1990' seria 12/06/1905 lido como número do Excel", () => {
+    expect(lerNascimento("1990", agora)).toBeNull();
+    expect(lerNascimento(1990, agora)).toBeNull();
+    const { linhas } = lerPacientes([["Nome", "Email", "Nascimento"], ["Ana", "a@x.com", "1990"]], 1, agora);
+    expect(linhas[0].paciente?.dateOfBirth).toBeUndefined();
+    expect(linhas[0].avisos).toEqual(["data de nascimento inválida"]);
+  });
+
+  it("pasta com o sistema de data 1904 (Excel antigo de Mac) lê a data certa", () => {
+    // 05/03/1990 é 32937 no sistema 1900 e 31475 no 1904.
+    expect(lerNascimento(31475, agora, true)).toBe("1990-03-05");
+    const { linhas } = lerPacientes([["Nome", "Email", "Nascimento"], ["Ana", "a@x.com", 31475]], 1, agora, { data1904: true });
+    expect(linhas[0].paciente?.dateOfBirth).toBe("1990-03-05");
   });
 
   it("numera as linhas a partir do cabeçalho real", () => {

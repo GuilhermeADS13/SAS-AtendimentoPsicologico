@@ -18,7 +18,7 @@ import {
   normalizarDocumento,
   situacaoDaAssinatura,
 } from "../shared/assinatura";
-import { DIAS_PARA_O_PRIMEIRO_PACIENTE, cabeMaisUmPaciente, planoEfetivo, planoPorId, valorDoPlano } from "../shared/precos";
+import { DIAS_PARA_O_PRIMEIRO_PACIENTE, planoEfetivo, planoPorId, valorDoPlano } from "../shared/precos";
 import type { getDb } from "./db";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
@@ -220,18 +220,18 @@ export async function anexoMaxMbDaPsicologa(db: Db, therapistId: number): Promis
  * ela sobe de plano na aba Assinatura antes. Admin não tem teto.
  */
 export async function exigirVagaNoPlano(db: Db, therapistId: number): Promise<void> {
-  const p = await planoDaPsicologa(db, therapistId);
-  if (p.admin || cabeMaisUmPaciente(p.escolhido, p.pacientes)) return;
-  const atual = planoPorId(p.escolhido);
+  const { vagas, plano, ate } = await vagasNoPlano(db, therapistId);
+  if (vagas === null || vagas > 0) return;
   throw new TRPCError({
     code: "FORBIDDEN",
-    message: `Seu plano ${atual.nome} vai até ${atual.ate} pacientes. Para cadastrar mais, mude de plano na aba Assinatura.`,
+    message: `Seu plano ${plano} vai até ${ate} pacientes. Para cadastrar mais, mude de plano na aba Assinatura.`,
   });
 }
 
 /**
- * Quantos pacientes ainda cabem no plano (importação em lote). null = sem teto
- * (Coro, admin). Mesma conta do `exigirVagaNoPlano`, só que para N de uma vez.
+ * Quantos pacientes ainda cabem no plano ESCOLHIDO. null = sem teto (Coro, admin).
+ * É a única conta do teto: o cadastro de um (`exigirVagaNoPlano`) e a importação
+ * em lote (patients.importar) passam por aqui.
  */
 export async function vagasNoPlano(db: Db, therapistId: number): Promise<{ vagas: number | null; plano: string; ate: number | null }> {
   const p = await planoDaPsicologa(db, therapistId);

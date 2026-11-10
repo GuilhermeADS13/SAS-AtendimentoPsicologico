@@ -1,12 +1,13 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, XCircle } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { lerPlanilha } from "@/lib/lerPlanilha";
-import { baixarArquivo } from "@/lib/recibo-export";
+import { baixar } from "@/lib/prontuario-export";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { TrocarDePlanoDialog, ehErroDeLimiteDoPlano } from "@/components/TrocarDePlanoDialog";
+import { ehErroDeLimiteDoPlano } from "@/components/TrocarDePlanoDialog";
 import {
   MAX_LINHAS_DA_IMPORTACAO,
   lerPacientes,
@@ -28,8 +29,8 @@ const ROTULO: Record<Campo, string> = {
 
 /** Modelo em CSV (abre no Excel): só o cabeçalho, para não importar exemplo por engano. */
 function baixarModelo() {
-  const csv = "﻿Nome;Sobrenome;E-mail;Celular;Data de nascimento;CPF;Endereço\r\n";
-  baixarArquivo(new Blob([csv], { type: "text/csv;charset=utf-8" }), "modelo-pacientes.csv");
+  const csv = "\uFEFFNome;Sobrenome;E-mail;Celular;Data de nascimento;CPF;Endereço\r\n";
+  baixar(new Blob([csv], { type: "text/csv;charset=utf-8" }), "modelo-pacientes.csv");
 }
 
 type Lida = { arquivo: string; colunas: Campo[]; falta: string[]; linhas: LinhaLida[] };
@@ -43,7 +44,11 @@ export function ImportarPacientes({ className }: { className?: string }) {
   const [aberto, setAberto] = useState(false);
   const [lendo, setLendo] = useState(false);
   const [lida, setLida] = useState<Lida | null>(null);
-  const [planoCheio, setPlanoCheio] = useState(false);
+  // Os novos não cabem no plano: a frase do servidor diz quantos cabem. Fica na
+  // prévia, e não na janela de troca de plano, porque aquela é para "mais um" e
+  // subir um plano pode ainda não bastar para o lote.
+  const [limite, setLimite] = useState<string | null>(null);
+  const [, setLocation] = useLocation();
   const importar = trpc.patients.importar.useMutation();
 
   const prontas = lida?.linhas.filter((l) => l.paciente) ?? [];
@@ -54,8 +59,9 @@ export function ImportarPacientes({ className }: { className?: string }) {
     if (!arquivo) return;
     setLendo(true);
     try {
-      const { linhas, linhaDoCabecalho } = await lerPlanilha(arquivo);
-      const r = lerPacientes(linhas, linhaDoCabecalho);
+      const { linhas, linhaDoCabecalho, data1904 } = await lerPlanilha(arquivo);
+      const r = lerPacientes(linhas, linhaDoCabecalho, new Date(), { data1904 });
+      setLimite(null);
       const colunas = Array.from(new Set((Object.keys(r.colunas) as Campo[]).map((c) => (c === "nome" ? "nomeCompleto" : c))));
       setLida({ arquivo: arquivo.name, colunas, falta: oQueFaltaNasColunas(r.colunas), linhas: r.linhas });
     } catch (e) {
@@ -78,14 +84,15 @@ export function ImportarPacientes({ className }: { className?: string }) {
       fechar();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Não deu para importar.";
-      if (ehErroDeLimiteDoPlano(msg)) setPlanoCheio(true);
-      toast.error(msg, { duration: 10_000 });
+      if (ehErroDeLimiteDoPlano(msg)) setLimite(msg);
+      else toast.error(msg, { duration: 10_000 });
     }
   };
 
   const fechar = () => {
     setAberto(false);
     setLida(null);
+    setLimite(null);
   };
 
   const demais = prontas.length > MAX_LINHAS_DA_IMPORTACAO;
@@ -180,6 +187,15 @@ export function ImportarPacientes({ className }: { className?: string }) {
                     </p>
                   )}
 
+                  {limite && (
+                    <div className="flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 sm:flex-row sm:items-center">
+                      <p className="flex-1">{limite}</p>
+                      <Button size="sm" variant="outline" className="shrink-0 bg-card" onClick={() => setLocation("/assinatura")}>
+                        Ver planos
+                      </Button>
+                    </div>
+                  )}
+
                   <div className="max-h-[40vh] overflow-auto rounded-lg border">
                     <table className="w-full text-left text-sm">
                       <thead className="sticky top-0 bg-muted text-xs text-muted-foreground">
@@ -236,7 +252,14 @@ export function ImportarPacientes({ className }: { className?: string }) {
 
           <DialogFooter>
             {lida && (
-              <Button variant="outline" onClick={() => setLida(null)} disabled={importar.isPending}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setLida(null);
+                  setLimite(null);
+                }}
+                disabled={importar.isPending}
+              >
                 Escolher outra planilha
               </Button>
             )}
@@ -251,7 +274,6 @@ export function ImportarPacientes({ className }: { className?: string }) {
         </DialogContent>
       </Dialog>
 
-      <TrocarDePlanoDialog aberto={planoCheio} aoFechar={() => setPlanoCheio(false)} aoTrocar={() => void confirmar()} />
     </>
   );
 }

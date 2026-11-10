@@ -16,6 +16,7 @@ import {
   exigirVagaNoPlano,
   iniciarTesteNoPrimeiroPaciente,
   psicologaLiberada,
+  vagasNoPlano,
 } from "./assinaturas";
 import { DIAS_DE_TESTE_GRATIS, DIAS_PARA_O_PRIMEIRO_PACIENTE } from "../shared/precos";
 import { MENSAGEM_ASSINATURA_VENCIDA } from "../shared/assinatura";
@@ -152,8 +153,17 @@ describe.runIf(RUN)("assinatura com o banco (Postgres real)", () => {
     await pacientes(therapistId, 3, "archived");
     expect(await contarPacientesCobrados(db, therapistId)).toBe(10);
     await expect(exigirVagaNoPlano(db, therapistId)).rejects.toThrow(/vai até 10 pacientes/);
+    // A importação em lote usa a mesma conta: no Sussurro cheio, cabem 0.
+    expect(await vagasNoPlano(db, therapistId)).toEqual({ vagas: 0, plano: "Sussurro", ate: 10 });
     await sql`update assinaturas set plano = 'max' where "therapistId" = ${therapistId}`;
     await expect(exigirVagaNoPlano(db, therapistId)).resolves.toBeUndefined();
+    expect(await vagasNoPlano(db, therapistId)).toEqual({ vagas: 20, plano: "Voz", ate: 30 });
+  });
+
+  it("a admin não tem teto também na importação", async () => {
+    const { therapistId } = await novaPsicologa("99/100017", "admin");
+    await pacientes(therapistId, 40);
+    expect((await vagasNoPlano(db, therapistId)).vagas).toBeNull();
   });
 
   it("quem só participa de chamada em grupo (sem consulta própria) não entra na conta", async () => {
