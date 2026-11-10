@@ -123,6 +123,21 @@ const DUVIDAS_PACIENTE: Duvida[] = [
     ),
   },
   {
+    pergunta: "Como peço recibo para o Imposto de Renda",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Quem emite o recibo é a sua psicóloga. Peça a ela por <strong>Mensagens</strong>.
+        </li>
+        <li>
+          Ela gera no sistema, das sessões que você pagou, com o CPF dela, o seu e o valor por extenso,
+          pronto para declarar. Se outra pessoa pagou (o responsável, por exemplo), o recibo pode sair no
+          nome dela.
+        </li>
+      </ul>
+    ),
+  },
+  {
     pergunta: "O que é “Confirmar presença”?",
     resposta: (
       <ul className="list-disc pl-5 space-y-1">
@@ -265,6 +280,22 @@ const DUVIDAS_PACIENTE: Duvida[] = [
     ),
   },
   {
+    pergunta: "Como coloco o VozInterior na tela do celular",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Ele funciona como aplicativo, sem baixar nada de loja. No menu, toque em{" "}
+          <strong>“Instalar o app”</strong> (ou no aviso <strong>“Use como aplicativo”</strong>, no alto da tela).
+        </li>
+        <li>
+          <strong>iPhone:</strong> abra pelo <strong>Safari</strong>, toque em <strong>Compartilhar</strong> (o
+          quadrado com a seta) e depois em <strong>Adicionar à Tela de Início</strong>.
+        </li>
+        <li>Depois é só abrir pelo ícone, como qualquer app. O login continua o mesmo.</li>
+      </ul>
+    ),
+  },
+  {
     pergunta: "Preciso remarcar ou cancelar uma consulta",
     resposta: (
       <p>
@@ -350,6 +381,29 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
     ),
   },
   {
+    pergunta: "Como trago meus pacientes de uma planilha (Excel)",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Em <strong>Pacientes / Prontuários</strong>, clique em <strong>“Importar planilha”</strong> e escolha o
+          arquivo <strong>.xlsx</strong> ou <strong>.csv</strong>. Se preferir, baixe o modelo ali mesmo.
+        </li>
+        <li>
+          A primeira linha precisa ter os títulos. <strong>Nome</strong> e <strong>E-mail</strong> são obrigatórios;
+          Sobrenome, Celular, Data de nascimento, CPF e Endereço entram se tiver. A ordem das colunas não importa.
+        </li>
+        <li>
+          Antes de gravar aparece a prévia, linha a linha: o que entra, o que entra com aviso (um dado opcional
+          errado fica em branco) e o que fica de fora, com o motivo. Só grava quando você confirma.
+        </li>
+        <li>
+          Quem já tem ficha com o mesmo e-mail não é cadastrado de novo, e ninguém recebe e-mail. Se os
+          pacientes novos passarem do limite do plano, a prévia avisa quantos cabem.
+        </li>
+      </ul>
+    ),
+  },
+  {
     pergunta: "Como agendo uma consulta",
     resposta: (
       <ul className="list-disc pl-5 space-y-1">
@@ -364,6 +418,26 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
         <li>
           Para ver outra semana ou outro mês, use as setas <strong>‹ ›</strong> no alto da
           tela. <strong>“Todas”</strong> mostra todas as consultas de uma vez.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Como funciona a lista de espera",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Em <strong>Agendamentos / Videochamada</strong>, clique em <strong>“Lista de espera”</strong> e inclua o
+          paciente, com os dias e os períodos que servem para ele (manhã, tarde ou noite) e uma observação.
+        </li>
+        <li>
+          Quando você cancela uma consulta futura, abre a janela <strong>“Horário livre”</strong> com quem da lista
+          quer aquele dia e horário. <strong>“Oferecer”</strong> abre o WhatsApp com a mensagem pronta; você lê
+          antes de enviar.
+        </li>
+        <li>
+          Na mesma janela vem primeiro o botão para avisar o paciente que teve a consulta cancelada. Ninguém é
+          avisado sozinho.
         </li>
       </ul>
     ),
@@ -456,6 +530,30 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
         <li>
           O valor de cada consulta vem do preço padrão do seu <strong>Perfil</strong> e pode
           ser mudado ao agendar.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Como gero o recibo do paciente (Imposto de Renda)",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          No prontuário do paciente, aba <strong>Pagamentos</strong>, clique em <strong>“Gerar recibo”</strong>.
+          Escolha o mês e marque as sessões pagas que entram.
+        </li>
+        <li>
+          Para valer no Imposto de Renda, preencha o seu CPF, o seu endereço de atendimento e o CPF do paciente.
+          Eles ficam salvos para os próximos recibos. Se quem pagou foi outra pessoa, marque a opção e o recibo
+          sai no nome dela.
+        </li>
+        <li>
+          Dá para anexar o print do Pix que o paciente mandou e, em <strong>“Ver e editar”</strong>, mudar o texto
+          antes de baixar (por exemplo, “avaliação psicológica” no lugar de “psicoterapia”).
+        </li>
+        <li>
+          Sai em <strong>PDF</strong> ou <strong>Word</strong>. No celular, <strong>“Enviar para…”</strong> manda
+          direto pelo WhatsApp ou outro app.
         </li>
       </ul>
     ),
@@ -648,6 +746,22 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
           Se o teste ou o Pix vencer, agendar, iniciar chamada e a Luma pausam até a
           renovação — seus prontuários continuam abertos para ler e baixar.
         </li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Como instalo o VozInterior no celular ou no computador",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          No menu, clique em <strong>“Instalar o app”</strong> (ou no aviso <strong>“Use como aplicativo”</strong>, no
+          alto da tela). Também fica em Configurações da conta, no cartão Aplicativo.
+        </li>
+        <li>
+          <strong>iPhone:</strong> pelo <strong>Safari</strong>, em <strong>Compartilhar</strong> &gt;{" "}
+          <strong>Adicionar à Tela de Início</strong>.
+        </li>
+        <li>Não baixa nada de loja: abre pelo ícone e já com o seu login.</li>
       </ul>
     ),
   },

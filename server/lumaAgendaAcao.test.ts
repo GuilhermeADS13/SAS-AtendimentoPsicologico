@@ -62,6 +62,13 @@ describe("pareceNavegacao", () => {
     "como coloco meu prontuário aqui?",
     "como envio o meu modelo de prontuário",
     "como anexo um documento",
+    // Funções de 2026-11: a pergunta tem que trazer o mapa, senão a Luma não sabe delas.
+    "como gero o recibo do paciente?",
+    "dá para fazer recibo para o imposto de renda?",
+    "como importo meus pacientes da planilha do excel",
+    "tem lista de espera?",
+    "como instalo o app no celular",
+    "tem aplicativo para baixar?",
   ])("reconhece navegação: %s", (msg) => {
     expect(pareceNavegacao(msg)).toBe(true);
   });
@@ -71,6 +78,7 @@ describe("pareceNavegacao", () => {
     "como está a evolução do paciente?",
     "agende uma consulta para amanhã",
     "quanto é 1 + 1",
+    "mande o lembrete pelo whatsapp",
   ])("NÃO confunde leitura/ação/fora de escopo com navegação: %s", (msg) => {
     expect(pareceNavegacao(msg)).toBe(false);
   });

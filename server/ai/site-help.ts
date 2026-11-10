@@ -7,6 +7,8 @@ export type SiteHelpTopic =
   | "appointments"
   | "reschedule"
   | "payments"
+  | "receipt"
+  | "app"
   | "profile"
   | "therapist"
   | "video"
@@ -92,6 +94,28 @@ function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
 
   // "pago"/"paguei"/"custa" ficavam de fora ("pagar" não casa com "pago"), então
   // pergunta de preço caía no tópico de agenda. O `paga\b` evita casar com "página".
+  // Recibo antes de pagamento: "quero o recibo do que paguei" tem "paguei".
+  // Sem "ir" sozinho: pegaria "como faço para ir para a sala?".
+  if (/(recibo|imposto de renda|\bdeclarar\b|declaracao de imposto)/.test(normalized)) {
+    return {
+      model: "site-help-local",
+      topic: "receipt",
+      content:
+        "Quem emite o recibo é a sua psicóloga: peça a ela em “Mensagens”. Ela gera no sistema, das sessões que você pagou, com o CPF dela, o seu e o valor, pronto para o Imposto de Renda. Se outra pessoa pagou (o responsável, por exemplo), o recibo pode sair no nome dela.",
+    };
+  }
+
+  // Instalar como app (PWA). Só com intenção de instalar ou baixar: "o app não abre
+  // a câmera" é problema de vídeo, mais abaixo.
+  if (/(instal|(?:baixar|baixo|tem|ter|existe|usar como|abrir como) (?:o |um )?(?:app|aplicativo)|tela inicial|tela de inicio|play store|app store|loja de apps)/.test(normalized)) {
+    return {
+      model: "site-help-local",
+      topic: "app",
+      content:
+        "O VozInterior funciona como aplicativo, sem loja: no menu, toque em “Instalar o app” (ou no aviso “Use como aplicativo”, no alto da tela). No iPhone é pelo Safari: toque em Compartilhar (o quadrado com a seta) e depois em “Adicionar à Tela de Início”. Depois é só abrir pelo ícone, com o mesmo login.",
+    };
+  }
+
   // O `\b` NA FRENTE: "apago"/"apagar" contêm "pago"/"pagar", e "como apago uma
   // mensagem?" recebia a resposta de pagamento.
   if (/(\bpagamento|\bpagar|\bpago|\bpaguei|\bpaga\b|cobranca|valor|preco|custa|custo|boleto|pix|nota fiscal|honorario|mensalidade)/.test(normalized)) {
