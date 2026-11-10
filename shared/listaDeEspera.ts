@@ -8,6 +8,8 @@
  * periodos: "manha" | "tarde" | "noite". Vazio = qualquer horário.
  */
 
+import { FUSO_BR } from "./datas";
+
 export const PERIODOS = [
   { id: "manha", rotulo: "Manhã", ate: 12 },
   { id: "tarde", rotulo: "Tarde", ate: 18 },
@@ -18,11 +20,13 @@ export const IDS_DOS_PERIODOS = PERIODOS.map((p) => p.id) as [Periodo, ...Period
 
 export const DIAS_CURTOS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"] as const;
 
-const FUSO = "America/Sao_Paulo";
+// Criado uma vez: a Agenda chama isto para cada pessoa da lista em cada consulta
+// cancelada, a cada redesenho, e montar um Intl.DateTimeFormat é caro.
+const FORMATO = new Intl.DateTimeFormat("en-US", { timeZone: FUSO_BR, weekday: "short", hour: "numeric", hourCycle: "h23" });
 
 /** Dia da semana e hora no horário de Brasília (o servidor e o aparelho podem estar em outro fuso). */
 function diaEHora(d: Date): { dia: number; hora: number } {
-  const partes = new Intl.DateTimeFormat("en-US", { timeZone: FUSO, weekday: "short", hour: "numeric", hourCycle: "h23" }).formatToParts(d);
+  const partes = FORMATO.formatToParts(d);
   const semana = partes.find((p) => p.type === "weekday")?.value ?? "Sun";
   const hora = Number(partes.find((p) => p.type === "hour")?.value ?? 0);
   return { dia: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(semana), hora };

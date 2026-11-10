@@ -15,15 +15,15 @@ import {
   mensagemDeHorarioLivre,
   type Periodo,
 } from "@shared/listaDeEspera";
+import { FUSO_BR } from "@shared/datas";
 
 type Paciente = { id: number; firstName: string; lastName: string; status?: string | null };
 type Item = { patientId: number; firstName: string; lastName: string; phone: string | null; diasDaSemana: number[]; periodos: string[]; observacao: string | null };
 
-const FUSO = "America/Sao_Paulo";
 /** "quinta-feira, 12/11, às 14:00" */
 export function quandoPorExtenso(d: Date): string {
-  const dia = d.toLocaleDateString("pt-BR", { timeZone: FUSO, weekday: "long", day: "2-digit", month: "2-digit" });
-  const hora = d.toLocaleTimeString("pt-BR", { timeZone: FUSO, hour: "2-digit", minute: "2-digit" });
+  const dia = d.toLocaleDateString("pt-BR", { timeZone: FUSO_BR, weekday: "long", day: "2-digit", month: "2-digit" });
+  const hora = d.toLocaleTimeString("pt-BR", { timeZone: FUSO_BR, hour: "2-digit", minute: "2-digit" });
   return `${dia}, às ${hora}`;
 }
 
@@ -230,7 +230,18 @@ export function ListaDeEspera({ pacientes }: { pacientes: Paciente[] }) {
  * "Horário livre": abre ao cancelar uma consulta futura (e pelo aviso na consulta
  * cancelada) com quem da lista quer aquele dia e período.
  */
-export function HorarioLivre({ quando, interessados, aoFechar }: { quando: Date | null; interessados: Item[]; aoFechar: () => void }) {
+export function HorarioLivre({
+  quando,
+  interessados,
+  cancelado,
+  aoFechar,
+}: {
+  quando: Date | null;
+  interessados: Item[];
+  /** Logo depois de cancelar: o aviso ao paciente desmarcado vem primeiro. */
+  cancelado?: { nome: string; href: string | null };
+  aoFechar: () => void;
+}) {
   if (!quando) return null;
   const texto = quandoPorExtenso(quando);
   return (
@@ -243,6 +254,24 @@ export function HorarioLivre({ quando, interessados, aoFechar }: { quando: Date 
             lista de espera {interessados.length === 1 ? "quer" : "querem"} este horário. Ofereça para quem você escolher.
           </DialogDescription>
         </DialogHeader>
+        {cancelado && (
+          <div className="flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="min-w-0 flex-1">
+              <strong className="font-semibold">Primeiro, avise {cancelado.nome.split(" ")[0]}</strong> do cancelamento: o e-mail
+              pode cair no spam.
+            </p>
+            {cancelado.href ? (
+              <Button asChild size="sm" variant="outline" className="shrink-0 border-green-200 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800">
+                <a href={cancelado.href} target="_blank" rel="noopener noreferrer">
+                  <WhatsAppIcon className="mr-1.5 size-4" />
+                  Avisar
+                </a>
+              </Button>
+            ) : (
+              <span className="shrink-0 text-xs">Sem telefone no cadastro</span>
+            )}
+          </div>
+        )}
         <ul className="divide-y rounded-lg border">
           {interessados.map((item) => {
             const href = linkDoWhatsApp(item.phone, mensagemDeHorarioLivre({ primeiroNome: item.firstName, quando: texto }));

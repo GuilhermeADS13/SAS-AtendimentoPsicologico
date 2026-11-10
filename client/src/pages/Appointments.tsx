@@ -77,7 +77,13 @@ export default function Appointments() {
   const { data: patients = [] } = trpc.patients.list.useQuery();
   // Lista de espera: ao cancelar uma consulta futura, quem da lista quer aquele horário.
   const { data: listaDeEspera = [] } = trpc.listaDeEspera.listar.useQuery();
-  const [horarioLivre, setHorarioLivre] = useState<{ quando: Date; patientId: number } | null>(null);
+  // `cancelado`: só logo depois de cancelar, para a janela trazer também o aviso
+  // ao paciente desmarcado (o toast com esse aviso ficaria atrás da janela).
+  const [horarioLivre, setHorarioLivre] = useState<{
+    quando: Date;
+    patientId: number;
+    cancelado?: { nome: string; href: string | null };
+  } | null>(null);
   const interessadosNo = (quando: Date, patientId: number) =>
     listaDeEspera.filter((e) => e.patientId !== patientId && querEsteHorario(e, quando));
   // Fotos dos pacientes (assinadas no servidor; a URL vale 1 h).
@@ -213,9 +219,16 @@ export default function Appointments() {
       // um clique, e a psicóloga precisa ler a mensagem antes de enviar.
       const appt = appointments.find((a) => a.id === vars.id);
       const href = appt ? whatsappHref(appt, "cancelamento") : null;
+      // Alguém da lista de espera quer o horário: a janela "Horário livre" abre e
+      // traz o aviso ao paciente cancelado no topo, em vez do toast. Uma janela
+      // aberta por cima do toast tirava o clique dele, e esse aviso não pode se perder.
       if (appt) {
         const quando = new Date(appt.scheduledAt);
-        if (quando > new Date() && interessadosNo(quando, appt.patientId).length) setHorarioLivre({ quando, patientId: appt.patientId });
+        if (quando > new Date() && interessadosNo(quando, appt.patientId).length) {
+          setHorarioLivre({ quando, patientId: appt.patientId, cancelado: { nome: patientName(appt.patientId), href } });
+          toast.success("Consulta cancelada");
+          return;
+        }
       }
 
       if (!href) {
@@ -1222,6 +1235,7 @@ export default function Appointments() {
       <HorarioLivre
         quando={horarioLivre?.quando ?? null}
         interessados={horarioLivre ? interessadosNo(horarioLivre.quando, horarioLivre.patientId) : []}
+        cancelado={horarioLivre?.cancelado}
         aoFechar={() => setHorarioLivre(null)}
       />
 
