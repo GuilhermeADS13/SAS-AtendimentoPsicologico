@@ -225,7 +225,7 @@ const therapistSteps: Step[] = [
     path: "/configuracoes",
     icon: Smartphone,
     title: "Instalar como app",
-    body: "Coloque o VozInterior na tela inicial do celular ou do computador e abra direto, como um aplicativo. Toque em “Instalar o app”; se o botão não aparecer, siga a dica que fica aqui (no iPhone, é pelo Safari).",
+    body: "Coloque o VozInterior na tela inicial do celular ou do computador e abra direto, como um aplicativo. Toque em “Instalar o app”; se o botão não aparecer, siga a dica que fica aqui (no iPhone, é pelo Safari). O atalho também fica no menu, em “Instalar o app”.",
     target: '[data-tour="config-app"]',
   },
   {
@@ -298,7 +298,7 @@ const patientSteps: Step[] = [
     path: "/configuracoes",
     icon: Smartphone,
     title: "Instalar como app",
-    body: "Coloque o VozInterior na tela inicial do celular e abra direto, como um aplicativo. Toque em “Instalar o app”; se o botão não aparecer, siga a dica que fica aqui (no iPhone, é pelo Safari).",
+    body: "Coloque o VozInterior na tela inicial do celular e abra direto, como um aplicativo. Toque em “Instalar o app”; se o botão não aparecer, siga a dica que fica aqui (no iPhone, é pelo Safari). O atalho também fica no menu, em “Instalar o app”.",
     target: '[data-tour="config-app"]',
   },
   {

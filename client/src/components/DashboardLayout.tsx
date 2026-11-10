@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { AvisoInstalarApp, ItemInstalarApp } from "@/components/InstalarAppNoSistema";
 import { preCarregarPaginas } from "@/paginas";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -332,6 +333,7 @@ function DashboardLayoutContent({
                   </SidebarMenuItem>
                 );
               })}
+              <ItemInstalarApp />
             </SidebarMenu>
           </SidebarContent>
 
@@ -389,6 +391,7 @@ function DashboardLayoutContent({
         {/* div, não main: o SidebarInset já é o <main> da página (dois confundem o leitor de tela). */}
         <div id="conteudo" tabIndex={-1} className="flex-1 p-4 outline-none">
           {isTherapist && <AvisoDoPlano />}
+          <AvisoInstalarApp />
           {children}
         </div>
       </SidebarInset>

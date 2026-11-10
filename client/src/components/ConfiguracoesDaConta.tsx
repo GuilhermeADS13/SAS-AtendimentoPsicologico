@@ -293,10 +293,6 @@ export function SegurancaDaConta({ confirmaAparelho }: { confirmaAparelho: boole
  * consegue instalar de verdade; no iPhone/iPad, o caminho é pelo Safari.
  */
 export function AplicativoCard() {
-  const podeInstalar = usePodeInstalar();
-  const instalado = abertoComoApp();
-  const apple = ehAparelhoApple();
-
   return (
     <Card data-tour="config-app">
       <CardHeader>
@@ -310,34 +306,51 @@ export function AplicativoCard() {
           titulo="Instalar o VozInterior"
           descricao="Abre com um toque pela tela inicial do celular ou do computador, sem baixar nada de loja."
         >
-          {instalado ? (
-            <p className="text-sm text-muted-foreground">O VozInterior já está instalado neste aparelho.</p>
-          ) : podeInstalar ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-10 sm:h-8"
-              onClick={async () => {
-                if (await instalarApp()) toast.success("Pronto! O VozInterior foi instalado.");
-              }}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Instalar o app
-            </Button>
-          ) : apple ? (
-            <p className="text-sm text-muted-foreground">
-              No <strong className="text-foreground">Safari</strong>, toque em <strong className="text-foreground">Compartilhar</strong>{" "}
-              (o quadrado com a seta) e depois em <strong className="text-foreground">Adicionar à Tela de Início</strong>.
-            </p>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Abra o menu do navegador e procure <strong className="text-foreground">Instalar o app</strong> ou{" "}
-              <strong className="text-foreground">Adicionar à tela inicial</strong>. No Chrome e no Edge, o botão aparece aqui.
-            </p>
-          )}
+          <ComoInstalar />
         </Linha>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * O botão de instalar, ou o caminho no navegador quando ele não oferece o botão
+ * (iPhone: pelo Safari). Usado no cartão daqui, no menu e no aviso do topo.
+ */
+export function ComoInstalar({ aoInstalar }: { aoInstalar?: () => void }) {
+  const podeInstalar = usePodeInstalar();
+  if (abertoComoApp()) return <p className="text-sm text-muted-foreground">O VozInterior já está instalado neste aparelho.</p>;
+  if (podeInstalar) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-10 sm:h-8"
+        onClick={async () => {
+          if (await instalarApp()) {
+            toast.success("Pronto! O VozInterior foi instalado.");
+            aoInstalar?.();
+          }
+        }}
+      >
+        <Download className="mr-2 h-4 w-4" />
+        Instalar o app
+      </Button>
+    );
+  }
+  if (ehAparelhoApple()) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No <strong className="text-foreground">Safari</strong>, toque em <strong className="text-foreground">Compartilhar</strong>{" "}
+        (o quadrado com a seta) e depois em <strong className="text-foreground">Adicionar à Tela de Início</strong>.
+      </p>
+    );
+  }
+  return (
+    <p className="text-sm text-muted-foreground">
+      Abra o menu do navegador e procure <strong className="text-foreground">Instalar o app</strong> ou{" "}
+      <strong className="text-foreground">Adicionar à tela inicial</strong>. No Chrome e no Edge, o botão aparece aqui.
+    </p>
   );
 }
 
