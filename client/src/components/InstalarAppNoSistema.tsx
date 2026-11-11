@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ComoInstalar } from "@/components/ConfiguracoesDaConta";
-import { abertoComoApp, ehAparelhoApple, instalarApp, usePodeInstalar } from "@/lib/instalarApp";
+import { abertoComoApp, ehAparelhoApple, ehSafariNoMacQueInstala, instalarApp, usePodeInstalar } from "@/lib/instalarApp";
 import { emDemonstracao } from "@/lib/demonstracao";
 
 /**
@@ -60,14 +60,15 @@ function avisoFechado(): boolean {
 
 /**
  * Aviso no topo. Só aparece onde dá para instalar de verdade: com o botão do
- * navegador (Chrome/Edge, Android e computador) ou no iPhone/iPad pelo Safari.
+ * navegador (Chrome/Edge, Android e computador), no iPhone/iPad pelo Safari ou no
+ * Safari do Mac (Arquivo > Adicionar ao Dock).
  * Fechou, não volta neste aparelho.
  */
 export function AvisoInstalarApp() {
   const podeInstalar = usePodeInstalar();
   const [fechado, setFechado] = useState(avisoFechado);
   const [comoFazer, setComoFazer] = useState(false);
-  if (fechado || abertoComoApp() || emDemonstracao() || !(podeInstalar || ehAparelhoApple())) return null;
+  if (fechado || abertoComoApp() || emDemonstracao() || !(podeInstalar || ehAparelhoApple() || ehSafariNoMacQueInstala())) return null;
 
   const fechar = () => {
     setFechado(true);

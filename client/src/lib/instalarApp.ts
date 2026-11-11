@@ -64,6 +64,20 @@ export function ehAparelhoApple(): boolean {
   return /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 }
 
+/**
+ * Safari no Mac (não iPad, não Chrome/Edge/Firefox de Mac). Do Safari 17 em diante ele
+ * instala o site como app por "Arquivo > Adicionar ao Dock", sem o pedido que o Chrome
+ * e o Edge fazem: a tela só pode explicar o caminho.
+ */
+export function ehSafariNoMacQueInstala(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  if (!/Macintosh/.test(ua) || navigator.maxTouchPoints > 1) return false;
+  if (!/Safari\//.test(ua) || /Chrome|Chromium|CriOS|Edg|Firefox|FxiOS|OPR/.test(ua)) return false;
+  const versao = Number(/Version\/(\d+)/.exec(ua)?.[1] ?? 0);
+  return versao >= 17;
+}
+
 /** Registra o service worker. Só em produção: no dev ele brigaria com o Vite. */
 export function registrarServiceWorker(): void {
   if (!import.meta.env.PROD || typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;

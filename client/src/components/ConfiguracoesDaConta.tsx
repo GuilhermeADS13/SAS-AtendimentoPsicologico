@@ -1,7 +1,7 @@
 import { ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { Bell, Download, LogOut, ShieldCheck, Smartphone, UserX } from "lucide-react";
-import { abertoComoApp, ehAparelhoApple, instalarApp, usePodeInstalar } from "@/lib/instalarApp";
+import { abertoComoApp, ehAparelhoApple, ehSafariNoMacQueInstala, instalarApp, usePodeInstalar } from "@/lib/instalarApp";
 import { LogoDoNavegador } from "@/components/LogoDoNavegador";
 import { trpc } from "@/lib/trpc";
 import { supabase } from "@/lib/supabase";
@@ -336,6 +336,14 @@ export function ComoInstalar({ aoInstalar }: { aoInstalar?: () => void }) {
         <Download className="mr-2 h-4 w-4" />
         Instalar o app
       </Button>
+    );
+  }
+  if (ehSafariNoMacQueInstala()) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No <strong className="text-foreground">Safari</strong>, abra o menu <strong className="text-foreground">Arquivo</strong> e
+        clique em <strong className="text-foreground">Adicionar ao Dock</strong>.
+      </p>
     );
   }
   if (ehAparelhoApple()) {

@@ -761,6 +761,9 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
           <strong>iPhone:</strong> pelo <strong>Safari</strong>, em <strong>Compartilhar</strong> &gt;{" "}
           <strong>Adicionar à Tela de Início</strong>.
         </li>
+        <li>
+          <strong>Mac com Safari:</strong> menu <strong>Arquivo</strong> &gt; <strong>Adicionar ao Dock</strong>.
+        </li>
         <li>Não baixa nada de loja: abre pelo ícone e já com o seu login.</li>
       </ul>
     ),
