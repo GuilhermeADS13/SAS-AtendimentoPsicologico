@@ -1,5 +1,13 @@
 import { toast } from "sonner";
-import { PLANOS, TEXTO_LUMA_NO_PRONTUARIO, formatarReais, planoPorId, valorDoPlano } from "@shared/precos";
+import {
+  PLANOS,
+  TEXTO_LUMA_NO_PRONTUARIO,
+  TEXTO_RELATORIO_DE_GESTAO,
+  ehPlanoDaTabela,
+  formatarReais,
+  planoPorId,
+  valorDoPlano,
+} from "@shared/precos";
 import { trpc } from "@/lib/trpc";
 import { linkWhatsAppDoSuporte } from "@/lib/suporte";
 import { Button } from "@/components/ui/button";
@@ -21,8 +29,8 @@ export const ehErroDeLimiteDoPlano = (mensagem: string | undefined) => /mude de 
 /**
  * Janela que abre quando ela tenta cadastrar (ou reativar) um paciente acima do
  * teto do plano: explica o PORQUÊ e troca de plano com um clique, já seguindo
- * com o cadastro (`aoTrocar`). Do Voz para o Coro não há troca sozinha — é
- * combinado pelo WhatsApp.
+ * com o cadastro (`aoTrocar`). Do Coro para o Sob medida não há troca sozinha —
+ * é combinado pelo WhatsApp.
  */
 export function TrocarDePlanoDialog({
   aberto,
@@ -54,9 +62,9 @@ export function TrocarDePlanoDialog({
   const n = data.pacientes;
   const valorAgora = valorDoPlano(n, atual.id, { fundador: data.fundador, combinado: data.valorCombinado });
   const valorDepois = proximo ? valorDoPlano(n + 1, proximo.id, { fundador: data.fundador, combinado: data.valorCombinado }) : null;
-  const ehCoro = !proximo || proximo.ate === null;
-  const coro = linkWhatsAppDoSuporte(
-    `Olá! Tenho ${n} pacientes no plano ${atual.nome} do VozInterior e quero passar para o Coro.`,
+  const ehSobMedida = !proximo || proximo.ate === null;
+  const sobMedida = linkWhatsAppDoSuporte(
+    `Olá! Tenho ${n} pacientes no plano ${atual.nome} do VozInterior e quero conversar sobre um plano sob medida.`,
   );
   const verbo = acao === "reativar" ? "reativar" : "cadastrar";
 
@@ -110,6 +118,12 @@ export function TrocarDePlanoDialog({
                     {TEXTO_LUMA_NO_PRONTUARIO}
                   </li>
                 )}
+                {proximo.relatorioDeGestao && !atual.relatorioDeGestao && (
+                  <li className="flex gap-2">
+                    <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+                    {TEXTO_RELATORIO_DE_GESTAO}
+                  </li>
+                )}
                 {proximo.anexoMaxMb && (
                   <li className="flex gap-2">
                     <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
@@ -120,7 +134,7 @@ export function TrocarDePlanoDialog({
             )}
           </div>
 
-          {!ehCoro && valorAgora !== null && valorDepois !== null && (
+          {!ehSobMedida && valorAgora !== null && valorDepois !== null && (
             <div className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3 tabular-nums">
               <div>
                 <p className="text-xs text-muted-foreground">{atual.nome} hoje</p>
@@ -136,8 +150,8 @@ export function TrocarDePlanoDialog({
             </div>
           )}
           <p className="text-xs text-muted-foreground">
-            {ehCoro
-              ? "O Coro é para clínicas e equipes: o valor é combinado com você pelo WhatsApp."
+            {ehSobMedida
+              ? "Acima do Coro, o plano é sob medida para clínicas e equipes: o valor é combinado com você pelo WhatsApp."
               : "Os bônus valem na hora; o valor novo entra no próximo Pix. Paciente que encerrou o acompanhamento pode ser marcado como inativo e deixa de contar."}
           </p>
         </div>
@@ -146,18 +160,18 @@ export function TrocarDePlanoDialog({
           <Button variant="ghost" onClick={aoFechar}>
             Agora não
           </Button>
-          {ehCoro ? (
-            coro && (
+          {ehSobMedida ? (
+            sobMedida && (
               <Button asChild className="gap-2">
-                <a href={coro} target="_blank" rel="noopener noreferrer">
-                  <WhatsAppIcon className="size-4" /> Conversar sobre o Coro
+                <a href={sobMedida} target="_blank" rel="noopener noreferrer">
+                  <WhatsAppIcon className="size-4" /> Conversar sobre o sob medida
                 </a>
               </Button>
             )
           ) : (
             <Button
               disabled={mudar.isPending}
-              onClick={() => proximo && (proximo.id === "pro" || proximo.id === "max") && mudar.mutate({ plano: proximo.id })}
+              onClick={() => proximo && ehPlanoDaTabela(proximo.id) && mudar.mutate({ plano: proximo.id })}
             >
               {mudar.isPending ? "Mudando..." : `Mudar para ${proximo?.nome} e ${verbo}`}
             </Button>

@@ -182,7 +182,7 @@ const therapistSteps: Step[] = [
     path: "/financeiro",
     icon: Wallet,
     title: "Financeiro",
-    body: "Veja quanto já recebeu e quanto falta receber. As setas trocam a semana, o mês ou o ano. Quando um paciente avisa que pagou pelo Pix, aparece em “Pagamentos para confirmar”: confira no banco e toque em “Confirmar recebimento”. Embaixo, quem ainda não pagou: “Cobrar no WhatsApp” manda para o paciente o Pix já com o valor, e “Mostrar QR” é para ele pagar lendo com o celular. No plano Coro, aqui também fica o relatório da clínica.",
+    body: "Veja quanto já recebeu e quanto falta receber. As setas trocam a semana, o mês ou o ano. Quando um paciente avisa que pagou pelo Pix, aparece em “Pagamentos para confirmar”: confira no banco e toque em “Confirmar recebimento”. Embaixo, quem ainda não pagou: “Cobrar no WhatsApp” manda para o paciente o Pix já com o valor, e “Mostrar QR” é para ele pagar lendo com o celular. Nos planos Canto e Coro, aqui também fica o relatório da clínica.",
     target: '[data-tour="financeiro"]',
   },
   {
@@ -196,7 +196,7 @@ const therapistSteps: Step[] = [
     path: "/assinatura",
     icon: CreditCard,
     title: "Sua assinatura",
-    body: "Seu plano, o valor e até quando está liberada. Os 14 dias grátis começam no primeiro paciente, e você tem 30 dias depois da aprovação para cadastrá-lo. Sussurro vai até 10 pacientes e Voz até 30, com preço fixo; no Voz eu também te ajudo a montar o prontuário, e no Coro você ganha o relatório da clínica. Troque quando quiser. Para pagar, copie o Pix ou leia o QR, que já vem com o valor. Escolha também o dia do vencimento no calendário. Três dias antes, eu te aviso.",
+    body: "Seu plano, o valor e até quando está liberada. Os 14 dias grátis começam no primeiro paciente, e você tem 30 dias depois da aprovação para cadastrá-lo. São quatro planos com preço fixo: Sussurro até 11 pacientes, Voz até 22, Canto até 33 e Coro até 44. Do Voz para cima eu também te ajudo a montar o prontuário, e do Canto para cima você ganha o relatório da clínica. Troque quando quiser. Para pagar, copie o Pix ou leia o QR, que já vem com o valor. Escolha também o dia do vencimento no calendário. Três dias antes, eu te aviso.",
     target: '[data-tour="assinatura"]',
   },
   {

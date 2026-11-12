@@ -55,7 +55,7 @@ mesmo e-mail; aí vira **Ativo**.
 
 ### 💳 Planos e assinatura
 
-Planos por número de pacientes (**Sussurro**, **Voz** e **Coro** sob medida), pagos por Pix,
+Planos por número de pacientes (**Sussurro**, **Voz**, **Canto** e **Coro**, e **Sob medida** acima de 44), pagos por Pix,
 mensal ou anual. **14 dias grátis**, contados a partir do primeiro paciente. Detalhes em
 [`shared/precos.ts`](./shared/precos.ts) e na página `/precos`.
 

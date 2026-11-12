@@ -285,7 +285,7 @@ export function clinicalSystemPrompt(
   toolsEnabled = true,
   patientName?: string,
   foco?: FocoDoPrompt,
-  /** O que o plano dela inclui (prontuário: Voz e Coro; relatório: Coro). */
+  /** O que o plano dela inclui (prontuário: do Voz para cima; relatório: do Canto para cima). */
   recursos: RecursosDaLuma = TODOS_OS_RECURSOS,
 ): string {
   const prontuarioLiberado = recursos.prontuario;
@@ -331,7 +331,7 @@ export function clinicalSystemPrompt(
       ? "Em respostas longas, organize com títulos ou tabela para facilitar a leitura, sem inventar dados."
       : "",
     toolsEnabled
-      ? `Suas capacidades: consultar a agenda, ver a SUA PRÓPRIA agenda (próximo paciente, o que tem hoje/amanhã/na semana, quem ainda não confirmou presença), apontar pacientes ATIVOS que sumiram (sem consulta há tempo e sem nenhuma marcada) e listar pagamentos pendentes de consultas já realizadas, apontar O QUE falta nos prontuários frente à norma do CFP, ${prontuarioLiberado ? "ajudar com a ESTRUTURA do prontuário (o que registrar em cada parte, montar um modelo em branco no formato dela, indicar os modelos prontos)" : "ajudar com a ESTRUTURA do prontuário — recurso do plano Voz, que o plano dela não inclui"}${recursos.relatorio ? ", mostrar o relatório da clínica (comparecimento, faltas, quem está devendo, quem sumiu)" : ""} e — com confirmação — agendar (inclusive semanal recorrente), remarcar, cancelar consultas e registrar pagamento. Você NÃO lê sessões, documentos nem o conteúdo de prontuários. Se perguntarem o que você pode fazer, liste isso de forma breve, clara e em LINGUAGEM NATURAL. NUNCA cite nomes técnicos de ferramentas ou funções, nomes de campos, esquemas ou identificadores internos — descreva o que você faz, nunca o nome técnico por trás.`
+      ? `Suas capacidades: consultar a agenda, ver a SUA PRÓPRIA agenda (próximo paciente, o que tem hoje/amanhã/na semana, quem ainda não confirmou presença), apontar pacientes ATIVOS que sumiram (sem consulta há tempo e sem nenhuma marcada) e listar pagamentos pendentes de consultas já realizadas, apontar O QUE falta nos prontuários frente à norma do CFP, ${prontuarioLiberado ? "ajudar com a ESTRUTURA do prontuário (o que registrar em cada parte, montar um modelo em branco no formato dela, indicar os modelos prontos)" : "ajudar com a ESTRUTURA do prontuário — recurso do plano Voz para cima, que o plano dela não inclui"}${recursos.relatorio ? ", mostrar o relatório da clínica (comparecimento, faltas, quem está devendo, quem sumiu)" : ""} e — com confirmação — agendar (inclusive semanal recorrente), remarcar, cancelar consultas e registrar pagamento. Você NÃO lê sessões, documentos nem o conteúdo de prontuários. Se perguntarem o que você pode fazer, liste isso de forma breve, clara e em LINGUAGEM NATURAL. NUNCA cite nomes técnicos de ferramentas ou funções, nomes de campos, esquemas ou identificadores internos — descreva o que você faz, nunca o nome técnico por trás.`
       : "",
     ctx.role === "therapist" && prontuarioLiberado
       ? `PRONTUÁRIO: SÓ A ESTRUTURA. Você ajuda com a FORMA do registro — nunca com o conteúdo de um paciente. Pode: explicar o que a Resolução CFP 001/2009 pede no prontuário (identificação, avaliação da demanda, objetivos do trabalho, registro da evolução de cada sessão e registro de encaminhamento ou encerramento; guarda por no mínimo 5 anos); montar um MODELO EM BRANCO, só com títulos e campos vazios, no formato dela (o bloco FORMATO DE PRONTUÁRIO, quando existir); sugerir quais campos usar em cada situação; e indicar os modelos prontos do editor de anotação da sessão, no botão de modelos — ${MODELOS_PRONTOS}. NÃO pode: receber, resumir, organizar ou reescrever anotações, falas ou dados clínicos de pacientes, nem preencher um modelo com eles. Se ela colar ou descrever o conteúdo de uma sessão, NÃO trabalhe com ele: diga em uma frase que, para proteger os pacientes, você não recebe anotações de sessão (o que chega aqui vai para um provedor de inteligência artificial fora do Brasil), que ela escreve direto no prontuário, e ofereça o modelo em branco. Você não salva nada no prontuário.`
@@ -628,12 +628,12 @@ export async function runOpenSourceAgent(
   }
 
   // Relatório da clínica: calculado pelo sistema, sem IA — não gasta cota e nenhum
-  // nome de paciente vai ao provedor. Diferencial do Coro.
+  // nome de paciente vai ao provedor. Do Canto para cima.
   if (ctx.role === "therapist" && pedeRelatorioDaClinica(ultimaFala)) {
     recordAgentRequest(Date.now() - startedAt, "success");
     if (!recursos.relatorio || ctx.therapistId == null) {
       return {
-        content: "O relatório da clínica (comparecimento, faltas, quem está devendo e quem sumiu) faz parte do plano Coro, combinado pelo WhatsApp na aba Assinatura. Enquanto isso, no Financeiro você vê o que recebeu e quem ainda não pagou.",
+        content: "O relatório da clínica (comparecimento, faltas, quem está devendo e quem sumiu) faz parte dos planos Canto e Coro, que você escolhe na aba Assinatura. Enquanto isso, no Financeiro você vê o que recebeu e quem ainda não pagou.",
         model: "relatorio-da-clinica",
         sources: [],
       };

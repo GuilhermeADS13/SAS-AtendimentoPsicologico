@@ -3,13 +3,16 @@
  * do preço por paciente). Cada plano tem um valor mensal e um limite de
  * pacientes; dentro do limite, o valor não muda.
  *
- * - Sussurro: R$ 39/mês, até 10 pacientes.
- * - Voz: R$ 89/mês, até 30 pacientes — e a Luma ajuda na estrutura do prontuário.
- * - Coro: combinado com o Guilherme (sob medida, ver valorDoPlano) — e ainda o
- *   relatório da clínica.
+ * Tabela de 2026-11-12 (decisão do Guilherme, "mais justo" por faixa de 11):
+ * - Sussurro: R$ 31/mês, até 11 pacientes.
+ * - Voz: R$ 81/mês, 12 a 22 — e a Luma ajuda na estrutura do prontuário.
+ * - Canto: R$ 151/mês, 23 a 33 — e ainda o relatório da clínica.
+ * - Coro: R$ 241/mês, 34 a 44 — tudo do Canto.
+ * - Sob medida: mais de 44, combinado com o Guilherme (ver valorDoPlano).
  *
- * Valores para a região do Guilherme desde 2026-10-28 (eram R$ 69 e R$ 129); a
- * Psicóloga Fundadora continua com 20% a menos em cima deles.
+ * Antes: Sussurro R$ 39 (até 10), Voz R$ 89 (até 30), Coro sob medida; e antes
+ * de 2026-10-28, R$ 69 e R$ 129. A Psicóloga Fundadora continua com 20% a menos
+ * em cima da tabela.
  *
  * Referência de mercado: iClinic e PsicoManager cobram R$ 89 a 129.
  *
@@ -18,10 +21,17 @@
  * Supabase grátis tem 1 GB de arquivos no total. Ver o histórico de 2026-10-26.
  */
 
-/** Acima disso o plano é o Coro, negociado direto ("Fale comigo"). */
-export const MAX_PACIENTES_NA_TABELA = 30;
+/** Acima disso o plano é o Sob medida, negociado direto ("Fale comigo"). */
+export const MAX_PACIENTES_NA_TABELA = 44;
 
-export type PlanoId = "pro" | "max" | "unlimited";
+/** Os planos de preço fixo, que ela escolhe sozinha (o Sob medida é combinado). */
+export const IDS_DA_TABELA = ["pro", "max", "canto", "coro"] as const;
+export type PlanoDaTabelaId = (typeof IDS_DA_TABELA)[number];
+export type PlanoId = PlanoDaTabelaId | "unlimited";
+
+export function ehPlanoDaTabela(id: string | null | undefined): id is PlanoDaTabelaId {
+  return (IDS_DA_TABELA as readonly string[]).includes(id ?? "");
+}
 
 export type Plano = {
   id: PlanoId;
@@ -29,7 +39,7 @@ export type Plano = {
   /** Faixa de pacientes do plano; `ate` null = sem teto. */
   de: number;
   ate: number | null;
-  /** Mensalidade fixa, em centavos; null = combinada (Coro). */
+  /** Mensalidade fixa, em centavos; null = combinada (Sob medida). */
   precoCentavos: number | null;
   perguntasLumaPorDia: number | null;
   anexoMaxMb: number | null;
@@ -39,7 +49,7 @@ export type Plano = {
    */
   lumaNoProntuario: boolean;
   /**
-   * Diferencial do Coro (2026-10-28): o sistema calcula o relatório da clínica
+   * Do Canto para cima (2026-11-12; antes só no Coro): o sistema calcula o relatório da clínica
    * (faltas, comparecimento, inadimplência) — sem IA. A Luma NÃO ajuda com
    * documentos psicológicos (laudo, atestado...) em nenhum plano (decisão de 2026-10-28).
    */
@@ -48,12 +58,15 @@ export type Plano = {
 
 export const PLANOS: readonly Plano[] = [
   // Nomes no tema VozInterior (2026-10-26): a voz cresce com o consultório.
-  // Os ids continuam pro/max/unlimited — só o nome aparece na tela.
-  { id: "pro", nome: "Sussurro", de: 1, ate: 10, precoCentavos: 3900, perguntasLumaPorDia: 5, anexoMaxMb: 5, lumaNoProntuario: false, relatorioDeGestao: false },
-  { id: "max", nome: "Voz", de: 11, ate: MAX_PACIENTES_NA_TABELA, precoCentavos: 8900, perguntasLumaPorDia: 15, anexoMaxMb: 10, lumaNoProntuario: true, relatorioDeGestao: false },
+  // Os ids pro/max/unlimited são antigos (gravados no banco) — só o nome aparece
+  // na tela. "unlimited" era o Coro sob medida; desde 2026-11-12 é o Sob medida.
+  { id: "pro", nome: "Sussurro", de: 1, ate: 11, precoCentavos: 3100, perguntasLumaPorDia: 5, anexoMaxMb: 5, lumaNoProntuario: false, relatorioDeGestao: false },
+  { id: "max", nome: "Voz", de: 12, ate: 22, precoCentavos: 8100, perguntasLumaPorDia: 15, anexoMaxMb: 10, lumaNoProntuario: true, relatorioDeGestao: false },
+  { id: "canto", nome: "Canto", de: 23, ate: 33, precoCentavos: 15100, perguntasLumaPorDia: 20, anexoMaxMb: 15, lumaNoProntuario: true, relatorioDeGestao: true },
+  { id: "coro", nome: "Coro", de: 34, ate: MAX_PACIENTES_NA_TABELA, precoCentavos: 24100, perguntasLumaPorDia: 25, anexoMaxMb: 20, lumaNoProntuario: true, relatorioDeGestao: true },
   {
     id: "unlimited",
-    nome: "Coro",
+    nome: "Sob medida",
     de: MAX_PACIENTES_NA_TABELA + 1,
     ate: null,
     precoCentavos: null,
@@ -64,7 +77,7 @@ export const PLANOS: readonly Plano[] = [
   },
 ];
 
-/** Como o diferencial do Voz aparece nas listas de plano (preços, assinatura, troca). */
+/** Como o diferencial do Voz e acima aparece nas listas de plano (preços, assinatura, troca). */
 export const TEXTO_LUMA_NO_PRONTUARIO = "Luma ajuda no prontuário: modelos e regras do CFP, sem dados dos pacientes";
 export const TEXTO_RELATORIO_DE_GESTAO = "Relatório da clínica: comparecimento, faltas e quem está devendo";
 
@@ -88,7 +101,7 @@ export type Ciclo = "mensal" | "anual";
 /**
  * Preço de tabela de um plano no ciclo, com o desconto de Fundadora se for o
  * caso (desconto antes do anual: no anual ela paga 10 meses do valor JÁ com
- * desconto). Null no Coro (combinado). É o que a página /precos mostra.
+ * desconto). Null no Sob medida (combinado). É o que a página /precos mostra.
  */
 export function precoDoPlano(
   id: string | null | undefined,
@@ -101,8 +114,9 @@ export function precoDoPlano(
 }
 
 /**
- * PLANO ESCOLHIDO ("como a Netflix", 2026-10-26): ela escolhe Sussurro ou Voz e
- * ganha os bônus na hora. Coro é combinado com o Guilherme, não se escolhe sozinha.
+ * PLANO ESCOLHIDO ("como a Netflix", 2026-10-26): ela escolhe entre os da tabela
+ * (Sussurro, Voz, Canto, Coro) e ganha os bônus na hora. O Sob medida é combinado
+ * com o Guilherme, não se escolhe sozinha.
  */
 export function planoPorId(id: string | null | undefined): Plano {
   return PLANOS.find((p) => p.id === id) ?? PLANOS[0];
@@ -122,8 +136,8 @@ export function planoEfetivo(escolhido: string | null | undefined, pacientes: nu
 /**
  * O que ELA paga no ciclo: o preço fixo do plano efetivo (com Fundadora e anual).
  * No Sussurro sem nenhum paciente não há o que cobrar (R$ 0 — decisão de
- * 2026-10-26, mantida): a cobrança começa no 1º paciente. Quem escolheu o Voz
- * paga o Voz mesmo com poucos pacientes — escolheu pelos bônus.
+ * 2026-10-26, mantida): a cobrança começa no 1º paciente. Quem escolheu um plano
+ * maior paga por ele mesmo com poucos pacientes — escolheu pelos bônus.
  */
 export function valorDoPlano(
   pacientes: number,
@@ -135,14 +149,14 @@ export function valorDoPlano(
   }: {
     fundador?: boolean;
     ciclo?: Ciclo;
-    /** Mensalidade combinada pelo admin para o CORO; nos outros planos é ignorada. */
+    /** Mensalidade combinada pelo admin para o SOB MEDIDA; nos outros planos é ignorada. */
     combinado?: number | null;
   } = {},
 ): number | null {
   const plano = planoEfetivo(escolhido, pacientes);
   if (plano.ate === null) {
-    // Coro: só tem valor quando o admin combinou (sob medida, já é o final —
-    // sem desconto por cima). Sussurro e Voz seguem a tabela (decisão de 2026-10-27).
+    // Sob medida: só tem valor quando o admin combinou (já é o final — sem
+    // desconto por cima). Os planos da tabela seguem a tabela (decisão de 2026-10-27).
     if (combinado === null || combinado === undefined) return null;
     return ciclo === "anual" ? combinado * MESES_PAGOS_NO_ANUAL : combinado;
   }
@@ -152,7 +166,7 @@ export function valorDoPlano(
 
 /**
  * Pode cadastrar (ou reativar) mais um paciente no plano ESCOLHIDO? Se não, ela
- * sobe de plano antes. O Coro não tem teto.
+ * sobe de plano antes. O Sob medida não tem teto.
  */
 export function cabeMaisUmPaciente(escolhido: string | null | undefined, pacientesAtuais: number): boolean {
   const teto = planoPorId(escolhido).ate;

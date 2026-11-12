@@ -7,7 +7,7 @@ import type { getDb } from "./db";
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 
 /**
- * Relatório da clínica — diferencial do Coro (2026-10-28). Calculado pelo próprio
+ * Relatório da clínica — dos planos Canto e Coro (2026-10-28; faixas de 2026-11-12). Calculado pelo próprio
  * sistema, SEM IA: não gasta a cota da Groq e nenhum nome de paciente sai do
  * servidor. Usa só agenda e financeiro (nada de conteúdo clínico).
  */

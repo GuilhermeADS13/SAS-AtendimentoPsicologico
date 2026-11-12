@@ -109,7 +109,7 @@ export async function resumoDaAssinatura(db: Db, user: { id: number; role: strin
     valorCombinado: assinatura?.valorCombinado ?? null,
     valorCentavos: valorDoPlano(pacientes, planoEscolhido, { fundador, ciclo, combinado: assinatura?.valorCombinado }),
     lumaHoje: await perguntasDaLumaHoje(db, user.id),
-    /** Null = sem limite (admin). Sob medida manda; sem ela, o Coro usa a cota do Voz. */
+    /** Null = sem limite (admin). No Sob medida manda o combinado; sem ele, a cota do Coro. */
     lumaLimite: admin ? null : limitesDoPlano(plano, assinatura).lumaPorDia,
     anexoMaxMb: admin ? null : limitesDoPlano(plano, assinatura).anexoMb,
     recursos: recursosDoPlano(plano, admin, situacao.motivo === "teste"),
@@ -117,18 +117,19 @@ export async function resumoDaAssinatura(db: Db, user: { id: number; role: strin
 }
 
 /**
- * Cota da Luma e teto do anexo. Sob medida SÓ no Coro (decisão de 2026-10-27):
- * vale o que o admin combinou, e sem nada combinado, o do Voz (15 perguntas,
- * 10 MB). Sussurro e Voz usam sempre os do plano.
+ * Cota da Luma e teto do anexo. Combinado SÓ no plano Sob medida (decisão de
+ * 2026-10-27, quando ele se chamava Coro): vale o que o admin combinou, e sem nada
+ * combinado, o do maior plano da tabela (o Coro). Os da tabela usam sempre os do plano.
  */
 export function limitesDoPlano(
   plano: { ate: number | null; perguntasLumaPorDia: number | null; anexoMaxMb: number | null },
   sobMedida: { lumaPorDia: number | null; anexoMb: number | null } | null | undefined,
 ) {
-  const coro = plano.ate === null;
+  const combinado = plano.ate === null;
+  const maiorDaTabela = planoPorId("coro");
   return {
-    lumaPorDia: (coro ? sobMedida?.lumaPorDia : null) ?? plano.perguntasLumaPorDia ?? 15,
-    anexoMb: (coro ? sobMedida?.anexoMb : null) ?? plano.anexoMaxMb ?? 10,
+    lumaPorDia: (combinado ? sobMedida?.lumaPorDia : null) ?? plano.perguntasLumaPorDia ?? maiorDaTabela.perguntasLumaPorDia ?? 25,
+    anexoMb: (combinado ? sobMedida?.anexoMb : null) ?? plano.anexoMaxMb ?? maiorDaTabela.anexoMaxMb ?? 20,
   };
 }
 
@@ -192,8 +193,9 @@ export async function planoDaPsicologa(db: Db, therapistId: number) {
 }
 
 /**
- * Recursos que dependem do plano (2026-10-28): a Luma no prontuário (Voz e Coro)
- * e o relatório da clínica (só Coro). No teste grátis vale "tudo liberado", como
+ * Recursos que dependem do plano (2026-10-28, faixas de 2026-11-12): a Luma no
+ * prontuário (do Voz para cima) e o relatório da clínica (do Canto para cima).
+ * No teste grátis vale "tudo liberado", como
  * promete a página de preços; a admin não tem trava.
  */
 export function recursosDoPlano(
@@ -229,7 +231,7 @@ export async function exigirVagaNoPlano(db: Db, therapistId: number): Promise<vo
 }
 
 /**
- * Quantos pacientes ainda cabem no plano ESCOLHIDO. null = sem teto (Coro, admin).
+ * Quantos pacientes ainda cabem no plano ESCOLHIDO. null = sem teto (Sob medida, admin).
  * É a única conta do teto: o cadastro de um (`exigirVagaNoPlano`) e a importação
  * em lote (patients.importar) passam por aqui.
  */

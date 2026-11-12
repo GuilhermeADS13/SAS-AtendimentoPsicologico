@@ -230,7 +230,7 @@ describe("apoio ao prontuário: só a estrutura", () => {
     const p = clinicalSystemPrompt(therapistContext, undefined, true, undefined, { prontuario: true }, { prontuario: false, relatorio: false });
     expect(p).not.toContain("PRONTUÁRIO: SÓ A ESTRUTURA");
     expect(p).not.toContain("COMO AJUDAR NA ESTRUTURA");
-    expect(p).toMatch(/recurso do plano Voz \(R\$\s?89\/mês\)/);
+    expect(p).toMatch(/recurso do plano Voz \(R\$\s?81\/mês\)/);
     expect(p).toContain("aba Assinatura");
     // A trava de anotações vale em qualquer plano.
     expect(p).toMatch(/Em nenhum plano você recebe ou organiza anotações/);
@@ -261,11 +261,15 @@ describe("apoio ao prontuário: só a estrutura", () => {
     const p = prompt("therapist");
     expect(p).toContain("Sussurro");
     expect(p).toContain("Voz");
+    expect(p).toContain("Canto");
     expect(p).toContain("Coro");
+    expect(p).toContain("Sob medida");
     expect(p).toContain("Assinatura");
-    // Preços regionais de 2026-10-28, vindos de shared/precos.
-    expect(p).toMatch(/Sussurro: R\$\s?39\/mês/);
-    expect(p).toMatch(/Voz: R\$\s?89\/mês/);
+    // Tabela de 2026-11-12, vinda de shared/precos.
+    expect(p).toMatch(/Sussurro: R\$\s?31\/mês até 11 pacientes/);
+    expect(p).toMatch(/Voz: R\$\s?81\/mês até 22 pacientes/);
+    expect(p).toMatch(/Canto: R\$\s?151\/mês até 33 pacientes/);
+    expect(p).toMatch(/Coro: R\$\s?241\/mês até 44 pacientes/);
   });
 });
 

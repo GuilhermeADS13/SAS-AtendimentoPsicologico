@@ -5,8 +5,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart3, Lock } from "lucide-react";
 
 /**
- * Relatório da clínica — diferencial do Coro (2026-10-28). Os números vêm prontos
- * do servidor (server/relatorioDeGestao.ts), calculados sem IA. Fora do Coro, um
+ * Relatório da clínica — do Canto para cima (2026-10-28; faixas de 2026-11-12). Os números
+ * vêm prontos do servidor (server/relatorioDeGestao.ts), calculados sem IA. Nos planos menores, um
  * cartão curto mostra que o recurso existe.
  */
 export function RelatorioDaClinica() {
@@ -21,7 +21,7 @@ export function RelatorioDaClinica() {
         <Lock className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
         <p className="text-muted-foreground">
           <span className="font-medium text-foreground">Relatório da clínica</span> — comparecimento, faltas, quem está
-          devendo e quem sumiu, todo mês. Faz parte do plano Coro, combinado na aba Assinatura.
+          devendo e quem sumiu, todo mês. Faz parte dos planos Canto e Coro, que você escolhe na aba Assinatura.
         </p>
       </div>
     );

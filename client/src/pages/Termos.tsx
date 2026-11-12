@@ -48,7 +48,7 @@ export default function Termos() {
           <div className="space-y-2">
             <h1 className="text-3xl font-bold text-foreground">Termos de Uso</h1>
             <p className="text-muted-foreground">
-              VozInterior — Atendimento Psicológico Online · atualizados em outubro de 2026
+              VozInterior — Atendimento Psicológico Online · atualizados em novembro de 2026
             </p>
           </div>
 
@@ -186,8 +186,8 @@ export default function Termos() {
               <li>
                 Depois disso, devolvemos a parte <strong>proporcional aos dias que você não
                 usou</strong>, contados do dia do pedido até o fim do período pago. Exemplo: no
-                plano anual de R$ 390, quem cancela no 100º dia recebe de volta os 265 dias
-                restantes, ou seja, R$ 390 × 265 ÷ 365 = <strong>R$ 283,15</strong>.
+                plano anual de R$ 310, quem cancela no 100º dia recebe de volta os 265 dias
+                restantes, ou seja, R$ 310 × 265 ÷ 365 = <strong>R$ 225,07</strong>.
               </li>
               <li>
                 A conta é feita sobre o valor que você realmente pagou (com o desconto de

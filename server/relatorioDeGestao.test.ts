@@ -118,10 +118,11 @@ describe("e-mail semanal: uma vez por semana, a partir de segunda às 8h (Brasí
 });
 
 describe("recursos por plano", () => {
-  const [sussurro, voz, coro] = PLANOS;
-  it("relatório só no Coro; prontuário no Voz e no Coro", () => {
+  const [sussurro, voz, canto, coro] = PLANOS;
+  it("relatório do Canto para cima; prontuário do Voz para cima", () => {
     expect(recursosDoPlano(sussurro, false, false)).toEqual({ lumaNoProntuario: false, relatorioDeGestao: false });
     expect(recursosDoPlano(voz, false, false)).toEqual({ lumaNoProntuario: true, relatorioDeGestao: false });
+    expect(recursosDoPlano(canto, false, false)).toEqual({ lumaNoProntuario: true, relatorioDeGestao: true });
     expect(recursosDoPlano(coro, false, false)).toEqual({ lumaNoProntuario: true, relatorioDeGestao: true });
   });
   it("teste grátis e admin têm tudo", () => {

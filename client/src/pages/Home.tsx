@@ -424,7 +424,7 @@ export default function Home() {
               Todos os planos têm agenda, prontuário, videochamada, mensagens, financeiro e a Luma. Muda a quantidade.
             </p>
           </div>
-          <div className="mx-auto mt-12 grid max-w-5xl grid-cols-1 gap-5 md:grid-cols-3">
+          <div className="mx-auto mt-12 grid max-w-5xl grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
             {PLANOS.map((p) => (
               <div
                 key={p.id}

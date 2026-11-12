@@ -12,6 +12,7 @@ import {
   PLANOS,
   TEXTO_LUMA_NO_PRONTUARIO,
   TEXTO_RELATORIO_DE_GESTAO,
+  ehPlanoDaTabela,
   formatarReais,
   valorDoPlano,
   type Ciclo,
@@ -54,7 +55,9 @@ type Resumo = NonNullable<RouterOutputs["assinatura"]["minha"]>;
 const LEMA: Record<string, string> = {
   pro: "O começo da sua voz no consultório.",
   max: "Um consultório com ritmo firme.",
-  unlimited: "Muitas vozes, uma clínica inteira.",
+  canto: "A agenda cheia, cantando junto.",
+  coro: "Muitas vozes no mesmo consultório.",
+  unlimited: "Uma clínica inteira, sob medida.",
 };
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
@@ -176,9 +179,9 @@ function CartaoDoPlano({ data }: { data: Resumo }) {
 }
 
 /**
- * Os 3 planos lado a lado ("como a Netflix", decisão de 2026-10-26): os bônus de
+ * Os planos lado a lado ("como a Netflix", decisão de 2026-10-26): os bônus de
  * cada um, o atual marcado e a troca. Os bônus valem na hora; o valor novo, no
- * próximo Pix. O Coro é combinado — o botão abre o WhatsApp.
+ * próximo Pix. O Sob medida é combinado — o botão abre o WhatsApp.
  */
 function EscolherPlano({ data }: { data: Resumo }) {
   const utils = trpc.useUtils();
@@ -191,7 +194,9 @@ function EscolherPlano({ data }: { data: Resumo }) {
     },
     onError: (e) => toast.error(e.message || "Não foi possível mudar de plano."),
   });
-  const coro = linkWhatsAppDoSuporte("Olá! Quero conversar sobre o plano Coro do VozInterior.");
+  const sobMedida = linkWhatsAppDoSuporte(
+    `Olá! Tenho mais de ${MAX_PACIENTES_NA_TABELA} pacientes e quero conversar sobre um plano sob medida do VozInterior.`,
+  );
   const n = data.pacientes;
   const teto = data.plano.ate;
   const valorNovo = confirmar ? valorDoPlano(n, confirmar.id, { fundador: data.fundador, combinado: data.valorCombinado }) : null;
@@ -212,16 +217,16 @@ function EscolherPlano({ data }: { data: Resumo }) {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {PLANOS.map((p) => {
           const atual = p.id === data.planoEscolhido;
-          const ehCoro = p.ate === null;
-          const naoCabe = !ehCoro && n > (p.ate ?? 0);
+          const ehSobMedida = p.ate === null;
+          const naoCabe = !ehSobMedida && n > (p.ate ?? 0);
           // Preço do plano para ELA (com Fundadora). Usa ao menos 1 paciente: o R$ 0 de
           // quem ainda não tem nenhum vale só para o plano atual, não para comparar.
           const valor = valorDoPlano(Math.max(1, n), p.id, { fundador: data.fundador, combinado: data.valorCombinado });
           const bonus = [
-            ehCoro ? `Mais de ${MAX_PACIENTES_NA_TABELA} pacientes` : `Até ${p.ate} pacientes`,
+            ehSobMedida ? `Mais de ${MAX_PACIENTES_NA_TABELA} pacientes` : `Até ${p.ate} pacientes`,
             p.perguntasLumaPorDia ? `Luma: ${p.perguntasLumaPorDia} perguntas por dia` : "Luma sob medida",
             ...(p.lumaNoProntuario ? [TEXTO_LUMA_NO_PRONTUARIO] : []),
             ...(p.relatorioDeGestao ? [TEXTO_RELATORIO_DE_GESTAO] : []),
@@ -258,7 +263,7 @@ function EscolherPlano({ data }: { data: Resumo }) {
                     <span className="text-sm text-muted-foreground"> /mês para você</span>
                   </p>
                 )}
-                {ehCoro ? (
+                {ehSobMedida ? (
                   <p className="text-xs text-muted-foreground">clínicas e equipes</p>
                 ) : (
                   <p className="text-xs text-muted-foreground">fixo, até {p.ate} pacientes</p>
@@ -276,10 +281,10 @@ function EscolherPlano({ data }: { data: Resumo }) {
                 <Button variant="secondary" disabled className="w-full">
                   Plano atual
                 </Button>
-              ) : ehCoro ? (
-                coro && (
+              ) : ehSobMedida ? (
+                sobMedida && (
                   <Button asChild variant="outline" className="w-full gap-2">
-                    <a href={coro} target="_blank" rel="noopener noreferrer">
+                    <a href={sobMedida} target="_blank" rel="noopener noreferrer">
                       <WhatsAppIcon className="size-4" /> Conversar
                     </a>
                   </Button>
@@ -321,7 +326,7 @@ function EscolherPlano({ data }: { data: Resumo }) {
               disabled={mudar.isPending}
               onClick={(e) => {
                 e.preventDefault();
-                if (confirmar && (confirmar.id === "pro" || confirmar.id === "max")) mudar.mutate({ plano: confirmar.id });
+                if (confirmar && ehPlanoDaTabela(confirmar.id)) mudar.mutate({ plano: confirmar.id });
               }}
             >
               {mudar.isPending ? "Mudando..." : `Mudar para ${confirmar?.nome ?? ""}`}

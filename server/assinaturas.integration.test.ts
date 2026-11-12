@@ -144,20 +144,20 @@ describe.runIf(RUN)("assinatura com o banco (Postgres real)", () => {
     await expect(exigirVagaNoPlano(db, therapistId)).resolves.toBeUndefined();
   });
 
-  it("limite de pacientes do Sussurro: o 11º é barrado; inativo e arquivado não contam", async () => {
+  it("limite de pacientes do Sussurro: o 12º é barrado; inativo e arquivado não contam", async () => {
     const { therapistId } = await novaPsicologa("99/100007");
     await criarAssinaturaNaAprovacao(db, { therapistId, crp: "99/100007", celular: null });
-    await pacientes(therapistId, 9);
+    await pacientes(therapistId, 10);
     await pacientes(therapistId, 1, "pending");
     await pacientes(therapistId, 3, "inactive");
     await pacientes(therapistId, 3, "archived");
-    expect(await contarPacientesCobrados(db, therapistId)).toBe(10);
-    await expect(exigirVagaNoPlano(db, therapistId)).rejects.toThrow(/vai até 10 pacientes/);
+    expect(await contarPacientesCobrados(db, therapistId)).toBe(11);
+    await expect(exigirVagaNoPlano(db, therapistId)).rejects.toThrow(/vai até 11 pacientes/);
     // A importação em lote usa a mesma conta: no Sussurro cheio, cabem 0.
-    expect(await vagasNoPlano(db, therapistId)).toEqual({ vagas: 0, plano: "Sussurro", ate: 10 });
+    expect(await vagasNoPlano(db, therapistId)).toEqual({ vagas: 0, plano: "Sussurro", ate: 11 });
     await sql`update assinaturas set plano = 'max' where "therapistId" = ${therapistId}`;
     await expect(exigirVagaNoPlano(db, therapistId)).resolves.toBeUndefined();
-    expect(await vagasNoPlano(db, therapistId)).toEqual({ vagas: 20, plano: "Voz", ate: 30 });
+    expect(await vagasNoPlano(db, therapistId)).toEqual({ vagas: 11, plano: "Voz", ate: 22 });
   });
 
   it("a admin não tem teto também na importação", async () => {

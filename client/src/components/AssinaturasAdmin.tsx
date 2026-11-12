@@ -50,7 +50,7 @@ export function AssinaturasAdmin() {
     onError: (e) => toast.error(e.message || "Erro ao mudar Psicóloga Fundadora"),
   });
 
-  const [coro, setCoro] = useState<Linha | null>(null);
+  const [sobMedida, setSobMedida] = useState<Linha | null>(null);
 
   const pagantes = linhas.filter((l) => !l.isento);
   const isentas = linhas.filter((l) => l.isento);
@@ -92,7 +92,7 @@ export function AssinaturasAdmin() {
                 </p>
                 {l.planoEscolhido === "unlimited" && (
                   <p className="text-xs text-muted-foreground tabular-nums">
-                    Coro sob medida: Luma {l.limites.lumaPorDia}/dia · anexos até {l.limites.anexoMb} MB
+                    Sob medida: Luma {l.limites.lumaPorDia}/dia · anexos até {l.limites.anexoMb} MB
                   </p>
                 )}
                 <p className={`text-sm font-medium ${s.liberado ? "text-foreground" : "text-destructive"}`}>{situacao}</p>
@@ -115,8 +115,8 @@ export function AssinaturasAdmin() {
                     Pix {ciclo}
                   </Button>
                 ))}
-                <Button size="sm" variant="outline" onClick={() => setCoro(l)}>
-                  {l.planoEscolhido === "unlimited" ? "Editar Coro" : "Colocar no Coro"}
+                <Button size="sm" variant="outline" onClick={() => setSobMedida(l)}>
+                  {l.planoEscolhido === "unlimited" ? "Editar sob medida" : "Colocar no sob medida"}
                 </Button>
                 <Button
                   size="sm"
@@ -157,7 +157,7 @@ export function AssinaturasAdmin() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {coro && <CoroDialog linha={coro} aoFechar={() => setCoro(null)} />}
+      {sobMedida && <SobMedidaDialog linha={sobMedida} aoFechar={() => setSobMedida(null)} />}
     </div>
   );
 }
@@ -180,29 +180,29 @@ function inteiroOuPadrao(texto: string, max: number): number | null | undefined 
 }
 
 /**
- * Coro sob medida (só o Coro tem — decisão de 2026-10-27): o valor mensal que
+ * Sob medida (mais de 44 pacientes; até 2026-11-12 se chamava Coro): o valor mensal que
  * você combinou, a cota da Luma e o teto do anexo. Campo vazio = padrão.
  */
-function CoroDialog({ linha, aoFechar }: { linha: Linha; aoFechar: () => void }) {
+function SobMedidaDialog({ linha, aoFechar }: { linha: Linha; aoFechar: () => void }) {
   const utils = trpc.useUtils();
   const sm = linha.sobMedida;
   const [valor, setValor] = useState(sm.valorCombinado != null ? (sm.valorCombinado / 100).toFixed(2).replace(".", ",") : "");
   const [luma, setLuma] = useState(sm.lumaPorDia != null ? String(sm.lumaPorDia) : "");
   const [anexo, setAnexo] = useState(sm.anexoMb != null ? String(sm.anexoMb) : "");
-  const jaNoCoro = linha.planoEscolhido === "unlimited";
+  const jaNoSobMedida = linha.planoEscolhido === "unlimited";
 
   const terminar = (msg: string) => {
     utils.admin.assinaturas.invalidate();
     toast.success(msg);
     aoFechar();
   };
-  const salvar = trpc.admin.definirCoro.useMutation({
-    onSuccess: () => terminar(`${linha.nome || "Psicóloga"} está no Coro com as condições combinadas.`),
+  const salvar = trpc.admin.definirSobMedida.useMutation({
+    onSuccess: () => terminar(`${linha.nome || "Psicóloga"} está no plano sob medida com as condições combinadas.`),
     onError: (e) => toast.error(e.message || "Não foi possível salvar."),
   });
-  const tirar = trpc.admin.tirarDoCoro.useMutation({
-    onSuccess: (r) => terminar(`Saiu do Coro e voltou para o ${r.plano}.`),
-    onError: (e) => toast.error(e.message || "Não foi possível tirar do Coro."),
+  const tirar = trpc.admin.tirarDoSobMedida.useMutation({
+    onSuccess: (r) => terminar(`Saiu do sob medida e voltou para o ${r.plano}.`),
+    onError: (e) => toast.error(e.message || "Não foi possível tirar do sob medida."),
   });
 
   const valorCentavos = reaisParaCentavos(valor);
@@ -214,9 +214,9 @@ function CoroDialog({ linha, aoFechar }: { linha: Linha; aoFechar: () => void })
     <Dialog open onOpenChange={(o) => !o && aoFechar()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Coro sob medida · {linha.nome || linha.email}</DialogTitle>
+          <DialogTitle>Sob medida · {linha.nome || linha.email}</DialogTitle>
           <DialogDescription>
-            O que você combinou com ela. Campo vazio usa o padrão: Luma 15 perguntas por dia, anexos de 10 MB e o
+            O que você combinou com ela. Campo vazio usa o padrão do Coro: Luma 25 perguntas por dia, anexos de 20 MB e o
             pagamento mostrando "valor combinado".
           </DialogDescription>
         </DialogHeader>
@@ -241,11 +241,11 @@ function CoroDialog({ linha, aoFechar }: { linha: Linha; aoFechar: () => void })
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="coro-luma">Luma por dia</Label>
-              <Input id="coro-luma" inputMode="numeric" placeholder="15" value={luma} onChange={(e) => setLuma(e.target.value)} />
+              <Input id="coro-luma" inputMode="numeric" placeholder="25" value={luma} onChange={(e) => setLuma(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="coro-anexo">Anexos (MB, até 20)</Label>
-              <Input id="coro-anexo" inputMode="numeric" placeholder="10" value={anexo} onChange={(e) => setAnexo(e.target.value)} />
+              <Input id="coro-anexo" inputMode="numeric" placeholder="20" value={anexo} onChange={(e) => setAnexo(e.target.value)} />
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
@@ -257,7 +257,7 @@ function CoroDialog({ linha, aoFechar }: { linha: Linha; aoFechar: () => void })
             </p>
           )}
           <DialogFooter className="gap-2 sm:justify-between">
-            {jaNoCoro ? (
+            {jaNoSobMedida ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -265,13 +265,13 @@ function CoroDialog({ linha, aoFechar }: { linha: Linha; aoFechar: () => void })
                 disabled={tirar.isPending}
                 onClick={() => tirar.mutate({ therapistId: linha.therapistId })}
               >
-                Tirar do Coro
+                Tirar do sob medida
               </Button>
             ) : (
               <span />
             )}
             <Button type="submit" disabled={invalido || salvar.isPending}>
-              {salvar.isPending ? "Salvando..." : jaNoCoro ? "Salvar condições" : "Colocar no Coro"}
+              {salvar.isPending ? "Salvando..." : jaNoSobMedida ? "Salvar condições" : "Colocar no sob medida"}
             </Button>
           </DialogFooter>
         </form>

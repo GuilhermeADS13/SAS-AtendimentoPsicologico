@@ -819,7 +819,7 @@ export async function avisarVencimentosDePlano(agora: Date = new Date()): Promis
 }
 
 /**
- * E-mail semanal do relatório da clínica (diferencial do Coro, 2026-10-28): segunda
+ * E-mail semanal do relatório da clínica (do Canto para cima; 2026-10-28): segunda
  * de manhã, um por semana (`relatorioEnviadoEm`, migração 0045). Só NÚMEROS — os
  * nomes de quem deve ou sumiu ficam no Financeiro: por sigilo, não vão por e-mail.
  */
@@ -879,7 +879,7 @@ export async function enviarRelatoriosSemanais(agora: Date = new Date()): Promis
         ["Próximos 7 dias", `${r.proximos7Dias.agendadas} consultas, ${r.proximos7Dias.naoConfirmadas} sem confirmação`],
       ])}<p>Quem está devendo e quem sumiu você vê no Financeiro — por sigilo, os nomes não vão por e-mail.</p>`,
       botao: { texto: "Abrir o relatório", url: `${base}/financeiro` },
-      observacao: "Você recebe este resumo toda segunda-feira. É um recurso do plano Coro.",
+      observacao: "Você recebe este resumo toda segunda-feira. É um recurso dos planos Canto e Coro.",
       base,
     });
     const ok = await sendEmail(l.email, "Seu relatório da clínica — VozInterior", html).catch(() => false);
@@ -947,7 +947,7 @@ export function rodarCicloDeNotificacoes(): Promise<void> {
         const pedidos = await notifyPendingTherapistRequests();
         const vencimentos = await avisarVencimentosDePlano();
         // E-mail semanal do relatório (enviarRelatoriosSemanais) DESLIGADO a pedido do
-        // Guilherme em 2026-10-28: liga quando houver cliente no Coro, recolocando
+        // Guilherme em 2026-10-28: liga quando houver cliente no Canto ou no Coro, recolocando
         // aqui `await enviarRelatoriosSemanais()`.
         const result = await processPendingNotifications();
         console.log("[Notifications] ciclo:", { ...result, solicitacoes: pedidos, vencimentos });

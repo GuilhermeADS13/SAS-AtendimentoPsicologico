@@ -714,12 +714,12 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
       <ul className="list-disc pl-5 space-y-1">
         <li>
           Cada plano tem um <strong>preço fixo por mês</strong> e um limite de pacientes:
-          Sussurro até 10, Voz até 30. Os valores estão em{" "}
+          Sussurro até 11, Voz até 22, Canto até 33 e Coro até 44. Os valores estão em{" "}
           <Link href="/precos" className="text-primary underline underline-offset-4">Preços</Link>.
         </li>
         <li>
           Na aba <strong>Assinatura</strong>, no menu, você vê quantos pacientes do plano
-          já usa (ex.: 2 de 10), o valor, até quando está liberada e quantas perguntas à
+          já usa (ex.: 2 de 11), o valor, até quando está liberada e quantas perguntas à
           Luma já fez hoje.
         </li>
         <li>
@@ -728,9 +728,9 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
           “Enviar comprovante” — abre o WhatsApp com a mensagem pronta.
         </li>
         <li>
-          Em <strong>“Escolha seu plano”</strong> você troca entre Sussurro (até 10 pacientes)
-          e Voz (até 30) com um clique — os bônus valem na hora e o valor novo entra no
-          próximo Pix. Para o Coro (mais de 30), é só conversar pelo WhatsApp.
+          Em <strong>“Escolha seu plano”</strong> você troca entre Sussurro, Voz, Canto e Coro
+          com um clique — os bônus valem na hora e o valor novo entra no próximo Pix. Com
+          mais de 44 pacientes, o plano é sob medida: é só conversar pelo WhatsApp.
         </li>
         <li>
           Paciente que encerrou o acompanhamento não precisa contar: abra a ficha dele e

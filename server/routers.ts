@@ -44,7 +44,7 @@ import {
 import { diaDeVencimentoValido, ehCortesia, novoPagoAte, situacaoDaAssinatura } from "../shared/assinatura";
 import { TIPOS_DE_CHAVE_PIX, lerPixCopiaECola, montarPixEstatico, normalizarChavePix } from "../shared/pix";
 import { pagamentoDaConsulta } from "../shared/pagamentoDaConsulta";
-import { planoEfetivo, planoPorId, valorDoPlano } from "../shared/precos";
+import { IDS_DA_TABELA, ehPlanoDaTabela, planoEfetivo, planoPara, planoPorId, valorDoPlano } from "../shared/precos";
 import { PASSWORD_MAX_LENGTH, validatePassword } from "../shared/passwordPolicy";
 import { CRP_REGEX } from "../shared/crp";
 import { ORIGEM_REGEX } from "../shared/entradaNoSite";
@@ -548,11 +548,11 @@ export const appRouter = router({
           { role: "user", content: latestUserMessage.content },
         ]).map((m) => ({ ...m, content: mascararParaIA(m.content) }));
 
-        // Cota diária do plano (Sussurro 5, Voz 15 — shared/precos.ts). Fica DEPOIS do
+        // Cota diária do plano (Sussurro 5, Voz 15, Canto 20, Coro 25 — shared/precos.ts). Fica DEPOIS do
         // replay acima: repetir uma pergunta já respondida não gasta cota. A Groq
         // grátis aguenta ~80 perguntas/dia somando todas as clientes.
-        // O que a Luma faz depende do plano: prontuário (Voz e Coro) e relatório da
-        // clínica (Coro). Teste grátis e admin têm tudo.
+        // O que a Luma faz depende do plano: prontuário (do Voz para cima) e relatório
+        // da clínica (do Canto para cima). Teste grátis e admin têm tudo.
         let recursosDaLuma = { prontuario: true, relatorio: true };
         if (ctx.user.role !== "admin" && accessContext.therapistId) {
           const { plano, limites, recursos } = await planoDaPsicologa(db, accessContext.therapistId);
@@ -2049,12 +2049,12 @@ export const appRouter = router({
       }),
 
     /**
-     * Plano Coro sob medida (só o Coro tem — decisão de 2026-10-27): coloca a
-     * psicóloga no Coro com o valor mensal combinado, a cota da Luma e o teto do
-     * anexo. `null` em cada campo = padrão (Luma 15/dia, anexo 10 MB; sem valor,
-     * o pagamento mostra "combinado"). O anexo para em 20 MB, o teto do bucket.
+     * Plano Sob medida (mais de 44 pacientes; até 2026-11-12 se chamava Coro):
+     * coloca a psicóloga nele com o valor mensal combinado, a cota da Luma e o
+     * teto do anexo. `null` em cada campo = padrão (o do Coro; sem valor, o
+     * pagamento mostra "combinado"). O anexo para em 20 MB, o teto do bucket.
      */
-    definirCoro: adminProcedure
+    definirSobMedida: adminProcedure
       .input(z.object({
         therapistId: z.number().int().positive(),
         valorCombinado: z.number().int().min(0).max(10_000_000).nullable(),
@@ -2074,16 +2074,17 @@ export const appRouter = router({
       }),
 
     /**
-     * Tira do Coro: volta ao plano que cabe nos pacientes dela (Sussurro ou Voz)
-     * e apaga as condições combinadas.
+     * Tira do Sob medida: volta ao plano da tabela que cabe nos pacientes dela
+     * (no máximo o Coro) e apaga as condições combinadas.
      */
-    tirarDoCoro: adminProcedure
+    tirarDoSobMedida: adminProcedure
       .input(z.object({ therapistId: z.number().int().positive() }))
       .mutation(async ({ input }) => {
         const db = await getDb();
         if (!db) throw new Error("Database not available");
         const pacientes = await contarPacientesCobrados(db, input.therapistId);
-        const volta = pacientes > 10 ? "max" : "pro";
+        const cabe = planoPara(Math.max(1, pacientes)).id;
+        const volta = ehPlanoDaTabela(cabe) ? cabe : "coro";
         await db
           .update(assinaturas)
           .set({ plano: volta, valorCombinado: null, lumaPorDia: null, anexoMb: null })
@@ -2111,11 +2112,11 @@ export const appRouter = router({
 
     /**
      * Troca de plano ("como a Netflix"): os bônus valem na hora; o novo valor,
-     * a partir do próximo Pix. Coro não se escolhe aqui (é combinado). Voltar
-     * para o Sussurro só cabendo no teto dele.
+     * a partir do próximo Pix. O Sob medida não se escolhe aqui (é combinado).
+     * Descer de plano só cabendo no teto do novo.
      */
     mudarPlano: therapistProcedure
-      .input(z.object({ plano: z.enum(["pro", "max"]) }))
+      .input(z.object({ plano: z.enum(IDS_DA_TABELA) }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new Error("Database not available");
@@ -2156,7 +2157,7 @@ export const appRouter = router({
   }),
 
   // Perfil profissional da psicóloga (dados de therapists).
-  /** Relatório da clínica: diferencial do Coro (e do teste/admin), calculado sem IA. */
+  /** Relatório da clínica: do Canto para cima (e no teste/admin), calculado sem IA. */
   gestao: router({
     relatorio: therapistProcedure.query(async ({ ctx }) => {
       const db = await getDb();
@@ -2165,7 +2166,7 @@ export const appRouter = router({
       if (!therapist) throw new Error("Complete seu perfil profissional para ver o relatório.");
       const { recursos } = await planoDaPsicologa(db, therapist.id);
       if (!recursos.relatorioDeGestao) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "O relatório da clínica faz parte do plano Coro." });
+        throw new TRPCError({ code: "FORBIDDEN", message: "O relatório da clínica faz parte dos planos Canto e Coro." });
       }
       return relatorioDaPsicologa(db, therapist.id);
     }),

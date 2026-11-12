@@ -76,8 +76,8 @@ const ESPERADO: Record<Nivel, string[]> = {
     "therapists.upsert", "videoCalls.finish", "videoCalls.getByPatient", "videoCalls.start",
   ],
   admin: [
-    "admin.assinaturas", "admin.definirCoro", "admin.definirFundador", "admin.registrarPix",
-    "admin.reviewTherapistRequest", "admin.therapistRequests", "admin.tirarDoCoro",
+    "admin.assinaturas", "admin.definirFundador", "admin.definirSobMedida", "admin.registrarPix",
+    "admin.reviewTherapistRequest", "admin.therapistRequests", "admin.tirarDoSobMedida",
   ],
 };
 

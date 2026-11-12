@@ -51,7 +51,8 @@ export function LumaFlutuante({ children }: { children: ReactNode }) {
  *
  * - Sussurro: uma corujinha com uma onda pequena, quase um sussurro.
  * - Voz: a coruja com três ondas — falando com firmeza.
- * - Coro: três corujas juntas, a clínica inteira.
+ * - Canto: duas corujas cantando juntas.
+ * - Coro (e o Sob medida): três corujas juntas, a clínica inteira.
  *
  * A coruja é a Luma 3D (/luma-3d.webp, ver Coruja). As ondas usam
  * `currentColor`: brancas no cartão verde, verdes nos cartões claros.
@@ -75,7 +76,7 @@ export function LumaDoPlano({
       aria-hidden={decorativa ? true : undefined}
       aria-label={titulo}
     >
-      {plano === "unlimited" ? <Coro /> : plano === "max" ? <Voz /> : <Sussurro />}
+      {plano === "unlimited" || plano === "coro" ? <Coro /> : plano === "canto" ? <Canto /> : plano === "max" ? <Voz /> : <Sussurro />}
     </svg>
   );
 }
@@ -148,6 +149,19 @@ function Voz() {
       <Coruja cx={56} cy={60} r={42} />
       {/* Três ondas abertas: a voz firme. */}
       <Ondas x={98} y={60} quantas={3} abertura={95} />
+    </g>
+  );
+}
+
+function Canto() {
+  return (
+    <g>
+      {/* Duas corujas lado a lado, a de trás menor: duas vozes. */}
+      <Coruja cx={36} cy={70} r={28} />
+      <Coruja cx={74} cy={60} r={36} />
+      <g opacity={0.9}>
+        <Ondas x={110} y={60} quantas={2} abertura={90} />
+      </g>
     </g>
   );
 }

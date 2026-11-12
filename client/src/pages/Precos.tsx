@@ -43,20 +43,24 @@ const INCLUSO_EM_TODOS = [
 
 const LEMA: Record<string, string> = {
   pro: "Para quem está começando.",
-  max: "Para o consultório com agenda cheia.",
+  max: "Para o consultório que cresceu.",
+  canto: "Para a agenda cheia.",
+  coro: "Para quem atende muita gente.",
   unlimited: "Para clínicas e equipes.",
 };
+
+const [SUSSURRO, VOZ] = PLANOS;
 
 const DUVIDAS = [
   {
     pergunta: "O preço muda com o número de pacientes?",
-    resposta:
-      "Não. Cada plano tem um valor fixo por mês e um limite de pacientes: no Sussurro cabem até 10, no Voz até 30. Dentro do limite, o valor é sempre o mesmo.",
+    resposta: `Não. Cada plano tem um valor fixo por mês e um limite de pacientes: ${PLANOS.filter((p) => p.ate !== null)
+      .map((p) => `${p.nome} até ${p.ate}`)
+      .join(", ")}. Dentro do limite, o valor é sempre o mesmo.`,
   },
   {
-    pergunta: "E se eu passar de 10 pacientes?",
-    resposta:
-      "Ao cadastrar o 11º, o sistema sugere mudar para o Voz e faz a troca com um clique. Também dá para escolher o Voz antes, pelos bônus: a Luma ajuda na estrutura do prontuário (modelos em branco e o que o CFP pede, sem dados dos pacientes), faz 15 perguntas por dia e os anexos vão até 10 MB.",
+    pergunta: `E se eu passar de ${SUSSURRO.ate} pacientes?`,
+    resposta: `Ao cadastrar o ${(SUSSURRO.ate ?? 0) + 1}º, o sistema sugere mudar para o ${VOZ.nome} e faz a troca com um clique. Também dá para escolher um plano maior antes, pelos bônus: do ${VOZ.nome} para cima a Luma ajuda na estrutura do prontuário (modelos em branco e o que o CFP pede, sem dados dos pacientes), e do Canto para cima entra também o relatório da clínica.`,
   },
   {
     pergunta: "O que conta como paciente?",
@@ -94,8 +98,7 @@ function pacientesDoPlano(plano: Plano): string {
 function itensDoPlano(plano: Plano): string[] {
   if (plano.perguntasLumaPorDia === null) {
     return [
-      "Tudo do Voz",
-      TEXTO_RELATORIO_DE_GESTAO,
+      "Tudo do Coro",
       "Pacientes sem limite",
       "Cota da Luma e anexos sob medida",
       "Condições combinadas pelo WhatsApp",
@@ -105,6 +108,7 @@ function itensDoPlano(plano: Plano): string[] {
     pacientesDoPlano(plano),
     `Luma: ${plano.perguntasLumaPorDia} perguntas por dia`,
     ...(plano.lumaNoProntuario ? [TEXTO_LUMA_NO_PRONTUARIO] : []),
+    ...(plano.relatorioDeGestao ? [TEXTO_RELATORIO_DE_GESTAO] : []),
     `Anexos de até ${plano.anexoMaxMb} MB`,
     ...INCLUSO_EM_TODOS,
   ];
@@ -112,7 +116,7 @@ function itensDoPlano(plano: Plano): string[] {
 
 export default function Precos() {
   const [ciclo, setCiclo] = useState<Ciclo>("mensal");
-  // Só para indicar o plano: o preço não depende dos pacientes. 31 = "mais de 30".
+  // Só para indicar o plano: o preço não depende dos pacientes. MAX+1 = "mais de MAX".
   const [pacientes, setPacientes] = useState(8);
   const indicado = planoPara(pacientes);
   const porPeriodo = ciclo === "anual" ? "/ano" : "/mês";
@@ -201,7 +205,7 @@ export default function Precos() {
                 step={1}
                 value={pacientes}
                 onChange={(e) => setPacientes(Number(e.target.value))}
-                aria-valuetext={pacientes > MAX_PACIENTES_NA_TABELA ? "mais de 30 pacientes" : `${pacientes} pacientes`}
+                aria-valuetext={pacientes > MAX_PACIENTES_NA_TABELA ? `mais de ${MAX_PACIENTES_NA_TABELA} pacientes` : `${pacientes} pacientes`}
                 className="w-full h-2 cursor-pointer accent-[var(--primary)]"
               />
               <p className="text-xs text-muted-foreground">
@@ -210,14 +214,14 @@ export default function Precos() {
             </div>
           </div>
 
-          <div className="grid gap-5 md:grid-cols-3">
+          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             {PLANOS.map((p) => {
               const destaque = p.id === indicado.id;
               const preco = precoDoPlano(p.id, { ciclo });
               const fundadora = precoDoPlano(p.id, { ciclo, fundador: true });
               const mensagem =
                 preco === null
-                  ? "Olá! Quero conversar sobre o plano Coro do VozInterior."
+                  ? `Olá! Tenho mais de ${MAX_PACIENTES_NA_TABELA} pacientes e quero conversar sobre um plano sob medida do VozInterior.`
                   : `Olá! Quero assinar o VozInterior: plano ${p.nome}, ${ciclo} (${formatarReais(preco)}${porPeriodo}).`;
               const whats = linkWhatsAppDoSuporte(mensagem);
               return (

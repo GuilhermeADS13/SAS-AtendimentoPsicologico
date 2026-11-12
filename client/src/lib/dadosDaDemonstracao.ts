@@ -192,7 +192,7 @@ export function respostaDaDemonstracao(caminho: string, entrada: unknown): unkno
         lumaHoje: 0,
         lumaLimite: plano.perguntasLumaPorDia,
         anexoMaxMb: plano.anexoMaxMb,
-        // O relatório da clínica (Coro) fica de fora: sem dados de equipe para mostrar.
+        // O relatório da clínica (Canto e Coro) fica de fora: sem dados de equipe para mostrar.
         recursos: { lumaNoProntuario: true, relatorioDeGestao: false },
       } satisfies O["assinatura"]["minha"];
     }

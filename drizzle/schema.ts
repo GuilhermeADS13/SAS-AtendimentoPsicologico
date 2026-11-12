@@ -226,8 +226,12 @@ export const assinaturas = pgTable(
     pagoAte: timestamp("pagoAte", { withTimezone: true, mode: "date" }),
     ciclo: varchar("ciclo", { length: 10 }).$type<"mensal" | "anual">().default("mensal").notNull(),
     fundador: boolean("fundador").default(false).notNull(),
-    /** Plano escolhido por ela (migração 0043): 'pro' Sussurro, 'max' Voz, 'unlimited' Coro. */
-    plano: varchar("plano", { length: 10 }).$type<"pro" | "max" | "unlimited">().default("pro").notNull(),
+    /**
+     * Plano escolhido por ela (migração 0043): 'pro' Sussurro, 'max' Voz, 'canto' Canto,
+     * 'coro' Coro, 'unlimited' Sob medida (até 2026-11-12 'unlimited' era o Coro).
+     * Varchar sem CHECK: os ids novos não precisaram de migração.
+     */
+    plano: varchar("plano", { length: 10 }).$type<"pro" | "max" | "canto" | "coro" | "unlimited">().default("pro").notNull(),
     /** Condições sob medida do admin (migração 0044); nulo = padrão do plano. */
     valorCombinado: integer("valorCombinado"),
     lumaPorDia: smallint("lumaPorDia"),
