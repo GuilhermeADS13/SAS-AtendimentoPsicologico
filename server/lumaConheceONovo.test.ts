@@ -19,12 +19,20 @@ describe("Luma da psicóloga conhece as funções de novembro", () => {
     ["lista de espera", /Lista de espera/],
     ["horário livre", /Horário livre/],
     ["instalar o app", /Instalar o app/],
+    ["aparecer na busca", /Aparecer na busca de pacientes/],
   ])("%s", (_nome, texto) => {
     expect(mapa).toMatch(texto);
   });
 
   it("as perguntas sobre elas trazem o mapa", () => {
-    for (const pergunta of ["como gero o recibo?", "tem lista de espera?", "como importo a planilha?", "como instalo o app?"]) {
+    for (const pergunta of [
+      "como gero o recibo?",
+      "tem lista de espera?",
+      "como importo a planilha?",
+      "como instalo o app?",
+      "quero aparecer na busca",
+      "dá para conseguir novos pacientes por aqui?",
+    ]) {
       expect(pareceNavegacao(pergunta), pergunta).toBe(true);
     }
   });
@@ -45,6 +53,22 @@ describe("Luma do paciente", () => {
       expect(r.topic, pergunta).toBe("app");
       expect(r.content).toContain("Instalar o app");
     }
+  });
+
+  it("encontrar uma psicóloga", () => {
+    for (const pergunta of [
+      "não tenho psicóloga, como encontro uma?",
+      "quero achar um psicólogo",
+      "a primeira conversa é paga?",
+      "como cancelo meu pedido?",
+    ]) {
+      const r = answerSiteHelp(pergunta);
+      expect(r.topic, pergunta).toBe("encontrar");
+      expect(r.content).toContain("Encontrar uma psicóloga");
+    }
+    // Quem já tem psicóloga continua indo para "Minha Psicóloga" e para a agenda.
+    expect(answerSiteHelp("onde vejo minha psicóloga?").topic).toBe("therapist");
+    expect(answerSiteHelp("quero cancelar a consulta de amanhã").topic).toBe("reschedule");
   });
 
   it("não confunde com outros assuntos", () => {

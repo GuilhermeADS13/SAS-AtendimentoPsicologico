@@ -153,7 +153,18 @@ export async function psicologaLiberada(db: Db, therapistId: number): Promise<bo
     .leftJoin(assinaturas, eq(assinaturas.therapistId, therapists.id))
     .where(eq(therapists.id, therapistId))
     .limit(1);
-  if (!linha) return false;
+  return !!linha && liberadaPelaLinha(linha);
+}
+
+/** Admin sempre; psicóloga, pela assinatura. A mesma regra na sala de vídeo e na busca de psicólogas. */
+export function liberadaPelaLinha(linha: {
+  role: string;
+  temAssinatura: number | null;
+  testeAte: Date | null;
+  pagoAte: Date | null;
+  testeAguardando: boolean | null;
+  createdAt: Date | null;
+}): boolean {
   if (linha.role === "admin") return true;
   return situacaoDaAssinatura(
     linha.temAssinatura ? { testeAte: linha.testeAte, pagoAte: linha.pagoAte, testeAguardando: linha.testeAguardando ?? false, createdAt: linha.createdAt } : null,

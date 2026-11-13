@@ -140,6 +140,11 @@ export function respostaDaDemonstracao(caminho: string, entrada: unknown): unkno
         pixCidade: "RECIFE",
         cpf: null,
         endereco: null,
+        naBusca: false,
+        abordagem: null,
+        modalidade: null,
+        cidade: null,
+        uf: null,
         createdAt: dia(-150, 9),
         updatedAt: dia(-1, 9),
       } satisfies O["therapists"]["me"];
@@ -174,6 +179,39 @@ export function respostaDaDemonstracao(caminho: string, entrada: unknown): unkno
       return [
         { patientId: 105, firstName: "Helena", lastName: "Duarte", phone: "(81) 90000-1005", diasDaSemana: [], periodos: ["manha"], observacao: "Prefere online", createdAt: dia(-3, 9) },
       ] satisfies O["listaDeEspera"]["listar"];
+    // Busca de psicólogas: perfil ligado, dois horários abertos e um pedido esperando.
+    case "conhecer.minhaVitrine":
+      return {
+        id: ID_PSICOLOGA,
+        naBusca: true,
+        abordagem: "Terapia Cognitivo-Comportamental",
+        modalidade: "online",
+        cidade: "Recife",
+        uf: "PE",
+        falta: [],
+        horarios: [
+          { id: 1, inicio: dia(2, 9), duracao: 20, pedido: "pendente" },
+          { id: 2, inicio: dia(3, 18), duracao: 20, pedido: null },
+        ],
+      } satisfies O["conhecer"]["minhaVitrine"];
+    case "conhecer.pedidosRecebidos":
+      return [
+        {
+          id: 1,
+          inicio: dia(2, 9),
+          duracao: 20,
+          status: "pendente",
+          mensagem: null,
+          createdAt: dia(0, 8),
+          patientId: null,
+          nome: "Rafael Lima",
+          cidade: "Olinda",
+          uf: "PE",
+          modalidade: "online",
+          idade: 29,
+          oQueProcura: "Ando com muita ansiedade antes das reuniões do trabalho e queria entender o porquê.",
+        },
+      ] satisfies O["conhecer"]["pedidosRecebidos"];
     case "assinatura.minha": {
       // Plano Voz em teste, com tudo liberado: mostra o que ela teria nos 14 dias.
       const plano = planoEfetivo("max", PACIENTES.length);

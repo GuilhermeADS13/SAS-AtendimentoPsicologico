@@ -35,7 +35,7 @@ type Nivel = "publica" | "conta" | "logada" | "psicologa" | "admin";
 const ESPERADO: Record<Nivel, string[]> = {
   publica: [
     "auth.faixaDeSenhasVazadas", "auth.logout", "auth.me", "auth.requestPasswordReset",
-    "auth.signUp", "system.health",
+    "auth.signUp", "system.health", "conhecer.buscar", "conhecer.perfil",
   ],
   conta: [
     "aparelho.confirmarCodigo", "aparelho.enviarCodigo", "auth.completarCadastro",
@@ -52,9 +52,12 @@ const ESPERADO: Record<Nivel, string[]> = {
     "me.informarPagamento", "me.invitation", "me.notifications", "me.onboarding",
     "me.pixDaPsicologa", "me.profile", "me.requestEmailChange", "me.requestTherapist",
     "me.saveProfile", "me.therapist", "me.therapistRequest", "me.updatePhone", "me.urlDoDocumento",
-    "videoCalls.iceServers",
+    "videoCalls.iceServers", "conhecer.cancelarMeuPedido", "conhecer.minhaSituacao",
+    "conhecer.pedir", "conhecer.salvarMeuPerfil",
   ],
   psicologa: [
+    "conhecer.abrirHorario", "conhecer.aceitar", "conhecer.fecharHorario", "conhecer.minhaVitrine",
+    "conhecer.pedidosRecebidos", "conhecer.recusar", "conhecer.salvarVitrine",
     "ai.chat", "ai.confirmAction", "ai.feedback", "appointments.adicionarParticipante",
     "appointments.create", "appointments.editar", "appointments.list",
     "appointments.pagamentosInformados", "appointments.participantes",
@@ -163,6 +166,9 @@ describe("matriz de acesso das rotas", () => {
     expect(ESPERADO.publica).toEqual([
       "auth.faixaDeSenhasVazadas", "auth.logout", "auth.me", "auth.requestPasswordReset",
       "auth.signUp", "system.health",
+      // Busca de psicólogas aberta ao público (decisão do Guilherme em 2026-11-13). Só
+      // mostra quem ligou "aparecer na busca", sem valor, e-mail nem telefone.
+      "conhecer.buscar", "conhecer.perfil",
     ]);
   });
 });

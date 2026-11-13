@@ -54,11 +54,15 @@ export default function MyTherapist() {
             </span>
             <p className="mt-4 font-medium text-foreground">Ainda não há uma psicóloga vinculada</p>
             <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-              Complete seu cadastro para ver quem vai te atender.
+              Se sua psicóloga já te cadastrou, complete seu cadastro para ver quem vai te atender. Ainda não tem uma? Encontre e
+              marque uma primeira conversa gratuita.
             </p>
-            <Button className="mt-5" onClick={() => setLocation("/configuracoes")}>
-              Completar cadastro
-            </Button>
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              <Button onClick={() => setLocation("/encontrar-psicologa")}>Encontrar uma psicóloga</Button>
+              <Button variant="outline" onClick={() => setLocation("/configuracoes")}>
+                Completar cadastro
+              </Button>
+            </div>
           </div>
         ) : (
           <div data-tour="psicologa">

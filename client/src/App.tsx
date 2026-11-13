@@ -29,6 +29,7 @@ import {
   Configuracoes,
   Dashboard,
   E2EAgentChat,
+  EncontrarPsicologa,
   Financeiro,
   Luma,
   Mensagens,
@@ -36,6 +37,7 @@ import {
   MyTherapist,
   MeusDocumentos,
   PatientDetail,
+  PerfilDaPsicologa,
   Precos,
   Privacidade,
   Profile,
@@ -91,6 +93,9 @@ function Router() {
       <Route path={"/termos"} component={Termos} />
       {/* Pública: é a vitrine para quem ainda não tem conta. */}
       <Route path={"/precos"} component={Precos} />
+      {/* Busca de psicólogas: aberta a visitantes; pedir horário exige conta. */}
+      <Route path={"/encontrar-psicologa"} component={EncontrarPsicologa} />
+      <Route path={"/psicologas/:id"} component={PerfilDaPsicologa} />
       {/* Pública: o sistema com dados fictícios, sem cadastro (lib/demonstracao.ts). */}
       <Route path={"/demonstracao"} component={EntrarNaDemonstracao} />
       {import.meta.env.VITE_E2E === "true" && (

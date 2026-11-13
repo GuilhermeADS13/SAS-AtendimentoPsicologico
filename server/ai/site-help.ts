@@ -16,6 +16,7 @@ export type SiteHelpTopic =
   | "documentos"
   | "luma"
   | "privacy"
+  | "encontrar"
   | "general";
 
 export type SiteHelpResponse = {
@@ -83,6 +84,17 @@ export function answerSiteHelp(question: string): SiteHelpResponse {
 
 /** Roteamento por palavra-chave. A ORDEM importa: específicos antes do genérico. */
 function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
+  // Busca de psicólogas (2026-11-13). Antes de remarcar ("cancelar meu pedido") e de
+  // pagamento ("a primeira conversa é paga?").
+  if (/(encontr|ach|procur)(?:ar|o|ando) (?:uma? )?(?:psicolog|terapeuta)|nao tenho (?:uma? )?(?:psicolog|terapeuta)|primeira conversa|conversa gratuita|meu pedido|pedido de horario/.test(normalized)) {
+    return {
+      model: "site-help-local",
+      topic: "encontrar",
+      content:
+        "Se você ainda não tem psicóloga, abra “Encontrar uma psicóloga” (em “Minha Psicóloga”, no menu). Lá você vê os perfis com o CRP, escolhe um horário e pede uma primeira conversa curta e gratuita, por vídeo. Quando ela confirma, a conversa aparece em “Minhas Consultas” e você recebe um e-mail. Dá para ter um pedido esperando resposta por vez, e cancelar enquanto ela não responde, na própria página da busca.",
+    };
+  }
+
   if (/(remarcar|desmarcar|cancelar|mudar de horario|trocar de horario|adiar)/.test(normalized)) {
     return {
       model: "site-help-local",

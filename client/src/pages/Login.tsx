@@ -22,6 +22,7 @@ import { SugestaoDeEmail } from "@/components/SugestaoDeEmail";
 import { cadastroPedidoNaUrl } from "@shared/entradaNoSite";
 import { origemGuardada } from "@/lib/origem";
 import { CHAVE_QUER_SER_PSICOLOGA } from "@/components/PortaoDoCadastro";
+import { tirarVoltaDepoisDoLogin } from "@/lib/voltarDepoisDoLogin";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -90,7 +91,9 @@ export default function Login() {
     await utils.auth.me.invalidate();
     const me = await utils.auth.me.fetch();
     const isTherapist = me?.role === "admin" || me?.role === "therapist";
-    setLocation(isTherapist ? "/dashboard" : "/consultas");
+    // Paciente que veio da busca de psicólogas volta para o perfil que estava vendo.
+    const volta = tirarVoltaDepoisDoLogin();
+    setLocation(isTherapist ? "/dashboard" : volta ?? "/consultas");
   };
 
   const handleLogin = async () => {

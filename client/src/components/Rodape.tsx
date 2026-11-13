@@ -4,6 +4,7 @@ import { RedesSociais } from "@/components/RedesSociais";
 import { RESPONSAVEL_PELO_SERVICO } from "@/lib/suporte";
 
 const LINKS = [
+  { href: "/encontrar-psicologa", rotulo: "Encontrar psicóloga" },
   { href: "/precos", rotulo: "Preços" },
   { href: "/ajuda", rotulo: "Ajuda" },
   { href: "/termos", rotulo: "Termos de Uso" },

@@ -82,6 +82,7 @@ import {
 // compartilhados com a sinalização e a presença do vídeo (mesma barreira nos dois
 // lugares). `normalizarEmail`/`pacienteDoUsuario` seguem usados aqui como antes.
 import { normalizarEmail, pacienteDoUsuario, resolverAcessoSala } from "./roomAccess";
+import { conhecerRouter, dadosDaBuscaParaExportar } from "./conhecer";
 import { chavePertenceAoUsuario, fotoPertenceAoUsuario } from "./storageKeys";
 import { pendenciasDoProntuario } from "../shared/prontuario";
 
@@ -353,6 +354,9 @@ async function consultaDaPsicologa(db: NonNullable<Awaited<ReturnType<typeof get
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
+
+  /** Encontrar uma psicóloga: busca pública, perfil do paciente e primeira conversa (server/conhecer.ts). */
+  conhecer: conhecerRouter,
 
   /**
    * Chat protegido com o modelo open source configurado no servidor.
@@ -1153,6 +1157,8 @@ export const appRouter = router({
         dados.perfilProfissional = {
           crp: perfil.crp, especialidades: perfil.specialties, bio: perfil.bio, formacao: perfil.formacao,
           publicoAtendido: perfil.publicoAtendido, valorDaSessaoCentavos: perfil.sessionPrice, telefone: perfil.phone,
+          aparecerNaBusca: perfil.naBusca, abordagem: perfil.abordagem, modalidade: perfil.modalidade,
+          cidade: perfil.cidade, uf: perfil.uf,
         };
         dados.assinatura = assinatura
           ? { plano: assinatura.plano, ciclo: assinatura.ciclo, pagoAte: assinatura.pagoAte, testeAte: assinatura.testeAte, fundadora: assinatura.fundador, criadaEm: assinatura.createdAt }
@@ -1178,6 +1184,8 @@ export const appRouter = router({
           .from(documents)
           .where(and(eq(documents.patientId, paciente.id), isNotNull(documents.tipoParaPaciente)));
       }
+      // Perfil e pedidos da busca de psicólogas: existem mesmo sem ficha de paciente.
+      if (!perfil) Object.assign(dados, await dadosDaBuscaParaExportar(db, ctx.user.id));
       return dados;
     }),
 

@@ -243,6 +243,14 @@ export default function MyAppointments() {
             <CardContent className="text-muted-foreground">
               <Calendar className="w-5 h-5 mb-2" />
               Nenhuma consulta agendada ainda. Quando a psicóloga marcar, ela aparece aqui.
+              {/* Sem psicóloga (e sem pedido de conta profissional): o caminho é a busca. */}
+              {psi === null && pedidoProfissional?.status !== "pending" && (
+                <div className="mt-3">
+                  <Button size="sm" onClick={() => setLocation("/encontrar-psicologa")}>
+                    Encontrar uma psicóloga
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         ) : filtradas.length === 0 ? (

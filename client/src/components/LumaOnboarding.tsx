@@ -13,6 +13,7 @@ import {
   FolderOpen,
   MessageSquare,
   QrCode,
+  Search,
   Bell,
   Settings,
   ShieldCheck,
@@ -191,6 +192,13 @@ const therapistSteps: Step[] = [
     title: "Receber pelo Pix",
     body: "Cadastre aqui a sua chave Pix, ou só cole o Pix copia e cola do seu banco. Nas consultas que já aconteceram, o paciente copia o Pix ou lê o QR code, já com o valor certo. No Financeiro, você também gera o QR para cobrar. O dinheiro cai direto na sua conta, sem taxa.",
     target: '[data-tour="pix-receber"]',
+  },
+  {
+    path: "/profile",
+    icon: Search,
+    title: "Aparecer na busca",
+    body: "Quem ainda não tem psicóloga encontra você pela busca do site. Ligue aqui, diga como atende e abra horários para uma primeira conversa curta e gratuita, por vídeo. Os pedidos chegam no alto da Agenda: aceitar já cadastra o paciente e marca a conversa. O valor da sessão nunca aparece no perfil público.",
+    target: '[data-tour="aparecer-na-busca"]',
   },
   {
     path: "/assinatura",

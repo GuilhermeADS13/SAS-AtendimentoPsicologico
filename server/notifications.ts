@@ -25,7 +25,7 @@ import { avisoLigado, type TipoDeAviso } from "../shared/avisosPorEmail";
  * acompanha o rename sozinha — por isso a URL não fica chumbada aqui. `APP_URL`
  * vem antes para o dia em que existir domínio próprio, que o Render não conhece.
  */
-function appUrl(): string {
+export function appUrl(): string {
   return (
     process.env.APP_URL ||
     process.env.RENDER_EXTERNAL_URL ||

@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AvatarUpload } from "@/components/AvatarUpload";
 import { PixParaReceber } from "@/components/PixParaReceber";
+import { VitrineNaBusca } from "@/components/VitrineNaBusca";
 import { AcoesDoPaciente, CartaoPsicologa, listaDeTexto } from "@/components/CartaoPsicologa";
 import { getAvatarSignedUrl } from "@/lib/supabase";
 import { maskCrp } from "@shared/crp";
@@ -154,7 +155,11 @@ function TherapistProfile() {
     };
   }, [form.photoKey]);
 
-  const upsert = trpc.therapists.upsert.useMutation();
+  const utils = trpc.useUtils();
+  const upsert = trpc.therapists.upsert.useMutation({
+    // O cartão "Aparecer na busca" confere especialidades e bio do perfil salvo.
+    onSuccess: () => void utils.conhecer.minhaVitrine.invalidate(),
+  });
 
   // Especialidades: guardadas como texto separado por vírgula (não muda o banco),
   // exibidas e editadas como etiquetas.
@@ -572,6 +577,7 @@ function TherapistProfile() {
 
                 {/* Fora do formulário do perfil: a chave tem o próprio salvar. */}
                 <PixParaReceber />
+                <VitrineNaBusca />
               </>
             )}
           </div>

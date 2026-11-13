@@ -296,6 +296,29 @@ const DUVIDAS_PACIENTE: Duvida[] = [
     ),
   },
   {
+    pergunta: "Ainda não tenho psicóloga. Como encontro uma",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Abra{" "}
+          <Link href="/encontrar-psicologa" className="underline underline-offset-4">
+            Encontrar psicóloga
+          </Link>
+          . Dá para procurar por tema, abordagem ou nome, e filtrar por online, presencial e estado.
+        </li>
+        <li>
+          No perfil de quem você escolher, toque num horário e em <strong>“Pedir este horário”</strong>. É uma primeira
+          conversa curta e gratuita, por vídeo, para vocês se conhecerem. Para pedir é preciso ter conta e ter 18 anos ou
+          mais.
+        </li>
+        <li>
+          Quando ela confirma, você recebe um e-mail e a conversa aparece em <strong>Minhas Consultas</strong>. Você pode
+          ter um pedido esperando resposta por vez e cancelá-lo na mesma página.
+        </li>
+      </ul>
+    ),
+  },
+  {
     pergunta: "Preciso remarcar ou cancelar uma consulta",
     resposta: (
       <p>
@@ -439,6 +462,32 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
           Na mesma janela vem primeiro o botão para avisar o paciente que teve a consulta cancelada. Ninguém é
           avisado sozinho.
         </li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Como apareço na busca para novos pacientes",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Em <strong>Perfil</strong>, preencha as especialidades e o “Sobre mim” e salve. Depois, no cartão{" "}
+          <strong>“Aparecer na busca de pacientes”</strong>, ligue <strong>“Mostrar meu perfil na busca”</strong>, diga
+          como você atende e salve.
+        </li>
+        <li>
+          No mesmo cartão, abra horários para uma <strong>primeira conversa</strong> curta e gratuita (15, 20 ou 30
+          minutos), por vídeo. Quem ainda não tem psicóloga vê seu perfil em{" "}
+          <Link href="/encontrar-psicologa" className="underline underline-offset-4">
+            Encontrar psicóloga
+          </Link>{" "}
+          e pede um desses horários.
+        </li>
+        <li>
+          O pedido chega por e-mail e no alto de <strong>Agendamentos / Videochamada</strong>, com o que a pessoa
+          contou. <strong>“Aceitar”</strong> cadastra o paciente e marca a conversa (ele conta no plano, como qualquer
+          paciente novo); <strong>“Recusar”</strong> avisa a pessoa por e-mail, sem motivo.
+        </li>
+        <li>O valor da sessão nunca aparece no perfil público: vocês combinam na conversa (Código de Ética, art. 20).</li>
       </ul>
     ),
   },

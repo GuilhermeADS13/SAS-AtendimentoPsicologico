@@ -53,6 +53,7 @@ import { AvatarDaPessoa } from "@/components/AvatarDaPessoa";
 import { MAX_PARTICIPANTES_EXTRAS } from "@shared/chamadaEmGrupo";
 import { reaisParaCentavos, centavosParaInput, formatarBRL } from "@shared/dinheiro";
 import { AvisoDeValorAlto, useConferirValor } from "@/components/ConferirValor";
+import { PedidosParaConhecer } from "@/components/PedidosParaConhecer";
 
 type Status = "scheduled" | "completed" | "cancelled" | "no_show";
 
@@ -454,6 +455,8 @@ export default function Appointments() {
             Gerencie as consultas e acompanhamento dos pacientes
           </p>
         </div>
+
+        <PedidosParaConhecer />
 
         {/* O tour destaca este bloco inteiro: o texto do passo fala do botão
             E das setas de período. */}

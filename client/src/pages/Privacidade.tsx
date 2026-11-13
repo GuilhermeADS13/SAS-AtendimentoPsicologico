@@ -93,6 +93,20 @@ export default function Privacidade() {
                 dos pacientes e os dados da assinatura (plano, vencimento e pagamentos).
               </li>
               <li>
+                <strong>Busca de psicólogas:</strong> quando a psicóloga liga “Aparecer na busca”,
+                o nome, o CRP, a foto, as especialidades, a abordagem, a formação, a apresentação,
+                como atende, a cidade e os horários abertos ficam visíveis para qualquer pessoa na
+                internet. O valor da sessão, o e-mail e o telefone não aparecem. Ela desliga quando
+                quiser.
+              </li>
+              <li>
+                <strong>Perfil para pedir uma primeira conversa:</strong> cidade, estado, data de
+                nascimento (só maiores de 18 anos pedem), preferência de atendimento e, se você
+                quiser, o que te traz. Nada disso fica público: só a psicóloga para quem você pedir
+                horário vê, junto com o recado que deixar. Como o “o que te traz” pode ser dado de
+                saúde, conte apenas o que quiser.
+              </li>
+              <li>
                 <strong>Uso:</strong> registros técnicos de acesso (datas de consulta,
                 avisos enviados), necessários ao funcionamento.
               </li>

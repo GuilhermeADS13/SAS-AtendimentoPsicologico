@@ -1,5 +1,6 @@
-import { boolean, customType, index, integer, jsonb, pgEnum, pgTable, serial, smallint, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
+import { boolean, customType, date, index, integer, jsonb, pgEnum, pgTable, serial, smallint, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 import type { AvisosPorEmail } from "../shared/avisosPorEmail";
+import type { Modalidade, StatusDoPedido } from "../shared/conhecer";
 import { relations, sql } from "drizzle-orm";
 import type { AnamneseData, TcleData, NoteTemplate } from "../shared/prontuario";
 import type { TipoChavePix } from "../shared/pix";
@@ -198,6 +199,13 @@ export const therapists = pgTable("therapists", {
   /** Recibo para o Imposto de Renda (migração 0052): CPF e endereço de quem atende. Opcionais. */
   cpf: varchar("cpf", { length: 14 }),
   endereco: text("endereco"),
+  /** Perfil público na busca de pacientes (migração 0053). Ela escolhe aparecer;
+   *  o valor da sessão NÃO vai para o perfil público (Código de Ética, art. 20, d). */
+  naBusca: boolean("naBusca").default(false).notNull(),
+  abordagem: varchar("abordagem", { length: 200 }),
+  modalidade: varchar("modalidade", { length: 12 }).$type<Modalidade>(),
+  cidade: varchar("cidade", { length: 80 }),
+  uf: varchar("uf", { length: 2 }),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
     .defaultNow()
@@ -206,6 +214,62 @@ export const therapists = pgTable("therapists", {
 });
 
 export type Therapist = typeof therapists.$inferSelect;
+
+/** Horários que a psicóloga abre para a primeira conversa (migração 0053). */
+export const horariosParaConhecer = pgTable(
+  "horariosParaConhecer",
+  {
+    id: serial("id").primaryKey(),
+    therapistId: integer("therapistId").notNull().references(() => therapists.id, { onDelete: "cascade" }),
+    inicio: timestamp("inicio", { withTimezone: true, mode: "date" }).notNull(),
+    duracao: smallint("duracao").default(20).notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("horariosParaConhecer_psicologa_inicio").on(table.therapistId, table.inicio)],
+);
+
+/**
+ * Perfil de quem procura uma psicóloga (migração 0053). `oQueProcura` é sensível:
+ * só a psicóloga a quem ele pede o horário vê; nunca vai para a busca pública.
+ */
+export const perfisDePaciente = pgTable("perfisDePaciente", {
+  userId: integer("userId").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  cidade: varchar("cidade", { length: 80 }),
+  uf: varchar("uf", { length: 2 }),
+  /** AAAA-MM-DD. A primeira conversa pela busca é só para maiores de 18. */
+  nascimento: date("nascimento", { mode: "string" }),
+  modalidade: varchar("modalidade", { length: 12 }).$type<Modalidade>(),
+  oQueProcura: text("oQueProcura"),
+  createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+/**
+ * Pedido de primeira conversa (migração 0053). `inicio`/`duracao` copiam o horário
+ * para o histórico sobreviver se ele sair. Índices parciais no banco: um pedido ativo
+ * por horário e um pendente por paciente.
+ */
+export const pedidosParaConhecer = pgTable(
+  "pedidosParaConhecer",
+  {
+    id: serial("id").primaryKey(),
+    horarioId: integer("horarioId").references(() => horariosParaConhecer.id, { onDelete: "set null" }),
+    therapistId: integer("therapistId").notNull().references(() => therapists.id, { onDelete: "cascade" }),
+    pacienteUserId: integer("pacienteUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    inicio: timestamp("inicio", { withTimezone: true, mode: "date" }).notNull(),
+    duracao: smallint("duracao").default(20).notNull(),
+    mensagem: text("mensagem"),
+    status: varchar("status", { length: 12 }).$type<StatusDoPedido>().default("pendente").notNull(),
+    patientId: integer("patientId").references(() => patients.id, { onDelete: "set null" }),
+    appointmentId: integer("appointmentId").references(() => appointments.id, { onDelete: "set null" }),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    respondidoEm: timestamp("respondidoEm", { withTimezone: true, mode: "date" }),
+  },
+  (table) => [index("pedidosParaConhecer_psicologa").on(table.therapistId)],
+);
 export type InsertTherapist = typeof therapists.$inferInsert;
 
 /**
