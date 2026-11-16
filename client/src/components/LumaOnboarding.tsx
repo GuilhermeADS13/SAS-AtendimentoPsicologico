@@ -11,6 +11,7 @@ import {
   FileText,
   Filter,
   FolderOpen,
+  Handshake,
   MessageSquare,
   QrCode,
   Search,
@@ -199,6 +200,13 @@ const therapistSteps: Step[] = [
     title: "Aparecer na busca",
     body: "Quem ainda não tem psicóloga encontra você pela busca do site. Ligue aqui, diga como atende e abra horários para uma primeira conversa curta e gratuita, por vídeo. Os pedidos chegam no alto da Agenda: aceitar já cadastra o paciente e marca a conversa. O valor da sessão nunca aparece no perfil público.",
     target: '[data-tour="aparecer-na-busca"]',
+  },
+  {
+    path: "/rede",
+    icon: Handshake,
+    title: "Rede",
+    body: "Aqui você encontra pessoas que procuram psicóloga e escolheram aparecer: primeiro nome, idade, cidade e o que contaram. Convide para uma primeira conversa num horário seu; se a pessoa aceitar, ela vira sua paciente com a conversa na Agenda. Os pedidos e os convites ficam aqui também.",
+    target: '[data-tour="rede"]',
   },
   {
     path: "/assinatura",

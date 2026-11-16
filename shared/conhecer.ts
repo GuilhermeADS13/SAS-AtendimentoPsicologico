@@ -18,6 +18,13 @@ export const ROTULO_DA_MODALIDADE: Record<Modalidade, string> = {
   ambos: "Online e presencial",
 };
 
+/** A preferência do paciente, como a psicóloga lê (pedido recebido e mural). */
+export const ROTULO_DA_PREFERENCIA: Record<Modalidade, string> = {
+  online: "Prefere online",
+  presencial: "Prefere presencial",
+  ambos: "Online ou presencial",
+};
+
 export const UFS = [
   "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA",
   "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
@@ -30,6 +37,16 @@ export function ehUf(valor: string | null | undefined): valor is Uf {
 
 export const STATUS_DO_PEDIDO = ["pendente", "aceito", "recusado", "cancelado", "expirado"] as const;
 export type StatusDoPedido = (typeof STATUS_DO_PEDIDO)[number];
+
+/**
+ * Quem começou: o paciente pediu um horário dela, ou a psicóloga convidou pelo mural
+ * (2026-11-16). Decisões do Guilherme para o mural: o paciente só aparece se LIGAR;
+ * ela vê primeiro nome, idade, cidade, preferência e "o que te traz"; o contato é um
+ * convite com um horário dela, que ele aceita ou recusa.
+ */
+export type OrigemDoPedido = "paciente" | "psicologa";
+/** Convites esperando resposta ao mesmo tempo, por psicóloga (evita convite em massa). */
+export const MAX_CONVITES_PENDENTES = 10;
 
 /** Duração padrão da primeira conversa, em minutos. */
 export const DURACAO_PRIMEIRA_CONVERSA = 20;
@@ -131,6 +148,11 @@ export function modalidadeAtende(daPsicologa: Modalidade | null, procurada: Moda
   if (!procurada || procurada === "ambos") return true;
   if (!daPsicologa) return procurada === "online";
   return daPsicologa === "ambos" || daPsicologa === procurada;
+}
+
+/** "Maria da Silva" → "Maria". No mural, a psicóloga vê só o primeiro nome. */
+export function primeiroNome(nome: string | null | undefined): string {
+  return (nome ?? "").trim().split(/\s+/)[0] || "Paciente";
 }
 
 /** "Maria da Silva Souza" → { firstName: "Maria", lastName: "da Silva Souza" } (ficha do paciente). */

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { ROTULO_DA_MODALIDADE } from "@shared/conhecer";
+import { ROTULO_DA_PREFERENCIA } from "@shared/conhecer";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +30,8 @@ const FORMATO = new Intl.DateTimeFormat("pt-BR", {
  * paciente e a consulta (conta no plano, como qualquer paciente novo); recusar
  * avisa o paciente por e-mail. Some quando não há pedido esperando.
  */
-export function PedidosParaConhecer() {
+/** `vazio`: o que mostrar sem pedido esperando (na Agenda, nada; na Rede, uma frase). */
+export function PedidosParaConhecer({ vazio = null }: { vazio?: ReactNode } = {}) {
   const utils = trpc.useUtils();
   const { data } = trpc.conhecer.pedidosRecebidos.useQuery();
   const [recusando, setRecusando] = useState<{ id: number; nome: string } | null>(null);
@@ -65,7 +66,7 @@ export function PedidosParaConhecer() {
   });
 
   const esperando = (data ?? []).filter((p) => p.status === "pendente");
-  if (!esperando.length && barrado === null) return null;
+  if (!esperando.length && barrado === null) return <>{vazio}</>;
   const ocupado = aceitar.isPending || recusar.isPending;
 
   return (
@@ -81,11 +82,7 @@ export function PedidosParaConhecer() {
           const detalhes = [
             p.idade !== null ? `${p.idade} anos` : null,
             p.cidade && p.uf ? `${p.cidade}/${p.uf}` : p.uf,
-            p.modalidade === "ambos"
-              ? "online ou presencial"
-              : p.modalidade
-                ? `prefere ${ROTULO_DA_MODALIDADE[p.modalidade].toLowerCase()}`
-                : null,
+            p.modalidade ? ROTULO_DA_PREFERENCIA[p.modalidade].toLowerCase() : null,
           ].filter(Boolean);
           return (
             <li key={p.id} className="rounded-xl border bg-card p-4">

@@ -75,7 +75,7 @@ export const ROTAS_DO_APP: readonly string[] = [
   "/encontrar-psicologa", "/psicologas/:id", "/demonstracao", "/__e2e__/agent-chat",
   "/luma", "/dashboard", "/videocall/:roomId", "/records", "/records/:id", "/appointments", "/financeiro",
   "/assinatura", "/solicitacoes", "/mensagens", "/consultas", "/psicologa", "/documentos", "/profile",
-  "/configuracoes", "/404",
+  "/configuracoes", "/rede", "/404",
 ];
 
 /** Tira query, âncora e barra do fim: "/precos/?origem=x" → "/precos". */

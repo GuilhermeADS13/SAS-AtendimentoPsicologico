@@ -11,7 +11,7 @@
  *   fluxo normal (e-mail de nova consulta, sala de vídeo, prontuário).
  */
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import {
@@ -29,11 +29,15 @@ import {
   DURACAO_PRIMEIRA_CONVERSA,
   DURACOES_PERMITIDAS,
   EXPLICACAO_DO_MOTIVO,
+  MAX_CONVITES_PENDENTES,
   MAX_HORARIOS_ABERTOS,
   MAX_MENSAGEM,
   MAX_OQUE_PROCURA,
   MODALIDADES,
   UFS,
+  IDADE_MINIMA,
+  type OrigemDoPedido,
+  type Uf,
   faltaParaAparecer,
   horarioPodeSerAberto,
   horarioPodeSerPedido,
@@ -41,6 +45,7 @@ import {
   modalidadeAtende,
   motivoParaNaoPedir,
   perfilCasaComTexto,
+  primeiroNome,
   separarNome,
   statusVisivel,
 } from "../shared/conhecer";
@@ -105,10 +110,16 @@ async function vinculoAtivo(db: Db, user: { id: number; email: string | null }):
  * id do pedido.
  */
 async function situacaoDosHorarios(db: Db, therapistId: number, horarioIds: number[]) {
-  const situacao = new Map<number, "pendente" | "aceito" | "desmarcado">();
+  // "convite": ela convidou alguém do mural para este horário e espera a resposta.
+  const situacao = new Map<number, "pendente" | "convite" | "aceito" | "desmarcado">();
   if (!horarioIds.length) return situacao;
   const pedidos = await db
-    .select({ horarioId: pedidosParaConhecer.horarioId, status: pedidosParaConhecer.status, consulta: appointments.status })
+    .select({
+      horarioId: pedidosParaConhecer.horarioId,
+      status: pedidosParaConhecer.status,
+      origem: pedidosParaConhecer.origem,
+      consulta: appointments.status,
+    })
     .from(pedidosParaConhecer)
     .leftJoin(appointments, eq(appointments.id, pedidosParaConhecer.appointmentId))
     .where(
@@ -122,7 +133,13 @@ async function situacaoDosHorarios(db: Db, therapistId: number, horarioIds: numb
     if (p.horarioId === null) continue;
     situacao.set(
       p.horarioId,
-      p.status === "pendente" ? "pendente" : p.consulta && p.consulta !== "cancelled" ? "aceito" : "desmarcado",
+      p.status === "pendente"
+        ? p.origem === "psicologa"
+          ? "convite"
+          : "pendente"
+        : p.consulta && p.consulta !== "cancelled"
+          ? "aceito"
+          : "desmarcado",
     );
   }
   return situacao;
@@ -137,6 +154,7 @@ export async function dadosDaBuscaParaExportar(db: Db, userId: number) {
       nascimento: perfisDePaciente.nascimento,
       modalidade: perfisDePaciente.modalidade,
       oQueProcura: perfisDePaciente.oQueProcura,
+      aparecerParaPsicologas: perfisDePaciente.noMural,
       atualizadoEm: perfisDePaciente.updatedAt,
     })
     .from(perfisDePaciente)
@@ -148,6 +166,7 @@ export async function dadosDaBuscaParaExportar(db: Db, userId: number) {
       inicio: pedidosParaConhecer.inicio,
       duracaoMin: pedidosParaConhecer.duracao,
       situacao: pedidosParaConhecer.status,
+      quemComecou: pedidosParaConhecer.origem,
       recado: pedidosParaConhecer.mensagem,
       pedidoEm: pedidosParaConhecer.createdAt,
     })
@@ -250,6 +269,255 @@ const nascimentoSchema = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Informe a data de nascimento.")
   .refine((d) => idadeEmAnos(d) !== null, "Data de nascimento inválida.");
 
+const POR_PAGINA_DO_MURAL = 20;
+/** Chave da trava (pg_advisory_xact_lock) do teto de convites; o segundo número é a psicóloga. */
+const TRAVA_DOS_CONVITES = 4021;
+
+/** O usuário ainda não tem psicóloga: nem ficha ativa, nem convite pelo e-mail. (SQL, por linha de users.) */
+const SEM_PSICOLOGA = sql`NOT EXISTS (
+  SELECT 1 FROM ${patients}
+  WHERE ${patients.status} IN ('active', 'pending')
+    AND (${patients.userId} = ${users.id}
+      OR (${patients.userId} IS NULL AND ${patients.email} = lower(trim(${users.email}))))
+)`;
+
+/**
+ * Quem está no mural: ligou "aparecer para psicólogas", tem o perfil completo, tem 18 anos
+ * ou mais (no dia de hoje em Brasília) e ainda não tem psicóloga. Filtro, ordem e página
+ * no banco: a tela mostra 20 de cada vez.
+ */
+async function pacientesDoMural(
+  db: Db,
+  filtro: { ids?: number[]; uf?: Uf; modalidade?: "online" | "presencial"; pagina?: number },
+) {
+  const condicoes = and(
+    eq(perfisDePaciente.noMural, true),
+    eq(users.role, "user"),
+    isNotNull(perfisDePaciente.cidade),
+    isNotNull(perfisDePaciente.uf),
+    isNotNull(perfisDePaciente.nascimento),
+    sql`${perfisDePaciente.nascimento} <= ((now() AT TIME ZONE 'America/Sao_Paulo')::date - interval '${sql.raw(String(IDADE_MINIMA))} years')`,
+    filtro.ids ? inArray(users.id, filtro.ids) : undefined,
+    filtro.uf ? eq(perfisDePaciente.uf, filtro.uf) : undefined,
+    // Sem preferência ou "tanto faz" serve para os dois.
+    filtro.modalidade
+      ? or(isNull(perfisDePaciente.modalidade), inArray(perfisDePaciente.modalidade, ["ambos", filtro.modalidade]))
+      : undefined,
+    SEM_PSICOLOGA,
+  );
+  const consulta = db
+    .select({
+      id: users.id,
+      nome: users.name,
+      cidade: perfisDePaciente.cidade,
+      uf: perfisDePaciente.uf,
+      nascimento: perfisDePaciente.nascimento,
+      modalidade: perfisDePaciente.modalidade,
+      oQueProcura: perfisDePaciente.oQueProcura,
+      atualizadoEm: perfisDePaciente.updatedAt,
+    })
+    .from(perfisDePaciente)
+    .innerJoin(users, eq(users.id, perfisDePaciente.userId))
+    .where(condicoes)
+    .orderBy(desc(perfisDePaciente.updatedAt), desc(users.id));
+  if (!filtro.pagina) return { linhas: await consulta, total: 0 };
+  const [linhas, [{ total }]] = await Promise.all([
+    consulta.limit(POR_PAGINA_DO_MURAL + 1).offset((filtro.pagina - 1) * POR_PAGINA_DO_MURAL),
+    db
+      .select({ total: count() })
+      .from(perfisDePaciente)
+      .innerJoin(users, eq(users.id, perfisDePaciente.userId))
+      .where(condicoes),
+  ]);
+  return { linhas, total };
+}
+
+/**
+ * Convites que não têm mais a quem chegar: a pessoa ganhou psicóloga por outro caminho
+ * (cadastro, convite pelo e-mail, planilha) ou quem convidou saiu da busca. Sem isto o
+ * convite ficaria pendente, segurando o horário e uma das vagas de convite dela.
+ */
+async function encerrarConvitesSemDestino(db: Db, therapistId?: number) {
+  await db.execute(sql`
+    UPDATE ${pedidosParaConhecer} SET "status" = 'cancelado', "respondidoEm" = now()
+    WHERE ${pedidosParaConhecer.origem} = 'psicologa' AND ${pedidosParaConhecer.status} = 'pendente'
+      ${therapistId ? sql`AND ${pedidosParaConhecer.therapistId} = ${therapistId}` : sql``}
+      AND (
+        EXISTS (
+          SELECT 1 FROM ${users}
+          WHERE ${users.id} = ${pedidosParaConhecer.pacienteUserId} AND NOT ${SEM_PSICOLOGA}
+        )
+        OR EXISTS (
+          SELECT 1 FROM ${therapists}
+          WHERE ${therapists.id} = ${pedidosParaConhecer.therapistId} AND ${therapists.naBusca} = false
+        )
+      )
+  `);
+}
+
+type Pedido = typeof pedidosParaConhecer.$inferSelect;
+
+/**
+ * Confirma a primeira conversa: ela aceitou o pedido dele, ou ele aceitou o convite dela.
+ * Liga a conta a uma ficha DELA (reaproveita a antiga ou o convite pelo e-mail) e marca a
+ * consulta; daí em diante vale o fluxo normal. `quem` respondeu muda só as mensagens.
+ */
+async function confirmarConversa(db: Db, pedido: Pedido, therapistId: number, quem: "psicologa" | "paciente") {
+  const agora = new Date();
+  const ehEla = quem === "psicologa";
+  if (pedido.inicio.getTime() <= agora.getTime()) {
+    await db.update(pedidosParaConhecer).set({ status: "expirado" }).where(eq(pedidosParaConhecer.id, pedido.id));
+    throw new TRPCError({ code: "BAD_REQUEST", message: ehEla ? "O horário desse pedido já passou." : "O horário desse convite já passou." });
+  }
+  if (await horarioEmConflito(db, therapistId, pedido.inicio, pedido.duracao)) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: ehEla
+        ? "Você já tem uma consulta nesse horário. Recuse o pedido ou desmarque a outra consulta."
+        : "Esse horário não está mais livre na agenda dela. Recuse o convite e escolha outro horário no perfil dela.",
+    });
+  }
+
+  const [pessoa] = await db
+    .select({ id: users.id, name: users.name, email: users.email, openId: users.openId })
+    .from(users)
+    .where(eq(users.id, pedido.pacienteUserId))
+    .limit(1);
+  if (!pessoa) throw new TRPCError({ code: "NOT_FOUND", message: "A conta desse paciente não existe mais." });
+
+  // Fichas dessa conta. Ativa com OUTRA psicóloga (ou convite dela pelo e-mail): ele já
+  // começou com outra pessoa.
+  const fichas = await db.select().from(patients).where(eq(patients.userId, pessoa.id));
+  const email = normalizarEmail(pessoa.email);
+  const [conviteDeOutra] = email
+    ? await db
+        .select({ id: patients.id })
+        .from(patients)
+        .where(
+          and(
+            isNull(patients.userId),
+            eq(patients.email, email),
+            inArray(patients.status, ["active", "pending"]),
+            sql`${patients.therapistId} <> ${therapistId}`,
+          ),
+        )
+        .limit(1)
+    : [];
+  const comOutra = fichas.some((f) => f.therapistId !== therapistId && (f.status === "active" || f.status === "pending"));
+  if (comOutra || conviteDeOutra) {
+    await db.update(pedidosParaConhecer).set({ status: "cancelado", respondidoEm: agora }).where(eq(pedidosParaConhecer.id, pedido.id));
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: ehEla ? "Esse paciente já começou com outra psicóloga. O pedido foi encerrado." : EXPLICACAO_DO_MOTIVO.vinculado,
+    });
+  }
+  const minha = fichas.find((f) => f.therapistId === therapistId);
+  // Convite dela com o mesmo e-mail, ainda sem conta: aproveita a ficha em vez de duplicar.
+  const [convite] = minha || !email
+    ? []
+    : await db
+        .select()
+        .from(patients)
+        .where(and(eq(patients.therapistId, therapistId), eq(patients.email, email), isNull(patients.userId)))
+        .limit(1);
+  const ficha = minha ?? convite;
+  // Ficha inativa ou arquivada que volta a ativa ocupa vaga, como na reativação pelo prontuário.
+  if (!ficha || (ficha.status !== "active" && ficha.status !== "pending")) {
+    await exigirVagaNoPlano(db, therapistId).catch((e: unknown) => {
+      // A frase do plano é para ela ("mude de plano"); para ele, só que não dá agora.
+      if (!ehEla) throw new TRPCError({ code: "CONFLICT", message: "Essa psicóloga está sem vaga para pacientes novos agora. Tente mais tarde ou procure outra." });
+      throw e;
+    });
+  }
+  const telefone = !ficha ? await celularDaConta(pessoa.openId).catch(() => null) : null;
+
+  const resultado = await db.transaction(async (tx) => {
+    // Trava o pedido antes de tudo: dois "Aceitar" ao mesmo tempo (duas abas) esperam um
+    // pelo outro, e o segundo encontra o pedido já respondido.
+    const travados = await tx
+      .update(pedidosParaConhecer)
+      .set({ status: "aceito", respondidoEm: agora })
+      .where(and(eq(pedidosParaConhecer.id, pedido.id), eq(pedidosParaConhecer.status, "pendente")))
+      .returning({ id: pedidosParaConhecer.id });
+    if (!travados.length) {
+      throw new TRPCError({
+        code: "CONFLICT",
+        message: ehEla ? "Esse pedido acabou de ser respondido ou cancelado." : "Esse convite acabou de ser cancelado.",
+      });
+    }
+
+    // Fichas antigas encerradas com outras psicólogas soltam a conta (o prontuário fica
+    // com quem atendeu); a conta só tem uma ficha por vez (patients.userId é único).
+    await tx
+      .update(patients)
+      .set({ userId: null })
+      .where(and(eq(patients.userId, pessoa.id), inArray(patients.status, ["inactive", "archived"]), sql`${patients.therapistId} <> ${therapistId}`));
+
+    let patientId: number;
+    if (ficha) {
+      await tx.update(patients).set({ userId: pessoa.id, status: "active" }).where(eq(patients.id, ficha.id));
+      patientId = ficha.id;
+    } else {
+      const { firstName, lastName } = separarNome(pessoa.name);
+      const [nova] = await tx
+        .insert(patients)
+        .values({
+          therapistId,
+          userId: pessoa.id,
+          firstName,
+          lastName,
+          email: email || `sem-email-${pessoa.id}@vozinterior.invalid`,
+          phone: telefone ? telefone.slice(0, 20) : null,
+          status: "active",
+        })
+        .returning({ id: patients.id });
+      patientId = nova.id;
+    }
+
+    const [consulta] = await tx
+      .insert(appointments)
+      .values({
+        therapistId,
+        patientId,
+        scheduledAt: pedido.inicio,
+        duration: pedido.duracao,
+        notes: ROTULO_DA_CONVERSA,
+        price: null,
+        roomToken: nanoid(16),
+      })
+      .returning({ id: appointments.id });
+
+    await tx
+      .update(pedidosParaConhecer)
+      .set({ patientId, appointmentId: consulta.id })
+      .where(eq(pedidosParaConhecer.id, pedido.id));
+    // Agora ele tem psicóloga: o pedido dele e os convites de outras que ainda esperavam
+    // resposta se encerram (e os horários delas voltam para a busca).
+    await tx
+      .update(pedidosParaConhecer)
+      .set({ status: "cancelado", respondidoEm: agora })
+      .where(
+        and(
+          eq(pedidosParaConhecer.pacienteUserId, pessoa.id),
+          eq(pedidosParaConhecer.status, "pendente"),
+          sql`${pedidosParaConhecer.id} <> ${pedido.id}`,
+        ),
+      );
+    return { patientId, appointmentId: consulta.id };
+  }).catch((e: unknown) => {
+    // A conta foi ligada a outra ficha no meio do caminho (índice único de userId).
+    if (indiceViolado(e) !== null) {
+      throw new TRPCError({ code: "CONFLICT", message: "Esse paciente acabou de ser ligado a outra ficha. Atualize a página." });
+    }
+    throw e;
+  });
+
+  await iniciarTesteNoPrimeiroPaciente(db, therapistId);
+  // E-mail de "nova consulta" para o paciente, pelo mesmo ciclo das outras consultas.
+  if (process.env.NOTIFICATIONS_ENABLED === "true") void rodarCicloDeNotificacoes();
+  return resultado;
+}
+
 export const conhecerRouter = router({
   // ── Público ─────────────────────────────────────────────────────────────────
 
@@ -319,6 +587,7 @@ export const conhecerRouter = router({
     if (!db) return null;
     const [p] = await psicologasVisiveis(db, [input.id]);
     if (!p) return null;
+    await encerrarConvitesSemDestino(db, p.id);
     const horarios = (await horariosLivres(db, [p.id], new Date())).slice(0, MAX_HORARIOS_ABERTOS);
     const fotos = p.photoKey ? await assinarFotos([p.photoKey]) : {};
     return {
@@ -340,30 +609,39 @@ export const conhecerRouter = router({
 
   // ── Paciente ────────────────────────────────────────────────────────────────
 
-  /** Perfil, se pode pedir (e por que não) e os pedidos dele. */
+  /** Perfil, se pode pedir (e por que não), os pedidos dele e os convites que recebeu. */
   minhaSituacao: protectedProcedure.query(async ({ ctx }) => {
     const db = await banco();
     const agora = new Date();
     const [perfil] = await db.select().from(perfisDePaciente).where(eq(perfisDePaciente.userId, ctx.user.id)).limit(1);
-    const pedidos = await db
-      .select({
-        id: pedidosParaConhecer.id,
-        therapistId: pedidosParaConhecer.therapistId,
-        nome: users.name,
-        inicio: pedidosParaConhecer.inicio,
-        duracao: pedidosParaConhecer.duracao,
-        status: pedidosParaConhecer.status,
-        createdAt: pedidosParaConhecer.createdAt,
-      })
-      .from(pedidosParaConhecer)
-      .innerJoin(therapists, eq(therapists.id, pedidosParaConhecer.therapistId))
-      .innerJoin(users, eq(users.id, therapists.userId))
-      .where(eq(pedidosParaConhecer.pacienteUserId, ctx.user.id))
-      .orderBy(desc(pedidosParaConhecer.createdAt))
-      .limit(20);
+    // Pedidos e convites em consultas separadas: muitos convites não podem empurrar o
+    // pedido pendente dele para fora da lista (e liberar um segundo pedido na tela).
+    const daOrigem = async (origem: OrigemDoPedido) =>
+      (
+        await db
+          .select({
+            id: pedidosParaConhecer.id,
+            therapistId: pedidosParaConhecer.therapistId,
+            nome: users.name,
+            inicio: pedidosParaConhecer.inicio,
+            duracao: pedidosParaConhecer.duracao,
+            status: pedidosParaConhecer.status,
+            mensagem: pedidosParaConhecer.mensagem,
+            createdAt: pedidosParaConhecer.createdAt,
+          })
+          .from(pedidosParaConhecer)
+          .innerJoin(therapists, eq(therapists.id, pedidosParaConhecer.therapistId))
+          .innerJoin(users, eq(users.id, therapists.userId))
+          .where(and(eq(pedidosParaConhecer.pacienteUserId, ctx.user.id), eq(pedidosParaConhecer.origem, origem)))
+          .orderBy(desc(pedidosParaConhecer.createdAt))
+          .limit(20)
+      ).map((p) => ({ ...p, nome: p.nome ?? "", status: statusVisivel(p, agora) }));
+    // O recado do pedido é dele; o do convite é dela e é o que ele precisa ler.
+    const pedidos = (await daOrigem("paciente")).map(({ mensagem: _m, ...p }) => p);
+    const convites = await daOrigem("psicologa");
     const vinculado = ctx.user.role === "therapist" || ctx.user.role === "admin" ? false : await vinculoAtivo(db, ctx.user);
     const perfilCompleto = !!(perfil?.cidade && perfil?.uf && perfil?.nascimento);
-    const temPedidoPendente = pedidos.some((p) => statusVisivel(p, agora) === "pendente");
+    const temPedidoPendente = pedidos.some((p) => p.status === "pendente");
     const motivo = motivoParaNaoPedir({
       role: ctx.user.role,
       vinculoAtivo: vinculado,
@@ -380,11 +658,13 @@ export const conhecerRouter = router({
             nascimento: perfil.nascimento,
             modalidade: perfil.modalidade,
             oQueProcura: perfil.oQueProcura,
+            noMural: perfil.noMural,
           }
         : null,
       motivo,
       explicacao: motivo ? EXPLICACAO_DO_MOTIVO[motivo] : null,
-      pedidos: pedidos.map((p) => ({ ...p, nome: p.nome ?? "", status: statusVisivel(p, agora) })),
+      pedidos,
+      convites,
     };
   }),
 
@@ -396,6 +676,8 @@ export const conhecerRouter = router({
         nascimento: nascimentoSchema,
         modalidade: z.enum(MODALIDADES).nullable(),
         oQueProcura: z.string().trim().max(MAX_OQUE_PROCURA).nullable(),
+        /** Aparecer no mural das psicólogas. Desligado se não vier. */
+        noMural: z.boolean().default(false),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -409,6 +691,7 @@ export const conhecerRouter = router({
         nascimento: input.nascimento,
         modalidade: input.modalidade,
         oQueProcura: input.oQueProcura || null,
+        noMural: input.noMural,
       };
       await db
         .insert(perfisDePaciente)
@@ -439,7 +722,7 @@ export const conhecerRouter = router({
       const [pendente] = await db
         .select({ id: pedidosParaConhecer.id })
         .from(pedidosParaConhecer)
-        .where(and(eq(pedidosParaConhecer.pacienteUserId, ctx.user.id), eq(pedidosParaConhecer.status, "pendente")))
+        .where(and(eq(pedidosParaConhecer.pacienteUserId, ctx.user.id), eq(pedidosParaConhecer.status, "pendente"), eq(pedidosParaConhecer.origem, "paciente")))
         .limit(1);
       const motivo = motivoParaNaoPedir({
         role: ctx.user.role,
@@ -494,6 +777,7 @@ export const conhecerRouter = router({
           eq(pedidosParaConhecer.id, input.id),
           eq(pedidosParaConhecer.pacienteUserId, ctx.user.id),
           eq(pedidosParaConhecer.status, "pendente"),
+          eq(pedidosParaConhecer.origem, "paciente"),
         ),
       )
       .returning({ id: pedidosParaConhecer.id });
@@ -501,12 +785,60 @@ export const conhecerRouter = router({
     return { ok: true } as const;
   }),
 
+  /** O paciente aceita ou recusa o convite de uma psicóloga do mural. */
+  responderConvite: protectedProcedure
+    .input(z.object({ id: z.number().int().positive(), aceitar: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await banco();
+      const [convite] = await db
+        .select()
+        .from(pedidosParaConhecer)
+        .where(
+          and(
+            eq(pedidosParaConhecer.id, input.id),
+            eq(pedidosParaConhecer.pacienteUserId, ctx.user.id),
+            eq(pedidosParaConhecer.origem, "psicologa"),
+          ),
+        )
+        .limit(1);
+      if (!convite || convite.status !== "pendente") {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Esse convite não está mais esperando resposta." });
+      }
+      if (!input.aceitar) {
+        await db
+          .update(pedidosParaConhecer)
+          .set({ status: "recusado", respondidoEm: new Date() })
+          .where(and(eq(pedidosParaConhecer.id, convite.id), eq(pedidosParaConhecer.status, "pendente")));
+        return { ok: true } as const;
+      }
+      // As mesmas travas de quem pede: conta de paciente, sem psicóloga, perfil e idade.
+      const [perfil] = await db.select().from(perfisDePaciente).where(eq(perfisDePaciente.userId, ctx.user.id)).limit(1);
+      const motivo = motivoParaNaoPedir({
+        role: ctx.user.role,
+        vinculoAtivo: ctx.user.role === "therapist" || ctx.user.role === "admin" ? false : await vinculoAtivo(db, ctx.user),
+        perfilCompleto: !!(perfil?.cidade && perfil?.uf && perfil?.nascimento),
+        nascimento: perfil?.nascimento,
+        temPedidoPendente: false,
+      });
+      if (motivo) throw new TRPCError({ code: "FORBIDDEN", message: EXPLICACAO_DO_MOTIVO[motivo] });
+      // Saiu da busca, esvaziou o perfil ou o plano venceu: o convite não vale mais.
+      if (!(await psicologasVisiveis(db, [convite.therapistId])).length) {
+        throw new TRPCError({ code: "CONFLICT", message: "Essa psicóloga não está recebendo pacientes pela busca agora. Procure outra na busca." });
+      }
+      await confirmarConversa(db, convite, convite.therapistId, "paciente");
+      void avisarPsicologaDoAceite(db, convite.therapistId, ctx.user.name, convite.inicio).catch((e) =>
+        console.error("[conhecer] aviso do aceite falhou:", e instanceof Error ? e.message : e),
+      );
+      return { ok: true } as const;
+    }),
+
   // ── Psicóloga ───────────────────────────────────────────────────────────────
 
   minhaVitrine: therapistProcedure.query(async ({ ctx }) => {
     const db = await banco();
     const [t] = await db.select().from(therapists).where(eq(therapists.userId, ctx.user.id)).limit(1);
     if (!t) return null;
+    await encerrarConvitesSemDestino(db, t.id);
     const agora = new Date();
     const abertos = await db
       .select({ id: horariosParaConhecer.id, inicio: horariosParaConhecer.inicio, duracao: horariosParaConhecer.duracao })
@@ -608,6 +940,7 @@ export const conhecerRouter = router({
   fecharHorario: therapistProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
     const db = await banco();
     const t = await minhaFicha(db, ctx.user.id);
+    await encerrarConvitesSemDestino(db, t.id);
     // Só os pedidos DELA: senão a resposta diria a outra se um horário alheio tem pedido.
     const situacao = (await situacaoDosHorarios(db, t.id, [input.id])).get(input.id);
     if (situacao === "pendente" || situacao === "aceito") {
@@ -615,6 +948,9 @@ export const conhecerRouter = router({
         code: "CONFLICT",
         message: "Esse horário tem um pedido esperando resposta ou uma conversa marcada. Responda ao pedido ou desmarque a consulta antes.",
       });
+    }
+    if (situacao === "convite") {
+      throw new TRPCError({ code: "CONFLICT", message: "Esse horário está num convite seu. Cancele o convite antes de fechar o horário." });
     }
     const apagados = await db
       .delete(horariosParaConhecer)
@@ -652,7 +988,7 @@ export const conhecerRouter = router({
       .from(pedidosParaConhecer)
       .innerJoin(users, eq(users.id, pedidosParaConhecer.pacienteUserId))
       .leftJoin(perfisDePaciente, eq(perfisDePaciente.userId, pedidosParaConhecer.pacienteUserId))
-      .where(and(eq(pedidosParaConhecer.therapistId, t.id), eq(pedidosParaConhecer.status, "pendente")))
+      .where(and(eq(pedidosParaConhecer.therapistId, t.id), eq(pedidosParaConhecer.status, "pendente"), eq(pedidosParaConhecer.origem, "paciente")))
       .orderBy(asc(pedidosParaConhecer.inicio))
       .limit(50);
     return linhas.map(({ nascimento, ...l }) => ({
@@ -667,138 +1003,22 @@ export const conhecerRouter = router({
     const db = await banco();
     await exigirAssinaturaAtiva(db, ctx.user);
     const t = await minhaFicha(db, ctx.user.id);
-    const agora = new Date();
-
+    // Só pedidos que o PACIENTE fez: o convite dela quem aceita é ele.
     const [pedido] = await db
       .select()
       .from(pedidosParaConhecer)
-      .where(and(eq(pedidosParaConhecer.id, input.id), eq(pedidosParaConhecer.therapistId, t.id)))
+      .where(
+        and(
+          eq(pedidosParaConhecer.id, input.id),
+          eq(pedidosParaConhecer.therapistId, t.id),
+          eq(pedidosParaConhecer.origem, "paciente"),
+        ),
+      )
       .limit(1);
     if (!pedido || pedido.status !== "pendente") {
       throw new TRPCError({ code: "NOT_FOUND", message: "Esse pedido não está mais esperando resposta." });
     }
-    if (pedido.inicio.getTime() <= agora.getTime()) {
-      await db.update(pedidosParaConhecer).set({ status: "expirado" }).where(eq(pedidosParaConhecer.id, pedido.id));
-      throw new TRPCError({ code: "BAD_REQUEST", message: "O horário desse pedido já passou." });
-    }
-    if (await horarioEmConflito(db, t.id, pedido.inicio, pedido.duracao)) {
-      throw new TRPCError({ code: "CONFLICT", message: "Você já tem uma consulta nesse horário. Recuse o pedido ou desmarque a outra consulta." });
-    }
-
-    const [pessoa] = await db
-      .select({ id: users.id, name: users.name, email: users.email, openId: users.openId })
-      .from(users)
-      .where(eq(users.id, pedido.pacienteUserId))
-      .limit(1);
-    if (!pessoa) throw new TRPCError({ code: "NOT_FOUND", message: "A conta desse paciente não existe mais." });
-
-    // Fichas dessa conta. Ativa com OUTRA psicóloga (ou convite dela pelo e-mail): ele já
-    // começou com outra pessoa.
-    const fichas = await db.select().from(patients).where(eq(patients.userId, pessoa.id));
-    const email = normalizarEmail(pessoa.email);
-    const [conviteDeOutra] = email
-      ? await db
-          .select({ id: patients.id })
-          .from(patients)
-          .where(
-            and(
-              isNull(patients.userId),
-              eq(patients.email, email),
-              inArray(patients.status, ["active", "pending"]),
-              sql`${patients.therapistId} <> ${t.id}`,
-            ),
-          )
-          .limit(1)
-      : [];
-    const comOutra = fichas.some((f) => f.therapistId !== t.id && (f.status === "active" || f.status === "pending"));
-    if (comOutra || conviteDeOutra) {
-      await db.update(pedidosParaConhecer).set({ status: "cancelado", respondidoEm: agora }).where(eq(pedidosParaConhecer.id, pedido.id));
-      throw new TRPCError({ code: "CONFLICT", message: "Esse paciente já começou com outra psicóloga. O pedido foi encerrado." });
-    }
-    const minha = fichas.find((f) => f.therapistId === t.id);
-    // Convite dela com o mesmo e-mail, ainda sem conta: aproveita a ficha em vez de duplicar.
-    const [convite] = minha || !email
-      ? []
-      : await db
-          .select()
-          .from(patients)
-          .where(and(eq(patients.therapistId, t.id), eq(patients.email, email), isNull(patients.userId)))
-          .limit(1);
-    const ficha = minha ?? convite;
-    // Ficha inativa ou arquivada que volta a ativa ocupa vaga, como na reativação pelo prontuário.
-    if (!ficha || (ficha.status !== "active" && ficha.status !== "pending")) await exigirVagaNoPlano(db, t.id);
-    const telefone = !ficha ? await celularDaConta(pessoa.openId).catch(() => null) : null;
-
-    const resultado = await db.transaction(async (tx) => {
-      // Trava o pedido antes de tudo: dois "Aceitar" ao mesmo tempo (duas abas) esperam um
-      // pelo outro, e o segundo encontra o pedido já respondido.
-      const travados = await tx
-        .update(pedidosParaConhecer)
-        .set({ status: "aceito", respondidoEm: agora })
-        .where(and(eq(pedidosParaConhecer.id, pedido.id), eq(pedidosParaConhecer.status, "pendente")))
-        .returning({ id: pedidosParaConhecer.id });
-      if (!travados.length) {
-        throw new TRPCError({ code: "CONFLICT", message: "Esse pedido acabou de ser respondido ou cancelado." });
-      }
-
-      // Fichas antigas encerradas com outras psicólogas soltam a conta (o prontuário fica
-      // com quem atendeu); a conta só tem uma ficha por vez (patients.userId é único).
-      await tx
-        .update(patients)
-        .set({ userId: null })
-        .where(and(eq(patients.userId, pessoa.id), inArray(patients.status, ["inactive", "archived"]), sql`${patients.therapistId} <> ${t.id}`));
-
-      let patientId: number;
-      if (ficha) {
-        await tx.update(patients).set({ userId: pessoa.id, status: "active" }).where(eq(patients.id, ficha.id));
-        patientId = ficha.id;
-      } else {
-        const { firstName, lastName } = separarNome(pessoa.name);
-        const [nova] = await tx
-          .insert(patients)
-          .values({
-            therapistId: t.id,
-            userId: pessoa.id,
-            firstName,
-            lastName,
-            email: email || `sem-email-${pessoa.id}@vozinterior.invalid`,
-            phone: telefone ? telefone.slice(0, 20) : null,
-            status: "active",
-          })
-          .returning({ id: patients.id });
-        patientId = nova.id;
-      }
-
-      const [consulta] = await tx
-        .insert(appointments)
-        .values({
-          therapistId: t.id,
-          patientId,
-          scheduledAt: pedido.inicio,
-          duration: pedido.duracao,
-          notes: ROTULO_DA_CONVERSA,
-          price: null,
-          roomToken: nanoid(16),
-        })
-        .returning({ id: appointments.id });
-
-      await tx
-        .update(pedidosParaConhecer)
-        .set({ patientId, appointmentId: consulta.id })
-        .where(eq(pedidosParaConhecer.id, pedido.id));
-      return { patientId, appointmentId: consulta.id };
-    }).catch((e: unknown) => {
-      // A conta foi ligada a outra ficha no meio do caminho (índice único de userId).
-      if (indiceViolado(e) !== null) {
-        throw new TRPCError({ code: "CONFLICT", message: "Esse paciente acabou de ser ligado a outra ficha. Atualize a página." });
-      }
-      throw e;
-    });
-
-    await iniciarTesteNoPrimeiroPaciente(db, t.id);
-    // E-mail de "nova consulta" para o paciente, pelo mesmo ciclo das outras consultas.
-    if (process.env.NOTIFICATIONS_ENABLED === "true") void rodarCicloDeNotificacoes();
-    return resultado;
+    return confirmarConversa(db, pedido, t.id, "psicologa");
   }),
 
   recusar: therapistProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
@@ -807,7 +1027,7 @@ export const conhecerRouter = router({
     const [pedido] = await db
       .update(pedidosParaConhecer)
       .set({ status: "recusado", respondidoEm: new Date() })
-      .where(and(eq(pedidosParaConhecer.id, input.id), eq(pedidosParaConhecer.therapistId, t.id), eq(pedidosParaConhecer.status, "pendente")))
+      .where(and(eq(pedidosParaConhecer.id, input.id), eq(pedidosParaConhecer.therapistId, t.id), eq(pedidosParaConhecer.status, "pendente"), eq(pedidosParaConhecer.origem, "paciente")))
       .returning({ pacienteUserId: pedidosParaConhecer.pacienteUserId, inicio: pedidosParaConhecer.inicio });
     if (!pedido) throw new TRPCError({ code: "NOT_FOUND", message: "Esse pedido não está mais esperando resposta." });
     void avisarPacienteDaRecusa(db, pedido.pacienteUserId, ctx.user.name).catch((e) =>
@@ -815,6 +1035,213 @@ export const conhecerRouter = router({
     );
     return { ok: true } as const;
   }),
+  // ── Rede: o mural de pacientes e os convites (2026-11-16) ──────────────────
+
+  /** Pessoas que ligaram "aparecer para psicólogas". Primeiro nome, nunca e-mail nem telefone. */
+  mural: therapistProcedure
+    .input(
+      z
+        .object({
+          uf: z.enum(UFS).optional(),
+          modalidade: z.enum(["online", "presencial"]).optional(),
+          pagina: z.number().int().min(1).max(100).default(1),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const db = await banco();
+      // "O que te traz" pode ser dado de saúde: só quem pode convidar lê o mural.
+      await exigirAssinaturaAtiva(db, ctx.user);
+      const [t] = await db.select({ id: therapists.id }).from(therapists).where(eq(therapists.userId, ctx.user.id)).limit(1);
+      if (!t) return { itens: [], total: 0, temMais: false };
+      const agora = new Date();
+      const pagina = input?.pagina ?? 1;
+      const { linhas, total } = await pacientesDoMural(db, { uf: input?.uf, modalidade: input?.modalidade, pagina });
+      const pedaco = linhas.slice(0, POR_PAGINA_DO_MURAL);
+      const convidados = pedaco.length
+        ? await db
+            .select({ id: pedidosParaConhecer.pacienteUserId })
+            .from(pedidosParaConhecer)
+            .where(
+              and(
+                eq(pedidosParaConhecer.therapistId, t.id),
+                eq(pedidosParaConhecer.origem, "psicologa"),
+                eq(pedidosParaConhecer.status, "pendente"),
+                gt(pedidosParaConhecer.inicio, agora),
+                inArray(pedidosParaConhecer.pacienteUserId, pedaco.map((p) => p.id)),
+              ),
+            )
+        : [];
+      const jaConvidei = new Set(convidados.map((c) => c.id));
+      return {
+        total,
+        temMais: linhas.length > POR_PAGINA_DO_MURAL,
+        itens: pedaco.map((p) => ({
+          id: p.id,
+          primeiroNome: primeiroNome(p.nome),
+          idade: idadeEmAnos(p.nascimento, agora),
+          cidade: p.cidade,
+          uf: p.uf,
+          modalidade: p.modalidade,
+          oQueProcura: p.oQueProcura,
+          atualizadoEm: p.atualizadoEm,
+          convidado: jaConvidei.has(p.id),
+        })),
+      };
+    }),
+
+  /** Convida alguém do mural para a primeira conversa, num horário aberto dela. */
+  convidar: therapistProcedure
+    .input(
+      z.object({
+        pacienteId: z.number().int().positive(),
+        horarioId: z.number().int().positive(),
+        mensagem: z.string().trim().max(MAX_MENSAGEM).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const db = await banco();
+      await exigirAssinaturaAtiva(db, ctx.user);
+      const t = await minhaFicha(db, ctx.user.id);
+      const agora = new Date();
+      // A pessoa conhece quem convidou pelo perfil público: sem ele, nada de convite.
+      if (!t.naBusca) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Para convidar, ligue “Aparecer na busca” no seu Perfil: é por ele que a pessoa conhece você antes de aceitar.",
+        });
+      }
+      const falta = faltaParaAparecer(t);
+      if (falta.length) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Para convidar, complete no seu Perfil: ${falta.join(" e ")}.` });
+      }
+      const [horario] = await db
+        .select()
+        .from(horariosParaConhecer)
+        .where(and(eq(horariosParaConhecer.id, input.horarioId), eq(horariosParaConhecer.therapistId, t.id)))
+        .limit(1);
+      if (!horario || !horarioPodeSerPedido(horario.inicio, agora)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Escolha um horário seu que comece daqui a pelo menos 2 horas." });
+      }
+      await encerrarConvitesSemDestino(db, t.id);
+      if ((await situacaoDosHorarios(db, t.id, [horario.id])).has(horario.id)) {
+        throw new TRPCError({ code: "CONFLICT", message: "Esse horário já está num pedido ou convite. Escolha outro." });
+      }
+      if (await horarioEmConflito(db, t.id, horario.inicio, horario.duracao)) {
+        throw new TRPCError({ code: "CONFLICT", message: "Você já tem uma consulta nesse horário." });
+      }
+      const [pessoa] = (await pacientesDoMural(db, { ids: [input.pacienteId] })).linhas;
+      if (!pessoa) throw new TRPCError({ code: "NOT_FOUND", message: "Essa pessoa não está mais no mural." });
+      await exigirVagaNoPlano(db, t.id);
+
+      try {
+        await db.transaction(async (tx) => {
+          // Uma psicóloga convida um de cada vez: dois convites ao mesmo tempo (duas abas)
+          // não passam juntos do teto.
+          await tx.execute(sql`SELECT pg_advisory_xact_lock(${TRAVA_DOS_CONVITES}, ${t.id})`);
+          // Convite cujo horário passou não conta no teto.
+          await tx
+            .update(pedidosParaConhecer)
+            .set({ status: "expirado" })
+            .where(
+              and(
+                eq(pedidosParaConhecer.therapistId, t.id),
+                eq(pedidosParaConhecer.origem, "psicologa"),
+                eq(pedidosParaConhecer.status, "pendente"),
+                lte(pedidosParaConhecer.inicio, agora),
+              ),
+            );
+          const [{ n }] = await tx
+            .select({ n: count() })
+            .from(pedidosParaConhecer)
+            .where(
+              and(
+                eq(pedidosParaConhecer.therapistId, t.id),
+                eq(pedidosParaConhecer.origem, "psicologa"),
+                eq(pedidosParaConhecer.status, "pendente"),
+              ),
+            );
+          if (n >= MAX_CONVITES_PENDENTES) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Dá para ter até ${MAX_CONVITES_PENDENTES} convites esperando resposta. Espere algumas respostas ou cancele um convite.`,
+            });
+          }
+          await tx.insert(pedidosParaConhecer).values({
+            horarioId: horario.id,
+            therapistId: t.id,
+            pacienteUserId: pessoa.id,
+            inicio: horario.inicio,
+            duracao: horario.duracao,
+            mensagem: input.mensagem || null,
+            origem: "psicologa",
+          });
+        });
+      } catch (e) {
+        const indice = indiceViolado(e);
+        if (indice === null) throw e;
+        if (indice.includes("convite")) {
+          throw new TRPCError({ code: "CONFLICT", message: "Você já convidou essa pessoa. Espere a resposta ou cancele o convite." });
+        }
+        throw new TRPCError({ code: "CONFLICT", message: "Esse horário acabou de ser pedido. Escolha outro." });
+      }
+
+      void avisarPacienteDoConvite(db, pessoa.id, ctx.user.name, horario.inicio).catch((e) =>
+        console.error("[conhecer] aviso do convite falhou:", e instanceof Error ? e.message : e),
+      );
+      return { ok: true } as const;
+    }),
+
+  cancelarConvite: therapistProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    const db = await banco();
+    const t = await minhaFicha(db, ctx.user.id);
+    const feitos = await db
+      .update(pedidosParaConhecer)
+      .set({ status: "cancelado", respondidoEm: new Date() })
+      .where(
+        and(
+          eq(pedidosParaConhecer.id, input.id),
+          eq(pedidosParaConhecer.therapistId, t.id),
+          eq(pedidosParaConhecer.origem, "psicologa"),
+          eq(pedidosParaConhecer.status, "pendente"),
+        ),
+      )
+      .returning({ id: pedidosParaConhecer.id });
+    if (!feitos.length) throw new TRPCError({ code: "NOT_FOUND", message: "Esse convite não está mais esperando resposta." });
+    return { ok: true } as const;
+  }),
+
+  /** Convites que ela mandou: os que esperam resposta e os dos últimos 30 dias. */
+  convitesEnviados: therapistProcedure.query(async ({ ctx }) => {
+    const db = await banco();
+    const [t] = await db.select({ id: therapists.id }).from(therapists).where(eq(therapists.userId, ctx.user.id)).limit(1);
+    if (!t) return [];
+    await encerrarConvitesSemDestino(db, t.id);
+    const agora = new Date();
+    const desde = new Date(agora.getTime() - 30 * 24 * 60 * MINUTO);
+    const linhas = await db
+      .select({
+        id: pedidosParaConhecer.id,
+        inicio: pedidosParaConhecer.inicio,
+        duracao: pedidosParaConhecer.duracao,
+        status: pedidosParaConhecer.status,
+        createdAt: pedidosParaConhecer.createdAt,
+        nome: users.name,
+      })
+      .from(pedidosParaConhecer)
+      .innerJoin(users, eq(users.id, pedidosParaConhecer.pacienteUserId))
+      .where(
+        and(
+          eq(pedidosParaConhecer.therapistId, t.id),
+          eq(pedidosParaConhecer.origem, "psicologa"),
+          or(eq(pedidosParaConhecer.status, "pendente"), gt(pedidosParaConhecer.createdAt, desde)),
+        ),
+      )
+      .orderBy(desc(pedidosParaConhecer.createdAt))
+      .limit(30);
+    return linhas.map(({ nome, ...l }) => ({ ...l, primeiroNome: primeiroNome(nome), status: statusVisivel(l, agora) }));
+  }),
+
 });
 
 // ── Avisos por e-mail (sem dado clínico: o "o que procura" fica só no sistema) ──
@@ -865,6 +1292,45 @@ async function avisarPacienteDaRecusa(db: Db, pacienteUserId: number, nomeDaPsic
       titulo: "O horário não pôde ser confirmado",
       corpo: `<p style="margin:0 0 12px">${nomeDaPsicologa ? esc(nomeDaPsicologa) : "A psicóloga"} não conseguiu confirmar o horário que você pediu. Isso acontece, e não tem a ver com você.</p><p style="margin:0 0 12px">Você pode escolher outro horário, com ela ou com outra psicóloga da busca.</p>`,
       botao: { texto: "Ver psicólogas", url: `${base}/encontrar-psicologa` },
+      base,
+    }),
+  );
+}
+
+async function avisarPacienteDoConvite(db: Db, pacienteUserId: number, nomeDaPsicologa: string | null, inicio: Date) {
+  const [pessoa] = await db.select({ nome: users.name, email: users.email }).from(users).where(eq(users.id, pacienteUserId)).limit(1);
+  if (!pessoa?.email) return;
+  const base = appUrl();
+  await sendEmail(
+    pessoa.email,
+    "Convite para uma primeira conversa — VozInterior",
+    emailComMarca({
+      nome: pessoa.nome,
+      titulo: "Você recebeu um convite",
+      corpo: `<p style="margin:0 0 12px">${nomeDaPsicologa ? esc(nomeDaPsicologa) : "Uma psicóloga"} viu seu perfil e convidou você para uma primeira conversa, curta e gratuita, por vídeo, em <strong>${esc(quando(inicio))}</strong>.</p><p style="margin:0 0 12px">Veja o perfil dela e aceite ou recuse na área Rede. Recusar não tem problema.</p>`,
+      botao: { texto: "Ver o convite", url: `${base}/rede` },
+      base,
+    }),
+  );
+}
+
+async function avisarPsicologaDoAceite(db: Db, therapistId: number, nomeDoPaciente: string | null, inicio: Date) {
+  const [dona] = await db
+    .select({ nome: users.name, email: users.email })
+    .from(therapists)
+    .innerJoin(users, eq(users.id, therapists.userId))
+    .where(eq(therapists.id, therapistId))
+    .limit(1);
+  if (!dona?.email) return;
+  const base = appUrl();
+  await sendEmail(
+    dona.email,
+    "Convite aceito — VozInterior",
+    emailComMarca({
+      nome: dona.nome,
+      titulo: "Seu convite foi aceito",
+      corpo: `<p style="margin:0 0 12px">${esc(primeiroNome(nomeDoPaciente))} aceitou seu convite para a primeira conversa de <strong>${esc(quando(inicio))}</strong>. A consulta já está na sua Agenda, e a ficha dele em Pacientes.</p>`,
+      botao: { texto: "Ver a Agenda", url: `${base}/appointments` },
       base,
     }),
   );

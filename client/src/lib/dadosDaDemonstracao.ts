@@ -191,7 +191,7 @@ export function respostaDaDemonstracao(caminho: string, entrada: unknown): unkno
         falta: [],
         horarios: [
           { id: 1, inicio: dia(2, 9), duracao: 20, pedido: "pendente" },
-          { id: 2, inicio: dia(3, 18), duracao: 20, pedido: null },
+          { id: 2, inicio: dia(3, 18), duracao: 20, pedido: "convite" },
         ],
       } satisfies O["conhecer"]["minhaVitrine"];
     case "conhecer.pedidosRecebidos":
@@ -212,6 +212,20 @@ export function respostaDaDemonstracao(caminho: string, entrada: unknown): unkno
           oQueProcura: "Ando com muita ansiedade antes das reuniões do trabalho e queria entender o porquê.",
         },
       ] satisfies O["conhecer"]["pedidosRecebidos"];
+    // Rede: duas pessoas no mural, uma já convidada.
+    case "conhecer.mural":
+      return {
+        total: 2,
+        temMais: false,
+        itens: [
+          { id: 501, primeiroNome: "Larissa", idade: 27, cidade: "Recife", uf: "PE", modalidade: "online", oQueProcura: "Tenho tido crises de ansiedade antes de provas e queria aprender a lidar com isso.", atualizadoEm: dia(-1, 10), convidado: false },
+          { id: 502, primeiroNome: "Marcos", idade: 41, cidade: "Olinda", uf: "PE", modalidade: "ambos", oQueProcura: null, atualizadoEm: dia(-3, 9), convidado: true },
+        ],
+      } satisfies O["conhecer"]["mural"];
+    case "conhecer.convitesEnviados":
+      return [
+        { id: 2, inicio: dia(3, 18), duracao: 20, status: "pendente", createdAt: dia(-1, 9), primeiroNome: "Marcos" },
+      ] satisfies O["conhecer"]["convitesEnviados"];
     case "assinatura.minha": {
       // Plano Voz em teste, com tudo liberado: mostra o que ela teria nos 14 dias.
       const plano = planoEfetivo("max", PACIENTES.length);

@@ -1,6 +1,6 @@
 import { boolean, customType, date, index, integer, jsonb, pgEnum, pgTable, serial, smallint, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 import type { AvisosPorEmail } from "../shared/avisosPorEmail";
-import type { Modalidade, StatusDoPedido } from "../shared/conhecer";
+import type { Modalidade, OrigemDoPedido, StatusDoPedido } from "../shared/conhecer";
 import { relations, sql } from "drizzle-orm";
 import type { AnamneseData, TcleData, NoteTemplate } from "../shared/prontuario";
 import type { TipoChavePix } from "../shared/pix";
@@ -240,6 +240,8 @@ export const perfisDePaciente = pgTable("perfisDePaciente", {
   nascimento: date("nascimento", { mode: "string" }),
   modalidade: varchar("modalidade", { length: 12 }).$type<Modalidade>(),
   oQueProcura: text("oQueProcura"),
+  /** Aparece no mural das psicólogas (migração 0054). Só quando ELE liga. */
+  noMural: boolean("noMural").default(false).notNull(),
   createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
     .defaultNow()
@@ -263,6 +265,8 @@ export const pedidosParaConhecer = pgTable(
     duracao: smallint("duracao").default(20).notNull(),
     mensagem: text("mensagem"),
     status: varchar("status", { length: 12 }).$type<StatusDoPedido>().default("pendente").notNull(),
+    /** Quem começou (migração 0054): o paciente pediu, ou a psicóloga convidou pelo mural. */
+    origem: varchar("origem", { length: 10 }).$type<OrigemDoPedido>().default("paciente").notNull(),
     patientId: integer("patientId").references(() => patients.id, { onDelete: "set null" }),
     appointmentId: integer("appointmentId").references(() => appointments.id, { onDelete: "set null" }),
     createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),

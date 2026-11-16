@@ -86,12 +86,12 @@ export function answerSiteHelp(question: string): SiteHelpResponse {
 function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
   // Busca de psicólogas (2026-11-13). Antes de remarcar ("cancelar meu pedido") e de
   // pagamento ("a primeira conversa é paga?").
-  if (/(encontr|ach|procur)(?:ar|o|ando) (?:uma? )?(?:psicolog|terapeuta)|nao tenho (?:uma? )?(?:psicolog|terapeuta)|primeira conversa|conversa gratuita|meu pedido|pedido de horario/.test(normalized)) {
+  if (/(encontr|ach|procur)(?:ar|o|ando) (?:uma? )?(?:psicolog|terapeuta)|nao tenho (?:uma? )?(?:psicolog|terapeuta)|primeira conversa|conversa gratuita|meu pedido|pedido de horario|convite (?:de|da) (?:uma )?psicolog|convite para (?:uma )?primeira|mural|aparecer para psicolog|(?:aba|menu|area) rede\b/.test(normalized)) {
     return {
       model: "site-help-local",
       topic: "encontrar",
       content:
-        "Se você ainda não tem psicóloga, abra “Encontrar uma psicóloga” (em “Minha Psicóloga”, no menu). Lá você vê os perfis com o CRP, escolhe um horário e pede uma primeira conversa curta e gratuita, por vídeo. Quando ela confirma, a conversa aparece em “Minhas Consultas” e você recebe um e-mail. Dá para ter um pedido esperando resposta por vez, e cancelar enquanto ela não responde, na própria página da busca.",
+        "Se você ainda não tem psicóloga, abra “Rede” no menu (ou “Encontrar uma psicóloga”, em “Minha Psicóloga”). Lá você procura perfis com o CRP, escolhe um horário e pede uma primeira conversa curta e gratuita, por vídeo. No seu perfil da Rede, “Aparecer para psicólogas” deixa elas te encontrarem e te convidarem: o convite chega por e-mail e você aceita ou recusa na Rede. Quando a conversa é confirmada, ela aparece em “Minhas Consultas”. Dá para ter um pedido seu esperando resposta por vez, e cancelar enquanto ela não responde.",
     };
   }
 

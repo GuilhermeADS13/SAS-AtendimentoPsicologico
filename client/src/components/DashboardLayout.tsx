@@ -30,7 +30,7 @@ import { PatientNotificationsBell } from "./PatientNotificationsBell";
 import { LogoFull, LogoLockup, LumaOwlIcon } from "./Logo";
 import LumaOnboarding from "./LumaOnboarding";
 import { AvisoDoPlano } from "./SeuPlano";
-import { BadgeCheck, Brain, Calendar, CircleHelp, CreditCard, FileText, LayoutDashboard, LogOut, MessageSquare, PanelLeft, Settings, Stethoscope, UserRound, Users, Video, Wallet } from "lucide-react";
+import { BadgeCheck, Brain, Calendar, CircleHelp, CreditCard, FileText, Handshake, LayoutDashboard, LogOut, MessageSquare, PanelLeft, Settings, Stethoscope, UserRound, Users, Video, Wallet } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -56,6 +56,8 @@ const therapistMenu = [
   { icon: MessageSquare, label: "Mensagens", path: "/mensagens" },
   { icon: LumaOwlIcon, label: "Luma — Assistente IA", path: "/luma" },
   { icon: Calendar, label: "Agendamentos / Videochamada", path: "/appointments" },
+  // Rede (2026-11-16): mural de pacientes, convites, pedidos e o perfil na busca.
+  { icon: Handshake, label: "Rede", path: "/rede" },
   { icon: Wallet, label: "Financeiro", path: "/financeiro" },
   // A assinatura DELA com o VozInterior (o Financeiro é o que os pacientes pagam a ela).
   { icon: CreditCard, label: "Assinatura", path: "/assinatura" },
@@ -209,9 +211,29 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  // Selo da Rede: pedidos esperando a psicóloga, ou convites esperando o paciente.
+  const { data: pedidosNaRede = [] } = trpc.conhecer.pedidosRecebidos.useQuery(undefined, {
+    enabled: isTherapist,
+    refetchInterval: 60_000,
+    retry: false,
+  });
+  const { data: situacaoNaRede } = trpc.conhecer.minhaSituacao.useQuery(undefined, {
+    enabled: !isTherapist && Boolean(user),
+    refetchInterval: 60_000,
+    retry: false,
+  });
+  // Rede para o paciente só enquanto ele não tem psicóloga (ficha ativa ou convite pelo
+  // e-mail): quem já é paciente de alguém não vê outras psicólogas pelo menu. Ficha
+  // inativa ou arquivada não conta, e essa pessoa pode receber convites.
+  const pacienteSemPsicologa = !isTherapist && Boolean(situacaoNaRede) && situacaoNaRede?.motivo !== "vinculado";
+  const seloDaRede = isTherapist
+    ? (pedidosNaRede ?? []).filter((p) => p.status === "pendente").length
+    : (situacaoNaRede?.convites ?? []).filter((c) => c.status === "pendente").length;
   const menuItems = isTherapist
     ? [...therapistMenu, ...(isAdmin ? adminMenu : [])]
-    : patientMenu;
+    : pacienteSemPsicologa
+      ? [...patientMenu.slice(0, 5), { icon: Handshake, label: "Rede", path: "/rede" }, ...patientMenu.slice(5)]
+      : patientMenu;
   const activeMenuItem = menuItems.find(item => item.path === location);
 
   // Durante a videochamada, clicar num item do menu trocaria a rota e ENCERRARIA
@@ -322,6 +344,11 @@ function DashboardLayoutContent({
                           title="Pagamentos para confirmar"
                         >
                           {pagamentosInformados.length}
+                        </span>
+                      )}
+                      {item.path === "/rede" && seloDaRede > 0 && (
+                        <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium flex items-center justify-center">
+                          {seloDaRede}
                         </span>
                       )}
                       {item.path === "/mensagens" && chatNaoLidas > 0 && (

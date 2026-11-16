@@ -42,6 +42,7 @@ import {
   Privacidade,
   Profile,
   Records,
+  Rede,
   Termos,
   TherapistRequests,
   VideoCallDynamic,
@@ -156,6 +157,8 @@ function Router() {
           </TherapistOnly>
         )}
       </Route>
+      {/* Rede: psicóloga e paciente (a tela decide o lado pelo papel). */}
+      <Route path={"/rede"} component={Rede} />
       <Route path={"/mensagens"} component={Mensagens} />
       <Route path={"/consultas"} component={MyAppointments} />
       <Route path={"/psicologa"} component={MyTherapist} />

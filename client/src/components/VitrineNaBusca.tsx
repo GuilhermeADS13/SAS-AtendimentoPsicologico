@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import {
   DURACAO_PRIMEIRA_CONVERSA,
@@ -9,7 +9,7 @@ import {
   ehUf,
   type Modalidade,
 } from "@shared/conhecer";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,23 +31,27 @@ function amanha(): string {
  * (curta e gratuita). Fica fora do formulário do perfil: tem o próprio salvar.
  */
 export function VitrineNaBusca() {
+  const { data: v } = trpc.conhecer.minhaVitrine.useQuery();
+  // Monta só com os dados na mão: o Select do Radix não atualiza o rótulo quando o valor
+  // muda por código com o campo fechado ("Presencial" salvo aparecia em branco).
+  if (!v) return null;
+  return <Vitrine v={v} />;
+}
+
+type DadosDaVitrine = NonNullable<RouterOutputs["conhecer"]["minhaVitrine"]>;
+
+function Vitrine({ v }: { v: DadosDaVitrine }) {
   const utils = trpc.useUtils();
-  const { data: v, isLoading } = trpc.conhecer.minhaVitrine.useQuery();
-  const [form, setForm] = useState({ naBusca: false, abordagem: "", modalidade: "online" as Modalidade, cidade: "", uf: "" });
+  const [form, setForm] = useState(() => ({
+    naBusca: v.naBusca,
+    abordagem: v.abordagem ?? "",
+    modalidade: v.modalidade ?? ("online" as Modalidade),
+    cidade: v.cidade ?? "",
+    uf: v.uf ?? "",
+  }));
   const [dia, setDia] = useState(amanha());
   const [hora, setHora] = useState("09:00");
   const [duracao, setDuracao] = useState(DURACAO_PRIMEIRA_CONVERSA);
-
-  useEffect(() => {
-    if (!v) return;
-    setForm({
-      naBusca: v.naBusca,
-      abordagem: v.abordagem ?? "",
-      modalidade: v.modalidade ?? "online",
-      cidade: v.cidade ?? "",
-      uf: v.uf ?? "",
-    });
-  }, [v]);
 
   const recarregar = () => utils.conhecer.minhaVitrine.invalidate();
   const salvar = trpc.conhecer.salvarVitrine.useMutation({
@@ -68,8 +72,6 @@ export function VitrineNaBusca() {
     onSuccess: () => void recarregar(),
     onError: (e) => toast.error(e.message),
   });
-
-  if (isLoading || !v) return null;
 
   const alterado =
     form.naBusca !== v.naBusca ||
@@ -160,7 +162,7 @@ export function VitrineNaBusca() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="uf">Estado</Label>
-              <Select value={form.uf || undefined} onValueChange={(uf) => setForm({ ...form, uf })}>
+              <Select value={form.uf} onValueChange={(uf) => setForm({ ...form, uf })}>
                 <SelectTrigger id="uf">
                   <SelectValue placeholder="UF" />
                 </SelectTrigger>
@@ -267,6 +269,8 @@ export function VitrineNaBusca() {
                     </span>
                     {h.pedido === "aceito" ? (
                       <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">Confirmado</span>
+                    ) : h.pedido === "convite" ? (
+                      <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-foreground">Convite enviado</span>
                     ) : h.pedido === "pendente" ? (
                       <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900">Pedido esperando você</span>
                     ) : (

@@ -107,6 +107,13 @@ export default function Privacidade() {
                 saúde, conte apenas o que quiser.
               </li>
               <li>
+                <strong>Mural para psicólogas (Rede):</strong> só se você ligar “Aparecer para
+                psicólogas”, as psicólogas logadas no VozInterior veem seu primeiro nome, idade,
+                cidade, estado, preferência de atendimento e o que te traz, e podem te convidar para
+                uma primeira conversa. Sobrenome, e-mail e telefone não aparecem. Você desliga quando
+                quiser, e quem já tem psicóloga sai do mural sozinho.
+              </li>
+              <li>
                 <strong>Uso:</strong> registros técnicos de acesso (datas de consulta,
                 avisos enviados), necessários ao funcionamento.
               </li>

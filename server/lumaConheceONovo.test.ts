@@ -20,6 +20,7 @@ describe("Luma da psicóloga conhece as funções de novembro", () => {
     ["horário livre", /Horário livre/],
     ["instalar o app", /Instalar o app/],
     ["aparecer na busca", /Aparecer na busca de pacientes/],
+    ["rede e mural", /Pacientes procurando/],
   ])("%s", (_nome, texto) => {
     expect(mapa).toMatch(texto);
   });
@@ -32,8 +33,13 @@ describe("Luma da psicóloga conhece as funções de novembro", () => {
       "como instalo o app?",
       "quero aparecer na busca",
       "dá para conseguir novos pacientes por aqui?",
+      "como convido alguém do mural?",
     ]) {
       expect(pareceNavegacao(pergunta), pergunta).toBe(true);
+    }
+    // Palavras do dia a dia clínico não puxam o mapa do menu.
+    for (const pergunta of ["o paciente tem pouca rede de apoio, o que registrei?", "ele foi convidado para uma festa e evitou ir"]) {
+      expect(pareceNavegacao(pergunta), pergunta).toBe(false);
     }
   });
 });
@@ -61,11 +67,16 @@ describe("Luma do paciente", () => {
       "quero achar um psicólogo",
       "a primeira conversa é paga?",
       "como cancelo meu pedido?",
+      "recebi um convite de uma psicóloga",
+      "como apareço no mural?",
     ]) {
       const r = answerSiteHelp(pergunta);
       expect(r.topic, pergunta).toBe("encontrar");
       expect(r.content).toContain("Encontrar uma psicóloga");
     }
+    // Convite para a sessão em grupo continua sendo da chamada, e "rede de apoio" não é a Rede.
+    expect(answerSiteHelp("recebi um convite da minha psicóloga para a sessão de casal, como entro?").topic).not.toBe("encontrar");
+    expect(answerSiteHelp("minha rede de apoio é pequena").topic).not.toBe("encontrar");
     // Quem já tem psicóloga continua indo para "Minha Psicóloga" e para a agenda.
     expect(answerSiteHelp("onde vejo minha psicóloga?").topic).toBe("therapist");
     expect(answerSiteHelp("quero cancelar a consulta de amanhã").topic).toBe("reschedule");

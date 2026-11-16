@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import {
@@ -72,21 +72,32 @@ const PREFERENCIA: Record<Modalidade, string> = { online: "Online", presencial: 
  * procura" só é lido pela psicóloga para quem ele pedir horário.
  */
 export function FormularioDoPaciente({ aoSalvar }: { aoSalvar?: () => void }) {
-  const utils = trpc.useUtils();
   const { data } = trpc.conhecer.minhaSituacao.useQuery();
-  const [form, setForm] = useState({ cidade: "", uf: "", nascimento: "", modalidade: "ambos" as Modalidade, oQueProcura: "" });
+  // Monta só com os dados na mão: o Select do Radix não atualiza o rótulo quando o valor
+  // muda por código com o campo fechado (a preferência salva aparecia em branco).
+  if (!data) return null;
+  return <CamposDoPaciente perfil={data.perfil} aoSalvar={aoSalvar} />;
+}
 
-  useEffect(() => {
-    const p = data?.perfil;
-    if (!p) return;
-    setForm({
-      cidade: p.cidade ?? "",
-      uf: p.uf ?? "",
-      nascimento: p.nascimento ?? "",
-      modalidade: p.modalidade ?? "ambos",
-      oQueProcura: p.oQueProcura ?? "",
-    });
-  }, [data?.perfil]);
+type PerfilSalvo = {
+  cidade: string | null;
+  uf: string | null;
+  nascimento: string | null;
+  modalidade: Modalidade | null;
+  oQueProcura: string | null;
+  noMural: boolean;
+} | null;
+
+function CamposDoPaciente({ perfil, aoSalvar }: { perfil: PerfilSalvo; aoSalvar?: () => void }) {
+  const utils = trpc.useUtils();
+  const [form, setForm] = useState(() => ({
+    cidade: perfil?.cidade ?? "",
+    uf: perfil?.uf ?? "",
+    nascimento: perfil?.nascimento ?? "",
+    modalidade: perfil?.modalidade ?? ("ambos" as Modalidade),
+    oQueProcura: perfil?.oQueProcura ?? "",
+    noMural: perfil?.noMural ?? false,
+  }));
 
   const salvar = trpc.conhecer.salvarMeuPerfil.useMutation({
     onSuccess: () => {
@@ -112,6 +123,7 @@ export function FormularioDoPaciente({ aoSalvar }: { aoSalvar?: () => void }) {
           nascimento: form.nascimento,
           modalidade: form.modalidade,
           oQueProcura: form.oQueProcura.trim() || null,
+          noMural: form.noMural,
         });
       }}
     >
@@ -128,7 +140,7 @@ export function FormularioDoPaciente({ aoSalvar }: { aoSalvar?: () => void }) {
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="paciente-uf">Estado</Label>
-          <Select value={form.uf || undefined} onValueChange={(uf) => setForm({ ...form, uf })}>
+          <Select value={form.uf} onValueChange={(uf) => setForm({ ...form, uf })}>
             <SelectTrigger id="paciente-uf">
               <SelectValue placeholder="UF" />
             </SelectTrigger>
@@ -181,12 +193,31 @@ export function FormularioDoPaciente({ aoSalvar }: { aoSalvar?: () => void }) {
           placeholder="Ex.: o trabalho tem me tirado o sono e quero entender o que está acontecendo."
         />
         <p className="flex justify-between gap-3 text-xs text-muted-foreground">
-          <span>Só a psicóloga para quem você pedir horário lê isto. Conte apenas o que quiser.</span>
+          <span>
+            {form.noMural
+              ? "Com o mural ligado, as psicólogas do VozInterior leem isto. Conte apenas o que quiser."
+              : "Só a psicóloga para quem você pedir horário lê isto. Conte apenas o que quiser."}
+          </span>
           <span className="tabular-nums">
             {form.oQueProcura.length}/{MAX_OQUE_PROCURA}
           </span>
         </p>
       </div>
+      <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-secondary/40 px-4 py-3 text-sm">
+        <input
+          type="checkbox"
+          checked={form.noMural}
+          onChange={(e) => setForm({ ...form, noMural: e.target.checked })}
+          className="mt-0.5 size-4 shrink-0 accent-[var(--primary)]"
+        />
+        <span>
+          <span className="font-medium text-foreground">Aparecer para psicólogas</span>
+          <span className="block text-muted-foreground">
+            As psicólogas veem seu primeiro nome, idade, cidade e o que te traz, e podem te convidar para uma primeira conversa.
+            Seu sobrenome, e-mail e telefone não aparecem. Dá para desligar quando quiser.
+          </span>
+        </span>
+      </label>
       <Button type="submit" disabled={salvar.isPending}>
         {salvar.isPending ? "Salvando..." : "Salvar perfil"}
       </Button>

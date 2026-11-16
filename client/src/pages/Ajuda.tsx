@@ -315,6 +315,11 @@ const DUVIDAS_PACIENTE: Duvida[] = [
           Quando ela confirma, você recebe um e-mail e a conversa aparece em <strong>Minhas Consultas</strong>. Você pode
           ter um pedido esperando resposta por vez e cancelá-lo na mesma página.
         </li>
+        <li>
+          Na <strong>Rede</strong>, no menu, ligue <strong>“Aparecer para psicólogas”</strong> no seu perfil para que elas
+          também te encontrem. Elas veem seu primeiro nome, idade, cidade e o que te traz, e podem te convidar; você aceita ou
+          recusa ali mesmo.
+        </li>
       </ul>
     ),
   },
@@ -488,6 +493,25 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
           paciente novo); <strong>“Recusar”</strong> avisa a pessoa por e-mail, sem motivo.
         </li>
         <li>O valor da sessão nunca aparece no perfil público: vocês combinam na conversa (Código de Ética, art. 20).</li>
+      </ul>
+    ),
+  },
+  {
+    pergunta: "Como encontro pacientes pela Rede",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          No menu, abra <strong>Rede</strong> → <strong>Pacientes procurando</strong>. Ali estão as pessoas que procuram
+          psicóloga e ligaram “Aparecer para psicólogas”, com primeiro nome, idade, cidade e o que contaram.
+        </li>
+        <li>
+          <strong>“Convidar”</strong> manda um convite para a primeira conversa num dos seus horários abertos, com um recado
+          se quiser. Para convidar, seu perfil precisa estar ligado na busca.
+        </li>
+        <li>
+          A pessoa recebe um e-mail e aceita ou recusa. Se aceitar, ela vira sua paciente e a conversa entra na Agenda. Em{" "}
+          <strong>Convites enviados</strong> você acompanha as respostas e cancela um convite.
+        </li>
       </ul>
     ),
   },

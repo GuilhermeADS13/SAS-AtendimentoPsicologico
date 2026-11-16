@@ -53,10 +53,11 @@ const ESPERADO: Record<Nivel, string[]> = {
     "me.pixDaPsicologa", "me.profile", "me.requestEmailChange", "me.requestTherapist",
     "me.saveProfile", "me.therapist", "me.therapistRequest", "me.updatePhone", "me.urlDoDocumento",
     "videoCalls.iceServers", "conhecer.cancelarMeuPedido", "conhecer.minhaSituacao",
-    "conhecer.pedir", "conhecer.salvarMeuPerfil",
+    "conhecer.pedir", "conhecer.responderConvite", "conhecer.salvarMeuPerfil",
   ],
   psicologa: [
-    "conhecer.abrirHorario", "conhecer.aceitar", "conhecer.fecharHorario", "conhecer.minhaVitrine",
+    "conhecer.abrirHorario", "conhecer.aceitar", "conhecer.cancelarConvite", "conhecer.convidar", "conhecer.convitesEnviados",
+    "conhecer.fecharHorario", "conhecer.minhaVitrine", "conhecer.mural",
     "conhecer.pedidosRecebidos", "conhecer.recusar", "conhecer.salvarVitrine",
     "ai.chat", "ai.confirmAction", "ai.feedback", "appointments.adicionarParticipante",
     "appointments.create", "appointments.editar", "appointments.list",
