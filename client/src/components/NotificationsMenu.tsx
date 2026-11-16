@@ -11,6 +11,36 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+/**
+ * Avisos da Rede (pedido, convite) no sino. Eles saem sozinhos quando alguém responde;
+ * o "x" só os esconde neste navegador. O id é o do pedido somado a esta base, para não
+ * bater com os ids das notificações de consulta.
+ */
+export const BASE_DOS_AVISOS_DA_REDE = 1_000_000_000;
+const CHAVE_OCULTOS = "vozinterior-avisos-da-rede-ocultos";
+
+export function useAvisosDaRedeOcultos() {
+  const [ocultos, setOcultos] = useState<Set<number>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(CHAVE_OCULTOS) ?? "[]") as number[]);
+    } catch {
+      return new Set();
+    }
+  });
+  const ocultar = (ids: number[]) =>
+    setOcultos((atual) => {
+      const novo = new Set([...Array.from(atual), ...ids]);
+      try {
+        // Só os últimos 200: pedido antigo já saiu da lista de qualquer jeito.
+        localStorage.setItem(CHAVE_OCULTOS, JSON.stringify(Array.from(novo).slice(-200)));
+      } catch {
+        // Sem localStorage, esconde só até recarregar.
+      }
+      return novo;
+    });
+  return { ocultos, ocultar };
+}
+
 export type NotifItem = {
   id: number;
   /** Linha principal, ex.: "Consulta cancelada". */
@@ -47,27 +77,28 @@ export function NotificationsMenu({
 
   /**
    * Notificação NOVA aparece na tela e fica até 1 minuto (ou até fechar no "x").
-   * Antes só o número no sino mudava — fácil de não ver. O maior id conhecido é a
-   * referência; na primeira carga só memoriza (senão a pessoa veria um aviso por
-   * notificação antiga a cada página aberta).
+   * Antes só o número no sino mudava — fácil de não ver. A referência são os ids já
+   * vistos (o sino junta avisos de consulta com pedidos e convites da Rede, então "o
+   * maior id" não serve); na primeira carga só memoriza (senão a pessoa veria um aviso
+   * por notificação antiga a cada página aberta).
    */
-  const maiorIdVisto = useRef<number | null>(null);
+  const idsVistos = useRef<Set<number> | null>(null);
   useEffect(() => {
     // Espera a 1ª busca terminar — mesmo VAZIA: sem isso, quem abriu a página sem
     // notificação nenhuma nunca veria o aviso da primeira que chegasse.
     if (!carregado) return;
-    const maior = items.length ? Math.max(...items.map((n) => n.id)) : 0;
-    if (maiorIdVisto.current === null) {
-      maiorIdVisto.current = maior;
+    if (idsVistos.current === null) {
+      idsVistos.current = new Set(items.map((n) => n.id));
       return;
     }
-    const anterior = maiorIdVisto.current;
-    if (maior <= anterior) return;
-    maiorIdVisto.current = maior;
+    const vistos = idsVistos.current;
+    const novos = items.filter((n) => !vistos.has(n.id));
+    for (const n of novos) vistos.add(n.id);
+    if (!novos.length) return;
     // Som junto com o aviso — UMA vez, por mais que cheguem várias.
     playNotificationPing();
     // No máximo 3 de uma vez: uma rajada (ex.: a semanal) não pode cobrir a tela.
-    for (const n of items.filter((x) => x.id > anterior).slice(0, 3)) {
+    for (const n of novos.slice(0, 3)) {
       // No TOPO, logo abaixo do sino (e não no canto de baixo, junto dos avisos
       // comuns), maior e com a cor da marca: é para ser visto.
       toast(n.titulo, {

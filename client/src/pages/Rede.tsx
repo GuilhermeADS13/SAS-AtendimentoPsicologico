@@ -19,6 +19,7 @@ import { FORMATO_DIA_E_HORA, FormularioDoPaciente, MeusPedidos, primeiraMaiuscul
 import { MapPin, Search, Send } from "lucide-react";
 
 const TODOS = "todos";
+const ABAS_DA_REDE = ["mural", "pedidos", "convites", "vitrine"] as const;
 const COR_DO_STATUS: Record<StatusDoPedido, string> = {
   pendente: "bg-amber-100 text-amber-900",
   aceito: "bg-primary/10 text-primary",
@@ -288,7 +289,8 @@ function ConvitesEnviados() {
 
 function RedeDaPsicologa() {
   return (
-    <Tabs defaultValue="mural" className="space-y-4">
+    // O sino leva direto aos pedidos (/rede?aba=pedidos).
+    <Tabs defaultValue={ABAS_DA_REDE.find((a) => a === new URLSearchParams(window.location.search).get("aba")) ?? "mural"} className="space-y-4">
       <TabsList className="flex h-auto flex-wrap justify-start">
         <TabsTrigger value="mural">Pacientes procurando</TabsTrigger>
         <TabsTrigger value="pedidos">Pedidos recebidos</TabsTrigger>
