@@ -12,7 +12,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Rodape } from "@/components/Rodape";
 import {
-  AvisoDeCrise,
   CabecalhoDaBusca,
   FORMATO_DIA_E_HORA,
   FormularioDoPaciente,
@@ -90,7 +89,6 @@ export default function EncontrarPsicologa() {
             Escolha um horário para uma primeira conversa curta e gratuita, por vídeo, e veja se vocês combinam. Valor, dia e
             frequência das sessões vocês combinam depois, direto.
           </p>
-          <AvisoDeCrise className="max-w-2xl" />
         </section>
 
         {user && !isTherapist && <PainelDoPaciente />}

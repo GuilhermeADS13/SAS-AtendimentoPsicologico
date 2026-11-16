@@ -18,7 +18,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LogoLockup } from "@/components/Logo";
-import { HeartHandshake } from "lucide-react";
 
 export const FORMATO_DIA_E_HORA = new Intl.DateTimeFormat("pt-BR", {
   weekday: "short",
@@ -62,19 +61,6 @@ export function CabecalhoDaBusca() {
         )}
       </div>
     </header>
-  );
-}
-
-/** A busca não é atendimento de urgência: o caminho certo fica à vista. */
-export function AvisoDeCrise({ className }: { className?: string }) {
-  return (
-    <p className={cn("flex gap-2 rounded-xl bg-secondary/50 px-4 py-3 text-sm text-muted-foreground", className)}>
-      <HeartHandshake className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
-      <span>
-        Se você está em crise ou pensando em se machucar, não espere um horário: ligue <strong className="text-foreground">188</strong>{" "}
-        (CVV, 24 horas, grátis) ou <strong className="text-foreground">192</strong> (SAMU).
-      </span>
-    </p>
   );
 }
 

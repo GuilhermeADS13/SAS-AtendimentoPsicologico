@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { CartaoPsicologa } from "@/components/CartaoPsicologa";
 import { Rodape } from "@/components/Rodape";
-import { AvisoDeCrise, CabecalhoDaBusca, FormularioDoPaciente, primeiraMaiuscula } from "@/components/BuscaDePsicologas";
+import { CabecalhoDaBusca, FormularioDoPaciente, primeiraMaiuscula } from "@/components/BuscaDePsicologas";
 import { ArrowLeft, CalendarCheck, MapPin, Video } from "lucide-react";
 
 const FORMATO_DIA = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long" });
@@ -278,7 +278,6 @@ export default function PerfilDaPsicologa() {
                   </>
                 )}
               </div>
-              <AvisoDeCrise />
             </aside>
           </div>
         )}
