@@ -1,4 +1,4 @@
-import type { Request } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { IMAGEM_DE_COMPARTILHAMENTO, PAGINAS_PUBLICAS, caminhoLimpo, metaDaPagina } from "../shared/paginasDoSite";
 
 /**
@@ -16,6 +16,26 @@ const esc = (texto: string) =>
 export function urlBase(req: Pick<Request, "protocol" | "get">): string {
   const configurada = process.env.APP_URL || process.env.RENDER_EXTERNAL_URL;
   return (configurada || `${req.protocol}://${req.get("host")}`).replace(/\/+$/, "");
+}
+
+/**
+ * Quem abre o endereço antigo (*.onrender.com) vai para o domínio próprio (APP_URL),
+ * no mesmo caminho, inclusive pelo link de um e-mail antigo.
+ *
+ * Só a abertura de página (pedido que aceita text/html). A API, os scripts e o
+ * WebSocket de uma aba que já estava aberta continuam no endereço antigo até ela
+ * recarregar: mandados para outra origem, quebrariam a aba no meio do uso.
+ */
+export function levarAoDominioProprio(req: Request, res: Response, next: NextFunction) {
+  const destino = (process.env.APP_URL ?? "").replace(/\/+$/, "");
+  const host = (req.get("host") ?? "").split(":")[0].toLowerCase();
+  const abrePagina =
+    (req.method === "GET" || req.method === "HEAD") && (req.get("accept") ?? "").includes("text/html");
+  if (!destino || destino.includes(".onrender.com") || !host.endsWith(".onrender.com") || !abrePagina) {
+    return next();
+  }
+  // Concatenar, e não new URL(caminho, destino): "//outro.site" viraria redirecionamento aberto.
+  res.redirect(301, destino + req.originalUrl);
 }
 
 export function htmlComMetadados(html: string, url: string, base: string): string {

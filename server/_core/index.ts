@@ -12,7 +12,7 @@ import { serveStatic, setupVite } from "./vite";
 import { cabecalhosDeSeguranca, ehChamadaDaLuma, limitarConexoes, limitarRequisicoes } from "./seguranca";
 import { ehErroDeBanco } from "./trpc";
 import { rotaDoGif } from "../gifs";
-import { robotsTxt, sitemapXml, urlBase } from "../paginaHtml";
+import { levarAoDominioProprio, robotsTxt, sitemapXml, urlBase } from "../paginaHtml";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -66,6 +66,7 @@ async function startServer() {
   // Não anuncia "X-Powered-By: Express": só ajuda quem procura falha conhecida.
   app.disable("x-powered-by");
   app.use(cabecalhosDeSeguranca);
+  app.use(levarAoDominioProprio);
 
   /**
    * Para onde a CSP em modo relatório manda o que BLOQUEARIA.

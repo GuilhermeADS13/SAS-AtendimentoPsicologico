@@ -4,7 +4,7 @@ Plataforma web para psicólogas atenderem online: agenda, prontuário, videocham
 mensagens, financeiro com Pix e uma assistente de IA (a **Luma**). Feita para uso clínico
 real, com os cuidados de privacidade que isso exige.
 
-Site: <https://sas-atendimento-psicologico.onrender.com>
+Site: <https://vozinterior.app.br>
 
 ![CI](https://github.com/GuilhermeADS13/SAS-AtendimentoPsicologico/actions/workflows/ci.yml/badge.svg)
 ![Status](https://img.shields.io/badge/status-em%20produção-brightgreen)

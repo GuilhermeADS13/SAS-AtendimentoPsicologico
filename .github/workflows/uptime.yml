@@ -46,5 +46,5 @@ jobs:
         run: |
           curl --fail --silent --show-error --output /dev/null \
             --max-time 90 --retry 3 --retry-delay 10 \
-            https://sas-atendimento-psicologico.onrender.com/
+            https://vozinterior.app.br/
           echo "no ar"
