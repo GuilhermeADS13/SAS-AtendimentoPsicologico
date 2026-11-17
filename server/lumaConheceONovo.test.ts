@@ -21,6 +21,7 @@ describe("Luma da psicóloga conhece as funções de novembro", () => {
     ["instalar o app", /Instalar o app/],
     ["aparecer na busca", /Aparecer na busca de pacientes/],
     ["rede e mural", /Pacientes procurando/],
+    ["pedido no sino", /pedidos chegam no sino/],
   ])("%s", (_nome, texto) => {
     expect(mapa).toMatch(texto);
   });
@@ -73,6 +74,7 @@ describe("Luma do paciente", () => {
       const r = answerSiteHelp(pergunta);
       expect(r.topic, pergunta).toBe("encontrar");
       expect(r.content).toContain("Encontrar uma psicóloga");
+      expect(r.content).toContain("no sino");
     }
     // Convite para a sessão em grupo continua sendo da chamada, e "rede de apoio" não é a Rede.
     expect(answerSiteHelp("recebi um convite da minha psicóloga para a sessão de casal, como entro?").topic).not.toBe("encontrar");

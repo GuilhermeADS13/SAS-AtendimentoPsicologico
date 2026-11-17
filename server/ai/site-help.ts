@@ -91,7 +91,7 @@ function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
       model: "site-help-local",
       topic: "encontrar",
       content:
-        "Se você ainda não tem psicóloga, abra “Rede” no menu (ou “Encontrar uma psicóloga”, em “Minha Psicóloga”). Lá você procura perfis com o CRP, escolhe um horário e pede uma primeira conversa curta e gratuita, por vídeo. No seu perfil da Rede, “Aparecer para psicólogas” deixa elas te encontrarem e te convidarem: o convite chega por e-mail e você aceita ou recusa na Rede. Quando a conversa é confirmada, ela aparece em “Minhas Consultas”. Dá para ter um pedido seu esperando resposta por vez, e cancelar enquanto ela não responde.",
+        "Se você ainda não tem psicóloga, abra “Rede” no menu (ou “Encontrar uma psicóloga”, em “Minha Psicóloga”). Lá você procura perfis com o CRP, escolhe um horário e pede uma primeira conversa curta e gratuita, por vídeo. No seu perfil da Rede, “Aparecer para psicólogas” deixa elas te encontrarem e te convidarem: o convite chega por e-mail e no sino, e você aceita ou recusa na Rede. Quando a conversa é confirmada, ela aparece em “Minhas Consultas”. Dá para ter um pedido seu esperando resposta por vez, e cancelar enquanto ela não responde.",
     };
   }
 

@@ -198,7 +198,7 @@ const therapistSteps: Step[] = [
     path: "/profile",
     icon: Search,
     title: "Aparecer na busca",
-    body: "Quem ainda não tem psicóloga encontra você pela busca do site. Ligue aqui, diga como atende e abra horários para uma primeira conversa curta e gratuita, por vídeo. Os pedidos chegam no alto da Agenda: aceitar já cadastra o paciente e marca a conversa. O valor da sessão nunca aparece no perfil público.",
+    body: "Quem ainda não tem psicóloga encontra você pela busca do site. Ligue aqui, diga como atende e abra horários para uma primeira conversa curta e gratuita, por vídeo. Os pedidos chegam no sino e no alto da Agenda: aceitar já cadastra o paciente e marca a conversa. O valor da sessão nunca aparece no perfil público.",
     target: '[data-tour="aparecer-na-busca"]',
   },
   {
@@ -292,7 +292,7 @@ const patientSteps: Step[] = [
     path: "/psicologa",
     icon: Stethoscope,
     title: "Minha Psicóloga",
-    body: "Aqui estão os dados da sua psicóloga, inclusive o contato para falar com ela fora do sistema.",
+    body: "Aqui estão os dados da sua psicóloga, inclusive o contato para falar com ela fora do sistema. Ainda não tem psicóloga? Toque em “Encontrar uma psicóloga”, escolha um horário e peça uma primeira conversa curta e gratuita, por vídeo. Na “Rede”, elas também podem te convidar, e o convite chega no sino.",
     target: '[data-tour="psicologa"]',
   },
   {

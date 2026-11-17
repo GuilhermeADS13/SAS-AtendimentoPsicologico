@@ -11,6 +11,7 @@ import {
   CalendarCheck,
   Check,
   FileText,
+  Handshake,
   KeyRound,
   Lock,
   MessageCircle,
@@ -44,7 +45,7 @@ import { MAX_PESSOAS_NA_CHAMADA } from "@shared/chamadaEmGrupo";
 
 const MENOR_PRECO = formatarReais(PLANOS[0].precoCentavos ?? 0);
 
-/** Os 4 momentos do dia a dia, alternando texto e tela. */
+/** Os momentos do dia a dia, alternando texto e tela. */
 const ROTINA: {
   id: string;
   icone: typeof Video;
@@ -108,6 +109,20 @@ const ROTINA: {
     ],
     imagem: "/home/mensagens.webp",
     alt: "Tela de mensagens com a lista de conversas com pacientes e as não lidas no topo",
+  },
+  {
+    id: "rede",
+    icone: Handshake,
+    rotulo: "Busca e Rede",
+    titulo: "Quem procura psicóloga encontra você",
+    itens: [
+      "Ligue “Aparecer na busca” e seu perfil entra na busca de psicólogas do site, com CRP e abordagem, sem o valor da sessão.",
+      "A pessoa escolhe um horário que você abriu e pede uma primeira conversa grátis, por vídeo.",
+      "O pedido chega no sino: ao aceitar, ela vira sua paciente e a conversa entra na agenda.",
+      "Na aba Rede, veja quem está procurando atendimento e convide para um horário seu.",
+    ],
+    imagem: "/home/rede.webp",
+    alt: "Aba Rede com pessoas que procuram psicóloga, cada uma com primeiro nome, idade, cidade e o que procura, e o botão Convidar",
   },
 ];
 
@@ -187,7 +202,7 @@ export default function Home() {
       <nav className="sticky top-0 z-50 bg-background/85 backdrop-blur-md border-b border-border">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between gap-4">
           <LogoLockup markClassName="w-8 h-8" />
-          {/* "Testar grátis" sempre à vista. No celular, os atalhos saem para caber. */}
+          {/* "Testar grátis" sempre à vista. No celular, os atalhos descem para a linha de baixo. */}
           <div className="flex items-center gap-1 sm:gap-2">
             <Button onClick={() => irPara("funcionalidades")} size="sm" variant="ghost" className="hidden md:inline-flex">
               Funcionalidades
@@ -195,7 +210,7 @@ export default function Home() {
             <Button onClick={() => irPara("luma")} size="sm" variant="ghost" className="hidden md:inline-flex">
               Luma
             </Button>
-            <Button onClick={() => setLocation("/precos")} size="sm" variant="ghost" className="hidden sm:inline-flex">
+            <Button onClick={() => setLocation("/precos")} size="sm" variant="ghost" className="hidden md:inline-flex">
               Preços
             </Button>
             <Button onClick={() => setLocation("/login")} size="sm" variant="ghost">
@@ -203,6 +218,19 @@ export default function Home() {
             </Button>
             <Button onClick={() => setLocation(LINK_CADASTRO_PSICOLOGA)} size="sm">
               Testar grátis
+            </Button>
+          </div>
+        </div>
+        <div className="md:hidden border-t border-border">
+          <div className="container mx-auto px-4 h-10 flex items-center justify-center gap-2">
+            <Button onClick={() => irPara("funcionalidades")} size="sm" variant="ghost" className="h-8">
+              Funcionalidades
+            </Button>
+            <Button onClick={() => irPara("luma")} size="sm" variant="ghost" className="h-8">
+              Luma
+            </Button>
+            <Button onClick={() => setLocation("/precos")} size="sm" variant="ghost" className="h-8">
+              Preços
             </Button>
           </div>
         </div>
@@ -257,7 +285,7 @@ export default function Home() {
         </section>
 
         {/* Dia a dia */}
-        <section id="funcionalidades" className="scroll-mt-16 border-t border-border bg-secondary/40">
+        <section id="funcionalidades" className="scroll-mt-28 md:scroll-mt-16 border-t border-border bg-secondary/40">
           <div className="container mx-auto px-6 py-20 md:py-24">
             <div className="mx-auto max-w-2xl text-center">
               <Rotulo>O dia a dia do consultório</Rotulo>
@@ -295,7 +323,7 @@ export default function Home() {
         </section>
 
         {/* Luma */}
-        <section id="luma" className="scroll-mt-16 relative overflow-hidden bg-primary text-primary-foreground">
+        <section id="luma" className="scroll-mt-28 md:scroll-mt-16 relative overflow-hidden bg-primary text-primary-foreground">
           <div className="container mx-auto px-6 py-20 md:py-24">
             <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-14">
               <div>

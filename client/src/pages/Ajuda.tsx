@@ -317,8 +317,8 @@ const DUVIDAS_PACIENTE: Duvida[] = [
         </li>
         <li>
           Na <strong>Rede</strong>, no menu, ligue <strong>“Aparecer para psicólogas”</strong> no seu perfil para que elas
-          também te encontrem. Elas veem seu primeiro nome, idade, cidade e o que te traz, e podem te convidar; você aceita ou
-          recusa ali mesmo.
+          também te encontrem. Elas veem seu primeiro nome, idade, cidade e o que te traz, e podem te convidar. O convite
+          chega por e-mail e no sino, e você aceita ou recusa na Rede.
         </li>
       </ul>
     ),
@@ -488,8 +488,8 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
           e pede um desses horários.
         </li>
         <li>
-          O pedido chega por e-mail e no alto de <strong>Agendamentos / Videochamada</strong>, com o que a pessoa
-          contou. <strong>“Aceitar”</strong> cadastra o paciente e marca a conversa (ele conta no plano, como qualquer
+          O pedido chega por e-mail, no sino e no alto de <strong>Agendamentos / Videochamada</strong> (também em{" "}
+          <strong>Rede</strong> → <strong>Pedidos recebidos</strong>), com o que a pessoa contou. <strong>“Aceitar”</strong> cadastra o paciente e marca a conversa (ele conta no plano, como qualquer
           paciente novo); <strong>“Recusar”</strong> avisa a pessoa por e-mail, sem motivo.
         </li>
         <li>O valor da sessão nunca aparece no perfil público: vocês combinam na conversa (Código de Ética, art. 20).</li>
@@ -509,7 +509,7 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
           se quiser. Para convidar, seu perfil precisa estar ligado na busca.
         </li>
         <li>
-          A pessoa recebe um e-mail e aceita ou recusa. Se aceitar, ela vira sua paciente e a conversa entra na Agenda. Em{" "}
+          A pessoa recebe o convite por e-mail e no sino, e aceita ou recusa. Se aceitar, ela vira sua paciente e a conversa entra na Agenda. Em{" "}
           <strong>Convites enviados</strong> você acompanha as respostas e cancela um convite.
         </li>
       </ul>
