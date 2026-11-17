@@ -140,11 +140,11 @@ export function respostaDaDemonstracao(caminho: string, entrada: unknown): unkno
         pixCidade: "RECIFE",
         cpf: null,
         endereco: null,
-        naBusca: false,
-        abordagem: null,
-        modalidade: null,
-        cidade: null,
-        uf: null,
+        naBusca: true,
+        abordagem: "Terapia Cognitivo-Comportamental",
+        modalidade: "online",
+        cidade: "Recife",
+        uf: "PE",
         createdAt: dia(-150, 9),
         updatedAt: dia(-1, 9),
       } satisfies O["therapists"]["me"];
@@ -179,7 +179,8 @@ export function respostaDaDemonstracao(caminho: string, entrada: unknown): unkno
       return [
         { patientId: 105, firstName: "Helena", lastName: "Duarte", phone: "(81) 90000-1005", diasDaSemana: [], periodos: ["manha"], observacao: "Prefere online", createdAt: dia(-3, 9) },
       ] satisfies O["listaDeEspera"]["listar"];
-    // Busca de psicólogas: perfil ligado, dois horários abertos e um pedido esperando.
+    // Busca de psicólogas: perfil ligado, um pedido esperando, um convite e dois horários
+    // livres (sem eles, não dá para convidar ninguém do mural da Rede).
     case "conhecer.minhaVitrine":
       return {
         id: ID_PSICOLOGA,
@@ -192,6 +193,8 @@ export function respostaDaDemonstracao(caminho: string, entrada: unknown): unkno
         horarios: [
           { id: 1, inicio: dia(2, 9), duracao: 20, pedido: "pendente" },
           { id: 2, inicio: dia(3, 18), duracao: 20, pedido: "convite" },
+          { id: 3, inicio: dia(4, 10), duracao: 20, pedido: null },
+          { id: 4, inicio: dia(5, 15), duracao: 20, pedido: null },
         ],
       } satisfies O["conhecer"]["minhaVitrine"];
     case "conhecer.pedidosRecebidos":
