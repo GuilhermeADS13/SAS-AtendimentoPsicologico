@@ -118,6 +118,12 @@ describe.runIf(RUN)("fluxo de integração (Postgres real)", () => {
     expect(assinatura.ganhouTeste).toBe(true);
   });
 
+  it("o CRP conferido não muda pelo perfil (o mesmo número com outra formatação passa)", async () => {
+    await expect(caller.therapists.upsert({ crp: "IT-9999", specialties: "TCC" })).rejects.toThrow(/conferido na aprovação/);
+    await caller.therapists.upsert({ crp: "IT 0001", specialties: "TCC" });
+    expect((await caller.therapists.me())?.crp).toBe("IT-0001");
+  });
+
   it("cadastra, lista e edita um paciente", async () => {
     await caller.patients.create({ firstName: "Int", lastName: "Test", email: TEST_EMAIL });
     const list = await caller.patients.list();

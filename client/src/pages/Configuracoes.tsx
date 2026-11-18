@@ -95,7 +95,10 @@ export default function Configuracoes() {
   const [salvandoEmail, setSalvandoEmail] = useState(false);
   // Troca de e-mail em 2 passos: "dados" (novo e-mail + senha) e "codigo".
   const [etapaEmail, setEtapaEmail] = useState<"dados" | "codigo">("dados");
-  const [codigoEmail, setCodigoEmail] = useState("");
+  // Dois códigos: um chega no e-mail atual (prova que é a dona da conta), outro no novo.
+  const [codigoAtual, setCodigoAtual] = useState("");
+  const [codigoNovo, setCodigoNovo] = useState("");
+  const [precisaDoAtual, setPrecisaDoAtual] = useState(true);
   const pedirCodigoEmail = trpc.me.requestEmailChange.useMutation();
   const confirmarTrocaEmail = trpc.me.confirmEmailChange.useMutation();
 
@@ -161,10 +164,11 @@ export default function Configuracoes() {
     setEtapaEmail("dados");
     setNovoEmail("");
     setSenhaParaEmail("");
-    setCodigoEmail("");
+    setCodigoAtual("");
+    setCodigoNovo("");
   };
 
-  // Passo 1: confere a senha atual e pede o código (enviado aos dois e-mails).
+  // Passo 1: confere a senha atual e pede os códigos (um em cada e-mail).
   const solicitarCodigoEmail = async () => {
     const alvo = novoEmail.trim();
     if (!alvo) {
@@ -178,11 +182,14 @@ export default function Configuracoes() {
     setSalvandoEmail(true);
     try {
       if (!(await conferirSenhaAtual(senhaParaEmail))) return;
-      await pedirCodigoEmail.mutateAsync({ novoEmail: alvo });
+      const enviado = await pedirCodigoEmail.mutateAsync({ novoEmail: alvo });
+      setPrecisaDoAtual(enviado.precisaDoAtual);
       // Maior e por mais tempo: era um aviso pequeno no canto, que sumia antes de a
       // pessoa ler para onde o código foi.
-      toast.success("Código enviado!", {
-        description: "Confira a caixa de entrada (e o spam) do e-mail novo e do atual.",
+      toast.success(enviado.precisaDoAtual ? "Códigos enviados!" : "Código enviado!", {
+        description: enviado.precisaDoAtual
+          ? "Um no e-mail atual e outro no novo. Confira a caixa de entrada (e o spam) dos dois."
+          : "Confira a caixa de entrada (e o spam) do e-mail novo.",
         duration: 12_000,
         classNames: { title: "text-base font-semibold", description: "text-sm" },
       });
@@ -194,16 +201,16 @@ export default function Configuracoes() {
     }
   };
 
-  // Passo 2: confirma o código; o servidor troca o e-mail (admin) e devolve o novo.
+  // Passo 2: confirma os códigos; o servidor troca o e-mail (admin) e devolve o novo.
+  const codigosCompletos = codigoNovo.trim().length >= 4 && (!precisaDoAtual || codigoAtual.trim().length >= 4);
   const confirmarCodigoEmail = async () => {
-    const codigo = codigoEmail.trim();
-    if (codigo.length < 4) {
-      toast.error("Digite o código que chegou no e-mail.");
+    if (!codigosCompletos) {
+      toast.error(precisaDoAtual ? "Digite os dois códigos: o do e-mail atual e o do novo." : "Digite o código que chegou no e-mail novo.");
       return;
     }
     setSalvandoEmail(true);
     try {
-      await confirmarTrocaEmail.mutateAsync({ codigo });
+      await confirmarTrocaEmail.mutateAsync({ codigoAtual: precisaDoAtual ? codigoAtual.trim() : "", codigoNovo: codigoNovo.trim() });
       // O token da sessão ainda tem o e-mail antigo; atualiza para o novo.
       try {
         await supabase?.auth.refreshSession();
@@ -490,9 +497,9 @@ export default function Configuracoes() {
                 <p className="flex gap-2 rounded-md bg-muted p-3 text-xs leading-relaxed text-muted-foreground">
                   <Info className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>
-                    Enviaremos um código para o e-mail <strong>novo</strong> e para o{" "}
-                    <strong>atual</strong>. A troca só vale depois que você digitar esse
-                    código — até lá, continue entrando com o e-mail atual.
+                    Enviaremos um código para o e-mail <strong>atual</strong> e outro para o{" "}
+                    <strong>novo</strong>. A troca só vale depois que você digitar os dois —
+                    até lá, continue entrando com o e-mail atual.
                   </span>
                 </p>
               </div>
@@ -512,24 +519,44 @@ export default function Configuracoes() {
           ) : (
             <>
               <div className="space-y-4">
+                {precisaDoAtual && (
+                  <div className="space-y-2">
+                    <Label htmlFor="codigo-email-atual">
+                      Código do e-mail atual <span className="break-all font-normal text-muted-foreground">({contato?.email})</span>
+                    </Label>
+                    <Input
+                      id="codigo-email-atual"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="000000"
+                      maxLength={6}
+                      value={codigoAtual}
+                      onChange={(e) => setCodigoAtual(e.target.value.replace(/\D/g, ""))}
+                      className="text-center text-lg tracking-[0.4em]"
+                    />
+                  </div>
+                )}
                 <div className="space-y-2">
-                  <Label htmlFor="codigo-email">Código de verificação</Label>
+                  <Label htmlFor="codigo-email-novo">
+                    Código do e-mail novo <span className="break-all font-normal text-muted-foreground">({novoEmail})</span>
+                  </Label>
                   <Input
-                    id="codigo-email"
+                    id="codigo-email-novo"
                     inputMode="numeric"
-                    autoComplete="one-time-code"
+                    autoComplete="off"
                     placeholder="000000"
                     maxLength={6}
-                    value={codigoEmail}
-                    onChange={(e) => setCodigoEmail(e.target.value.replace(/\D/g, ""))}
+                    value={codigoNovo}
+                    onChange={(e) => setCodigoNovo(e.target.value.replace(/\D/g, ""))}
                     className="text-center text-lg tracking-[0.4em]"
                   />
                 </div>
                 <p className="flex gap-2 rounded-md bg-muted p-3 text-xs leading-relaxed text-muted-foreground">
                   <Info className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>
-                    Enviamos um código para <strong className="break-all">{novoEmail}</strong> e
-                    para o seu e-mail atual. Ele vale por 15 minutos.
+                    {precisaDoAtual
+                      ? "Cada e-mail recebeu um código diferente. Eles valem por 15 minutos."
+                      : "O código vale por 15 minutos."}
                   </span>
                 </p>
               </div>
@@ -539,7 +566,7 @@ export default function Configuracoes() {
                 </Button>
                 <Button
                   onClick={confirmarCodigoEmail}
-                  disabled={salvandoEmail || codigoEmail.trim().length < 4}
+                  disabled={salvandoEmail || !codigosCompletos}
                   className="bg-primary hover:bg-primary/90"
                 >
                   {salvandoEmail ? "Confirmando..." : "Confirmar troca"}
