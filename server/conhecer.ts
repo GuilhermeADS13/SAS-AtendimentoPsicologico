@@ -30,7 +30,9 @@ import {
   DURACOES_PERMITIDAS,
   EXPLICACAO_DO_MOTIVO,
   MAX_CONVITES_PENDENTES,
+  MAX_CONVITES_POR_DIA,
   MAX_HORARIOS_ABERTOS,
+  MAX_PEDIDOS_POR_DIA,
   MAX_MENSAGEM,
   MAX_OQUE_PROCURA,
   MODALIDADES,
@@ -57,6 +59,7 @@ import { sendEmail } from "./mailer";
 import { appUrl, rodarCicloDeNotificacoes } from "./notifications";
 import { normalizarEmail } from "./roomAccess";
 import { assinarFotos } from "./storage";
+import { fotoPertenceAoUsuario } from "./storageKeys";
 import { celularDaConta } from "./supabaseAdmin";
 import { protectedProcedure, publicProcedure, router, therapistProcedure } from "./_core/trpc";
 
@@ -188,6 +191,8 @@ async function psicologasVisiveis(db: Db, ids?: number[]) {
       id: therapists.id,
       nome: users.name,
       role: users.role,
+      // Só para conferir a pasta da foto (fotoDaPsicologa); nunca vai para o navegador.
+      openId: users.openId,
       crp: therapists.crp,
       specialties: therapists.specialties,
       abordagem: therapists.abordagem,
@@ -254,6 +259,15 @@ async function horariosLivres(db: Db, therapistIds: number[], agora: Date) {
 
 function lista(texto: string | null): string[] {
   return (texto ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+/**
+ * A foto que a busca pública pode assinar: só a da pasta da PRÓPRIA conta. A assinatura
+ * usa a service role (fura a regra do bucket), então um caminho de outra pessoa gravado
+ * no perfil viraria a foto de um paciente exposta a qualquer visitante.
+ */
+function fotoDaPsicologa(p: { photoKey: string | null; openId: string }): string | null {
+  return p.photoKey && fotoPertenceAoUsuario(p.photoKey, p.openId) ? p.photoKey : null;
 }
 
 /** Erro de índice único do Postgres, com o nome do índice (para a mensagem certa). */
@@ -559,7 +573,7 @@ export const conhecerRouter = router({
         return (a.nome ?? "").localeCompare(b.nome ?? "", "pt-BR");
       });
       const pedaco = ordenadas.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA);
-      const fotos = await assinarFotos(pedaco.map((p) => p.photoKey).filter((k): k is string => !!k));
+      const fotos = await assinarFotos(pedaco.map(fotoDaPsicologa).filter((k): k is string => !!k));
 
       return {
         total: ordenadas.length,
@@ -574,7 +588,7 @@ export const conhecerRouter = router({
           modalidade: p.modalidade,
           cidade: p.cidade,
           uf: p.uf,
-          fotoUrl: p.photoKey ? fotos[p.photoKey] ?? null : null,
+          fotoUrl: fotoDaPsicologa(p) ? fotos[p.photoKey as string] ?? null : null,
           bioCurta: (p.bio ?? "").slice(0, 220),
           proximoHorario: proximo.get(p.id)?.inicio ?? null,
           horariosLivres: proximo.get(p.id)?.total ?? 0,
@@ -589,7 +603,8 @@ export const conhecerRouter = router({
     if (!p) return null;
     await encerrarConvitesSemDestino(db, p.id);
     const horarios = (await horariosLivres(db, [p.id], new Date())).slice(0, MAX_HORARIOS_ABERTOS);
-    const fotos = p.photoKey ? await assinarFotos([p.photoKey]) : {};
+    const foto = fotoDaPsicologa(p);
+    const fotos = foto ? await assinarFotos([foto]) : {};
     return {
       id: p.id,
       nome: p.nome ?? "",
@@ -602,7 +617,7 @@ export const conhecerRouter = router({
       modalidade: p.modalidade,
       cidade: p.cidade,
       uf: p.uf,
-      fotoUrl: p.photoKey ? fotos[p.photoKey] ?? null : null,
+      fotoUrl: foto ? fotos[foto] ?? null : null,
       horarios: horarios.map((h) => ({ id: h.id, inicio: h.inicio, duracao: h.duracao })),
     };
   }),
@@ -733,6 +748,25 @@ export const conhecerRouter = router({
         agora,
       });
       if (motivo) throw new TRPCError({ code: "FORBIDDEN", message: EXPLICACAO_DO_MOTIVO[motivo] });
+
+      // Cada pedido avisa a psicóloga por e-mail: pedir e cancelar em laço não pode virar
+      // enxurrada na caixa dela nem esgotar a cota diária de e-mails do sistema.
+      const [{ feitos }] = await db
+        .select({ feitos: count() })
+        .from(pedidosParaConhecer)
+        .where(
+          and(
+            eq(pedidosParaConhecer.pacienteUserId, ctx.user.id),
+            eq(pedidosParaConhecer.origem, "paciente"),
+            gt(pedidosParaConhecer.createdAt, new Date(agora.getTime() - 24 * 60 * MINUTO)),
+          ),
+        );
+      if (feitos >= MAX_PEDIDOS_POR_DIA) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: `Você já fez ${MAX_PEDIDOS_POR_DIA} pedidos nas últimas 24 horas. Espere as respostas ou tente de novo amanhã.`,
+        });
+      }
 
       const [horario] = await db
         .select()
@@ -1165,6 +1199,23 @@ export const conhecerRouter = router({
             throw new TRPCError({
               code: "BAD_REQUEST",
               message: `Dá para ter até ${MAX_CONVITES_PENDENTES} convites esperando resposta. Espere algumas respostas ou cancele um convite.`,
+            });
+          }
+          // Cancelar e convidar de novo também manda e-mail: teto em 24 h, dentro da trava.
+          const [{ hoje }] = await tx
+            .select({ hoje: count() })
+            .from(pedidosParaConhecer)
+            .where(
+              and(
+                eq(pedidosParaConhecer.therapistId, t.id),
+                eq(pedidosParaConhecer.origem, "psicologa"),
+                gt(pedidosParaConhecer.createdAt, new Date(agora.getTime() - 24 * 60 * MINUTO)),
+              ),
+            );
+          if (hoje >= MAX_CONVITES_POR_DIA) {
+            throw new TRPCError({
+              code: "TOO_MANY_REQUESTS",
+              message: `Você já mandou ${MAX_CONVITES_POR_DIA} convites nas últimas 24 horas. Tente de novo amanhã.`,
             });
           }
           await tx.insert(pedidosParaConhecer).values({

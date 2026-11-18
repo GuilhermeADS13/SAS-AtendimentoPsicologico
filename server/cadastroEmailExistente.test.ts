@@ -48,7 +48,8 @@ describe("cadastro com e-mail já cadastrado", () => {
     supabaseAdmin.gerarLinkDeCadastro.mockResolvedValue(null);
     supabaseAdmin.gerarLinkDeRecuperacao.mockResolvedValue("https://exemplo.com/recuperar");
     await expect(publico().auth.signUp(cadastro("ja.tem@exemplo.com"))).resolves.toEqual({ ok: true });
-    expect(mailer.sendEmail).toHaveBeenCalledTimes(1);
+    // O envio é em segundo plano (ver o teste do tempo abaixo).
+    await vi.waitFor(() => expect(mailer.sendEmail).toHaveBeenCalledTimes(1));
     const [para, assunto, html] = mailer.sendEmail.mock.calls[0] as unknown as [string, string, string];
     expect(para).toBe("ja.tem@exemplo.com");
     expect(assunto).toBe("Você já tem conta no VozInterior");
@@ -58,6 +59,7 @@ describe("cadastro com e-mail já cadastrado", () => {
   it("cadastro novo segue mandando a confirmação (e não o aviso)", async () => {
     supabaseAdmin.gerarLinkDeCadastro.mockResolvedValue("https://exemplo.com/confirmar");
     await expect(publico().auth.signUp(cadastro("nova.conta@exemplo.com"))).resolves.toEqual({ ok: true });
+    await vi.waitFor(() => expect(mailer.sendEmail).toHaveBeenCalledTimes(1));
     expect(supabaseAdmin.gerarLinkDeRecuperacao).not.toHaveBeenCalled();
     expect(mailer.sendEmail.mock.calls[0]?.[1]).toBe("Confirme seu e-mail — VozInterior");
   });
@@ -66,6 +68,19 @@ describe("cadastro com e-mail já cadastrado", () => {
     supabaseAdmin.gerarLinkDeCadastro.mockResolvedValue(null);
     supabaseAdmin.gerarLinkDeRecuperacao.mockResolvedValue(null);
     await expect(publico().auth.signUp(cadastro("outro.erro@exemplo.com"))).resolves.toEqual({ ok: true });
+    await vi.waitFor(() => expect(supabaseAdmin.gerarLinkDeRecuperacao).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mailer.sendEmail).not.toHaveBeenCalled();
+  });
+
+  /**
+   * O tempo da resposta não pode depender de o e-mail já ter conta: quem já tem conta
+   * passa por mais etapas (link de recuperação, banco). Aqui o Supabase nem responde, e
+   * mesmo assim o cadastro responde na hora, igual para todo mundo.
+   */
+  it("responde sem esperar o Supabase nem o envio (o tempo não revela quem tem conta)", async () => {
+    supabaseAdmin.gerarLinkDeCadastro.mockReturnValue(new Promise(() => {}));
+    await expect(publico().auth.signUp(cadastro("qualquer@exemplo.com"))).resolves.toEqual({ ok: true });
     expect(mailer.sendEmail).not.toHaveBeenCalled();
   });
 });
