@@ -28,6 +28,12 @@ import { mensagemDeErroDeAcesso } from "@shared/erroDeAcesso";
 import { senhaVazadaNoNavegador } from "@/lib/senhaVazada";
 import { Check, X, Mail, KeyRound, Phone, ShieldCheck, Info } from "lucide-react";
 import { SugestaoDeEmail } from "@/components/SugestaoDeEmail";
+import { linkWhatsAppDoSuporte } from "@/lib/suporte";
+
+/** Sem acesso ao e-mail atual não dá para receber o código: a troca passa pelo suporte. */
+const SUPORTE_PARA_TROCAR_EMAIL =
+  linkWhatsAppDoSuporte("Olá! Perdi o acesso ao e-mail da minha conta no VozInterior e preciso trocar.") ??
+  "mailto:suportevozinterior@gmail.com?subject=" + encodeURIComponent("Perdi o acesso ao e-mail da minha conta");
 import { AplicativoCard, AvisosPorEmailCard, MeusDados, SegurancaDaConta } from "@/components/ConfiguracoesDaConta";
 
 /**
@@ -501,6 +507,18 @@ export default function Configuracoes() {
                     <strong>novo</strong>. A troca só vale depois que você digitar os dois —
                     até lá, continue entrando com o e-mail atual.
                   </span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Não tem mais acesso ao e-mail atual?{" "}
+                  <a
+                    href={SUPORTE_PARA_TROCAR_EMAIL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-primary underline underline-offset-4"
+                  >
+                    Fale com o suporte
+                  </a>
+                  : conferimos que é você e fazemos a troca.
                 </p>
               </div>
               <DialogFooter>

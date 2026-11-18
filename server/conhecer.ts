@@ -240,10 +240,17 @@ async function horariosLivres(db: Db, therapistIds: number[], agora: Date) {
       and(
         inArray(horariosParaConhecer.therapistId, therapistIds),
         gt(horariosParaConhecer.inicio, limite),
+        // Convite pendente para quem já ganhou psicóloga por outro caminho não segura mais
+        // o horário (encerrarConvitesSemDestino o fecha de vez quando alguém pede ou ela
+        // convida): assim a busca, que é pública, só lê e não grava a cada visita.
         sql`NOT EXISTS (
           SELECT 1 FROM ${pedidosParaConhecer}
           WHERE ${pedidosParaConhecer.horarioId} = ${horariosParaConhecer.id}
             AND ${pedidosParaConhecer.status} IN ('pendente', 'aceito')
+            AND NOT (
+              ${pedidosParaConhecer.origem} = 'psicologa' AND ${pedidosParaConhecer.status} = 'pendente'
+              AND EXISTS (SELECT 1 FROM ${users} WHERE ${users.id} = ${pedidosParaConhecer.pacienteUserId} AND NOT ${SEM_PSICOLOGA})
+            )
         )`,
         sql`NOT EXISTS (
           SELECT 1 FROM ${appointments}
@@ -601,7 +608,6 @@ export const conhecerRouter = router({
     if (!db) return null;
     const [p] = await psicologasVisiveis(db, [input.id]);
     if (!p) return null;
-    await encerrarConvitesSemDestino(db, p.id);
     const horarios = (await horariosLivres(db, [p.id], new Date())).slice(0, MAX_HORARIOS_ABERTOS);
     const foto = fotoDaPsicologa(p);
     const fotos = foto ? await assinarFotos([foto]) : {};
@@ -778,6 +784,9 @@ export const conhecerRouter = router({
       if (!horario || !psicologa) throw indisponivel;
       if (!horarioPodeSerPedido(horario.inicio, agora)) throw indisponivel;
       if (await horarioEmConflito(db, horario.therapistId, horario.inicio, horario.duracao)) throw indisponivel;
+      // A busca mostra livre o horário de um convite sem destino (ver horariosLivres);
+      // fecha esse convite antes, senão o índice de um pedido por horário recusaria este.
+      await encerrarConvitesSemDestino(db, horario.therapistId);
 
       try {
         await db.insert(pedidosParaConhecer).values({
