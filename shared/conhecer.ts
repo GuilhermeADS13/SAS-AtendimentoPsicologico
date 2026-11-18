@@ -47,6 +47,13 @@ export type StatusDoPedido = (typeof STATUS_DO_PEDIDO)[number];
 export type OrigemDoPedido = "paciente" | "psicologa";
 /** Convites esperando resposta ao mesmo tempo, por psicóloga (evita convite em massa). */
 export const MAX_CONVITES_PENDENTES = 10;
+/**
+ * Tetos em 24 h. Cada pedido e cada convite manda um e-mail: sem teto, "pedir e cancelar"
+ * (ou "convidar e cancelar") em laço inundava a caixa da outra pessoa e gastava a cota
+ * diária da Brevo, que é a mesma do código de acesso e da recuperação de senha.
+ */
+export const MAX_PEDIDOS_POR_DIA = 5;
+export const MAX_CONVITES_POR_DIA = 20;
 
 /** Duração padrão da primeira conversa, em minutos. */
 export const DURACAO_PRIMEIRA_CONVERSA = 20;

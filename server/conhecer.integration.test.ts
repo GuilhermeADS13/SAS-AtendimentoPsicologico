@@ -14,6 +14,7 @@ import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import { getDb } from "./db";
 import { criarAssinaturaNaAprovacao } from "./assinaturas";
+import { MAX_PEDIDOS_POR_DIA } from "../shared/conhecer";
 
 const RUN = process.env.RUN_INTEGRATION === "true" && Boolean(process.env.DATABASE_URL);
 const ID = { A: 990301, B: 990302, P: 990303, Q: 990304, M: 990305 } as const;
@@ -236,6 +237,21 @@ describe.runIf(RUN)("encontrar uma psicóloga (Postgres real)", () => {
     expect(ficha.status).toBe("inactive");
     await a.conhecer.recusar({ id: pedido.id });
     await sql`delete from patients where "therapistId" = ${idDaA} and ("firstName" = 'Lotado' or "userId" = ${ID.Q})`;
+  });
+
+  it("teto de pedidos em 24 h: pedir e cancelar em laço não vira enxurrada de e-mails", async () => {
+    const [{ n }] = await sql`select count(*)::int as n from "pedidosParaConhecer"
+                              where "pacienteUserId" = ${ID.Q} and origem = 'paciente' and "createdAt" > now() - interval '1 day'`;
+    for (let i = n; i < MAX_PEDIDOS_POR_DIA; i++) {
+      await q.conhecer.pedir({ horarioId: horario.dois });
+      const novo = (await q.conhecer.minhaSituacao()).pedidos[0].id;
+      await q.conhecer.cancelarMeuPedido({ id: novo });
+    }
+    await expect(q.conhecer.pedir({ horarioId: horario.dois })).rejects.toThrow(/últimas 24 horas/);
+    // Pedidos de outros dias não contam.
+    await sql`update "pedidosParaConhecer" set "createdAt" = now() - interval '2 days' where "pacienteUserId" = ${ID.Q}`;
+    await q.conhecer.pedir({ horarioId: horario.dois });
+    await q.conhecer.cancelarMeuPedido({ id: (await q.conhecer.minhaSituacao()).pedidos[0].id });
   });
 
   it("quem esvazia a apresentação depois de ligar sai da busca", async () => {

@@ -913,48 +913,53 @@ export const appRouter = router({
         const dados: Record<string, string> = { name: input.nome, telefone: soDigitos(input.celular) };
         if (input.crp) dados.crp_solicitado = input.crp;
         if (input.origem) dados.origem = input.origem;
-        const link = await gerarLinkDeCadastro(input.email, input.senha, dados, `${base}/login?confirmado=1`);
-        // E-mail já cadastrado: a TELA não diz isso (num site de psicologia, revelaria
-        // a qualquer um que a pessoa faz terapia), mas o DONO do e-mail é avisado, no
-        // próprio e-mail, com o botão de criar nova senha. Antes não recebia nada e
-        // ficava esperando uma confirmação que nunca chegava.
-        if (!link) {
-          const recuperar = await gerarLinkDeRecuperacao(input.email, `${base}/redefinir-senha`);
-          // Sem link de recuperação = não era "já cadastrado" (outro erro): nada a avisar.
-          if (!recuperar) return { ok: true } as const;
-          const db = await getDb();
-          const nome = db
-            ? (await db.select({ name: users.name }).from(users).where(eq(users.email, input.email)).limit(1))[0]?.name ?? null
-            : null;
+        // Sem `await`, como no "esqueci a senha": o caminho de quem JÁ tem conta faz mais
+        // trabalho (mais uma chamada ao Supabase e uma ao banco), e esperar por ele fazia a
+        // resposta demorar mais só nesse caso. O tempo revelaria quem faz terapia aqui.
+        void (async () => {
+          const link = await gerarLinkDeCadastro(input.email, input.senha, dados, `${base}/login?confirmado=1`);
+          // E-mail já cadastrado: a TELA não diz isso (num site de psicologia, revelaria
+          // a qualquer um que a pessoa faz terapia), mas o DONO do e-mail é avisado, no
+          // próprio e-mail, com o botão de criar nova senha. Antes não recebia nada e
+          // ficava esperando uma confirmação que nunca chegava.
+          if (!link) {
+            const recuperar = await gerarLinkDeRecuperacao(input.email, `${base}/redefinir-senha`);
+            // Sem link de recuperação = não era "já cadastrado" (outro erro): nada a avisar.
+            if (!recuperar) return;
+            const db = await getDb();
+            const nome = db
+              ? (await db.select({ name: users.name }).from(users).where(eq(users.email, input.email)).limit(1))[0]?.name ?? null
+              : null;
+            await sendEmail(
+              input.email,
+              "Você já tem conta no VozInterior",
+              emailComMarca({
+                nome,
+                titulo: "Você já tem conta",
+                corpo:
+                  `<p style="margin:0 0 12px">Alguém (provavelmente você) tentou criar uma conta nova com este e-mail, mas ele já está cadastrado no VozInterior.</p>` +
+                  `<p style="margin:0 0 12px">Para entrar, use sua senha de sempre. Se não lembra a senha, toque no botão para criar uma nova.</p>`,
+                botao: { texto: "Criar nova senha", url: recuperar },
+                observacao: "O link vale por 1 hora e só funciona uma vez. Se não foi você, ignore este e-mail: ninguém entra na sua conta sem a sua senha.",
+                base,
+              }),
+            );
+            return;
+          }
+
           await sendEmail(
             input.email,
-            "Você já tem conta no VozInterior",
+            "Confirme seu e-mail — VozInterior",
             emailComMarca({
-              nome,
-              titulo: "Você já tem conta",
-              corpo:
-                `<p style="margin:0 0 12px">Alguém (provavelmente você) tentou criar uma conta nova com este e-mail, mas ele já está cadastrado no VozInterior.</p>` +
-                `<p style="margin:0 0 12px">Para entrar, use sua senha de sempre. Se não lembra a senha, toque no botão para criar uma nova.</p>`,
-              botao: { texto: "Criar nova senha", url: recuperar },
-              observacao: "O link vale por 1 hora e só funciona uma vez. Se não foi você, ignore este e-mail: ninguém entra na sua conta sem a sua senha.",
+              nome: input.nome,
+              titulo: "Confirme seu e-mail",
+              corpo: `<p style="margin:0 0 12px">Falta só um passo para criar sua conta no VozInterior: confirme que este e-mail é seu.</p>`,
+              botao: { texto: "Confirmar e entrar", url: link },
+              observacao: "Se não foi você que criou a conta, ignore este e-mail: sem a confirmação, ninguém entra com ele.",
               base,
             }),
           );
-          return { ok: true } as const;
-        }
-
-        await sendEmail(
-          input.email,
-          "Confirme seu e-mail — VozInterior",
-          emailComMarca({
-            nome: input.nome,
-            titulo: "Confirme seu e-mail",
-            corpo: `<p style="margin:0 0 12px">Falta só um passo para criar sua conta no VozInterior: confirme que este e-mail é seu.</p>`,
-            botao: { texto: "Confirmar e entrar", url: link },
-            observacao: "Se não foi você que criou a conta, ignore este e-mail: sem a confirmação, ninguém entra com ele.",
-            base,
-          }),
-        );
+        })().catch((e) => console.warn("[Cadastro] envio falhou:", e instanceof Error ? e.name : "erro"));
         return { ok: true } as const;
       }),
 
@@ -1343,14 +1348,17 @@ export const appRouter = router({
           await limpar();
           throw new Error("Muitas tentativas. Peça um novo código.");
         }
+        // A tentativa conta ANTES de comparar, numa só operação (como o código de
+        // aparelho): ler, comparar e gravar "tentativas + 1" depois deixava chamadas em
+        // paralelo lerem o mesmo número e ganharem palpites a mais.
+        const [contada] = await db
+          .update(users)
+          .set({ emailChangeAttempts: sql`${users.emailChangeAttempts} + 1` })
+          .where(and(eq(users.id, ctx.user.id), sql`${users.emailChangeAttempts} < 5`))
+          .returning({ id: users.id });
+        if (!contada) throw new Error("Muitas tentativas. Peça um novo código.");
         const hash = createHash("sha256").update(input.codigo.trim()).digest("hex");
-        if (hash !== p.hash) {
-          await db
-            .update(users)
-            .set({ emailChangeAttempts: p.tentativas + 1 })
-            .where(eq(users.id, ctx.user.id));
-          throw new Error("Código incorreto.");
-        }
+        if (hash !== p.hash) throw new Error("Código incorreto.");
         // Código certo: troca no Supabase (admin, já confirmado) e no nosso banco.
         const authUid = ctx.user.openId.startsWith("sb:") ? ctx.user.openId.slice(3) : null;
         if (!authUid) throw new Error("Conta inválida para troca de e-mail.");
@@ -1390,11 +1398,16 @@ export const appRouter = router({
         photoKey: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        const photoKey = input.photoKey === undefined ? undefined : input.photoKey || null;
+        // Só a foto da própria pasta (a lista da psicóloga já confere ao ler; aqui não
+        // deixa nem gravar o caminho de outra pessoa).
+        if (photoKey && !fotoPertenceAoUsuario(photoKey, ctx.user.openId)) {
+          throw new Error("Foto inválida. Envie a foto de novo.");
+        }
         const db = await getDb();
         if (!db) throw new Error("Database not available");
 
         const dob = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
-        const photoKey = input.photoKey === undefined ? undefined : input.photoKey || null;
 
         // Acha a linha do paciente — vinculando o convite da psicóloga, se for a
         // primeira vez. Não existe auto-cadastro: quem não foi cadastrado por
@@ -2196,16 +2209,22 @@ export const appRouter = router({
 
     upsert: therapistProcedure
       .input(z.object({
-        crp: z.string().min(1),
-        specialties: z.string().optional(),
-        bio: z.string().optional(),
-        photoKey: z.string().optional(),
-        formacao: z.string().optional(),
-        publicoAtendido: z.string().optional(),
+        crp: z.string().min(1).max(20),
+        // Tetos folgados (o formulário corta antes): o perfil é público na busca, e sem
+        // teto um texto de 1 MB ia para cada visitante.
+        specialties: z.string().max(1000).optional(),
+        bio: z.string().max(1000).optional(),
+        photoKey: z.string().max(200).optional(),
+        formacao: z.string().max(1000).optional(),
+        publicoAtendido: z.string().max(1000).optional(),
         // Preço padrão em centavos (ver shared/dinheiro.ts). null limpa o valor.
         sessionPrice: precoEmCentavos.nullish(),
       }))
       .mutation(async ({ ctx, input }) => {
+        // A foto vai para a busca pública assinada pelo servidor: só a da própria pasta.
+        if (input.photoKey && !fotoPertenceAoUsuario(input.photoKey, ctx.user.openId)) {
+          throw new Error("Foto inválida. Envie a foto de novo.");
+        }
         const db = await getDb();
         if (!db) throw new Error("Database not available");
 
@@ -4058,7 +4077,8 @@ export const appRouter = router({
       .input(z.object({
         roomId: z.string(),
         durationSeconds: z.number().optional(),
-        recordingUrl: z.string().url().optional(),
+        // Só https: `z.url()` aceita "javascript:...", que a tela poria num link.
+        recordingUrl: z.string().url().max(2000).refine((u) => u.startsWith("https://"), "Endereço inválido.").optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();

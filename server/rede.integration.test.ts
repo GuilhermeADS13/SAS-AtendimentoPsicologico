@@ -13,6 +13,7 @@ import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import { getDb } from "./db";
 import { criarAssinaturaNaAprovacao } from "./assinaturas";
+import { MAX_CONVITES_POR_DIA } from "../shared/conhecer";
 
 const RUN = process.env.RUN_INTEGRATION === "true" && Boolean(process.env.DATABASE_URL);
 const ID = { A: 990311, B: 990312, P: 990313, Q: 990314, M: 990315, N: 990316, V: 990317 } as const;
@@ -211,6 +212,19 @@ describe.runIf(RUN)("rede: mural de pacientes e convites (Postgres real)", () =>
     expect(enviados.find((c) => c.status === "pendente")).toBeUndefined();
     expect((await a.conhecer.minhaVitrine())?.horarios.find((h) => h.id === horarioDaA[2])?.pedido).toBeNull();
     await sql`delete from patients where "userId" = ${ID.Q}`;
+  });
+
+  it("teto de convites em 24 h: convidar e cancelar em laço não vira enxurrada de e-mails", async () => {
+    const [{ n }] = await sql`select count(*)::int as n from "pedidosParaConhecer"
+                              where "therapistId" = ${id.A} and origem = 'psicologa' and "createdAt" > now() - interval '1 day'`;
+    for (let i = n; i < MAX_CONVITES_POR_DIA; i++) {
+      await a.conhecer.convidar({ pacienteId: ID.Q, horarioId: horarioDaA[2] });
+      const pendente = (await a.conhecer.convitesEnviados()).find((c) => c.status === "pendente")!;
+      await a.conhecer.cancelarConvite({ id: pendente.id });
+    }
+    await expect(a.conhecer.convidar({ pacienteId: ID.Q, horarioId: horarioDaA[2] })).rejects.toThrow(/últimas 24 horas/);
+    // Convites de outros dias não contam (e não atrapalham os testes seguintes).
+    await sql`update "pedidosParaConhecer" set "createdAt" = now() - interval '2 days' where "therapistId" = ${id.A} and origem = 'psicologa'`;
   });
 
   it("psicóloga com o plano vencido não lê o mural", async () => {
