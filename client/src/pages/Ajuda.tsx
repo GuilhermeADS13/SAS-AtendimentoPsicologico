@@ -222,7 +222,8 @@ const DUVIDAS_PACIENTE: Duvida[] = [
         <li>
           Ao trocar o e-mail, enviamos <strong>um código para o e-mail atual e outro para o novo</strong>. A
           troca só vale depois que você <strong>digitar os dois</strong> — até lá, continue entrando com o
-          e-mail antigo.
+          e-mail antigo. Perdeu o acesso ao e-mail atual? Fale com o suporte (no fim desta página): conferimos
+          que é você e fazemos a troca.
         </li>
         <li>
           Isso é diferente de <strong>“Esqueci minha senha”</strong>: aquele serve para
@@ -857,7 +858,8 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
         <li>
           Ao trocar o e-mail, enviamos <strong>um código para o e-mail atual e outro para o novo</strong>. A
           troca só vale depois que você <strong>digitar os dois</strong> — até lá, continue entrando com o
-          e-mail antigo.
+          e-mail antigo. Perdeu o acesso ao e-mail atual? Fale com o suporte (no fim desta página): conferimos
+          que é você e fazemos a troca.
         </li>
         <li>
           O telefone daqui é o seu contato profissional. Os dados que os pacientes veem

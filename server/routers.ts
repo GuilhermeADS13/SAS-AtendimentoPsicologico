@@ -8,7 +8,7 @@ import { publicProcedure, contaProcedure, protectedProcedure, therapistProcedure
 import { z } from "zod";
 import { iceServersParaChamada } from "./turn";
 import { getDb } from "./db";
-import { aiDocumentChunks, aiDocumentJobs, aiConversations, aiMessages, aiMessageFeedback, patients, listaDeEspera, appointments, appointmentParticipants, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users, chatMessages, assinaturas } from "../drizzle/schema";
+import { aiConversations, aiMessages, aiMessageFeedback, patients, listaDeEspera, appointments, appointmentParticipants, sessions, documents, therapists, sessionNotes, videoCalls, notifications, therapistRequests, users, chatMessages, assinaturas } from "../drizzle/schema";
 import { signDocumentUrl, downloadDocumentFile, apagarArquivoDoDocumento, removeDocumentFile as removeStorageFile, assinarFotos } from "./storage";
 import { extractClinicalDocument, textoSemCortes } from "./ai/document-ingestion";
 import {
@@ -3905,8 +3905,6 @@ export const appRouter = router({
         if (!rows.length) throw new Error("Document not found");
 
         await apagarArquivoDoDocumento(rows[0].fileKey);
-        await db.delete(aiDocumentJobs).where(eq(aiDocumentJobs.documentId, input.id));
-        await db.delete(aiDocumentChunks).where(eq(aiDocumentChunks.documentId, input.id));
         await db.delete(documents).where(eq(documents.id, input.id));
         return { success: true, fileKey: rows[0].fileKey } as const;
       }),

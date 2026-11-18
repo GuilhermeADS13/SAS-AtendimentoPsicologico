@@ -208,6 +208,12 @@ describe.runIf(RUN)("rede: mural de pacientes e convites (Postgres real)", () =>
     // Q vira paciente de B pelo cadastro normal (fora da Rede).
     await sql`insert into patients ("therapistId", "userId", "firstName", "lastName", email, status)
               values (${id.B}, ${ID.Q}, 'Outro', 'Caminho', ${`rede-${ID.Q}@teste.local`}, 'active')`;
+    // O perfil público (só leitura) já mostra o horário livre, sem gravar nada: o convite
+    // continua "pendente" no banco até alguém da área logada agir.
+    expect((await visitante.conhecer.perfil({ id: id.A }))?.horarios.map((h) => h.id)).toContain(horarioDaA[2]);
+    const [aindaPendente] = await sql`select status from "pedidosParaConhecer"
+                                       where "therapistId" = ${id.A} and "pacienteUserId" = ${ID.Q} order by id desc limit 1`;
+    expect(aindaPendente.status).toBe("pendente");
     const enviados = await a.conhecer.convitesEnviados();
     expect(enviados.find((c) => c.status === "pendente")).toBeUndefined();
     expect((await a.conhecer.minhaVitrine())?.horarios.find((h) => h.id === horarioDaA[2])?.pedido).toBeNull();

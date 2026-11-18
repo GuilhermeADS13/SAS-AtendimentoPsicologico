@@ -1,4 +1,4 @@
-import { boolean, customType, date, index, integer, jsonb, pgEnum, pgTable, serial, smallint, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
+import { boolean, date, index, integer, jsonb, pgEnum, pgTable, serial, smallint, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 import type { AvisosPorEmail } from "../shared/avisosPorEmail";
 import type { Modalidade, OrigemDoPedido, StatusDoPedido } from "../shared/conhecer";
 import { relations, sql } from "drizzle-orm";
@@ -272,7 +272,12 @@ export const pedidosParaConhecer = pgTable(
     createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
     respondidoEm: timestamp("respondidoEm", { withTimezone: true, mode: "date" }),
   },
-  (table) => [index("pedidosParaConhecer_psicologa").on(table.therapistId)],
+  (table) => [
+    index("pedidosParaConhecer_psicologa").on(table.therapistId),
+    // Chaves estrangeiras (migração 0055): apagar paciente ou consulta não varre a tabela.
+    index("pedidosParaConhecer_patientId_idx").on(table.patientId),
+    index("pedidosParaConhecer_appointmentId_idx").on(table.appointmentId),
+  ],
 );
 export type InsertTherapist = typeof therapists.$inferInsert;
 
@@ -398,7 +403,12 @@ export const listaDeEspera = pgTable(
     observacao: text("observacao"),
     createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
   },
-  (table) => [uniqueIndex("listaDeEspera_psicologa_paciente").on(table.therapistId, table.patientId)],
+  (table) => [
+    uniqueIndex("listaDeEspera_psicologa_paciente").on(table.therapistId, table.patientId),
+    // A chave estrangeira do paciente (o índice acima começa pela psicóloga): apagar
+    // um paciente não varre a tabela. Migração 0055.
+    index("listaDeEspera_patientId_idx").on(table.patientId),
+  ],
 );
 
 /**
@@ -504,18 +514,6 @@ export type InsertSession = typeof sessions.$inferInsert;
 /**
  * Documentos/arquivos dos prontuários.
  */
-const vector768 = customType<{ data: number[]; driverData: string; columnType: "vector" }>({
-  dataType() {
-    return "vector(768)";
-  },
-  toDriver(value) {
-    return `[${value.join(",")}]`;
-  },
-  fromDriver(value) {
-    return String(value).slice(1, -1).split(",").filter(Boolean).map(Number);
-  },
-});
-
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
   patientId: integer("patientId").notNull(),
@@ -580,56 +578,8 @@ export const chatMessages = pgTable(
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = typeof chatMessages.$inferInsert;
 
-/** Chunks de texto extraído de arquivos, com embedding compatível com pgvector. */
-export const aiDocumentProcessingStatusEnum = pgEnum("aiDocumentProcessingStatus", ["pending", "processing", "indexed", "failed"]);
-
-export const aiDocumentJobs = pgTable(
-  "aiDocumentJobs",
-  {
-    id: serial("id").primaryKey(),
-    documentId: integer("documentId").notNull(),
-    status: aiDocumentProcessingStatusEnum("status").default("pending").notNull(),
-    attempts: integer("attempts").default(0).notNull(),
-    maxAttempts: integer("maxAttempts").default(5).notNull(),
-    availableAt: timestamp("availableAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
-    lockedAt: timestamp("lockedAt", { withTimezone: true, mode: "date" }),
-    lockedBy: varchar("lockedBy", { length: 120 }),
-    lastError: text("lastError"),
-    processedAt: timestamp("processedAt", { withTimezone: true, mode: "date" }),
-    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
-    updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
-  },
-  (table) => ({
-    documentUniqueIdx: uniqueIndex("ai_document_jobs_document_unique_idx").on(table.documentId),
-    statusAvailableIdx: index("ai_document_jobs_status_available_idx").on(table.status, table.availableAt),
-  }),
-);
-export type AiDocumentJob = typeof aiDocumentJobs.$inferSelect;
-export type InsertAiDocumentJob = typeof aiDocumentJobs.$inferInsert;
-
-export const aiDocumentChunks = pgTable(
-  "aiDocumentChunks",
-  {
-    id: serial("id").primaryKey(),
-    documentId: integer("documentId").notNull(),
-    patientId: integer("patientId").notNull(),
-    therapistId: integer("therapistId").notNull(),
-    chunkIndex: integer("chunkIndex").notNull(),
-    content: text("content").notNull(),
-    contentHash: varchar("contentHash", { length: 64 }).notNull(),
-    embedding: vector768("embedding").notNull(),
-    pageNumber: integer("pageNumber"),
-    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
-    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
-  },
-  (table) => ({
-    documentChunkIdx: index("ai_document_chunks_document_chunk_idx").on(table.documentId, table.chunkIndex),
-    clinicalScopeIdx: index("ai_document_chunks_clinical_scope_idx").on(table.therapistId, table.patientId),
-    contentHashIdx: index("ai_document_chunks_content_hash_idx").on(table.contentHash),
-  }),
-);
-export type AiDocumentChunk = typeof aiDocumentChunks.$inferSelect;
-export type InsertAiDocumentChunk = typeof aiDocumentChunks.$inferInsert;
+// As tabelas do RAG (aiDocumentJobs e aiDocumentChunks, com embedding pgvector) saíram
+// na migração 0055: a Luma não lê documentos desde 2026-10-28 e elas estavam vazias.
 
 /**
  * Notificações/lembretes.
