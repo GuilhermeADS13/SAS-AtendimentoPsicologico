@@ -47,6 +47,25 @@ export async function listarSessoes(authUid: string, sessaoAtual: string | null)
   return montarSessoes(linhas, sessaoAtual);
 }
 
+/**
+ * Encerra TODAS as sessões de uma conta (troca de e-mail pelo suporte): cada aparelho perde o
+ * login na próxima renovação do token (até 1 h) e a pessoa entra de novo, já com o e-mail novo
+ * no token. Melhor esforço: devolve quantas encerrou, ou null se não deu (banco sem o schema
+ * auth, como o de teste).
+ */
+export async function encerrarTodasAsSessoes(authUid: string): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const apagadas = (await db.execute(sql`
+      delete from auth.sessions where user_id = ${authUid}::uuid returning id`)) as unknown as unknown[];
+    return apagadas.length;
+  } catch (e) {
+    console.warn("[Sessões] não deu para encerrar as sessões:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 /** Encerra uma sessão da PRÓPRIA conta: o aparelho perde o login na próxima renovação do token (até 1 h). */
 export async function encerrarSessao(authUid: string, id: string): Promise<boolean> {
   const db = await getDb();

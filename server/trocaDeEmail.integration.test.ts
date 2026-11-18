@@ -25,14 +25,14 @@ const { appRouter } = await import("./routers");
 import type { TrpcContext } from "./_core/context";
 
 const RUN = process.env.RUN_INTEGRATION === "true" && Boolean(process.env.DATABASE_URL);
-const ID = { A: 990401, B: 990402 } as const;
+const ID = { A: 990401, B: 990402, C: 990403, ADM: 990404 } as const;
 const emailDe = (id: number) => `troca-${id}@teste.local`;
 
-function ctx(id: number): TrpcContext {
+function ctx(id: number, role: "user" | "admin" = "user"): TrpcContext {
   return {
     user: {
       id, openId: `sb:troca-${id}`, email: emailDe(id), name: "Pessoa Teste", loginMethod: "test",
-      role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date(),
+      role, createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date(),
     },
     aparelhoVerificado: true,
     req: { protocol: "https", headers: {} } as TrpcContext["req"],
@@ -59,7 +59,8 @@ describe.runIf(RUN)("troca do e-mail da conta (Postgres real)", () => {
     sql = postgres(process.env.DATABASE_URL as string, { prepare: false, max: 1 });
     await limpar();
     for (const id of Object.values(ID)) {
-      await sql`insert into users (id, "openId", name, email, role) values (${id}, ${`sb:troca-${id}`}, 'Pessoa Teste', ${emailDe(id)}, 'user')`;
+      await sql`insert into users (id, "openId", name, email, role)
+                values (${id}, ${`sb:troca-${id}`}, 'Pessoa Teste', ${emailDe(id)}, ${id === ID.ADM ? "admin" : "user"})`;
     }
   });
 
@@ -85,6 +86,24 @@ describe.runIf(RUN)("troca do e-mail da conta (Postgres real)", () => {
     expect(supabaseAdmin.trocarEmailSupabase).toHaveBeenCalledWith(`troca-${ID.A}`, novo);
     const [linha] = await sql`select email from users where id = ${ID.A}`;
     expect(linha.email).toBe(novo);
+  });
+
+  it("o suporte troca o e-mail de quem perdeu o acesso: confere a conta e avisa os dois endereços", async () => {
+    const adm = appRouter.createCaller(ctx(ID.ADM, "admin"));
+    const conta = await adm.admin.contaPorEmail({ email: emailDe(ID.C) });
+    expect(conta).toMatchObject({ id: ID.C, nome: "Pessoa Teste", papel: "user", email: emailDe(ID.C) });
+    expect(conta).not.toHaveProperty("openId");
+    expect(await adm.admin.contaPorEmail({ email: "ninguem@teste.local" })).toBeNull();
+
+    enviados.length = 0;
+    const novo = "novo-990403@teste.local";
+    await expect(adm.admin.trocarEmailDaConta({ userId: ID.C, novoEmail: novo })).resolves.toMatchObject({ ok: true, email: novo });
+    expect(supabaseAdmin.trocarEmailSupabase).toHaveBeenCalledWith(`troca-${ID.C}`, novo);
+    const [linha] = await sql`select email from users where id = ${ID.C}`;
+    expect(linha.email).toBe(novo);
+    expect(enviados.map((e) => e.para).sort()).toEqual([emailDe(ID.C), novo].sort());
+    // O e-mail de outra conta não serve.
+    await expect(adm.admin.trocarEmailDaConta({ userId: ID.C, novoEmail: emailDe(ID.B) })).rejects.toThrow(/em uso/);
   });
 
   it("cinco tentativas erradas encerram o pedido", async () => {

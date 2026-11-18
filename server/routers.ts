@@ -27,7 +27,7 @@ import { sendEmail } from "./mailer";
 import { celularDaConta, completarCadastroNaConta, gerarLinkDeCadastro, gerarLinkDeRecuperacao, trocarEmailSupabase } from "./supabaseAdmin";
 import { registrarPedidoDoCadastro } from "./pedidoProfissional";
 import { guardarTelefoneDoCadastro } from "./telefoneDoCadastro";
-import { encerrarSessao, listarSessoes, sessaoDoToken } from "./sessoesDaConta";
+import { encerrarSessao, encerrarTodasAsSessoes, listarSessoes, sessaoDoToken } from "./sessoesDaConta";
 import {
   anexoMaxMbDaPsicologa,
   contarPacientesCobrados,
@@ -83,7 +83,7 @@ import {
 // lugares). `normalizarEmail`/`pacienteDoUsuario` seguem usados aqui como antes.
 import { normalizarEmail, pacienteDoUsuario, resolverAcessoSala } from "./roomAccess";
 import { conhecerRouter, dadosDaBuscaParaExportar } from "./conhecer";
-import { chavePertenceAoUsuario, fotoPertenceAoUsuario } from "./storageKeys";
+import { chavePertenceAoUsuario, fotoPertenceAoUsuario, uidSupabase } from "./storageKeys";
 import { pendenciasDoProntuario } from "../shared/prontuario";
 
 // Campos que a psicóloga ou o paciente digitam e que, errados, causam estrago
@@ -2156,6 +2156,101 @@ export const appRouter = router({
         if (!db) throw new Error("Database not available");
         await db.update(assinaturas).set({ fundador: input.fundador }).where(eq(assinaturas.therapistId, input.therapistId));
         return { success: true } as const;
+      }),
+
+    /**
+     * Suporte, passo 1: de quem é a conta deste e-mail. A troca normal pede um código no
+     * e-mail atual; quem perdeu o acesso a ele pede ao suporte. A tela mostra nome, papel,
+     * CRP e o celular do cadastro para o admin conferir a identidade (fora do sistema:
+     * WhatsApp do celular do cadastro, CRP, ou a psicóloga do paciente) antes de trocar.
+     */
+    contaPorEmail: adminProcedure
+      .input(z.object({ email: z.string().trim().toLowerCase().email().max(320) }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return null;
+        const [conta] = await db
+          .select({ id: users.id, nome: users.name, email: users.email, papel: users.role, desde: users.createdAt, openId: users.openId, crp: therapists.crp })
+          .from(users)
+          .leftJoin(therapists, eq(therapists.userId, users.id))
+          .where(eq(users.email, input.email))
+          .limit(1);
+        if (!conta) return null;
+        const uid = uidSupabase(conta.openId);
+        const celular = uid ? await celularDaConta(uid).catch(() => null) : null;
+        const { openId: _openId, ...visivel } = conta;
+        return { ...visivel, celular };
+      }),
+
+    /**
+     * Suporte, passo 2: troca o e-mail da conta (Supabase e banco), encerra as sessões
+     * abertas (a pessoa entra de novo, já com o e-mail novo) e avisa os DOIS endereços:
+     * o antigo pode estar com outra pessoa, e o dono precisa saber da troca.
+     */
+    trocarEmailDaConta: adminProcedure
+      .input(z.object({
+        userId: z.number().int().positive(),
+        novoEmail: z.string().trim().toLowerCase().email().max(320),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        const [conta] = await db
+          .select({ id: users.id, nome: users.name, email: users.email, openId: users.openId })
+          .from(users)
+          .where(eq(users.id, input.userId))
+          .limit(1);
+        if (!conta) throw new Error("Conta não encontrada.");
+        const antigo = normalizarEmail(conta.email);
+        if (antigo === input.novoEmail) throw new Error("Esse já é o e-mail da conta.");
+        const [emUso] = await db.select({ id: users.id }).from(users).where(eq(users.email, input.novoEmail)).limit(1);
+        if (emUso && emUso.id !== conta.id) throw new Error("Este e-mail já está em uso por outra conta.");
+        const uid = uidSupabase(conta.openId);
+        if (!uid) throw new Error("Esta conta não entra pelo Supabase; não dá para trocar por aqui.");
+        try {
+          await trocarEmailSupabase(uid, input.novoEmail);
+        } catch {
+          throw new Error("O Supabase recusou a troca. O e-mail pode já estar em uso.");
+        }
+        await db
+          .update(users)
+          .set({ email: input.novoEmail, emailChangeNew: null, emailChangeCodeHash: null, emailChangeExpires: null, emailChangeAttempts: 0 })
+          .where(eq(users.id, conta.id));
+        const sessoesEncerradas = await encerrarTodasAsSessoes(uid);
+        console.info(`[Suporte] e-mail da conta ${conta.id} trocado pelo admin ${ctx.user.id}`);
+
+        const base = process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:3000";
+        const avisos = [
+          sendEmail(
+            input.novoEmail,
+            "O e-mail da sua conta foi trocado — VozInterior",
+            emailComMarca({
+              nome: conta.nome,
+              titulo: "Seu e-mail de acesso mudou",
+              corpo: `<p style="margin:0 0 12px">A seu pedido, o suporte do VozInterior trocou o e-mail de acesso da sua conta para este endereço. A partir de agora, entre com ele. A senha continua a mesma.</p>`,
+              botao: { texto: "Entrar", url: `${base}/login` },
+              observacao: "Se você não pediu essa troca, responda este e-mail ou fale com o suporte agora.",
+              base,
+            }),
+          ),
+        ];
+        if (antigo) {
+          avisos.push(
+            sendEmail(
+              antigo,
+              "O e-mail da sua conta foi trocado — VozInterior",
+              emailComMarca({
+                nome: conta.nome,
+                titulo: "O e-mail de acesso da sua conta mudou",
+                corpo: `<p style="margin:0 0 12px">O suporte do VozInterior trocou o e-mail de acesso da sua conta, a pedido de quem se identificou como dono dela. Este endereço não entra mais na conta.</p>`,
+                observacao: "Se não foi você que pediu, responda este e-mail ou fale com o suporte agora.",
+                base,
+              }),
+            ),
+          );
+        }
+        await Promise.allSettled(avisos);
+        return { ok: true, email: input.novoEmail, sessoesEncerradas } as const;
       }),
   }),
 
