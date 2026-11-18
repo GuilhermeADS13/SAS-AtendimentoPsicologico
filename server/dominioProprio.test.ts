@@ -16,9 +16,10 @@ function pedido(host: string, url: string, opcoes: { method?: string; accept?: s
 
 function rodar(req: Request) {
   const redirect = vi.fn();
+  const setHeader = vi.fn();
   const next = vi.fn();
-  levarAoDominioProprio(req, { redirect } as unknown as Response, next);
-  return { redirect, next };
+  levarAoDominioProprio(req, { redirect, setHeader } as unknown as Response, next);
+  return { redirect, setHeader, next };
 }
 
 describe("endereço antigo leva ao domínio próprio", () => {
@@ -27,12 +28,15 @@ describe("endereço antigo leva ao domínio próprio", () => {
     process.env.APP_URL = "https://vozinterior.app.br";
   });
   afterEach(() => {
-    process.env.APP_URL = original;
+    // Atribuir undefined grava a string "undefined" (que é verdadeira) e contamina os outros testes.
+    if (original === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = original;
   });
 
   it("abrir página no .onrender.com vai para o mesmo caminho no domínio novo", () => {
-    const { redirect, next } = rodar(pedido("sas-atendimento-psicologico.onrender.com", "/login?criar=psicologa&origem=instagram"));
+    const { redirect, setHeader, next } = rodar(pedido("sas-atendimento-psicologico.onrender.com", "/login?criar=psicologa&origem=instagram"));
     expect(redirect).toHaveBeenCalledWith(301, "https://vozinterior.app.br/login?criar=psicologa&origem=instagram");
+    expect(setHeader).toHaveBeenCalledWith("Vary", "Accept");
     expect(next).not.toHaveBeenCalled();
   });
 

@@ -25,6 +25,7 @@ import { useIsMobile } from "@/hooks/useMobile";
 import { useRole } from "@/hooks/useRole";
 import { supabase } from "@/lib/supabase";
 import { trpc } from "@/lib/trpc";
+import { guardarVoltaDepoisDoLogin } from "@/lib/voltarDepoisDoLogin";
 import { NotificationsBell } from "./NotificationsBell";
 import { PatientNotificationsBell } from "./PatientNotificationsBell";
 import { LogoFull, LogoLockup, LumaOwlIcon } from "./Logo";
@@ -136,7 +137,11 @@ export default function DashboardLayout({
             </p>
           </div>
           <Button
-            onClick={() => setLocation("/login")}
+            onClick={() => {
+              // Quem chegou pelo link da sala (ou de outra página) volta para lá depois de entrar.
+              guardarVoltaDepoisDoLogin(window.location.pathname + window.location.search);
+              setLocation("/login");
+            }}
             size="lg"
             className="w-full shadow-lg hover:shadow-xl transition-all"
           >

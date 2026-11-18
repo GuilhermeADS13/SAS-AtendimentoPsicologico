@@ -1,6 +1,7 @@
 /**
- * Volta para a busca depois do login (client/src/lib/voltarDepoisDoLogin.ts): só
- * aceita as páginas da busca, para o endereço guardado nunca levar a outro lugar.
+ * Volta para onde a pessoa ia depois do login (client/src/lib/voltarDepoisDoLogin.ts):
+ * só aceita caminhos internos conhecidos, para o endereço guardado nunca levar a
+ * outro lugar.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { guardarVoltaDepoisDoLogin, tirarVoltaDepoisDoLogin } from "../client/src/lib/voltarDepoisDoLogin";
@@ -21,8 +22,30 @@ describe("voltar depois do login", () => {
     expect(tirarVoltaDepoisDoLogin()).toBeNull();
   });
 
-  it("recusa endereço fora da busca", () => {
-    for (const ruim of ["//exemplo.com", "https://exemplo.com", "/dashboard", "/psicologas/12/../../admin", "/psicologas/abc"]) {
+  it("volta para a sala da consulta, com os ids da query, e para as páginas da área", () => {
+    for (const bom of [
+      "/videocall/apt42-V1StGXR8_Z5jdHi6?apt=42&pat=7",
+      "/videocall/sala-apt42",
+      "/records/15",
+      "/dashboard",
+      "/consultas",
+    ]) {
+      guardarVoltaDepoisDoLogin(bom);
+      expect(tirarVoltaDepoisDoLogin(), bom).toBe(bom);
+    }
+  });
+
+  it("recusa endereço de fora ou desconhecido", () => {
+    for (const ruim of [
+      "//exemplo.com",
+      "https://exemplo.com",
+      "/admin",
+      "/psicologas/12/../../admin",
+      "/psicologas/abc",
+      "/videocall/apt42-V1StGXR8_Z5jdHi6?apt=42&pat=7&x=//exemplo.com",
+      "/videocall/../../exemplo",
+      "/records/abc",
+    ]) {
       guardarVoltaDepoisDoLogin(ruim);
       expect(tirarVoltaDepoisDoLogin(), ruim).toBeNull();
     }

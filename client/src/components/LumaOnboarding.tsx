@@ -292,7 +292,7 @@ const patientSteps: Step[] = [
     path: "/psicologa",
     icon: Stethoscope,
     title: "Minha Psicóloga",
-    body: "Aqui estão os dados da sua psicóloga, inclusive o contato para falar com ela fora do sistema. Ainda não tem psicóloga? Toque em “Encontrar uma psicóloga”, escolha um horário e peça uma primeira conversa curta e gratuita, por vídeo. Na “Rede”, elas também podem te convidar, e o convite chega no sino.",
+    body: "Aqui estão os dados da sua psicóloga, inclusive o contato para falar com ela fora do sistema. Ainda não tem psicóloga? Toque em “Encontrar uma psicóloga”, escolha um horário e peça uma primeira conversa curta e gratuita, por vídeo. Na “Rede”, se você ligar “Aparecer para psicólogas”, elas também podem te convidar, e o convite chega no sino.",
     target: '[data-tour="psicologa"]',
   },
   {

@@ -48,7 +48,8 @@ export default function MyTherapist() {
         {isLoading ? (
           <Skeleton className="h-96 w-full rounded-2xl" />
         ) : !psi ? (
-          <div className="flex flex-col items-center rounded-2xl border bg-card px-6 py-12 text-center">
+          // O tour também aponta para cá: o passo "Minha Psicóloga" explica o "Encontrar uma psicóloga".
+          <div data-tour="psicologa" className="flex flex-col items-center rounded-2xl border bg-card px-6 py-12 text-center">
             <span className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <UserRound className="size-6" />
             </span>

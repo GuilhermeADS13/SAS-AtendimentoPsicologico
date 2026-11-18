@@ -34,6 +34,8 @@ export function levarAoDominioProprio(req: Request, res: Response, next: NextFun
   if (!destino || destino.includes(".onrender.com") || !host.endsWith(".onrender.com") || !abrePagina) {
     return next();
   }
+  // A mesma URL responde diferente conforme o Accept: um cache não pode servir este 301 a outro pedido.
+  res.setHeader("Vary", "Accept");
   // Concatenar, e não new URL(caminho, destino): "//outro.site" viraria redirecionamento aberto.
   res.redirect(301, destino + req.originalUrl);
 }

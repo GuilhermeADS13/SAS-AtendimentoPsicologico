@@ -40,8 +40,11 @@ services:
       # reenviada, em vez de morrer como "failed".
       - key: BREVO_API_KEY # chave da API (Brevo → SMTP & API → API Keys)
         sync: false
-      - key: EMAIL_FROM # remetente; precisa estar verificado na Brevo
-        value: codexmaciel@gmail.com
+      # ATENÇÃO: todo `value:` deste arquivo é reaplicado no Render a cada push que mexe nele
+      # (Blueprint). Trocar só no painel não dura: troque AQUI. Em 2026-11-17 um push voltou o
+      # remetente para o e-mail pessoal, que tinha sido trocado só no painel em 11/11.
+      - key: EMAIL_FROM # remetente e Reply-To; precisa estar verificado na Brevo
+        value: suportevozinterior@gmail.com
       - key: EMAIL_FROM_NAME
         value: VozInterior
       - key: ADMIN_EMAIL # recebe os avisos de solicitação de acesso

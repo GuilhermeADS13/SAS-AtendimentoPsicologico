@@ -91,9 +91,9 @@ export default function Login() {
     await utils.auth.me.invalidate();
     const me = await utils.auth.me.fetch();
     const isTherapist = me?.role === "admin" || me?.role === "therapist";
-    // Paciente que veio da busca de psicólogas volta para o perfil que estava vendo.
+    // Volta para onde a pessoa estava indo (a sala pelo link do e-mail, o perfil da busca...).
     const volta = tirarVoltaDepoisDoLogin();
-    setLocation(isTherapist ? "/dashboard" : volta ?? "/consultas");
+    setLocation(volta ?? (isTherapist ? "/dashboard" : "/consultas"));
   };
 
   const handleLogin = async () => {
