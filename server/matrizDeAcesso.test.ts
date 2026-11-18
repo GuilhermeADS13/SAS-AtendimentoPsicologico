@@ -82,6 +82,7 @@ const ESPERADO: Record<Nivel, string[]> = {
   admin: [
     "admin.assinaturas", "admin.definirFundador", "admin.definirSobMedida", "admin.registrarPix",
     "admin.reviewTherapistRequest", "admin.therapistRequests", "admin.tirarDoSobMedida",
+    "admin.contaPorEmail", "admin.trocarEmailDaConta",
   ],
 };
 

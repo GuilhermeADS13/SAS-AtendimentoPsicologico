@@ -59,7 +59,7 @@ import { sendEmail } from "./mailer";
 import { appUrl, rodarCicloDeNotificacoes } from "./notifications";
 import { normalizarEmail } from "./roomAccess";
 import { assinarFotos } from "./storage";
-import { fotoPertenceAoUsuario } from "./storageKeys";
+import { fotoPertenceAoUsuario, uidSupabase } from "./storageKeys";
 import { celularDaConta } from "./supabaseAdmin";
 import { protectedProcedure, publicProcedure, router, therapistProcedure } from "./_core/trpc";
 
@@ -450,7 +450,10 @@ async function confirmarConversa(db: Db, pedido: Pedido, therapistId: number, qu
       throw e;
     });
   }
-  const telefone = !ficha ? await celularDaConta(pessoa.openId).catch(() => null) : null;
+  // O Supabase quer o uid, sem o "sb:" do openId (com ele a busca falhava em silêncio e a
+  // ficha nova ficava sem o celular do cadastro).
+  const uidDaConta = uidSupabase(pessoa.openId);
+  const telefone = !ficha && uidDaConta ? await celularDaConta(uidDaConta).catch(() => null) : null;
 
   const resultado = await db.transaction(async (tx) => {
     // Trava o pedido antes de tudo: dois "Aceitar" ao mesmo tempo (duas abas) esperam um
