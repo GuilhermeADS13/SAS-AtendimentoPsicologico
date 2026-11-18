@@ -132,6 +132,14 @@ export function dentroDoLimite(chave: string, maximo: number, janelaMs: number, 
   return true;
 }
 const enviosPorIp = new Map<string, number[]>();
+/**
+ * Hash dos DOIS códigos da troca de e-mail (o do e-mail atual e o do novo), juntos: só o
+ * par certo confere. Conta sem e-mail atual usa o do atual vazio.
+ */
+export function hashDaTrocaDeEmail(codigoAtual: string, codigoNovo: string): string {
+  return createHash("sha256").update(`${codigoAtual.trim()}:${codigoNovo.trim()}`).digest("hex");
+}
+
 export function podeEnviarRecuperacao(email: string, ip: string, agora = Date.now()): boolean {
   if (agora - (ultimoEnvioPorEmail.get(email) ?? 0) < 2 * 60_000) return false;
   const recentes = (enviosPorIp.get(ip) ?? []).filter((t) => agora - t < 10 * 60_000);
@@ -1285,33 +1293,60 @@ export const appRouter = router({
         if (existe.length && existe[0].id !== ctx.user.id) {
           throw new Error("Este e-mail já está em uso por outra conta.");
         }
-        const codigo = String(randomInt(0, 1_000_000)).padStart(6, "0");
-        const hash = createHash("sha256").update(codigo).digest("hex");
+        // DOIS códigos, um por e-mail, e a troca exige os dois. Com um código só, mandado
+        // aos dois endereços, quem estivesse com a sessão aberta de outra pessoa trocava o
+        // e-mail para um seu (recebia o código lá) e tomava a conta. O do e-mail atual
+        // prova que é o dono; o do novo, que o endereço é dele (o paciente é ligado à
+        // conta pelo e-mail: um endereço não conferido podia "pegar" o convite de outro).
+        const gerar = () => String(randomInt(0, 1_000_000)).padStart(6, "0");
+        const codigoAtual = atual ? gerar() : "";
+        const codigoNovo = gerar();
         await db
           .update(users)
           .set({
             emailChangeNew: novo,
-            emailChangeCodeHash: hash,
+            emailChangeCodeHash: hashDaTrocaDeEmail(codigoAtual, codigoNovo),
             emailChangeExpires: new Date(Date.now() + 15 * 60_000),
             emailChangeAttempts: 0,
           })
           .where(eq(users.id, ctx.user.id));
-        const assunto = "Código para trocar seu e-mail — VozInterior";
-        const corpo = emailComMarca({
-          nome: ctx.user.name,
-          titulo: "Código para trocar seu e-mail",
-          corpo: `<p style="margin:0 0 12px">Use este código na tela de Configurações para confirmar a troca do e-mail da sua conta:</p>
-            <p style="margin:8px 0 4px;font-size:30px;font-weight:700;letter-spacing:6px;color:#215756">${codigo}</p>`,
-          observacao: "O código vale por 15 minutos. Se não foi você que pediu, ignore este e-mail: sua conta continua segura e o e-mail não muda.",
-          base: process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:3000",
-        });
-        if (atual) await sendEmail(atual, assunto, corpo);
-        await sendEmail(novo, assunto, corpo);
-        return { ok: true } as const;
+        const base = process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:3000";
+        const caixaDoCodigo = (codigo: string) =>
+          `<p style="margin:8px 0 4px;font-size:30px;font-weight:700;letter-spacing:6px;color:#215756">${codigo}</p>`;
+        if (atual) {
+          await sendEmail(
+            atual,
+            "Pedido para trocar o e-mail da sua conta — VozInterior",
+            emailComMarca({
+              nome: ctx.user.name,
+              titulo: "Pedido para trocar seu e-mail",
+              corpo: `<p style="margin:0 0 12px">Pediram para trocar o e-mail da sua conta para <strong>${escHtml(novo)}</strong>. Se foi você, digite este código em Configurações, junto com o que chegou no e-mail novo:</p>${caixaDoCodigo(codigoAtual)}`,
+              observacao: "Vale por 15 minutos. Se não foi você, não passe este código a ninguém: sem ele o e-mail não muda. E troque sua senha, porque alguém pode estar com a sua conta aberta.",
+              base,
+            }),
+          );
+        }
+        await sendEmail(
+          novo,
+          "Código para confirmar seu novo e-mail — VozInterior",
+          emailComMarca({
+            nome: ctx.user.name,
+            titulo: "Confirme seu novo e-mail",
+            corpo: `<p style="margin:0 0 12px">Digite este código em Configurações para confirmar este endereço como o novo e-mail da sua conta no VozInterior${atual ? ", junto com o que chegou no seu e-mail atual" : ""}:</p>${caixaDoCodigo(codigoNovo)}`,
+            observacao: "Vale por 15 minutos. Se você não pediu isso, ignore este e-mail.",
+            base,
+          }),
+        );
+        return { ok: true, precisaDoAtual: Boolean(atual) } as const;
       }),
 
     confirmEmailChange: protectedProcedure
-      .input(z.object({ codigo: z.string().trim().min(4).max(10) }))
+      .input(z.object({
+        /** Do e-mail ATUAL; vazio só para conta sem e-mail. */
+        codigoAtual: z.string().trim().max(10).default(""),
+        /** Do e-mail NOVO. */
+        codigoNovo: z.string().trim().min(4).max(10),
+      }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new Error("Database not available");
@@ -1357,8 +1392,9 @@ export const appRouter = router({
           .where(and(eq(users.id, ctx.user.id), sql`${users.emailChangeAttempts} < 5`))
           .returning({ id: users.id });
         if (!contada) throw new Error("Muitas tentativas. Peça um novo código.");
-        const hash = createHash("sha256").update(input.codigo.trim()).digest("hex");
-        if (hash !== p.hash) throw new Error("Código incorreto.");
+        if (hashDaTrocaDeEmail(input.codigoAtual, input.codigoNovo) !== p.hash) {
+          throw new Error("Código incorreto. Confira os dois códigos: o do e-mail atual e o do novo.");
+        }
         // Código certo: troca no Supabase (admin, já confirmado) e no nosso banco.
         const authUid = ctx.user.openId.startsWith("sb:") ? ctx.user.openId.slice(3) : null;
         if (!authUid) throw new Error("Conta inválida para troca de e-mail.");
@@ -2235,10 +2271,16 @@ export const appRouter = router({
           .limit(1);
 
         if (existing.length) {
+          // O CRP é o que o admin conferiu na aprovação, e a busca pública o mostra como
+          // verificado: não muda pelo perfil. O mesmo número com outra formatação passa.
+          const aprovado = existing[0].crp ?? "";
+          if (soDigitos(aprovado) && soDigitos(aprovado) !== soDigitos(input.crp)) {
+            throw new Error("O CRP é o que foi conferido na aprovação e não muda por aqui. Para corrigir, fale com o suporte.");
+          }
           await db
             .update(therapists)
             .set({
-              crp: input.crp,
+              crp: aprovado || input.crp,
               specialties: input.specialties,
               bio: input.bio,
               photoKey: input.photoKey,

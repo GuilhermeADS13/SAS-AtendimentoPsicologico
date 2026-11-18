@@ -220,9 +220,9 @@ const DUVIDAS_PACIENTE: Duvida[] = [
           isso, quem pegasse seu computador destravado trocaria seus dados de acesso.
         </li>
         <li>
-          Ao trocar o e-mail, enviamos um <strong>código de verificação</strong> para o
-          e-mail novo e para o atual. A troca só vale depois que você{" "}
-          <strong>digitar esse código</strong> — até lá, continue entrando com o e-mail antigo.
+          Ao trocar o e-mail, enviamos <strong>um código para o e-mail atual e outro para o novo</strong>. A
+          troca só vale depois que você <strong>digitar os dois</strong> — até lá, continue entrando com o
+          e-mail antigo.
         </li>
         <li>
           Isso é diferente de <strong>“Esqueci minha senha”</strong>: aquele serve para
@@ -855,9 +855,9 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
           computador destravado trocaria os dados de acesso e tomaria a conta.
         </li>
         <li>
-          Ao trocar o e-mail, enviamos um <strong>código de verificação</strong> para o
-          e-mail novo e para o atual. A troca só vale depois que você{" "}
-          <strong>digitar esse código</strong> — até lá, continue entrando com o e-mail antigo.
+          Ao trocar o e-mail, enviamos <strong>um código para o e-mail atual e outro para o novo</strong>. A
+          troca só vale depois que você <strong>digitar os dois</strong> — até lá, continue entrando com o
+          e-mail antigo.
         </li>
         <li>
           O telefone daqui é o seu contato profissional. Os dados que os pacientes veem

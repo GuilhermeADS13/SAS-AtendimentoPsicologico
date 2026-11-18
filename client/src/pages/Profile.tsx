@@ -103,6 +103,8 @@ const mesmoFormulario = (a: Formulario, b: Formulario) =>
 function TherapistProfile() {
   const { user } = useAuth();
   const { data: therapist, isLoading, isError, refetch } = trpc.therapists.me.useQuery();
+  // O CRP conferido na aprovação não muda pelo perfil (o servidor também recusa).
+  const crpTravado = Boolean(therapist?.crp?.trim());
 
   const [form, setForm] = useState<Formulario>(VAZIO);
   /** Última versão salva: base do "alterações não salvas" e do "Descartar". */
@@ -366,8 +368,14 @@ function TherapistProfile() {
                         inputMode="numeric"
                         autoComplete="off"
                         maxLength={9}
+                        readOnly={crpTravado}
+                        aria-describedby="crp-ajuda"
                       />
-                      <p className="text-xs text-muted-foreground">Região / número, como na carteira do CRP.</p>
+                      <p id="crp-ajuda" className="text-xs text-muted-foreground">
+                        {crpTravado
+                          ? "Conferido na aprovação. Para corrigir, fale com o suporte."
+                          : "Região / número, como na carteira do CRP."}
+                      </p>
                     </div>
                   </div>
                 </Secao>

@@ -227,7 +227,7 @@ const therapistSteps: Step[] = [
     path: "/configuracoes",
     icon: Settings,
     title: "Configurações da conta",
-    body: "Aqui você troca seu e-mail, senha e telefone. Para mudar o e-mail, mando um código para o endereço novo e para o atual. Para mudar a senha, peço a senha atual. Em aparelho novo, peço também um código enviado ao seu e-mail; marque “Lembrar deste dispositivo” para ficar liberado por 30 dias. É pela segurança dos seus pacientes.",
+    body: "Aqui você troca seu e-mail, senha e telefone. Para mudar o e-mail, mando um código para o endereço atual e outro para o novo. Para mudar a senha, peço a senha atual. Em aparelho novo, peço também um código enviado ao seu e-mail; marque “Lembrar deste dispositivo” para ficar liberado por 30 dias. É pela segurança dos seus pacientes.",
     target: '[data-tour="config-acesso"]',
   },
   {
@@ -307,7 +307,7 @@ const patientSteps: Step[] = [
     path: "/configuracoes",
     icon: Settings,
     title: "Configurações da conta",
-    body: "Aqui ficam seus dados de cadastro, como o telefone, e o acesso à conta. Para mudar o e-mail, mando um código para ele. Para mudar a senha, peço a senha atual.",
+    body: "Aqui ficam seus dados de cadastro, como o telefone, e o acesso à conta. Para mudar o e-mail, mando um código para o atual e outro para o novo. Para mudar a senha, peço a senha atual.",
     target: '[data-tour="config-dados"]',
   },
   {
