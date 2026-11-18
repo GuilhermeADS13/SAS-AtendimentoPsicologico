@@ -65,7 +65,7 @@ export function TrocarEmailAdmin() {
     <div className="space-y-3">
       <h2 className="text-lg font-semibold text-foreground">Trocar o e-mail de uma conta</h2>
       <Card>
-        <CardContent className="space-y-4 p-5">
+        <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
             Para quem perdeu o acesso ao e-mail atual. Antes de trocar, confira que é a pessoa: pelo WhatsApp do celular
             do cadastro e pelo CRP (psicóloga), ou com a psicóloga dele (paciente).
