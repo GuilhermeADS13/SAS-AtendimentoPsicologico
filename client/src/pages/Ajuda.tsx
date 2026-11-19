@@ -569,6 +569,10 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
         <li>
           Se o botão estiver apagado, é porque o paciente está sem telefone no cadastro.
         </li>
+        <li>
+          Para avisar todos de uma vez, toque em <strong>“Lembretes de amanhã”</strong>: a lista traz as consultas de hoje ou
+          de amanhã, com <strong>“Enviar”</strong> em cada uma, e marca as que já foram.
+        </li>
       </ul>
     ),
   },

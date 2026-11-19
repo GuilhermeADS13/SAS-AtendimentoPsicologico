@@ -63,6 +63,7 @@ const ROTINA: {
     itens: [
       "Consulta avulsa ou toda semana no mesmo horário, com o valor da sessão.",
       "Lembrete por e-mail na véspera, e o paciente confirma a presença.",
+      "Os lembretes de amanhã pelo WhatsApp, um toque por paciente, com o link da sala.",
       `Videochamada sem instalar nada, também para casal e família: até ${MAX_PESSOAS_NA_CHAMADA} pessoas.`,
       "A chamada é protegida de ponta a ponta e não é gravada.",
     ],

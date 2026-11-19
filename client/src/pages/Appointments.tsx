@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { urlDaSala } from "@/lib/sala";
 import { HorarioLivre, ListaDeEspera } from "@/components/ListaDeEspera";
+import { LembretesDoDia } from "@/components/LembretesDoDia";
 import { querEsteHorario } from "@shared/listaDeEspera";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
@@ -659,6 +660,7 @@ export default function Appointments() {
           </DialogContent>
         </Dialog>
         <ListaDeEspera pacientes={patients} />
+        <LembretesDoDia consultas={appointments} nomeDoPaciente={patientName} linkDoLembrete={(a) => whatsappHref(a)} />
         </div>
 
         {/* Período: Semana / Mês / Todas, com setas para andar (inclusive para a
