@@ -93,6 +93,7 @@ const ROTINA: {
       "Ele avisa que pagou e você só confere e confirma.",
       "Veja quem ainda não pagou e cobre no WhatsApp com um toque.",
       "Sem taxa por consulta: o dinheiro vai direto para você.",
+      "Os recibos do mês saem num arquivo só para o Receita Saúde, importado no Carnê-Leão.",
     ],
     imagem: "/home/financeiro.webp",
     alt: "Tela do Financeiro com o recebido no mês, um pagamento para confirmar e a lista de quem ainda não pagou, com o botão Cobrar no WhatsApp",

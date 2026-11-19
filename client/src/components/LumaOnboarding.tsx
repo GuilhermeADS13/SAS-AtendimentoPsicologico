@@ -184,7 +184,7 @@ const therapistSteps: Step[] = [
     path: "/financeiro",
     icon: Wallet,
     title: "Financeiro",
-    body: "Veja quanto já recebeu e quanto falta receber. As setas trocam a semana, o mês ou o ano. Quando um paciente avisa que pagou pelo Pix, aparece em “Pagamentos para confirmar”: confira no banco e toque em “Confirmar recebimento”. Embaixo, quem ainda não pagou: “Cobrar no WhatsApp” manda para o paciente o Pix já com o valor, e “Mostrar QR” é para ele pagar lendo com o celular. Nos planos Canto e Coro, aqui também fica o relatório da clínica.",
+    body: "Veja quanto já recebeu e quanto falta receber. As setas trocam a semana, o mês ou o ano. Quando um paciente avisa que pagou pelo Pix, aparece em “Pagamentos para confirmar”: confira no banco e toque em “Confirmar recebimento”. Embaixo, quem ainda não pagou: “Cobrar no WhatsApp” manda para o paciente o Pix já com o valor, e “Mostrar QR” é para ele pagar lendo com o celular. Em “Recibos do Receita Saúde”, você baixa os recibos do mês num arquivo só e importa no Carnê-Leão. Nos planos Canto e Coro, aqui também fica o relatório da clínica.",
     target: '[data-tour="financeiro"]',
   },
   {

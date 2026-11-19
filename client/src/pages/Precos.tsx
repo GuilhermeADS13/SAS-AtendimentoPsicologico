@@ -39,6 +39,7 @@ const INCLUSO_EM_TODOS = [
   "Videochamada no navegador, também em grupo (até 4 pessoas)",
   "Mensagens com o paciente",
   "Financeiro",
+  "Recibos do Receita Saúde do mês num arquivo só, para o Carnê-Leão",
   "Seu perfil na busca de psicólogas, com primeira conversa grátis",
   "Aba Rede, para convidar quem procura atendimento",
 ];
