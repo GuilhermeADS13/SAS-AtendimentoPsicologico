@@ -35,7 +35,7 @@ import { ArrowRight, Check } from "lucide-react";
 /** O que todo plano tem. A diferença entre eles é a quantidade (pacientes, Luma, anexos). */
 const INCLUSO_EM_TODOS = [
   "Prontuário com a aba Evolução",
-  "Agenda com lembrete por e-mail",
+  "Agenda com lembrete por e-mail e pelo WhatsApp em um toque",
   "Videochamada no navegador, também em grupo (até 4 pessoas)",
   "Mensagens com o paciente",
   "Financeiro",
