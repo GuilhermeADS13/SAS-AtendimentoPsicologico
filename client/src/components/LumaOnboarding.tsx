@@ -170,7 +170,7 @@ const therapistSteps: Step[] = [
     path: "/appointments",
     icon: Calendar,
     title: "Agendamentos e videochamada",
-    body: "Toque em “Nova Consulta” para marcar. Terapia de casal ou com os responsáveis da criança? Use “Convidar participantes”: até 4 pessoas na chamada. Na hora, toque em “Entrar na videochamada” na consulta. Na chamada, o relógio no alto conta o tempo que falta desde a entrada do paciente e, no zero, pisca em vermelho só para você. Em “Lista de espera” você anota quem quer horário e quando: se uma consulta for cancelada, eu mostro quem quer aquele horário, com a mensagem pronta no WhatsApp. Em “Lembretes de amanhã”, você manda o lembrete de cada paciente pelo WhatsApp com um toque.",
+    body: "Toque em “Nova Consulta” para marcar. Terapia de casal ou com os responsáveis da criança? Use “Convidar participantes”: até 4 pessoas na chamada. Na hora, toque em “Entrar na videochamada” na consulta. Na chamada, o relógio no alto conta o tempo que falta desde a entrada do paciente e, no zero, pisca em vermelho só para você. Em “Lista de espera” você anota quem quer horário e quando: se uma consulta for cancelada, eu mostro quem quer aquele horário, com a mensagem pronta no WhatsApp. Em “Lembretes de amanhã”, você manda o lembrete de cada paciente pelo WhatsApp com um toque. Em “Férias”, você marca as folgas: seus horários de primeira conversa saem da busca nesses dias, e eu mostro as consultas marcadas para desmarcar e avisar.",
     target: '[data-tour="nova-consulta"]',
   },
   {

@@ -83,6 +83,7 @@ import {
 // lugares). `normalizarEmail`/`pacienteDoUsuario` seguem usados aqui como antes.
 import { normalizarEmail, pacienteDoUsuario, resolverAcessoSala } from "./roomAccess";
 import { conhecerRouter, dadosDaBuscaParaExportar } from "./conhecer";
+import { feriasRouter } from "./ferias";
 import { chavePertenceAoUsuario, fotoPertenceAoUsuario, uidSupabase } from "./storageKeys";
 import { pendenciasDoProntuario } from "../shared/prontuario";
 
@@ -365,6 +366,7 @@ export const appRouter = router({
 
   /** Encontrar uma psicóloga: busca pública, perfil do paciente e primeira conversa (server/conhecer.ts). */
   conhecer: conhecerRouter,
+  ferias: feriasRouter,
 
   /**
    * Chat protegido com o modelo open source configurado no servidor.

@@ -17,6 +17,7 @@ import { z } from "zod";
 import {
   appointments,
   assinaturas,
+  ferias,
   horariosParaConhecer,
   patients,
   pedidosParaConhecer,
@@ -54,6 +55,7 @@ import {
 import { exigirAssinaturaAtiva, exigirVagaNoPlano, iniciarTesteNoPrimeiroPaciente, liberadaPelaLinha } from "./assinaturas";
 import { horarioEmConflito } from "./ai/clinical-tools";
 import { getDb } from "./db";
+import { horarioEmFerias } from "./ferias";
 import { emailComMarca, esc } from "./emailLayout";
 import { sendEmail } from "./mailer";
 import { appUrl, rodarCicloDeNotificacoes } from "./notifications";
@@ -258,6 +260,12 @@ async function horariosLivres(db: Db, therapistIds: number[], agora: Date) {
             AND ${appointments.status} <> 'cancelled'
             AND ${appointments.scheduledAt} < ${horariosParaConhecer.inicio} + (${horariosParaConhecer.duracao} * interval '1 minute')
             AND ${appointments.scheduledAt} + (${appointments.duration} * interval '1 minute') > ${horariosParaConhecer.inicio}
+        )`,
+        // Férias dela (server/ferias.ts): nesses dias de Brasília o horário sai da busca.
+        sql`NOT EXISTS (
+          SELECT 1 FROM ${ferias}
+          WHERE ${ferias.therapistId} = ${horariosParaConhecer.therapistId}
+            AND (${horariosParaConhecer.inicio} AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN ${ferias.inicio} AND ${ferias.fim}
         )`,
       ),
     )
@@ -786,6 +794,7 @@ export const conhecerRouter = router({
       const indisponivel = new TRPCError({ code: "CONFLICT", message: "Esse horário não está mais livre. Escolha outro." });
       if (!horario || !psicologa) throw indisponivel;
       if (!horarioPodeSerPedido(horario.inicio, agora)) throw indisponivel;
+      if (await horarioEmFerias(db, horario.therapistId, horario.inicio)) throw indisponivel;
       if (await horarioEmConflito(db, horario.therapistId, horario.inicio, horario.duracao)) throw indisponivel;
       // A busca mostra livre o horário de um convite sem destino (ver horariosLivres);
       // fecha esse convite antes, senão o índice de um pedido por horário recusaria este.

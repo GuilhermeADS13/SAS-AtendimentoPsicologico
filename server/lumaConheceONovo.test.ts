@@ -25,6 +25,7 @@ describe("Luma da psicóloga conhece as funções de novembro", () => {
     ["recibos do Receita Saúde", /Recibos do Receita Saúde/],
     ["importar no Carnê-Leão", /Importar Escrituração/],
     ["lembretes de amanhã", /Lembretes de amanhã/],
+    ["férias", /'Férias' marca folgas e férias/],
   ])("%s", (_nome, texto) => {
     expect(mapa).toMatch(texto);
   });
@@ -42,11 +43,17 @@ describe("Luma da psicóloga conhece as funções de novembro", () => {
       "tem integração com o carnê-leão?",
       "dá para mandar os lembretes de amanhã?",
       "tem lembrete pelo whatsapp?",
+      "quero marcar minhas férias",
+      "dá para bloquear a agenda em dezembro?",
     ]) {
       expect(pareceNavegacao(pergunta), pergunta).toBe(true);
     }
     // Palavras do dia a dia clínico não puxam o mapa do menu.
-    for (const pergunta of ["o paciente tem pouca rede de apoio, o que registrei?", "ele foi convidado para uma festa e evitou ir"]) {
+    for (const pergunta of [
+      "o paciente tem pouca rede de apoio, o que registrei?",
+      "ele foi convidado para uma festa e evitou ir",
+      "a paciente voltou das férias mais tranquila",
+    ]) {
       expect(pareceNavegacao(pergunta), pergunta).toBe(false);
     }
   });
