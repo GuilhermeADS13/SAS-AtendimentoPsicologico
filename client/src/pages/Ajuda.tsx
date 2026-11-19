@@ -633,6 +633,31 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
     ),
   },
   {
+    pergunta: "Como emito todos os recibos do Receita Saúde de uma vez",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Vale para quem atende como pessoa física (sem CNPJ), que desde 2025 emite cada recibo no Receita Saúde. Em{" "}
+          <strong>Financeiro</strong>, toque em <strong>“Gerar arquivo do mês”</strong>, escolha o mês e confira as consultas
+          pagas.
+        </li>
+        <li>
+          Complete os CPFs que faltarem (o seu e o de cada paciente ficam salvos). Se quem pagou foi outra pessoa, como o
+          responsável de uma criança, marque a opção e informe o CPF dela.
+        </li>
+        <li>
+          Toque em <strong>“Baixar arquivo”</strong>. No e-CAC, abra o Carnê-Leão, vá em <strong>Escrituração</strong> →{" "}
+          <strong>Importar Escrituração</strong>, escolha o arquivo e toque em <strong>Analisar Arquivo</strong> e depois em{" "}
+          <strong>Importar</strong>. Os recibos aparecem no app Receita Saúde e na declaração do paciente.
+        </li>
+        <li>
+          Recibo que você já emitiu no app: desmarque antes de baixar, senão sai em dobro. Se errar, no Carnê-Leão,{" "}
+          <strong>Histórico da Escrituração</strong> → <strong>Desfazer escrituração</strong>.
+        </li>
+      </ul>
+    ),
+  },
+  {
     pergunta: "Onde escrevo as anotações da sessão",
     resposta: (
       <ul className="list-disc pl-5 space-y-1">

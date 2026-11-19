@@ -22,6 +22,8 @@ describe("Luma da psicóloga conhece as funções de novembro", () => {
     ["aparecer na busca", /Aparecer na busca de pacientes/],
     ["rede e mural", /Pacientes procurando/],
     ["pedido no sino", /pedidos chegam no sino/],
+    ["recibos do Receita Saúde", /Recibos do Receita Saúde/],
+    ["importar no Carnê-Leão", /Importar Escrituração/],
   ])("%s", (_nome, texto) => {
     expect(mapa).toMatch(texto);
   });
@@ -35,6 +37,8 @@ describe("Luma da psicóloga conhece as funções de novembro", () => {
       "quero aparecer na busca",
       "dá para conseguir novos pacientes por aqui?",
       "como convido alguém do mural?",
+      "dá para mandar tudo pro receita saúde?",
+      "tem integração com o carnê-leão?",
     ]) {
       expect(pareceNavegacao(pergunta), pergunta).toBe(true);
     }

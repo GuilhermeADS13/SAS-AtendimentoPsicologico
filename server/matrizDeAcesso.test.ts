@@ -62,7 +62,7 @@ const ESPERADO: Record<Nivel, string[]> = {
     "ai.chat", "ai.confirmAction", "ai.feedback", "appointments.adicionarParticipante",
     "appointments.create", "appointments.editar", "appointments.list",
     "appointments.pagamentosInformados", "appointments.participantes",
-    "appointments.recusarPagamentoInformado", "appointments.removerParticipante",
+    "appointments.recibosParaReceitaSaude", "appointments.recusarPagamentoInformado", "appointments.removerParticipante",
     "appointments.setPayment", "appointments.updateStatus", "assinatura.definirVencimento",
     "assinatura.minha", "assinatura.mudarPlano", "chat.threads", "documents.compartilhar",
     "documents.create", "documents.delete", "documents.getByPatient", "documents.textoDoArquivo",

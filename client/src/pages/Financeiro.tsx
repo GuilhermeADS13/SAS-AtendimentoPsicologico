@@ -14,6 +14,7 @@ import { CobrarPorPix } from "@/components/CobrarPorPix";
 import { useMeuPix } from "@/hooks/useMeuPix";
 import { pixComValor } from "@shared/pix";
 import { RelatorioDaClinica } from "@/components/RelatorioDaClinica";
+import { RecibosReceitaSaude } from "@/components/RecibosReceitaSaude";
 import { intervalo, type Periodo } from "@/lib/periodo";
 
 const PERIODOS: { valor: Periodo; rotulo: string }[] = [
@@ -250,6 +251,8 @@ export default function Financeiro() {
         </div>
 
         <RelatorioDaClinica />
+
+        <RecibosReceitaSaude />
 
         <div className="border-t" />
 

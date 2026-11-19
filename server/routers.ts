@@ -3315,6 +3315,48 @@ export const appRouter = router({
       }),
 
     /**
+     * Consultas pagas de um ano, para o arquivo de recibos do Receita Saúde no Financeiro
+     * (shared/receitaSaude.ts). Vale o ano do pagamento ou o da sessão: a tela escolhe qual
+     * data vai no recibo. Traz o CPF e o nascimento do paciente (menor de idade: quem paga é
+     * o responsável), que a lista de pacientes não traz.
+     */
+    recibosParaReceitaSaude: therapistProcedure
+      .input(z.object({ ano: z.number().int().min(2025).max(2100) }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        return db
+          .select({
+            id: appointments.id,
+            scheduledAt: appointments.scheduledAt,
+            price: appointments.price,
+            paidAt: appointments.paidAt,
+            pagamentoInformadoEm: appointments.pagamentoInformadoEm,
+            patientId: patients.id,
+            firstName: patients.firstName,
+            lastName: patients.lastName,
+            cpf: patients.cpf,
+            dateOfBirth: patients.dateOfBirth,
+            guardianName: patients.guardianName,
+          })
+          .from(appointments)
+          .innerJoin(therapists, eq(therapists.id, appointments.therapistId))
+          .innerJoin(patients, and(eq(patients.id, appointments.patientId), eq(patients.therapistId, therapists.id)))
+          .where(
+            and(
+              eq(therapists.userId, ctx.user.id),
+              eq(appointments.paid, true),
+              sql`${appointments.price} > 0`,
+              or(
+                sql`extract(year from (coalesce(${appointments.pagamentoInformadoEm}, ${appointments.paidAt}, ${appointments.scheduledAt}) at time zone 'America/Sao_Paulo')) = ${input.ano}`,
+                sql`extract(year from (${appointments.scheduledAt} at time zone 'America/Sao_Paulo')) = ${input.ano}`,
+              ),
+            ),
+          )
+          .orderBy(asc(appointments.scheduledAt));
+      }),
+
+    /**
      * Pacientes EXTRAS da consulta (chamada em grupo: casal; pais + criança).
      * Cada um entra na sala logado com a própria conta — ver roomAccess.ts.
      */
