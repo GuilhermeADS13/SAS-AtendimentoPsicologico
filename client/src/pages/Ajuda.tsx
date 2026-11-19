@@ -472,6 +472,23 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
     ),
   },
   {
+    pergunta: "Como marco férias ou folgas",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          Em <strong>Agendamentos / Videochamada</strong>, toque em <strong>“Férias”</strong>, escolha o primeiro e o último
+          dia e toque em <strong>“Marcar férias”</strong>. Vale também para um feriado prolongado ou um dia de folga.
+        </li>
+        <li>Nesses dias, seus horários de primeira conversa não aparecem na busca de pacientes.</li>
+        <li>
+          As consultas já marcadas no período continuam na agenda. A janela mostra quantas são, e{" "}
+          <strong>“Desmarcar e avisar”</strong> cancela todas de uma vez: cada paciente recebe o aviso de cancelamento.
+        </li>
+        <li>Voltou antes? Apague o período na mesma janela e os horários voltam para a busca.</li>
+      </ul>
+    ),
+  },
+  {
     pergunta: "Como apareço na busca para novos pacientes",
     resposta: (
       <ul className="list-disc pl-5 space-y-1">

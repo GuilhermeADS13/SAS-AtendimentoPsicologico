@@ -412,6 +412,23 @@ export const listaDeEspera = pgTable(
 );
 
 /**
+ * Férias e folgas da psicóloga (migração 0056): nos dias do período, os horários de
+ * primeira conversa somem da busca. Dias de Brasília ("AAAA-MM-DD"), com o último
+ * incluído. Ver shared/ferias.ts e server/ferias.ts.
+ */
+export const ferias = pgTable(
+  "ferias",
+  {
+    id: serial("id").primaryKey(),
+    therapistId: integer("therapistId").notNull().references(() => therapists.id, { onDelete: "cascade" }),
+    inicio: date("inicio", { mode: "string" }).notNull(),
+    fim: date("fim", { mode: "string" }).notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [index("ferias_therapistId_idx").on(table.therapistId)],
+);
+
+/**
  * Agendamentos.
  */
 export const appointments = pgTable("appointments", {
