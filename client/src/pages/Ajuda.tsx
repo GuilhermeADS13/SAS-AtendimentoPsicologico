@@ -482,7 +482,8 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
         <li>Nesses dias, seus horários de primeira conversa não aparecem na busca de pacientes.</li>
         <li>
           As consultas já marcadas no período continuam na agenda. A janela mostra quantas são, e{" "}
-          <strong>“Desmarcar e avisar”</strong> cancela todas de uma vez: cada paciente recebe o aviso de cancelamento.
+          <strong>“Desmarcar e avisar”</strong> cancela de uma vez as que ainda não aconteceram: cada paciente recebe o aviso por
+          e-mail, e a janela mostra o botão para avisar cada um também pelo WhatsApp.
         </li>
         <li>Voltou antes? Apague o período na mesma janela e os horários voltam para a busca.</li>
       </ul>
@@ -664,7 +665,8 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
         </li>
         <li>
           Complete os CPFs que faltarem (o seu e o de cada paciente ficam salvos). Se quem pagou foi outra pessoa, como o
-          responsável de uma criança, marque a opção e informe o CPF dela.
+          responsável de uma criança, marque a opção e informe o CPF dela. Consulta cancelada ou falta que foi paga aparece
+          desmarcada: marque só se for emitir o recibo dela.
         </li>
         <li>
           Toque em <strong>“Baixar arquivo”</strong>. No e-CAC, abra o Carnê-Leão, vá em <strong>Escrituração</strong> →{" "}

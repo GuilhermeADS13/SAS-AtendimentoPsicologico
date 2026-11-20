@@ -406,6 +406,14 @@ async function confirmarConversa(db: Db, pedido: Pedido, therapistId: number, qu
         : "Esse horário não está mais livre na agenda dela. Recuse o convite e escolha outro horário no perfil dela.",
     });
   }
+  // Convite feito antes de ela marcar férias: aceitar não pode criar consulta no meio delas.
+  // Quando é ELA que aceita um pedido nas próprias férias, a decisão é dela.
+  if (!ehEla && (await horarioEmFerias(db, therapistId, pedido.inicio))) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: "Esse horário não está mais livre na agenda dela. Recuse o convite e escolha outro horário no perfil dela.",
+    });
+  }
 
   const [pessoa] = await db
     .select({ id: users.id, name: users.name, email: users.email, openId: users.openId })
@@ -1184,6 +1192,9 @@ export const conhecerRouter = router({
       }
       if (await horarioEmConflito(db, t.id, horario.inicio, horario.duracao)) {
         throw new TRPCError({ code: "CONFLICT", message: "Você já tem uma consulta nesse horário." });
+      }
+      if (await horarioEmFerias(db, t.id, horario.inicio)) {
+        throw new TRPCError({ code: "CONFLICT", message: "Esse horário cai nas suas férias. Escolha outro ou apague as férias na Agenda." });
       }
       const [pessoa] = (await pacientesDoMural(db, { ids: [input.pacienteId] })).linhas;
       if (!pessoa) throw new TRPCError({ code: "NOT_FOUND", message: "Essa pessoa não está mais no mural." });

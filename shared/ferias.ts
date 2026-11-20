@@ -39,10 +39,20 @@ export function diaNasFerias(dia: string, periodos: PeriodoDeFerias[]): boolean 
   return periodos.some((p) => p.inicio <= dia && dia <= p.fim);
 }
 
-/** As consultas ainda marcadas dentro do período, pela hora. */
-export function consultasNasFerias<T extends { scheduledAt: Date | string; status: string }>(consultas: T[], p: PeriodoDeFerias): T[] {
+/**
+ * As consultas ainda marcadas no período que AINDA NÃO começaram, pela hora. A que já
+ * passou e ficou "agendada" (ela não marcou realizada) não entra: desmarcar avisaria o
+ * paciente do cancelamento de uma sessão que aconteceu.
+ */
+export function consultasNasFerias<T extends { scheduledAt: Date | string; status: string }>(
+  consultas: T[],
+  p: PeriodoDeFerias,
+  agora: Date = new Date(),
+): T[] {
   return consultas
-    .filter((c) => c.status === "scheduled" && diaNasFerias(partesEmBrasilia(c.scheduledAt).data, [p]))
+    .filter(
+      (c) => c.status === "scheduled" && new Date(c.scheduledAt) > agora && diaNasFerias(partesEmBrasilia(c.scheduledAt).data, [p]),
+    )
     .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
 }
 

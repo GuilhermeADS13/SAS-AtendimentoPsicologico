@@ -7,7 +7,7 @@
  * esquema auth (o de teste local) devolve null, e a tela mostra só o link.
  */
 import { TRPCError } from "@trpc/server";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { assinaturas, therapists, users } from "../drizzle/schema";
 import { origemDeIndicacao, quemIndicou } from "../shared/indicacao";
 import { novoPagoAte } from "../shared/assinatura";
@@ -112,22 +112,16 @@ const recusa = (message: string) => new TRPCError({ code: "BAD_REQUEST", message
 /**
  * O mês grátis da indicação (regra de 17/11): soma 1 mês à assinatura da indicada e à de
  * quem indicou, sem mudar o ciclo (o "Registrar Pix" troca o ciclo, por isso não serve).
- * Só depois que a indicada pagou, e uma vez por indicação: a marca fica na assinatura dela,
- * gravada antes das somas e só se ainda estiver vazia (clique duplo não dá dois meses).
+ * Só depois que a indicada pagou, e uma vez por indicação: a marca fica na assinatura dela.
+ *
+ * As duas assinaturas são lidas e trancadas DENTRO da transação (FOR UPDATE): um "Registrar
+ * Pix" ao mesmo tempo não é sobrescrito, e um clique duplo espera e encontra a marca. Quem
+ * indicou e nunca pagou ganha o mês no TESTE, não no "pago até": senão ela passaria a contar
+ * como "já pagou" e liberaria o mês de quem a indicou sem ter pago nada.
  */
 export async function darMesDaIndicacao(indicadaUserId: number): Promise<{ indicada: Date; quemIndicou: Date }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
-  const assinaturaDe = async (userId: number) => {
-    const [linha] = await db
-      .select({ id: assinaturas.id, testeAte: assinaturas.testeAte, pagoAte: assinaturas.pagoAte, diaVencimento: assinaturas.diaVencimento, mesDaIndicacaoEm: assinaturas.mesDaIndicacaoEm })
-      .from(assinaturas)
-      .innerJoin(therapists, eq(therapists.id, assinaturas.therapistId))
-      .where(eq(therapists.userId, userId))
-      .limit(1);
-    return linha ?? null;
-  };
 
   const [indicada] = await db.select({ openId: users.openId }).from(users).where(eq(users.id, indicadaUserId)).limit(1);
   const uid = uidSupabase(indicada?.openId);
@@ -140,23 +134,31 @@ export async function darMesDaIndicacao(indicadaUserId: number): Promise<{ indic
   if (!quemIndicouId) throw recusa("Essa conta não veio de um link de indicação.");
   if (quemIndicouId === indicadaUserId) throw recusa("A conta indicou a si mesma.");
 
-  const daIndicada = await assinaturaDe(indicadaUserId);
-  if (!daIndicada?.pagoAte) throw recusa("A indicada ainda não pagou: o mês só vale depois do primeiro pagamento dela.");
-  if (daIndicada.mesDaIndicacaoEm) throw recusa("O mês dessa indicação já foi lançado.");
-  const deQuemIndicou = await assinaturaDe(quemIndicouId);
-  if (!deQuemIndicou) throw recusa("Quem indicou ainda não tem assinatura.");
-
   return db.transaction(async (tx) => {
-    const marcadas = await tx
-      .update(assinaturas)
-      .set({ mesDaIndicacaoEm: new Date() })
-      .where(and(eq(assinaturas.id, daIndicada.id), isNull(assinaturas.mesDaIndicacaoEm)))
-      .returning({ id: assinaturas.id });
-    if (!marcadas.length) throw recusa("O mês dessa indicação já foi lançado.");
+    const assinaturaDe = async (userId: number) => {
+      const [linha] = await tx
+        .select({ id: assinaturas.id, testeAte: assinaturas.testeAte, pagoAte: assinaturas.pagoAte, diaVencimento: assinaturas.diaVencimento, mesDaIndicacaoEm: assinaturas.mesDaIndicacaoEm })
+        .from(assinaturas)
+        .innerJoin(therapists, eq(therapists.id, assinaturas.therapistId))
+        .where(eq(therapists.userId, userId))
+        .limit(1)
+        .for("update", { of: assinaturas });
+      return linha ?? null;
+    };
+
+    const daIndicada = await assinaturaDe(indicadaUserId);
+    if (!daIndicada?.pagoAte) throw recusa("A indicada ainda não pagou: o mês só vale depois do primeiro pagamento dela.");
+    if (daIndicada.mesDaIndicacaoEm) throw recusa("O mês dessa indicação já foi lançado.");
+    const deQuemIndicou = await assinaturaDe(quemIndicouId);
+    if (!deQuemIndicou) throw recusa("Quem indicou ainda não tem assinatura.");
+
     const indicadaAte = novoPagoAte(daIndicada, "mensal");
+    await tx.update(assinaturas).set({ pagoAte: indicadaAte, mesDaIndicacaoEm: new Date() }).where(eq(assinaturas.id, daIndicada.id));
     const quemIndicouAte = novoPagoAte(deQuemIndicou, "mensal");
-    await tx.update(assinaturas).set({ pagoAte: indicadaAte }).where(eq(assinaturas.id, daIndicada.id));
-    await tx.update(assinaturas).set({ pagoAte: quemIndicouAte }).where(eq(assinaturas.id, deQuemIndicou.id));
+    await tx
+      .update(assinaturas)
+      .set(deQuemIndicou.pagoAte ? { pagoAte: quemIndicouAte } : { testeAte: quemIndicouAte })
+      .where(eq(assinaturas.id, deQuemIndicou.id));
     console.info(`[Indicação] mês lançado: conta ${indicadaUserId} e conta ${quemIndicouId}.`);
     return { indicada: indicadaAte, quemIndicou: quemIndicouAte };
   });
