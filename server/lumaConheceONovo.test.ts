@@ -26,6 +26,7 @@ describe("Luma da psicóloga conhece as funções de novembro", () => {
     ["importar no Carnê-Leão", /Importar Escrituração/],
     ["lembretes de amanhã", /Lembretes de amanhã/],
     ["férias", /'Férias' marca folgas e férias/],
+    ["indique uma colega", /Indique uma colega \(o link dela/],
   ])("%s", (_nome, texto) => {
     expect(mapa).toMatch(texto);
   });
@@ -45,6 +46,8 @@ describe("Luma da psicóloga conhece as funções de novembro", () => {
       "tem lembrete pelo whatsapp?",
       "quero marcar minhas férias",
       "dá para bloquear a agenda em dezembro?",
+      "como indico uma colega?",
+      "onde pego meu link de indicação?",
     ]) {
       expect(pareceNavegacao(pergunta), pergunta).toBe(true);
     }
@@ -53,6 +56,7 @@ describe("Luma da psicóloga conhece as funções de novembro", () => {
       "o paciente tem pouca rede de apoio, o que registrei?",
       "ele foi convidado para uma festa e evitou ir",
       "a paciente voltou das férias mais tranquila",
+      "qual a indicação de psiquiatra para ela?",
     ]) {
       expect(pareceNavegacao(pergunta), pergunta).toBe(false);
     }

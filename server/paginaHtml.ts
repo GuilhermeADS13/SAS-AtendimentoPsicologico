@@ -76,6 +76,7 @@ export function robotsTxt(base: string): string {
     "Disallow: /appointments",
     "Disallow: /financeiro",
     "Disallow: /assinatura",
+    "Disallow: /indique",
     "Disallow: /solicitacoes",
     "Disallow: /mensagens",
     "Disallow: /consultas",

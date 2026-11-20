@@ -31,6 +31,7 @@ import {
   E2EAgentChat,
   EncontrarPsicologa,
   Financeiro,
+  Indique,
   Luma,
   Mensagens,
   MyAppointments,
@@ -147,6 +148,13 @@ function Router() {
         {() => (
           <TherapistOnly>
             <Assinatura />
+          </TherapistOnly>
+        )}
+      </Route>
+      <Route path={"/indique"}>
+        {() => (
+          <TherapistOnly>
+            <Indique />
           </TherapistOnly>
         )}
       </Route>

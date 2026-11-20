@@ -84,6 +84,7 @@ import {
 import { normalizarEmail, pacienteDoUsuario, resolverAcessoSala } from "./roomAccess";
 import { conhecerRouter, dadosDaBuscaParaExportar } from "./conhecer";
 import { feriasRouter } from "./ferias";
+import { indicacaoRouter, listarIndicacoes } from "./indicacao";
 import { chavePertenceAoUsuario, fotoPertenceAoUsuario, uidSupabase } from "./storageKeys";
 import { pendenciasDoProntuario } from "../shared/prontuario";
 
@@ -367,6 +368,7 @@ export const appRouter = router({
   /** Encontrar uma psicóloga: busca pública, perfil do paciente e primeira conversa (server/conhecer.ts). */
   conhecer: conhecerRouter,
   ferias: feriasRouter,
+  indicacao: indicacaoRouter,
 
   /**
    * Chat protegido com o modelo open source configurado no servidor.
@@ -2150,6 +2152,13 @@ export const appRouter = router({
           .where(eq(assinaturas.therapistId, input.therapistId));
         return { plano: planoPorId(volta).nome };
       }),
+
+    /**
+     * Quem criou conta por um link de indicação (server/indicacao.ts), com quem indicou e
+     * se a indicada já pagou: é com isso que o suporte lança o mês grátis das duas.
+     * Null = não deu para ler os cadastros agora.
+     */
+    indicacoes: adminProcedure.query(() => listarIndicacoes()),
 
     definirFundador: adminProcedure
       .input(z.object({ therapistId: z.number().int().positive(), fundador: z.boolean() }))

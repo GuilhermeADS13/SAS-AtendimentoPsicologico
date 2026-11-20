@@ -11,6 +11,7 @@ import {
   FileText,
   Filter,
   FolderOpen,
+  Gift,
   Handshake,
   MessageSquare,
   QrCode,
@@ -214,6 +215,13 @@ const therapistSteps: Step[] = [
     title: "Sua assinatura",
     body: "Seu plano, o valor e até quando está liberada. Os 14 dias grátis começam no primeiro paciente, e você tem 30 dias depois da aprovação para cadastrá-lo. São quatro planos com preço fixo: Sussurro até 11 pacientes, Voz até 22, Canto até 33 e Coro até 44. Do Voz para cima eu também te ajudo a montar o prontuário, e do Canto para cima você ganha o relatório da clínica. Troque quando quiser. Para pagar, copie o Pix ou leia o QR, que já vem com o valor. Escolha também o dia do vencimento no calendário. Três dias antes, eu te aviso.",
     target: '[data-tour="assinatura"]',
+  },
+  {
+    path: "/indique",
+    icon: Gift,
+    title: "Indique uma colega",
+    body: "Este é o seu link para colegas. Copie ou mande pelo WhatsApp: quando uma colega cria a conta por ele e assina, vocês duas ganham 1 mês grátis. Aqui você também vê quantas já criaram conta.",
+    target: '[data-tour="indique"]',
   },
   {
     path: "/luma",

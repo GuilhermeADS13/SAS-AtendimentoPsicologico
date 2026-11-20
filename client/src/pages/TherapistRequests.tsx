@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import { AssinaturasAdmin } from "@/components/AssinaturasAdmin";
 import { TrocarEmailAdmin } from "@/components/TrocarEmailAdmin";
+import { IndicacoesAdmin } from "@/components/IndicacoesAdmin";
 import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -214,6 +215,8 @@ export default function TherapistRequests() {
             </div>
 
             <AssinaturasAdmin />
+
+            <IndicacoesAdmin />
 
             <TrocarEmailAdmin />
 
