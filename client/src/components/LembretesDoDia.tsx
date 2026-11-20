@@ -29,7 +29,8 @@ export function LembretesDoDia<T extends Consulta>({
 
   const hoje = hojeEmBrasilia();
   const doDia = consultasDoDia(consultas, quando === "hoje" ? hoje : somarDias(hoje, 1));
-  const faltamAmanha = consultasDoDia(consultas, somarDias(hoje, 1)).filter((c) => !enviados.has(c.id)).length;
+  // Só conta quem dá para avisar: paciente sem telefone não tem botão de enviar.
+  const faltamAmanha = consultasDoDia(consultas, somarDias(hoje, 1)).filter((c) => !enviados.has(c.id) && linkDoLembrete(c)).length;
 
   const enviar = (c: T, href: string) => {
     window.open(href, "_blank", "noopener");
@@ -64,7 +65,7 @@ export function LembretesDoDia<T extends Consulta>({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="inline-flex self-start rounded-xl border border-border bg-card p-1" role="group" aria-label="Dia">
+          <div className="inline-flex w-fit rounded-xl border border-border bg-card p-1" role="group" aria-label="Dia">
             {(
               [
                 { valor: "hoje", rotulo: "Hoje" },
