@@ -43,7 +43,7 @@ describe("Luma da psicóloga conhece as funções de novembro", () => {
       "dá para mandar tudo pro receita saúde?",
       "tem integração com o carnê-leão?",
       "dá para mandar os lembretes de amanhã?",
-      "tem lembrete pelo whatsapp?",
+      "como mando lembrete pelo whatsapp?",
       "quero marcar minhas férias",
       "dá para bloquear a agenda em dezembro?",
       "como indico uma colega?",
