@@ -315,6 +315,8 @@ export const assinaturas = pgTable(
     avisoEnviadoPara: timestamp("avisoEnviadoPara", { withTimezone: true, mode: "date" }),
     /** Último e-mail semanal do relatório da clínica (migração 0045): um por semana. */
     relatorioEnviadoEm: timestamp("relatorioEnviadoEm", { withTimezone: true, mode: "date" }),
+    /** Na assinatura da INDICADA: quando o suporte lançou o mês grátis das duas (migração 0057). Uma vez só. */
+    mesDaIndicacaoEm: timestamp("mesDaIndicacaoEm", { withTimezone: true, mode: "date" }),
     createdAt: timestamp("createdAt", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
     updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" })
       .defaultNow()

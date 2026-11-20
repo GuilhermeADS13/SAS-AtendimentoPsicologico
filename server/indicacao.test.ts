@@ -60,4 +60,9 @@ describe("rotas da indicação, sem banco", () => {
     await expect(appRouter.createCaller(conta("therapist")).admin.indicacoes()).rejects.toThrow();
     await expect(appRouter.createCaller(conta("user")).indicacao.minha()).rejects.toThrow();
   });
+
+  it("dar o mês é só do suporte; sem banco, não lança nada", async () => {
+    await expect(appRouter.createCaller(conta("therapist")).admin.darMesDaIndicacao({ userId: 7 })).rejects.toThrow(/admin|permiss|FORBIDDEN|acesso/i);
+    await expect(appRouter.createCaller(conta("admin")).admin.darMesDaIndicacao({ userId: 7 })).rejects.toThrow(/Database not available/);
+  });
 });

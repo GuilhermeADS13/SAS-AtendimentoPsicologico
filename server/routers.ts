@@ -84,7 +84,7 @@ import {
 import { normalizarEmail, pacienteDoUsuario, resolverAcessoSala } from "./roomAccess";
 import { conhecerRouter, dadosDaBuscaParaExportar } from "./conhecer";
 import { feriasRouter } from "./ferias";
-import { indicacaoRouter, listarIndicacoes } from "./indicacao";
+import { darMesDaIndicacao, indicacaoRouter, listarIndicacoes } from "./indicacao";
 import { chavePertenceAoUsuario, fotoPertenceAoUsuario, uidSupabase } from "./storageKeys";
 import { pendenciasDoProntuario } from "../shared/prontuario";
 
@@ -2159,6 +2159,11 @@ export const appRouter = router({
      * Null = não deu para ler os cadastros agora.
      */
     indicacoes: adminProcedure.query(() => listarIndicacoes()),
+
+    /** "Dar 1 mês às duas": o mês grátis da indicação, uma vez, sem mudar o ciclo (server/indicacao.ts). */
+    darMesDaIndicacao: adminProcedure
+      .input(z.object({ userId: z.number().int().positive() }))
+      .mutation(({ input }) => darMesDaIndicacao(input.userId)),
 
     definirFundador: adminProcedure
       .input(z.object({ therapistId: z.number().int().positive(), fundador: z.boolean() }))

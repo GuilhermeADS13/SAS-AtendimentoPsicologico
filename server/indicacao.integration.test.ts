@@ -17,6 +17,8 @@ import { origemDeIndicacao } from "../shared/indicacao";
 const RUN = process.env.RUN_INTEGRATION === "true" && Boolean(process.env.DATABASE_URL);
 const ID = { QUEM_INDICA: 990701, PAGOU: 990702, ADMIN: 990703 } as const;
 const UID = { pagou: randomUUID(), soCriou: randomUUID(), outraOrigem: randomUUID() };
+/** Login de quem indica: um UUID que não está em auth.users (ela não veio por indicação). */
+const UID_DE_QUEM_INDICA = randomUUID();
 
 function ctx(userId: number, role: "therapist" | "admin"): TrpcContext {
   return {
@@ -36,12 +38,19 @@ describe.runIf(RUN)("indique uma colega (Postgres real)", () => {
   const origem = origemDeIndicacao(ID.QUEM_INDICA);
 
   async function limpar() {
-    const [t] = await sql`select id from therapists where "userId" = ${ID.PAGOU}`;
-    if (t) {
+    for (const userId of [ID.PAGOU, ID.QUEM_INDICA]) {
+      const [t] = await sql`select id from therapists where "userId" = ${userId}`;
+      if (!t) continue;
       await sql`delete from assinaturas where "therapistId" = ${t.id}`;
       await sql`delete from therapists where id = ${t.id}`;
     }
     await sql`delete from users where id in ${sql(Object.values(ID))}`;
+  }
+
+  async function assinaturaDe(userId: number) {
+    const [a] = await sql`select a."pagoAte", a.ciclo, a."mesDaIndicacaoEm" from assinaturas a
+                          join therapists t on t.id = a."therapistId" where t."userId" = ${userId}`;
+    return a;
   }
 
   beforeAll(async () => {
@@ -54,11 +63,14 @@ describe.runIf(RUN)("indique uma colega (Postgres real)", () => {
     }
     await limpar();
     await sql`insert into users (id, "openId", name, email, role) values
-      (${ID.QUEM_INDICA}, ${`sb:indica-${ID.QUEM_INDICA}`}, 'Quem Indica', 'quem-indica@teste.local', 'therapist'),
+      (${ID.QUEM_INDICA}, ${`sb:${UID_DE_QUEM_INDICA}`}, 'Quem Indica', 'quem-indica@teste.local', 'therapist'),
       (${ID.PAGOU}, ${`sb:${UID.pagou}`}, 'Colega Que Pagou', 'colega-pagou@teste.local', 'therapist'),
       (${ID.ADMIN}, ${`sb:indica-${ID.ADMIN}`}, 'Suporte', 'suporte-indica@teste.local', 'admin')`;
     const [t] = await sql`insert into therapists ("userId", crp) values (${ID.PAGOU}, 'INDICA-01') returning id`;
     await sql`insert into assinaturas ("therapistId", crp, "pagoAte") values (${t.id}, 'INDICA01', now() + interval '30 days')`;
+    // Quem indicou paga anual: o mês grátis não pode virar o ciclo dela para mensal.
+    const [q] = await sql`insert into therapists ("userId", crp) values (${ID.QUEM_INDICA}, 'INDICA-02') returning id`;
+    await sql`insert into assinaturas ("therapistId", crp, "pagoAte", ciclo) values (${q.id}, 'INDICA02', now() + interval '10 days', 'anual')`;
     await sql`insert into auth.users (id, email, raw_user_meta_data) values
       (${UID.pagou}, 'colega-pagou@teste.local', ${sql.json({ name: "Colega Que Pagou", origem })}),
       (${UID.soCriou}, 'colega-so-criou@teste.local', ${sql.json({ name: "Colega Só Criou", origem })}),
@@ -88,7 +100,36 @@ describe.runIf(RUN)("indique uma colega (Postgres real)", () => {
       pagou: true,
       quemIndicou: { id: ID.QUEM_INDICA, nome: "Quem Indica" },
     });
-    expect(daqui.find((i) => i.email === "colega-so-criou@teste.local")).toMatchObject({ nome: "Colega Só Criou", aprovada: false, pagou: false });
+    expect(daqui.find((i) => i.email === "colega-so-criou@teste.local")).toMatchObject({ nome: "Colega Só Criou", aprovada: false, pagou: false, userId: null });
     expect(lista.some((i) => i.origem === "instagram")).toBe(false);
+  });
+
+  it("dar 1 mês às duas: soma um mês a cada uma, não muda o ciclo e vale uma vez", async () => {
+    const adm = appRouter.createCaller(ctx(ID.ADMIN, "admin"));
+    const antes = { pagou: await assinaturaDe(ID.PAGOU), quem: await assinaturaDe(ID.QUEM_INDICA) };
+    const r = await adm.admin.darMesDaIndicacao({ userId: ID.PAGOU });
+    const depois = { pagou: await assinaturaDe(ID.PAGOU), quem: await assinaturaDe(ID.QUEM_INDICA) };
+    const dias = (de: Date, ate: Date) => (ate.getTime() - de.getTime()) / 86_400_000;
+    for (const quem of ["pagou", "quem"] as const) {
+      const somados = dias(new Date(antes[quem].pagoAte), new Date(depois[quem].pagoAte));
+      expect(somados, quem).toBeGreaterThanOrEqual(28);
+      expect(somados, quem).toBeLessThanOrEqual(31.1);
+    }
+    expect(new Date(r.indicada).getTime()).toBe(new Date(depois.pagou.pagoAte).getTime());
+    expect(depois.quem.ciclo).toBe("anual");
+    expect(depois.pagou.mesDaIndicacaoEm).not.toBeNull();
+    // Segunda vez não dá outro mês.
+    await expect(adm.admin.darMesDaIndicacao({ userId: ID.PAGOU })).rejects.toThrow(/já foi lançado/);
+    expect(new Date((await assinaturaDe(ID.PAGOU)).pagoAte).getTime()).toBe(new Date(depois.pagou.pagoAte).getTime());
+    // Na lista, a indicação aparece como lançada.
+    const lista = (await adm.admin.indicacoes()) ?? [];
+    expect(lista.find((i) => i.userId === ID.PAGOU)?.mesLancadoEm).not.toBeNull();
+  });
+
+  it("quem não pagou, ou não veio de indicação, não ganha o mês", async () => {
+    const adm = appRouter.createCaller(ctx(ID.ADMIN, "admin"));
+    // Quem indicou não veio por link de indicação.
+    await expect(adm.admin.darMesDaIndicacao({ userId: ID.QUEM_INDICA })).rejects.toThrow(/não veio de um link/);
+    await expect(adm.admin.darMesDaIndicacao({ userId: 999_999_999 })).rejects.toThrow(/não encontrada/);
   });
 });
