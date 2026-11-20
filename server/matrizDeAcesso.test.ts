@@ -67,7 +67,7 @@ const ESPERADO: Record<Nivel, string[]> = {
     "assinatura.minha", "assinatura.mudarPlano", "chat.threads", "documents.compartilhar",
     "documents.create", "documents.delete", "documents.getByPatient", "documents.textoDoArquivo",
     "documents.urlDoArquivo", "ferias.criar", "ferias.listar", "ferias.remover",
-    "gestao.relatorio", "listaDeEspera.listar", "listaDeEspera.remover", "listaDeEspera.salvar",
+    "gestao.relatorio", "indicacao.minha", "listaDeEspera.listar", "listaDeEspera.remover", "listaDeEspera.salvar",
     "noteTemplates.clearContrato",
     "noteTemplates.clearModelo", "noteTemplates.getContrato", "noteTemplates.getModelo",
     "noteTemplates.importarContrato", "noteTemplates.list", "noteTemplates.save",
@@ -83,7 +83,7 @@ const ESPERADO: Record<Nivel, string[]> = {
   admin: [
     "admin.assinaturas", "admin.definirFundador", "admin.definirSobMedida", "admin.registrarPix",
     "admin.reviewTherapistRequest", "admin.therapistRequests", "admin.tirarDoSobMedida",
-    "admin.contaPorEmail", "admin.trocarEmailDaConta",
+    "admin.contaPorEmail", "admin.trocarEmailDaConta", "admin.indicacoes",
   ],
 };
 

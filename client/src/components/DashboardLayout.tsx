@@ -31,7 +31,7 @@ import { PatientNotificationsBell } from "./PatientNotificationsBell";
 import { LogoFull, LogoLockup, LumaOwlIcon } from "./Logo";
 import LumaOnboarding from "./LumaOnboarding";
 import { AvisoDoPlano } from "./SeuPlano";
-import { BadgeCheck, Brain, Calendar, CircleHelp, CreditCard, FileText, Handshake, LayoutDashboard, LogOut, MessageSquare, PanelLeft, Settings, Stethoscope, UserRound, Users, Video, Wallet } from "lucide-react";
+import { BadgeCheck, Brain, Calendar, CircleHelp, CreditCard, FileText, Gift, Handshake, LayoutDashboard, LogOut, MessageSquare, PanelLeft, Settings, Stethoscope, UserRound, Users, Video, Wallet } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -62,6 +62,8 @@ const therapistMenu = [
   { icon: Wallet, label: "Financeiro", path: "/financeiro" },
   // A assinatura DELA com o VozInterior (o Financeiro é o que os pacientes pagam a ela).
   { icon: CreditCard, label: "Assinatura", path: "/assinatura" },
+  // Indicação (2026-11-19): o link dela; quando a colega assina, as duas ganham 1 mês.
+  { icon: Gift, label: "Indique uma colega", path: "/indique" },
   { icon: UserRound, label: "Perfil", path: "/profile" },
   // Configurações é separada do Perfil de propósito: lá ficam os dados que os
   // pacientes veem (bio, especialidades); aqui, os dados de ACESSO à conta.

@@ -829,6 +829,22 @@ const DUVIDAS_PSICOLOGA: Duvida[] = [
     ),
   },
   {
+    pergunta: "Como indico uma colega",
+    resposta: (
+      <ul className="list-disc pl-5 space-y-1">
+        <li>
+          No menu, abra <strong>Indique uma colega</strong>. Lá está o seu link: toque em <strong>“Copiar link”</strong> ou em{" "}
+          <strong>“Enviar pelo WhatsApp”</strong>, que abre a mensagem pronta para você escolher a colega.
+        </li>
+        <li>
+          Quando ela cria a conta por esse link e assina um plano, vocês duas ganham 1 mês grátis. Depois do primeiro pagamento
+          dela, o suporte lança o mês na assinatura das duas.
+        </li>
+        <li>Na mesma tela você vê quantas colegas já criaram conta pelo seu link e quantas assinaram.</li>
+      </ul>
+    ),
+  },
+  {
     pergunta: "Como funciona o meu plano e o pagamento",
     resposta: (
       <ul className="list-disc pl-5 space-y-1">
