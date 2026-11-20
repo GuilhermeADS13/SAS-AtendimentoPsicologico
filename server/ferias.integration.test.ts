@@ -124,4 +124,28 @@ describe.runIf(RUN)("férias e folgas (Postgres real)", () => {
     expect(await a.ferias.listar()).toEqual([]);
     expect((await visitante.conhecer.perfil({ id: idDaA }))?.horarios).toHaveLength(2);
   });
+
+  it("não convida para um horário das férias, e convite de antes não vira consulta nelas", async () => {
+    await p.conhecer.salvarMeuPerfil({ cidade: "Recife", uf: "PE", nascimento: "1990-01-01", modalidade: null, oQueProcura: null, noMural: true });
+    // Convite feito ANTES das férias.
+    await a.conhecer.convidar({ pacienteId: ID.P, horarioId: horario.nasFerias });
+    const diaDoHorario = partesEmBrasilia(emDias(3)).data;
+    const novo = await a.ferias.criar({ inicio: diaDoHorario, fim: diaDoHorario });
+    // Com as férias marcadas, convidar para outro horário nelas é recusado.
+    await expect(a.conhecer.convidar({ pacienteId: ID.P, horarioId: horario.nasFerias })).rejects.toThrow();
+    // O paciente aceita o convite antigo: não cria consulta nas férias.
+    const [convite] = await sql`select id from "pedidosParaConhecer" where "therapistId" = ${idDaA} and origem = 'psicologa' and status = 'pendente'`;
+    await expect(p.conhecer.responderConvite({ id: convite.id, aceitar: true })).rejects.toThrow(/não está mais livre/);
+    const [{ total }] = await sql`select count(*)::int as total from appointments where "therapistId" = ${idDaA}`;
+    expect(total).toBe(0);
+    await a.ferias.remover({ id: novo.id });
+    await sql`delete from "pedidosParaConhecer" where "therapistId" = ${idDaA}`;
+  });
+
+  it("convidar para um horário das férias explica o motivo", async () => {
+    const diaDoHorario = partesEmBrasilia(emDias(10)).data;
+    const novo = await a.ferias.criar({ inicio: diaDoHorario, fim: diaDoHorario });
+    await expect(a.conhecer.convidar({ pacienteId: ID.P, horarioId: horario.depois })).rejects.toThrow(/cai nas suas férias/);
+    await a.ferias.remover({ id: novo.id });
+  });
 });

@@ -62,7 +62,19 @@ describe("regras do período", () => {
       { id: 4, scheduledAt: "2026-12-20T01:00:00Z", status: "scheduled" },
       { id: 5, scheduledAt: "2027-01-06T09:00:00-03:00", status: "scheduled" },
     ];
-    expect(consultasNasFerias(consultas, { inicio: "2026-12-20", fim: "2027-01-05" }).map((c) => c.id)).toEqual([2, 1]);
+    const antes = new Date("2026-12-01T12:00:00-03:00");
+    expect(consultasNasFerias(consultas, { inicio: "2026-12-20", fim: "2027-01-05" }, antes).map((c) => c.id)).toEqual([2, 1]);
+  });
+
+  it("a consulta do período que já passou não é desmarcada", () => {
+    const consultas = [
+      { id: 1, scheduledAt: "2026-11-12T10:00:00-03:00", status: "scheduled" },
+      { id: 2, scheduledAt: "2026-11-19T09:00:00-03:00", status: "scheduled" },
+      { id: 3, scheduledAt: "2026-11-19T18:00:00-03:00", status: "scheduled" },
+      { id: 4, scheduledAt: "2026-11-25T10:00:00-03:00", status: "scheduled" },
+    ];
+    const agora = new Date("2026-11-19T15:00:00-03:00");
+    expect(consultasNasFerias(consultas, { inicio: "2026-11-10", fim: "2026-11-30" }, agora).map((c) => c.id)).toEqual([3, 4]);
   });
 });
 

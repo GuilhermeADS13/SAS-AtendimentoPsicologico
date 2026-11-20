@@ -48,7 +48,7 @@ describe.runIf(RUN)("indique uma colega (Postgres real)", () => {
   }
 
   async function assinaturaDe(userId: number) {
-    const [a] = await sql`select a."pagoAte", a.ciclo, a."mesDaIndicacaoEm" from assinaturas a
+    const [a] = await sql`select a."pagoAte", a."testeAte", a.ciclo, a."mesDaIndicacaoEm" from assinaturas a
                           join therapists t on t.id = a."therapistId" where t."userId" = ${userId}`;
     return a;
   }
@@ -68,9 +68,10 @@ describe.runIf(RUN)("indique uma colega (Postgres real)", () => {
       (${ID.ADMIN}, ${`sb:indica-${ID.ADMIN}`}, 'Suporte', 'suporte-indica@teste.local', 'admin')`;
     const [t] = await sql`insert into therapists ("userId", crp) values (${ID.PAGOU}, 'INDICA-01') returning id`;
     await sql`insert into assinaturas ("therapistId", crp, "pagoAte") values (${t.id}, 'INDICA01', now() + interval '30 days')`;
-    // Quem indicou paga anual: o mês grátis não pode virar o ciclo dela para mensal.
+    // Quem indicou está no teste e nunca pagou, no ciclo anual: o mês grátis vai para o teste
+    // (não para o "pago até", senão ela passaria a contar como "já pagou") e não muda o ciclo.
     const [q] = await sql`insert into therapists ("userId", crp) values (${ID.QUEM_INDICA}, 'INDICA-02') returning id`;
-    await sql`insert into assinaturas ("therapistId", crp, "pagoAte", ciclo) values (${q.id}, 'INDICA02', now() + interval '10 days', 'anual')`;
+    await sql`insert into assinaturas ("therapistId", crp, "testeAte", ciclo) values (${q.id}, 'INDICA02', now() + interval '10 days', 'anual')`;
     await sql`insert into auth.users (id, email, raw_user_meta_data) values
       (${UID.pagou}, 'colega-pagou@teste.local', ${sql.json({ name: "Colega Que Pagou", origem })}),
       (${UID.soCriou}, 'colega-so-criou@teste.local', ${sql.json({ name: "Colega Só Criou", origem })}),
@@ -110,12 +111,17 @@ describe.runIf(RUN)("indique uma colega (Postgres real)", () => {
     const r = await adm.admin.darMesDaIndicacao({ userId: ID.PAGOU });
     const depois = { pagou: await assinaturaDe(ID.PAGOU), quem: await assinaturaDe(ID.QUEM_INDICA) };
     const dias = (de: Date, ate: Date) => (ate.getTime() - de.getTime()) / 86_400_000;
+    const somados = {
+      pagou: dias(new Date(antes.pagou.pagoAte), new Date(depois.pagou.pagoAte)),
+      quem: dias(new Date(antes.quem.testeAte), new Date(depois.quem.testeAte)),
+    };
     for (const quem of ["pagou", "quem"] as const) {
-      const somados = dias(new Date(antes[quem].pagoAte), new Date(depois[quem].pagoAte));
-      expect(somados, quem).toBeGreaterThanOrEqual(28);
-      expect(somados, quem).toBeLessThanOrEqual(31.1);
+      expect(somados[quem], quem).toBeGreaterThanOrEqual(28);
+      expect(somados[quem], quem).toBeLessThanOrEqual(31.1);
     }
     expect(new Date(r.indicada).getTime()).toBe(new Date(depois.pagou.pagoAte).getTime());
+    // Quem nunca pagou ganhou no teste: continua sem "pago até" e no ciclo dela.
+    expect(depois.quem.pagoAte).toBeNull();
     expect(depois.quem.ciclo).toBe("anual");
     expect(depois.pagou.mesDaIndicacaoEm).not.toBeNull();
     // Segunda vez não dá outro mês.

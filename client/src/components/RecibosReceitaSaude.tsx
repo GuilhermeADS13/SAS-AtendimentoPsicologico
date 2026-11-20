@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatarBRL } from "@shared/dinheiro";
-import { formatarData, partesEmBrasilia } from "@shared/datas";
+import { formatarData } from "@shared/datas";
 import { idadeEmAnos } from "@shared/conhecer";
 import { cpfValido, mascaraCpf } from "@shared/recibo";
 import {
@@ -39,7 +39,8 @@ export function RecibosReceitaSaude() {
   const [aberto, setAberto] = useState(false);
   const [{ ano, mes }, setMes] = useState(() => mesEmBrasilia(new Date()));
   const [modo, setModo] = useState<Modo>("pagamento");
-  const [desmarcadas, setDesmarcadas] = useState<Set<number>>(new Set());
+  // Consultas em que ela mudou a marcação padrão (paga e realizada entra; cancelada ou falta, não).
+  const [alteradas, setAlteradas] = useState<Set<number>>(new Set());
   const [cpfDigitado, setCpfDigitado] = useState<Record<number, string>>({});
   const [outroPagou, setOutroPagou] = useState<Record<number, boolean>>({});
   const [cpfDoPagador, setCpfDoPagador] = useState<Record<number, string>>({});
@@ -78,10 +79,13 @@ export function RecibosReceitaSaude() {
   const andarMes = (passo: number) => {
     const total = ano * 12 + (mes - 1) + passo;
     setMes({ ano: Math.floor(total / 12), mes: (total % 12) + 1 });
-    setDesmarcadas(new Set());
+    setAlteradas(new Set());
   };
 
   const dataDoRecibo = (c: (typeof consultas)[number]) => (modo === "pagamento" ? dataDoPagamento(c) : new Date(c.scheduledAt));
+  // Cancelada ou falta que foi paga começa DESMARCADA: o recibo diz "psicoterapia realizada".
+  const naoAconteceu = (c: (typeof consultas)[number]) => c.status === "cancelled" || c.status === "no_show";
+  const marcada = (c: (typeof consultas)[number]) => (alteradas.has(c.id) ? naoAconteceu(c) : !naoAconteceu(c));
 
   // As consultas do mês escolhido, por paciente.
   const grupos = useMemo(() => {
@@ -91,7 +95,9 @@ export function RecibosReceitaSaude() {
       if (m.ano !== ano || m.mes !== mes) continue;
       let g = porPaciente.get(c.patientId);
       if (!g) {
-        const idade = c.dateOfBirth ? idadeEmAnos(partesEmBrasilia(c.dateOfBirth).data) : null;
+        // O nascimento é gravado à meia-noite em UTC (ver formatarNascimento): lido em
+        // Brasília, viraria o dia anterior e erraria a idade na véspera do aniversário.
+        const idade = c.dateOfBirth ? idadeEmAnos(new Date(c.dateOfBirth).toISOString().slice(0, 10)) : null;
         g = {
           patientId: c.patientId,
           nome: `${c.firstName} ${c.lastName}`.trim(),
@@ -112,7 +118,7 @@ export function RecibosReceitaSaude() {
 
   const recibos: ReciboDoLote[] = grupos.flatMap((g) =>
     g.consultas
-      .filter((c) => !desmarcadas.has(c.id))
+      .filter(marcada)
       .map((c) => ({
         pagoEm: dataDoRecibo(c),
         consultaEm: new Date(c.scheduledAt),
@@ -125,10 +131,10 @@ export function RecibosReceitaSaude() {
   const cpfSalvoDela = perfil?.cpf ?? null;
   const problemas = problemasDoLote(recibos, cpfSalvoDela);
 
-  const alternar = (id: number, marcar: boolean) =>
-    setDesmarcadas((atual) => {
+  const alternar = (id: number) =>
+    setAlteradas((atual) => {
       const nova = new Set(atual);
-      if (marcar) nova.delete(id);
+      if (nova.has(id)) nova.delete(id);
       else nova.add(id);
       return nova;
     });
@@ -207,7 +213,7 @@ export function RecibosReceitaSaude() {
                     type="button"
                     onClick={() => {
                       setModo(o.valor);
-                      setDesmarcadas(new Set());
+                      setAlteradas(new Set());
                     }}
                     aria-pressed={modo === o.valor}
                     className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${
@@ -225,8 +231,9 @@ export function RecibosReceitaSaude() {
               </p>
             </fieldset>
 
-            {/* CPF dela: o mesmo do Carnê-Leão. */}
-            {cpfSalvoDela && cpfValido(cpfSalvoDela) ? (
+            {/* CPF dela: o mesmo do Carnê-Leão. O campo só aparece com o perfil carregado:
+                salvar o CPF regrava o endereço do recibo, e sem o perfil ele iria vazio. */}
+            {!perfil ? null : cpfSalvoDela && cpfValido(cpfSalvoDela) ? (
               <p className="text-sm text-muted-foreground">
                 Seu CPF no arquivo: <span className="font-medium text-foreground">{mascaraCpf(cpfSalvoDela)}</span>
               </p>
@@ -244,7 +251,7 @@ export function RecibosReceitaSaude() {
                   <Button
                     variant="outline"
                     disabled={!cpfValido(cpfDela) || salvarCpfDela.isPending}
-                    onClick={() => salvarCpfDela.mutate({ cpf: cpfDela, endereco: perfil?.endereco ?? "" })}
+                    onClick={() => salvarCpfDela.mutate({ cpf: cpfDela, endereco: perfil.endereco ?? "" })}
                   >
                     Salvar
                   </Button>
@@ -267,7 +274,7 @@ export function RecibosReceitaSaude() {
                   const digitado = cpfDigitado[g.patientId] ?? "";
                   const outro = pagouOutro(g);
                   const cpfPagador = cpfDoPagador[g.patientId] ?? "";
-                  const doGrupo = g.consultas.filter((c) => !desmarcadas.has(c.id)).reduce((s, c) => s + (c.price ?? 0), 0);
+                  const doGrupo = g.consultas.filter(marcada).reduce((s, c) => s + (c.price ?? 0), 0);
                   return (
                     <li key={g.patientId} className="space-y-3 rounded-lg border p-3">
                       <div className="flex items-start justify-between gap-3">
@@ -331,13 +338,16 @@ export function RecibosReceitaSaude() {
                               <span className="flex items-center gap-2">
                                 <input
                                   type="checkbox"
-                                  checked={!desmarcadas.has(c.id)}
-                                  onChange={(e) => alternar(c.id, e.target.checked)}
+                                  checked={marcada(c)}
+                                  onChange={() => alternar(c.id)}
                                   className="h-4 w-4 accent-primary"
                                 />
                                 {formatarData(dataDoRecibo(c))}
                                 {modo === "pagamento" && (
                                   <span className="text-muted-foreground">· consulta de {formatarData(c.scheduledAt)}</span>
+                                )}
+                                {naoAconteceu(c) && (
+                                  <span className="text-amber-700 dark:text-amber-400">· {c.status === "no_show" ? "falta" : "cancelada"}</span>
                                 )}
                               </span>
                               <span className="tabular-nums text-muted-foreground">{formatarBRL(c.price ?? 0)}</span>

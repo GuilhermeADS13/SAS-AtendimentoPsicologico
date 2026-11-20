@@ -662,7 +662,11 @@ export default function Appointments() {
         </Dialog>
         <ListaDeEspera pacientes={patients} />
         <LembretesDoDia consultas={appointments} nomeDoPaciente={patientName} linkDoLembrete={(a) => whatsappHref(a)} />
-        <FeriasDaAgenda consultas={appointments} nomeDoPaciente={patientName} />
+        <FeriasDaAgenda
+          consultas={appointments}
+          nomeDoPaciente={patientName}
+          linkDoCancelamento={(a) => whatsappHref(a, "cancelamento")}
+        />
         </div>
 
         {/* Período: Semana / Mês / Todas, com setas para andar (inclusive para a

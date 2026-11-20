@@ -2,6 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Palmtree, Trash2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,9 +32,12 @@ type Consulta = { id: number; patientId: number; scheduledAt: Date | string; sta
 export function FeriasDaAgenda<T extends Consulta>({
   consultas,
   nomeDoPaciente,
+  linkDoCancelamento,
 }: {
   consultas: T[];
   nomeDoPaciente: (patientId: number) => string;
+  /** WhatsApp com a mensagem de cancelamento (o da Agenda); null = paciente sem telefone. */
+  linkDoCancelamento: (consulta: T) => string | null;
 }) {
   const utils = trpc.useUtils();
   const [aberto, setAberto] = useState(false);
@@ -41,6 +45,10 @@ export function FeriasDaAgenda<T extends Consulta>({
   const [fim, setFim] = useState("");
   const [desmarcando, setDesmarcando] = useState<(PeriodoDeFerias & { id: number }) | null>(null);
   const [cancelando, setCancelando] = useState(false);
+  // Desmarcadas agora: o e-mail pode cair no spam ou estar desligado, então a janela
+  // mostra o WhatsApp de cada uma, como no cancelamento de uma consulta só.
+  const [avisar, setAvisar] = useState<T[]>([]);
+  const [avisados, setAvisados] = useState<Set<number>>(new Set());
 
   const { data: periodos = [] } = trpc.ferias.listar.useQuery();
   const hoje = hojeEmBrasilia();
@@ -68,20 +76,22 @@ export function FeriasDaAgenda<T extends Consulta>({
 
   const desmarcarTodas = async (consultasDoPeriodo: T[]) => {
     setCancelando(true);
-    try {
-      await Promise.all(consultasDoPeriodo.map((c) => cancelar.mutateAsync({ id: c.id, status: "cancelled" })));
+    const resultados = await Promise.allSettled(consultasDoPeriodo.map((c) => cancelar.mutateAsync({ id: c.id, status: "cancelled" })));
+    const desmarcadas = consultasDoPeriodo.filter((_, i) => resultados[i].status === "fulfilled");
+    const falharam = consultasDoPeriodo.length - desmarcadas.length;
+    if (desmarcadas.length) {
       toast.success(
-        consultasDoPeriodo.length === 1
-          ? "Consulta desmarcada. O paciente recebe o aviso de cancelamento."
-          : `${consultasDoPeriodo.length} consultas desmarcadas. Cada paciente recebe o aviso de cancelamento.`,
+        desmarcadas.length === 1
+          ? "Consulta desmarcada. Avise o paciente pelo WhatsApp também."
+          : `${desmarcadas.length} consultas desmarcadas. Avise cada paciente pelo WhatsApp também.`,
       );
-    } catch (e) {
-      toast.error(e instanceof Error && e.message ? e.message : "Nem todas as consultas foram desmarcadas. Confira a agenda.");
-    } finally {
-      utils.appointments.list.invalidate();
-      setCancelando(false);
-      setDesmarcando(null);
     }
+    if (falharam) toast.error(`${falharam === 1 ? "1 consulta não foi desmarcada" : `${falharam} consultas não foram desmarcadas`}. Confira na agenda.`);
+    setAvisar(desmarcadas);
+    setAvisados(new Set());
+    utils.appointments.list.invalidate();
+    setCancelando(false);
+    setDesmarcando(null);
   };
 
   const aDesmarcar = desmarcando ? consultasNasFerias(consultas, desmarcando) : [];
@@ -103,6 +113,46 @@ export function FeriasDaAgenda<T extends Consulta>({
               continuam na agenda até você desmarcar.
             </DialogDescription>
           </DialogHeader>
+
+          {avisar.length > 0 && (
+            <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50/60 p-3 dark:border-amber-800 dark:bg-amber-950/20">
+              <p className="text-sm font-semibold text-foreground">Avise pelo WhatsApp</p>
+              <p className="text-xs text-muted-foreground">
+                O aviso por e-mail pode cair no spam ou estar desligado pelo paciente. Abra a mensagem de cada um, confira e envie.
+              </p>
+              <ul className="space-y-1.5">
+                {avisar.map((c) => {
+                  const href = linkDoCancelamento(c);
+                  return (
+                    <li key={c.id} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="min-w-0 truncate">
+                        {formatarData(c.scheduledAt)} às {formatarHora(c.scheduledAt)} · {nomeDoPaciente(c.patientId)}
+                      </span>
+                      {!href ? (
+                        <span className="shrink-0 text-xs text-muted-foreground">Sem telefone</span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant={avisados.has(c.id) ? "ghost" : "outline"}
+                          className="h-8 shrink-0"
+                          onClick={() => {
+                            window.open(href, "_blank", "noopener");
+                            setAvisados((a) => new Set(a).add(c.id));
+                          }}
+                        >
+                          <WhatsAppIcon className="mr-1.5 size-4" />
+                          {avisados.has(c.id) ? "Avisado" : "Avisar"}
+                        </Button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              <Button variant="ghost" size="sm" className="h-8" onClick={() => setAvisar([])}>
+                Pronto
+              </Button>
+            </div>
+          )}
 
           <div className="space-y-3 rounded-lg border p-3">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -175,7 +225,10 @@ export function FeriasDaAgenda<T extends Consulta>({
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2">
-                <p>Cada paciente recebe o aviso de cancelamento, como quando você cancela uma consulta. Para remarcar, é na Agenda.</p>
+                <p>
+                  Cada paciente recebe o aviso de cancelamento por e-mail (quem não desligou esse aviso). Em seguida, eu mostro o
+                  botão para avisar cada um pelo WhatsApp. Para remarcar, é na Agenda.
+                </p>
                 <ul className="max-h-48 space-y-1 overflow-y-auto text-sm">
                   {aDesmarcar.map((c) => (
                     <li key={c.id}>

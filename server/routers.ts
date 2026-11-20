@@ -3345,6 +3345,8 @@ export const appRouter = router({
           .select({
             id: appointments.id,
             scheduledAt: appointments.scheduledAt,
+            // Cancelada ou falta paga entra desmarcada: a tela deixa ela decidir.
+            status: appointments.status,
             price: appointments.price,
             paidAt: appointments.paidAt,
             pagamentoInformadoEm: appointments.pagamentoInformadoEm,
