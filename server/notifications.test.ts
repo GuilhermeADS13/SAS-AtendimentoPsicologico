@@ -148,3 +148,26 @@ describe("e-mail de notificação: diz QUAL consulta", () => {
     expect(html).not.toContain("null");
   });
 });
+
+describe("e-mail do paciente que ainda não criou a conta", () => {
+  const semConta = (tipo: string, quem: "patient" | "therapist" = "patient") => ({ ...notificacao(tipo, quem), patientUserId: null });
+
+  it("consulta agendada e lembrete viram o convite para criar a conta", () => {
+    for (const tipo of ["new_appointment", "appointment_reminder"]) {
+      const { html } = composeEmail(semConta(tipo));
+      expect(html, tipo).toContain("Você ainda não tem conta no VozInterior");
+      expect(html, tipo).toContain("Criar minha conta");
+      expect(html, tipo).toContain("/login?criar=paciente");
+      // Nada do e-mail dele vai na URL.
+      expect(html, tipo).not.toMatch(/login\?[^"]*@/);
+    }
+  });
+
+  it("cancelamento, psicóloga e paciente com conta não mudam", () => {
+    expect(composeEmail(semConta("appointment_cancelled")).html).not.toContain("Criar minha conta");
+    expect(composeEmail(semConta("new_appointment", "therapist")).html).not.toContain("Criar minha conta");
+    const comConta = composeEmail({ ...notificacao("new_appointment", "patient"), patientUserId: 42 }).html;
+    expect(comConta).not.toContain("Criar minha conta");
+    expect(comConta).toContain("Confirmar presença");
+  });
+});
