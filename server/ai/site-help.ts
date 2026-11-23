@@ -187,7 +187,7 @@ function rotearPorPalavraChave(normalized: string): SiteHelpResponse {
       model: "site-help-local",
       topic: "video",
       content:
-        "Para entrar na consulta, abra “Minhas Consultas” e toque em “Entrar na sala” — o botão fica disponível a partir de 15 minutos antes do horário. Antes de entrar aparece uma tela para conferir câmera e microfone. Dentro da chamada, o botão “Mensagens” abre o chat com a sua psicóloga, e compartilhar a tela funciona no computador. Se a internet cair, a chamada tenta voltar sozinha — espere alguns segundos antes de sair. O acesso é só para quem participa da consulta.",
+        "Para entrar na consulta, abra “Minhas Consultas” e toque em “Entrar na sala”. Se chegar antes do horário, é só esperar a sua psicóloga na sala; consulta cancelada não abre. Antes de entrar aparece uma tela para conferir câmera e microfone. Dentro da chamada, o botão “Mensagens” abre o chat com a sua psicóloga, e compartilhar a tela funciona no computador. Se a internet cair, a chamada tenta voltar sozinha — espere alguns segundos antes de sair. O acesso é só para quem participa da consulta.",
     };
   }
 

@@ -59,11 +59,14 @@ describe("RAG e ferramentas clínicas", () => {
     expect(prompt).toMatch(/NUNCA cite nomes técnicos de ferramentas/);
   });
 
-  it("regra de valor: informa se definido, senão redireciona à psicóloga (sem inventar)", () => {
-    const prompt = clinicalSystemPrompt(therapistContext, 42);
-    expect(prompt).toContain("VALOR de consulta");
-    expect(prompt).toMatch(/NUNCA invente/);
-    expect(prompt).toContain("psicologoResponsavel");
+  it("regra de valor: informa se definido; senão, a psicóloga sabe onde definir e o paciente é levado a ela (sem inventar)", () => {
+    const daPsicologa = clinicalSystemPrompt(therapistContext, 42);
+    expect(daPsicologa).toContain("VALOR de consulta");
+    expect(daPsicologa).toMatch(/NUNCA invente/);
+    expect(daPsicologa).toContain("Preço padrão da consulta");
+    const doPaciente = clinicalSystemPrompt({ userId: 8, role: "patient" as const }, 42);
+    expect(doPaciente).toMatch(/NUNCA invente/);
+    expect(doPaciente).toContain("psicologoResponsavel");
   });
 
   it("no modo sem ferramentas, corta capacidades de escrita e o acesso a prontuários", () => {

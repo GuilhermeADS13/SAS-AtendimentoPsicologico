@@ -407,7 +407,9 @@ export function composeEmail(row: NotificacaoComContexto): { subject: string; ht
   const p = (texto: string) => `<p style="margin:0 0 12px">${texto}</p>`;
   const montar = (titulo: string, corpo: string, botao: string, observacao?: string) =>
     emailComMarca({ nome: destinatario, titulo, corpo: `${corpo}${detalhes}${agenda}`, botao: { texto: botao, url: link }, observacao, base });
-  const entrarNaSala = "No horário, entre por “Minhas Consultas” → “Entrar na sala” (o botão abre 15 minutos antes).";
+  // Não há trava de "15 minutos antes": a sala abre a qualquer hora (fecha para o
+  // paciente 2 h depois do fim, server/roomAccess.ts). A frase antiga prometia isso.
+  const entrarNaSala = "No horário, entre por “Minhas Consultas” → “Entrar na sala”.";
 
   switch (n.notificationType) {
     case "appointment_reminder":
