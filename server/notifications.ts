@@ -17,6 +17,8 @@ import { DIAS_DE_TESTE_GRATIS, DIAS_PARA_O_PRIMEIRO_PACIENTE, formatarReais, val
 import { googleCalendarUrl } from "../shared/calendario";
 import { detalhesDoEmail, emailComMarca, esc, primeiroNome } from "./emailLayout";
 import { avisoLigado, type TipoDeAviso } from "../shared/avisosPorEmail";
+import { formatarHora, instanteEmBrasilia, partesEmBrasilia } from "../shared/datas";
+import { hojeEmBrasilia, somarDias } from "../shared/lembretesDoDia";
 
 /**
  * Base dos links enviados por e-mail.
@@ -606,11 +608,11 @@ export async function sendAppointmentReminders() {
 
     const preferencias = new Map<number, unknown>();
     for (const record of upcomingAppointments) {
-      // Um lembrete para CADA lado: paciente E psicóloga. Cada um tem o seu dedup
-      // (por recipientType), para não repetir e-mail nem um bloquear o outro.
+      // Só o PACIENTE recebe o lembrete por consulta (2026-11-24, cota da Brevo): a
+      // psicóloga recebe um resumo por dia (enviarResumoDeAmanha), não um e-mail por
+      // consulta — ela já vê a agenda no sistema.
       const destinatarios: Array<{ tipo: "patient" | "therapist"; email: string | null; userId: number | null }> = [
         { tipo: "patient", email: record.patient.email, userId: record.patient.userId },
-        { tipo: "therapist", email: record.therapistEmail, userId: record.therapist.userId },
       ];
 
       for (const { tipo, email, userId } of destinatarios) {
@@ -660,6 +662,113 @@ async function querAviso(db: Db, userId: number | null | undefined, tipo: TipoDe
     cache.set(userId, linha?.avisos ?? null);
   }
   return avisoLigado(cache.get(userId), tipo);
+}
+
+/** A partir desta hora (Brasília) sai o resumo de amanhã para a psicóloga. */
+export const HORA_DO_RESUMO_DE_AMANHA = "18:00";
+
+export type ConsultaDoResumo = { scheduledAt: Date; duration: number | null; paciente: string };
+
+/** E-mail "Sua agenda de amanhã" da psicóloga: uma linha por consulta. */
+export function emailDoResumoDeAmanha(
+  psicologa: string | null,
+  consultas: ConsultaDoResumo[],
+  base: string = appUrl(),
+): { subject: string; html: string } {
+  const n = consultas.length;
+  const quantas = n === 1 ? "1 consulta" : `${n} consultas`;
+  const linhas = consultas
+    .map((c) => `<li style="margin:0 0 6px"><strong>${formatarHora(c.scheduledAt)}</strong> — ${esc(c.paciente || "Paciente")}${c.duration ? ` (${c.duration} min)` : ""}</li>`)
+    .join("");
+  return {
+    subject: `Amanhã: ${quantas}`,
+    html: emailComMarca({
+      nome: psicologa,
+      titulo: `Sua agenda de amanhã: ${quantas}`,
+      corpo: `<ul style="margin:0 0 12px;padding-left:20px">${linhas}</ul><p style="margin:0 0 12px;font-size:14px">Horários de Brasília. Para mandar o lembrete aos pacientes pelo WhatsApp, use “Lembretes de amanhã” na Agenda.</p>`,
+      botao: { texto: "Ver agendamentos", url: `${base}/appointments` },
+      base,
+    }),
+  };
+}
+
+/**
+ * Resumo diário da psicóloga (2026-11-24, cota da Brevo): no lugar de um lembrete por
+ * consulta, UM e-mail por dia com as consultas de amanhã, a partir das 18h de Brasília.
+ *
+ * Marca de "já enviado" sem tabela nova: a linha de lembrete (therapist) da PRIMEIRA
+ * consulta de amanhã, gravada como enviada. Se depois ela marcar uma consulta mais cedo,
+ * a primeira muda e sai um resumo atualizado — o que é útil, e raro.
+ */
+export async function enviarResumoDeAmanha(agora: Date = new Date()): Promise<number> {
+  if (partesEmBrasilia(agora).hora < HORA_DO_RESUMO_DE_AMANHA) return 0;
+  const db = await getDb();
+  if (!db) return 0;
+  const amanha = somarDias(hojeEmBrasilia(agora), 1);
+  const inicio = instanteEmBrasilia(amanha, "00:00");
+  const fim = instanteEmBrasilia(somarDias(amanha, 1), "00:00");
+  let enviados = 0;
+  try {
+    const linhas = await db
+      .select({
+        id: appointments.id,
+        therapistId: appointments.therapistId,
+        scheduledAt: appointments.scheduledAt,
+        duration: appointments.duration,
+        firstName: patients.firstName,
+        lastName: patients.lastName,
+        email: users.email,
+        nome: users.name,
+        userId: users.id,
+      })
+      .from(appointments)
+      .innerJoin(patients, eq(appointments.patientId, patients.id))
+      .innerJoin(therapists, eq(appointments.therapistId, therapists.id))
+      .innerJoin(users, eq(users.id, therapists.userId))
+      .where(and(eq(appointments.status, "scheduled"), gte(appointments.scheduledAt, inicio), lt(appointments.scheduledAt, fim)))
+      .orderBy(asc(appointments.scheduledAt));
+
+    const porPsicologa = new Map<number, typeof linhas>();
+    for (const l of linhas) porPsicologa.set(l.therapistId, [...(porPsicologa.get(l.therapistId) ?? []), l]);
+
+    const preferencias = new Map<number, unknown>();
+    for (const consultas of Array.from(porPsicologa.values())) {
+      const primeira = consultas[0];
+      if (!primeira.email) continue;
+      if (!(await querAviso(db, primeira.userId, "lembrete", preferencias))) continue;
+      const [ja] = await db
+        .select({ id: notifications.id })
+        .from(notifications)
+        .where(
+          and(
+            eq(notifications.appointmentId, primeira.id),
+            eq(notifications.notificationType, "appointment_reminder"),
+            eq(notifications.recipientType, "therapist"),
+          ),
+        )
+        .limit(1);
+      if (ja) continue;
+      const { subject, html } = emailDoResumoDeAmanha(
+        primeira.nome,
+        consultas.map((c) => ({ scheduledAt: c.scheduledAt, duration: c.duration, paciente: [c.firstName, c.lastName].filter(Boolean).join(" ") })),
+      );
+      const ok = await sendEmail(primeira.email, subject, html).catch(() => false);
+      // Sem e-mail configurado (ou falha): não grava a marca, tenta no próximo ciclo.
+      if (!ok) continue;
+      await db.insert(notifications).values({
+        appointmentId: primeira.id,
+        recipientType: "therapist",
+        recipientEmail: primeira.email,
+        notificationType: "appointment_reminder",
+        status: "sent",
+        sentAt: new Date(),
+      });
+      enviados++;
+    }
+  } catch (error) {
+    console.error("[Notifications] erro no resumo de amanhã:", error);
+  }
+  return enviados;
 }
 
 /**
@@ -736,9 +845,11 @@ export async function sendTherapistAlerts() {
       lote.sort((a, b) => a.appointment.scheduledAt.getTime() - b.appointment.scheduledAt.getTime());
       const primeira = lote[0];
       const ids = lote.map((r) => r.appointment.id);
+      // Só o PACIENTE (2026-11-24, cota da Brevo): quem marca é sempre a psicóloga (ou a
+      // Luma por ela); avisá-la do que ela mesma acabou de fazer gastava e-mail à toa. O
+      // aceite de convite da Rede já tem o e-mail próprio "Seu convite foi aceito".
       const destinatarios: Array<{ tipo: "patient" | "therapist"; email: string | null; userId: number | null }> = [
         { tipo: "patient", email: primeira.patientEmail, userId: primeira.patientUserId },
-        { tipo: "therapist", email: primeira.therapistEmail, userId: primeira.therapistUserId },
       ];
       for (const { tipo, email, userId } of destinatarios) {
         if (!email) continue;
@@ -966,6 +1077,7 @@ export function rodarCicloDeNotificacoes(): Promise<void> {
       do {
         rodarDeNovo = false;
         await sendAppointmentReminders();
+        await enviarResumoDeAmanha();
         await sendTherapistAlerts();
         await sendCancellationAlerts();
         const pedidos = await notifyPendingTherapistRequests();
@@ -1019,9 +1131,9 @@ export async function sendCancellationAlerts() {
 
     const preferencias = new Map<number, unknown>();
     for (const record of cancelledAppointments) {
+      // Só o PACIENTE (2026-11-24, cota da Brevo): só a psicóloga cancela consulta (botão,
+      // Luma ou Férias), então o e-mail para ela avisava o que ela mesma acabou de fazer.
       const pacienteQuer = await querAviso(db, record.patient.userId, "cancelamento", preferencias);
-      const psicologaQuer = await querAviso(db, record.therapist.userId, "cancelamento", preferencias);
-      // Enviar para paciente
       const patientNotification = await db
         .select()
         .from(notifications)
@@ -1042,31 +1154,6 @@ export async function sendCancellationAlerts() {
           notificationType: "appointment_cancelled",
           status: "pending",
         });
-      }
-
-      // Enviar para psicóloga
-      if (record.therapistUser.email && psicologaQuer) {
-        const therapistNotification = await db
-          .select()
-          .from(notifications)
-          .where(
-            and(
-              eq(notifications.appointmentId, record.appointment.id),
-              eq(notifications.notificationType, "appointment_cancelled"),
-              eq(notifications.recipientType, "therapist")
-            )
-          )
-          .limit(1);
-
-        if (therapistNotification.length === 0) {
-          await db.insert(notifications).values({
-            appointmentId: record.appointment.id,
-            recipientType: "therapist",
-            recipientEmail: record.therapistUser.email,
-            notificationType: "appointment_cancelled",
-            status: "pending",
-          });
-        }
       }
     }
   } catch (error) {

@@ -20,7 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { formatarDataHora } from "@shared/datas";
-import { TIPOS_DE_AVISO, type AvisosPorEmail } from "@shared/avisosPorEmail";
+import { AVISOS_DA_PSICOLOGA, TIPOS_DE_AVISO, type AvisosPorEmail } from "@shared/avisosPorEmail";
 
 /**
  * Seções de Configurações pedidas em 2026-11-04: aparelhos conectados, sair de
@@ -363,7 +363,8 @@ export function ComoInstalar({ aoInstalar }: { aoInstalar?: () => void }) {
 }
 
 /** Quais avisos de agenda a pessoa quer por e-mail. Salva a cada clique. */
-export function AvisosPorEmailCard() {
+export function AvisosPorEmailCard({ psicologa = false }: { psicologa?: boolean }) {
+  const tipos = psicologa ? AVISOS_DA_PSICOLOGA : TIPOS_DE_AVISO;
   const utils = trpc.useUtils();
   const { data: avisos, isLoading } = trpc.me.avisosPorEmail.useQuery();
   const salvar = trpc.me.definirAvisosPorEmail.useMutation({
@@ -402,7 +403,7 @@ export function AvisosPorEmailCard() {
             <p className="text-sm text-muted-foreground">Carregando...</p>
           ) : (
             <ul className="space-y-3">
-              {TIPOS_DE_AVISO.map((t) => (
+              {tipos.map((t) => (
                 <li key={t.id}>
                   <label className="flex cursor-pointer items-start gap-3">
                     <input

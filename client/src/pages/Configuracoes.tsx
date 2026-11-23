@@ -462,7 +462,7 @@ export default function Configuracoes() {
 
         <SegurancaDaConta confirmaAparelho={isTherapist || isAdmin} />
         <AplicativoCard />
-        <AvisosPorEmailCard />
+        <AvisosPorEmailCard psicologa={isTherapist} />
         <MeusDados psicologa={isTherapist || isAdmin} />
       </div>
 
