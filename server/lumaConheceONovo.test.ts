@@ -31,6 +31,15 @@ describe("Luma da psicóloga conhece as funções de novembro", () => {
     expect(mapa).toMatch(texto);
   });
 
+  it("sabe que o paciente precisa criar a conta, mesmo fora de pergunta de navegação", () => {
+    const semMapa = clinicalSystemPrompt(psicologa, undefined, true, undefined, { navegacao: false });
+    expect(semMapa).toMatch(/O paciente PRECISA criar a própria conta/);
+    expect(semMapa).toMatch(/NUNCA diga que o paciente não precisa se cadastrar/);
+    // Só para a psicóloga: o paciente logado já tem conta.
+    const doPaciente = clinicalSystemPrompt({ userId: 8, role: "patient" as const }, undefined, true, undefined, { navegacao: false });
+    expect(doPaciente).not.toMatch(/CONTA DO PACIENTE/);
+  });
+
   it("as perguntas sobre elas trazem o mapa", () => {
     for (const pergunta of [
       "como gero o recibo?",
