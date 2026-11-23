@@ -139,7 +139,10 @@ export default function Records() {
       setFormData(emptyForm);
       setTentouEnviar(false);
       setIsOpen(false);
-      toast.success("Paciente cadastrado. Quando ele criar a conta com esse e-mail, o acesso é liberado.");
+      toast.success("Paciente cadastrado, mas ainda sem conta no sistema", {
+        description: "Avise o paciente para criar a conta dele no VozInterior com este mesmo e-mail. Até lá ele fica “Aguardando cadastro”.",
+        duration: 10000,
+      });
     },
     onError: (e, vars) => {
       if (/já existe um paciente/i.test(e.message)) setEmailEmUso(vars.email.trim().toLowerCase());
@@ -335,10 +338,22 @@ export default function Records() {
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Novo paciente</DialogTitle>
-                  <DialogDescription>
-                    O paciente fica como “aguardando cadastro” até criar a conta com este mesmo e-mail.
-                  </DialogDescription>
+                  <DialogDescription>Os dados ficam na sua lista de pacientes.</DialogDescription>
                 </DialogHeader>
+                {/* Pedido do Guilherme (2026-11-23): uma psicóloga achou que o paciente
+                    não precisava se cadastrar. O aviso fica à vista, não só no subtítulo. */}
+                <div
+                  role="note"
+                  className="flex gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+                >
+                  <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  <p>
+                    <strong>O paciente ainda não fica cadastrado no sistema.</strong> Depois de salvar, ele precisa
+                    criar a conta dele no VozInterior com este mesmo e-mail. Até lá aparece como “Aguardando
+                    cadastro” e não vê as consultas nem as mensagens, e não entra na videochamada. Avise o paciente:
+                    o sistema não manda convite por e-mail.
+                  </p>
+                </div>
                 <form
                   className="space-y-4"
                   onSubmit={(e) => {
