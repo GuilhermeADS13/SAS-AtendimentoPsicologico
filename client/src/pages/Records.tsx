@@ -139,8 +139,8 @@ export default function Records() {
       setFormData(emptyForm);
       setTentouEnviar(false);
       setIsOpen(false);
-      toast.success("Paciente cadastrado, mas ainda sem conta no sistema", {
-        description: "Avise o paciente para criar a conta dele no VozInterior com este mesmo e-mail. Até lá ele fica “Aguardando cadastro”.",
+      toast.success("Paciente salvo. Ele ainda precisa se cadastrar no sistema", {
+        description: "Peça para ele criar a conta no VozInterior com este mesmo e-mail. Até lá fica “Aguardando cadastro” e só recebe os avisos das consultas por e-mail.",
         duration: 10000,
       });
     },
@@ -347,12 +347,24 @@ export default function Records() {
                   className="flex gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
                 >
                   <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-                  <p>
-                    <strong>O paciente ainda não fica cadastrado no sistema.</strong> Depois de salvar, ele precisa
-                    criar a conta dele no VozInterior com este mesmo e-mail. Até lá aparece como “Aguardando
-                    cadastro” e não vê as consultas nem as mensagens, e não entra na videochamada. Avise o paciente:
-                    o sistema não manda convite por e-mail.
-                  </p>
+                  <div className="space-y-1.5">
+                    <p className="font-semibold">O paciente ainda precisa se cadastrar no sistema.</p>
+                    <ul className="list-disc space-y-1 pl-4">
+                      <li>
+                        Depois de salvar, peça para ele criar a conta em vozinterior.app.br, em “Criar conta”, com{" "}
+                        <strong>este mesmo e-mail</strong>. A ficha se liga sozinha.
+                      </li>
+                      <li>
+                        Até lá ele aparece como “Aguardando cadastro”: não vê as consultas, não confirma presença, não
+                        troca mensagens e não entra na videochamada.
+                      </li>
+                      <li>
+                        Mesmo sem conta, ele já recebe por e-mail os avisos das consultas que você marcar: consulta
+                        agendada, lembrete um dia antes e consulta cancelada.
+                      </li>
+                      <li>O sistema não manda um convite para criar a conta: é você quem avisa o paciente.</li>
+                    </ul>
+                  </div>
                 </div>
                 <form
                   className="space-y-4"
