@@ -40,6 +40,19 @@ describe("Luma da psicóloga conhece as funções de novembro", () => {
     expect(doPaciente).not.toMatch(/CONTA DO PACIENTE/);
   });
 
+  it("o menu curto tem Rede e Indique uma colega, como o menu de verdade", () => {
+    const semMapa = clinicalSystemPrompt(psicologa, undefined, true, undefined, { navegacao: false });
+    expect(semMapa).toMatch(/Menu da profissional:[^.]*Rede;[^.]*Indique uma colega/);
+  });
+
+  it("valor não definido: para a psicóloga, diz onde definir (ela é a responsável)", () => {
+    for (const comFerramentas of [true, false]) {
+      const p = clinicalSystemPrompt(psicologa, undefined, comFerramentas, undefined, { navegacao: false });
+      expect(p).toMatch(/Preço padrão da consulta/);
+      expect(p).not.toMatch(/confirmar o valor com o\(a\) psicólogo\(a\) responsável|confirmar com o\(a\) psicólogo\(a\) responsável/);
+    }
+  });
+
   it("as perguntas sobre elas trazem o mapa", () => {
     for (const pergunta of [
       "como gero o recibo?",
@@ -73,6 +86,12 @@ describe("Luma da psicóloga conhece as funções de novembro", () => {
 });
 
 describe("Luma do paciente", () => {
+  it("entrar na sala: não promete trava de 15 minutos (o botão não tem)", () => {
+    const r = answerSiteHelp("como eu entro na videochamada da consulta?");
+    expect(r.content).toContain("Entrar na sala");
+    expect(r.content).not.toMatch(/15 minutos/);
+  });
+
   it("recibo: quem emite é a psicóloga", () => {
     for (const pergunta of ["como peço recibo para o imposto de renda?", "quero o recibo do que paguei"]) {
       const r = answerSiteHelp(pergunta);
