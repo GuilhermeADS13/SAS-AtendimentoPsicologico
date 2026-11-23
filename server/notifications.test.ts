@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { composeEmail } from "./notifications";
+import { composeEmail, emailDoResumoDeAmanha } from "./notifications";
 
 /**
  * A consulta de referência: 24/07/2026 às 15:00 no horário de Brasília
@@ -146,6 +146,22 @@ describe("e-mail de notificação: diz QUAL consulta", () => {
     expect(subject).toBe("Consulta cancelada");
     expect(html).not.toContain("undefined");
     expect(html).not.toContain("null");
+  });
+});
+
+describe("resumo de amanhã da psicóloga", () => {
+  it("uma linha por consulta, no horário de Brasília, com o total no assunto", () => {
+    const { subject, html } = emailDoResumoDeAmanha("Mariana Albuquerque", [
+      { scheduledAt: new Date("2026-11-25T11:00:00Z"), duration: 50, paciente: "Ana Lima" },
+      { scheduledAt: new Date("2026-11-25T17:00:00Z"), duration: 50, paciente: "Bruno <b>Costa</b>" },
+    ], "https://exemplo.test");
+    expect(subject).toBe("Amanhã: 2 consultas");
+    expect(html).toContain("08:00");
+    expect(html).toContain("14:00");
+    expect(html).toContain("Ana Lima");
+    expect(html).not.toContain("<b>Costa</b>"); // nome escapado
+    expect(html).toContain("https://exemplo.test/appointments");
+    expect(emailDoResumoDeAmanha(null, [{ scheduledAt: new Date(), duration: null, paciente: "Ana" }]).subject).toBe("Amanhã: 1 consulta");
   });
 });
 

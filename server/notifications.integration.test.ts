@@ -24,11 +24,14 @@ vi.mock("./mailer", async (importOriginal) => {
 });
 
 import {
+  enviarResumoDeAmanha,
   processPendingNotifications,
   sendAppointmentReminders,
   sendCancellationAlerts,
   sendTherapistAlerts,
 } from "./notifications";
+import { instanteEmBrasilia } from "../shared/datas";
+import { hojeEmBrasilia, somarDias } from "../shared/lembretesDoDia";
 
 const RUN = process.env.RUN_INTEGRATION === "true" && Boolean(process.env.DATABASE_URL);
 const USER_ID = 990301;
@@ -90,33 +93,67 @@ describe.runIf(RUN)("lembretes e avisos por e-mail (Postgres real)", () => {
     await sql.end();
   });
 
-  it("lembrete da véspera: um para cada lado, só para quem está nas próximas ~26h", async () => {
+  // Desde 2026-11-24 (cota da Brevo) a psicóloga não recebe esses três por consulta:
+  // ela recebe um resumo por dia (enviarResumoDeAmanha, testado abaixo).
+  it("lembrete da véspera: só para o paciente, só para quem está nas próximas ~26h", async () => {
     await sendAppointmentReminders();
     await sendAppointmentReminders(); // o ciclo roda a cada 15 min: não pode repetir
     const ids = [consulta.daquiA3h, consulta.daquiA30h, consulta.passada, consulta.cancelada, ...consulta.semanal];
-    expect(await avisos("appointment_reminder", ids)).toEqual([`${consulta.daquiA3h}:patient`, `${consulta.daquiA3h}:therapist`]);
+    expect(await avisos("appointment_reminder", ids)).toEqual([`${consulta.daquiA3h}:patient`]);
   });
 
-  it("consulta nova: um aviso por lote para cada lado, preso à primeira data; passada e cancelada não avisam", async () => {
+  it("consulta nova: um aviso por lote, só para o paciente, preso à primeira data; passada e cancelada não avisam", async () => {
     await sendTherapistAlerts();
     await sendTherapistAlerts();
     const ids = [consulta.daquiA3h, consulta.daquiA30h, consulta.passada, consulta.cancelada, ...consulta.semanal];
     expect(await avisos("new_appointment", ids)).toEqual([
-      `${consulta.daquiA3h}:patient`, `${consulta.daquiA3h}:therapist`,
-      `${consulta.daquiA30h}:patient`, `${consulta.daquiA30h}:therapist`,
-      `${consulta.semanal[0]}:patient`, `${consulta.semanal[0]}:therapist`,
+      `${consulta.daquiA3h}:patient`,
+      `${consulta.daquiA30h}:patient`,
+      `${consulta.semanal[0]}:patient`,
     ]);
   });
 
-  it("cancelamento avisa os dois lados uma vez, mesmo se o ciclo rodar de novo", async () => {
+  it("cancelamento avisa o paciente uma vez, mesmo se o ciclo rodar de novo", async () => {
     await sendCancellationAlerts();
     await sendCancellationAlerts();
-    expect(await avisos("appointment_cancelled", [consulta.cancelada])).toEqual([
-      `${consulta.cancelada}:patient`, `${consulta.cancelada}:therapist`,
-    ]);
+    expect(await avisos("appointment_cancelled", [consulta.cancelada])).toEqual([`${consulta.cancelada}:patient`]);
   });
 
-  it("quem desligou um aviso nas Configurações não recebe esse aviso; o outro lado recebe", async () => {
+  it("resumo de amanhã: um e-mail por dia para a psicóloga, só a partir das 18h de Brasília", async () => {
+    const hoje = hojeEmBrasilia();
+    const amanha = somarDias(hoje, 1);
+    const criadas: number[] = [];
+    for (const hora of ["07:00", "15:00"]) {
+      const [c] = await sql`insert into appointments ("therapistId", "patientId", "scheduledAt", duration, "createdAt")
+                            values (${therapistId}, ${patientId}, ${instanteEmBrasilia(amanha, hora)}, 50, now() - interval '3 days') returning id`;
+      criadas.push(c.id);
+    }
+    const antes = correio.enviados.filter((e) => e === EMAIL_PSI).length;
+
+    // O banco de teste pode ter outras psicólogas com consulta amanhã: conta só os desta.
+    const dela = () => correio.enviados.filter((e) => e === EMAIL_PSI).length - antes;
+    expect(await enviarResumoDeAmanha(instanteEmBrasilia(hoje, "17:00"))).toBe(0); // antes das 18h
+    expect(dela()).toBe(0);
+    await enviarResumoDeAmanha(instanteEmBrasilia(hoje, "18:30"));
+    expect(dela()).toBe(1);
+    await enviarResumoDeAmanha(instanteEmBrasilia(hoje, "19:00")); // o ciclo roda de novo: não repete
+    expect(dela()).toBe(1);
+
+    // A marca fica na PRIMEIRA consulta de amanhã (depende da hora em que o teste roda).
+    const [primeira] = await sql`select id from appointments where "therapistId" = ${therapistId} and status = 'scheduled'
+                                 and "scheduledAt" >= ${instanteEmBrasilia(amanha, "00:00")} order by "scheduledAt" limit 1`;
+    const marcas = await sql`select "appointmentId", status from notifications
+                             where "recipientType" = 'therapist' and "notificationType" = 'appointment_reminder'
+                             and "appointmentId" in (select id from appointments where "therapistId" = ${therapistId})`;
+    expect(marcas.map((m) => [m.appointmentId, m.status])).toEqual([[primeira.id, "sent"]]);
+
+    await sql`delete from notifications where "recipientType" = 'therapist' and "notificationType" = 'appointment_reminder'
+              and "appointmentId" in (select id from appointments where "therapistId" = ${therapistId})`;
+    await sql`delete from notifications where "appointmentId" in ${sql(criadas)}`;
+    await sql`delete from appointments where id in ${sql(criadas)}`;
+  });
+
+  it("quem desligou um aviso nas Configurações não recebe esse aviso", async () => {
     // Paciente com conta que desligou o lembrete e o aviso de cancelamento.
     await sql`insert into users (id, "openId", name, email, role, "avisosPorEmail")
               values (${USER_ID + 1}, 'sb:notif-pac', 'Pac Prefere', 'pac-prefere@teste.local', 'user', ${sql.json({ lembrete: false, cancelamento: false })})`;
@@ -129,21 +166,24 @@ describe.runIf(RUN)("lembretes e avisos por e-mail (Postgres real)", () => {
     await sendAppointmentReminders();
     await sendTherapistAlerts();
     await sendCancellationAlerts();
-    expect(await avisos("appointment_reminder", [lembrar.id])).toEqual([`${lembrar.id}:therapist`]);
-    expect(await avisos("appointment_cancelled", [cancelar.id])).toEqual([`${cancelar.id}:therapist`]);
-    // "Consulta marcada" ele deixou ligado: chega para os dois.
-    expect(await avisos("new_appointment", [lembrar.id])).toEqual([`${lembrar.id}:patient`, `${lembrar.id}:therapist`]);
+    expect(await avisos("appointment_reminder", [lembrar.id])).toEqual([]);
+    expect(await avisos("appointment_cancelled", [cancelar.id])).toEqual([]);
+    // "Consulta marcada" ele deixou ligado: chega.
+    expect(await avisos("new_appointment", [lembrar.id])).toEqual([`${lembrar.id}:patient`]);
   });
 
   it("a fila marca enviado, falha (com o motivo) ou deixa pendente quando o e-mail não está configurado", async () => {
-    correio.falhar.add(EMAIL_PSI);
+    const PREFERE = "pac-prefere@teste.local";
+    correio.falhar.add(PREFERE);
     await processPendingNotifications(500);
     const status = async (email: string) =>
       (await sql`select distinct n.status from notifications n join appointments a on a.id = n."appointmentId"
                  where a."therapistId" = ${therapistId} and n."recipientEmail" = ${email}`).map((l) => l.status);
     expect(await status(EMAIL_PAC)).toEqual(["sent"]);
-    expect(await status(EMAIL_PSI)).toEqual(["failed"]);
-    const [erro] = await sql`select "errorMessage" from notifications where "recipientEmail" = ${EMAIL_PSI} limit 1`;
+    expect(await status(PREFERE)).toEqual(["failed"]);
+    // A psicóloga não entra mais na fila de avisos por consulta.
+    expect(await status(EMAIL_PSI)).toEqual([]);
+    const [erro] = await sql`select "errorMessage" from notifications where "recipientEmail" = ${PREFERE} limit 1`;
     expect(erro.errorMessage).toContain("caixa cheia");
 
     // Sem e-mail configurado (dry-run): fica pendente para sair depois.
