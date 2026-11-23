@@ -334,6 +334,11 @@ type NotificacaoComContexto = {
   patientLastName: string | null;
   therapistName: string | null;
   /**
+   * Conta do paciente no app. `null` = ficha "Aguardando cadastro" (ele ainda não criou
+   * a conta): o e-mail dele vira também o convite para criar. `undefined` = não sabido.
+   */
+  patientUserId?: number | null;
+  /**
    * Consulta nova SEMANAL: todas as datas criadas junto com esta (inclusive ela).
    * Vira UM e-mail com a lista, em vez de um e-mail por semana.
    */
@@ -405,8 +410,24 @@ export function composeEmail(row: NotificacaoComContexto): { subject: string; ht
   const sufixo = [aOutraPessoa, curto].filter(Boolean).join(" — ");
   const assunto = (titulo: string) => (sufixo ? `${titulo}: ${sufixo}` : titulo);
   const p = (texto: string) => `<p style="margin:0 0 12px">${texto}</p>`;
+  // Paciente que ainda não criou a conta (2026-11-23, pedido do Guilherme): o e-mail
+  // da consulta agendada e o lembrete viram também o convite para criar a conta.
+  // No cancelamento não: não há consulta para ver, e "crie sua conta" ali confunde.
+  const semConta = !paraPsicologa && row.patientUserId === null && n.notificationType !== "appointment_cancelled";
+  const convite = semConta
+    ? p(
+        "<strong>Você ainda não tem conta no VozInterior.</strong> Para ver a consulta, confirmar presença e entrar na videochamada, crie a sua conta com <strong>este mesmo e-mail</strong>. Leva um minuto, e a consulta aparece em “Minhas Consultas”.",
+      )
+    : "";
   const montar = (titulo: string, corpo: string, botao: string, observacao?: string) =>
-    emailComMarca({ nome: destinatario, titulo, corpo: `${corpo}${detalhes}${agenda}`, botao: { texto: botao, url: link }, observacao, base });
+    emailComMarca({
+      nome: destinatario,
+      titulo,
+      corpo: `${corpo}${convite}${detalhes}${agenda}`,
+      botao: semConta ? { texto: "Criar minha conta", url: `${base}/login?criar=paciente` } : { texto: botao, url: link },
+      observacao,
+      base,
+    });
   // Não há trava de "15 minutos antes": a sala abre a qualquer hora (fecha para o
   // paciente 2 h depois do fim, server/roomAccess.ts). A frase antiga prometia isso.
   const entrarNaSala = "No horário, entre por “Minhas Consultas” → “Entrar na sala”.";
@@ -492,6 +513,7 @@ export async function processPendingNotifications(
       duration: appointments.duration,
       patientFirstName: patients.firstName,
       patientLastName: patients.lastName,
+      patientUserId: patients.userId,
       therapistName: users.name,
       patientId: appointments.patientId,
       appointmentCreatedAt: appointments.createdAt,

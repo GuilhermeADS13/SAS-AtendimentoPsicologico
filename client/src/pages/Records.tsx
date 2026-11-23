@@ -140,7 +140,7 @@ export default function Records() {
       setTentouEnviar(false);
       setIsOpen(false);
       toast.success("Paciente salvo. Ele ainda precisa se cadastrar no sistema", {
-        description: "Peça para ele criar a conta no VozInterior com este mesmo e-mail. Até lá fica “Aguardando cadastro” e só recebe os avisos das consultas por e-mail.",
+        description: "Peça para ele criar a conta no VozInterior com este mesmo e-mail. Quando você marcar uma consulta, o e-mail dela já leva o botão “Criar minha conta”.",
         duration: 10000,
       });
     },
@@ -362,7 +362,10 @@ export default function Records() {
                         Mesmo sem conta, ele já recebe por e-mail os avisos das consultas que você marcar: consulta
                         agendada, lembrete um dia antes e consulta cancelada.
                       </li>
-                      <li>O sistema não manda um convite para criar a conta: é você quem avisa o paciente.</li>
+                      <li>
+                        O e-mail da consulta agendada e o lembrete já trazem o botão “Criar minha conta”. Sem consulta
+                        marcada, nenhum e-mail sai: aí é você quem avisa o paciente.
+                      </li>
                     </ul>
                   </div>
                 </div>
