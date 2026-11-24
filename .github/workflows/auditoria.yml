@@ -1,0 +1,36 @@
+name: Auditoria de dependências
+
+# Falha publicada depois do último commit não aparece em PR nenhum: em 24/11/2026
+# havia 6 (2 altas) acumuladas sem ninguém ver. Por isso roda também toda semana;
+# quando o agendado falha, o GitHub manda e-mail ao dono do repositório.
+# Barra só "high" e "critical": moderada vira tarefa, não trava deploy.
+# Falso positivo justificado vai em pnpm.auditConfig.ignoreGhsas (package.json).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Segunda, 9h UTC (6h em Brasília).
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+jobs:
+  auditoria:
+    name: pnpm audit (produção)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Ativar pnpm (corepack)
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.4.1 --activate
+
+      # O audit lê o pnpm-lock.yaml: não precisa instalar nada.
+      - name: Vulnerabilidades altas ou críticas
+        run: pnpm audit --prod --audit-level high
