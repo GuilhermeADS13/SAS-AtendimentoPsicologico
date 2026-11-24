@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, lt, sql } from "drizzle-orm";
 import { aparelhosConfiaveis, codigosDeAparelho } from "../drizzle/schema";
+import { registrarEventoDeSeguranca } from "./alertaDeSeguranca";
 import { getDb } from "./db";
 import { emailComMarca } from "./emailLayout";
 import { sendEmail } from "./mailer";
@@ -155,7 +156,10 @@ export async function confirmarCodigoDeAparelho(
   if (!linha) throw new Error("Código vencido ou tentativas esgotadas. Peça um novo.");
 
   const certo = timingSafeEqual(Buffer.from(hash(codigo.trim())), Buffer.from(linha.codigoHash));
-  if (!certo) throw new Error("Código incorreto. Confira e tente de novo.");
+  if (!certo) {
+    registrarEventoDeSeguranca("codigoErrado");
+    throw new Error("Código incorreto. Confira e tente de novo.");
+  }
 
   await db.delete(codigosDeAparelho).where(eq(codigosDeAparelho.userId, userId));
   await db.delete(aparelhosConfiaveis).where(and(eq(aparelhosConfiaveis.userId, userId), lt(aparelhosConfiaveis.expiraEm, agora)));
