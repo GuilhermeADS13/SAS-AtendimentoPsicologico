@@ -10,6 +10,7 @@ import { createContext } from "./context";
 import { agentRuntimeMetricsToPrometheus } from "../ai/runtime-metrics";
 import { serveStatic, setupVite } from "./vite";
 import { cabecalhosDeSeguranca, ehChamadaDaLuma, limitarConexoes, limitarRequisicoes } from "./seguranca";
+import { registrarEventoDeSeguranca } from "../alertaDeSeguranca";
 import { ehErroDeBanco } from "./trpc";
 import { rotaDoGif } from "../gifs";
 import { levarAoDominioProprio, robotsTxt, sitemapXml, urlBase } from "../paginaHtml";
@@ -53,6 +54,7 @@ async function startServer() {
       return;
     }
     if ((pathname === PRESENCE_PATH || pathname === SIGNALING_PATH) && !podeConectar(req)) {
+      registrarEventoDeSeguranca("limiteDoVideo");
       socket.write("HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\n\r\n");
       socket.destroy();
       return;
@@ -155,6 +157,7 @@ async function startServer() {
     janelaMs: 60_000,
     maximo: 240,
     mensagem: "Muitas requisicoes. Espere um minuto e tente de novo.",
+    aoBloquear: () => void registrarEventoDeSeguranca("limiteDaApi"),
   }));
 
   // tRPC API

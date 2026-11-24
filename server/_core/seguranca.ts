@@ -86,7 +86,13 @@ const MAXIMO_DE_CLIENTES = 10_000;
  * Limite por janela fixa. Simples de propósito: o objetivo é barrar laço
  * automatizado e força bruta, não modelar tráfego com precisão.
  */
-export function limitarRequisicoes(opcoes: { janelaMs: number; maximo: number; mensagem: string }) {
+export function limitarRequisicoes(opcoes: {
+  janelaMs: number;
+  maximo: number;
+  mensagem: string;
+  /** Chamado uma vez por cliente por janela, no primeiro pedido barrado. */
+  aoBloquear?: () => void;
+}) {
   const baldes = new Map<string, Janela>();
 
   return function limitador(req: Request, res: Response, next: NextFunction) {
@@ -110,6 +116,7 @@ export function limitarRequisicoes(opcoes: { janelaMs: number; maximo: number; m
 
     janela.usos += 1;
     if (janela.usos > opcoes.maximo) {
+      if (janela.usos === opcoes.maximo + 1) opcoes.aoBloquear?.();
       const segundos = Math.max(1, Math.ceil((janela.expiraEm - agora) / 1000));
       res.setHeader("Retry-After", String(segundos));
       res.status(429).json({ error: opcoes.mensagem, retryAfter: segundos });

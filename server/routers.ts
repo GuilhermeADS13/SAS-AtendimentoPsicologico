@@ -107,6 +107,7 @@ const nascimentoOpcional = z
 import { idDoGif } from "../shared/gif";
 import { podeApagar, podeEditar } from "../shared/chatMensagem";
 import { buscarGifs, gifsConfigurados } from "./gifs";
+import { registrarEventoDeSeguranca } from "./alertaDeSeguranca";
 
 /**
  * Limite do "esqueci minha senha", que é PÚBLICO: um envio a cada 2 min por
@@ -1397,6 +1398,7 @@ export const appRouter = router({
           .returning({ id: users.id });
         if (!contada) throw new Error("Muitas tentativas. Peça um novo código.");
         if (hashDaTrocaDeEmail(input.codigoAtual, input.codigoNovo) !== p.hash) {
+          registrarEventoDeSeguranca("codigoErrado");
           throw new Error("Código incorreto. Confira os dois códigos: o do e-mail atual e o do novo.");
         }
         // Código certo: troca no Supabase (admin, já confirmado) e no nosso banco.
