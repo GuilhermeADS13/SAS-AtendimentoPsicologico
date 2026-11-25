@@ -46,7 +46,11 @@ export function RecibosReceitaSaude() {
   const [cpfDoPagador, setCpfDoPagador] = useState<Record<number, string>>({});
   const [cpfDela, setCpfDela] = useState("");
 
-  const { data: consultas = [], isLoading } = trpc.appointments.recibosParaReceitaSaude.useQuery({ ano }, { enabled: aberto });
+  // `?? []` e não valor padrão na desestruturação, que só cobre undefined: a resposta pode vir
+  // null (a demonstração respondia null e a janela derrubava o Financeiro).
+  const doAno = trpc.appointments.recibosParaReceitaSaude.useQuery({ ano }, { enabled: aberto });
+  const consultas = doAno.data ?? [];
+  const isLoading = doAno.isLoading;
   const { data: perfil } = trpc.therapists.me.useQuery(undefined, { enabled: aberto });
 
   // O CPF salvo entra uma vez por abertura: buscar o perfil de novo não apaga o que ela digita.
