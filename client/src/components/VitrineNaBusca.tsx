@@ -10,6 +10,7 @@ import {
   type Modalidade,
 } from "@shared/conhecer";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
+import { primeiraMaiuscula } from "@/components/BuscaDePsicologas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,8 +18,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { CalendarPlus, ExternalLink, Search, Trash2 } from "lucide-react";
 
-const FORMATO_DIA = new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
+// Dia da semana por extenso (pedido do Guilherme, 25/11): "Quinta-feira, 10/12" na lista e no resumo.
+const FORMATO_DIA = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit" });
+const FORMATO_SEMANA = new Intl.DateTimeFormat("pt-BR", { weekday: "long" });
 const FORMATO_HORA = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+/** "Quinta-feira, 10/12": o CSS capitalize viraria "Quinta-Feira" em alguns navegadores. */
+const diaPorExtenso = (d: Date) => primeiraMaiuscula(FORMATO_DIA.format(d));
+
+/** O instante escolhido no formulário ("aaaa-mm-dd" + "hh:mm", fuso do aparelho), ou null. */
+function instanteEscolhido(dia: string, hora: string): Date | null {
+  if (!dia) return null;
+  const d = new Date(`${dia}T${hora || "12:00"}`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
 /** "aaaa-mm-dd" de amanhã, no fuso do aparelho (o mesmo da Agenda). */
 function amanha(): string {
@@ -52,6 +65,7 @@ function Vitrine({ v }: { v: DadosDaVitrine }) {
   const [dia, setDia] = useState(amanha());
   const [hora, setHora] = useState("09:00");
   const [duracao, setDuracao] = useState(DURACAO_PRIMEIRA_CONVERSA);
+  const escolhido = instanteEscolhido(dia, hora);
 
   const recarregar = () => utils.conhecer.minhaVitrine.invalidate();
   const salvar = trpc.conhecer.salvarVitrine.useMutation({
@@ -217,7 +231,10 @@ function Vitrine({ v }: { v: DadosDaVitrine }) {
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <div className="space-y-1.5">
-              <Label htmlFor="dia-conversa">Dia</Label>
+              <Label htmlFor="dia-conversa">
+                Dia
+                {escolhido && <span className="font-normal text-muted-foreground"> · {FORMATO_SEMANA.format(escolhido)}</span>}
+              </Label>
               <Input id="dia-conversa" type="date" value={dia} onChange={(e) => setDia(e.target.value)} className="w-40" />
             </div>
             <div className="space-y-1.5">
@@ -254,6 +271,15 @@ function Vitrine({ v }: { v: DadosDaVitrine }) {
               Abrir horário
             </Button>
           </div>
+          {escolhido && hora && (
+            <p className="text-sm text-muted-foreground">
+              Vai abrir:{" "}
+              <strong className="font-medium text-foreground">
+                {diaPorExtenso(escolhido)}, às {FORMATO_HORA.format(escolhido)}
+              </strong>{" "}
+              · {duracao} min
+            </p>
+          )}
 
           {v.horarios.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhum horário aberto ainda.</p>
@@ -264,8 +290,8 @@ function Vitrine({ v }: { v: DadosDaVitrine }) {
                 return (
                   <li key={h.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
                     <span className="tabular-nums text-foreground">
-                      <span className="capitalize">{FORMATO_DIA.format(inicio)}</span> · {FORMATO_HORA.format(inicio)}{" "}
-                      <span className="text-muted-foreground">({h.duracao} min)</span>
+                      {diaPorExtenso(inicio)} · {FORMATO_HORA.format(inicio)}{" "}
+                      <span className="whitespace-nowrap text-muted-foreground">({h.duracao} min)</span>
                     </span>
                     {h.pedido === "aceito" ? (
                       <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">Confirmado</span>
