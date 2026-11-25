@@ -8,6 +8,7 @@ import type { RouterOutputs } from "./trpc";
 import { prontuarioDeExemplo } from "./prontuarioExemplo";
 import { planoEfetivo, valorDoPlano } from "@shared/precos";
 import { avisosComPadrao } from "@shared/avisosPorEmail";
+import { origemDeIndicacao } from "@shared/indicacao";
 
 type O = RouterOutputs;
 const DIA = 86_400_000;
@@ -178,6 +179,31 @@ export function respostaDaDemonstracao(caminho: string, entrada: unknown): unkno
     // Sem esta resposta a Agenda inteira quebrava na demonstração (19/11 a 25/11/2026).
     case "ferias.listar":
       return [] satisfies O["ferias"]["listar"];
+    // "Gerar arquivo do mês" (Financeiro) também quebrava sem resposta. As consultas pagas da
+    // agenda fictícia, sem CPF: a tela mostra onde completar, como mostraria de verdade.
+    case "appointments.recibosParaReceitaSaude":
+      return agenda()
+        .filter((a) => a.paid && (a.price ?? 0) > 0 && new Date(a.scheduledAt).getFullYear() === Number(e.ano))
+        .map((a) => {
+          const p = pacienteDoId(a.patientId)!;
+          return {
+            id: a.id,
+            scheduledAt: a.scheduledAt,
+            status: a.status,
+            price: a.price,
+            paidAt: a.paidAt,
+            pagamentoInformadoEm: a.pagamentoInformadoEm,
+            patientId: p.id,
+            firstName: p.firstName,
+            lastName: p.lastName,
+            cpf: null,
+            dateOfBirth: null,
+            guardianName: null,
+          };
+        }) satisfies O["appointments"]["recibosParaReceitaSaude"];
+    // "Indique uma colega": sem isto o link aparecia vazio.
+    case "indicacao.minha":
+      return { origem: origemDeIndicacao(ID_USUARIA), contagem: { criaram: 0, assinaram: 0 } } satisfies O["indicacao"]["minha"];
     case "listaDeEspera.listar":
       return [
         { patientId: 105, firstName: "Helena", lastName: "Duarte", phone: "(81) 90000-1005", diasDaSemana: [], periodos: ["manha"], observacao: "Prefere online", createdAt: dia(-3, 9) },
