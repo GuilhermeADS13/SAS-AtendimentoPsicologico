@@ -175,6 +175,9 @@ export function respostaDaDemonstracao(caminho: string, entrada: unknown): unkno
       return [];
     case "documents.getByPatient":
       return exemplo.documentos as unknown as O["documents"]["getByPatient"];
+    // Sem esta resposta a Agenda inteira quebrava na demonstração (19/11 a 25/11/2026).
+    case "ferias.listar":
+      return [] satisfies O["ferias"]["listar"];
     case "listaDeEspera.listar":
       return [
         { patientId: 105, firstName: "Helena", lastName: "Duarte", phone: "(81) 90000-1005", diasDaSemana: [], periodos: ["manha"], observacao: "Prefere online", createdAt: dia(-3, 9) },
