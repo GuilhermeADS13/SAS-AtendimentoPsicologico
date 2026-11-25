@@ -8,7 +8,7 @@ import { respostaDaDemonstracao } from "../client/src/lib/dadosDaDemonstracao";
 
 describe("dados da demonstração", () => {
   it("responde as rotas que o painel, a agenda, os pacientes e o financeiro leem", () => {
-    for (const rota of ["auth.me", "therapists.me", "patients.list", "appointments.list", "assinatura.minha", "me.avisosPorEmail", "me.contato", "listaDeEspera.listar"]) {
+    for (const rota of ["auth.me", "therapists.me", "patients.list", "appointments.list", "assinatura.minha", "me.avisosPorEmail", "me.contato", "listaDeEspera.listar", "ferias.listar"]) {
       expect(respostaDaDemonstracao(rota, undefined), rota).not.toBeNull();
     }
     expect(respostaDaDemonstracao("patients.get", { id: 101 })).toMatchObject({ id: 101, firstName: "Ana Beatriz" });

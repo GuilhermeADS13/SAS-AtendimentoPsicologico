@@ -50,7 +50,9 @@ export function FeriasDaAgenda<T extends Consulta>({
   const [avisar, setAvisar] = useState<T[]>([]);
   const [avisados, setAvisados] = useState<Set<number>>(new Set());
 
-  const { data: periodos = [] } = trpc.ferias.listar.useQuery();
+  // `?? []` e não valor padrão na desestruturação: este só vale para undefined, e a resposta
+  // pode vir null (a demonstração respondia null e a Agenda inteira quebrava).
+  const periodos = trpc.ferias.listar.useQuery().data ?? [];
   const hoje = hojeEmBrasilia();
   const deFeriasHoje = periodos.some((p) => p.inicio <= hoje && hoje <= p.fim);
 
